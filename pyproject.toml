@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repo-save-editor"
+version = "0.1.0"
+description = "A desktop save editor for R.E.P.O. .es3 save files."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Hans Valerie"}
+]
+dependencies = [
+    "cryptography>=43,<46",
+]
+keywords = ["repo", "save-editor", "es3", "unity", "easy-save-3"]
+
+[project.scripts]
+repo-save-editor = "repo_save_editor.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
