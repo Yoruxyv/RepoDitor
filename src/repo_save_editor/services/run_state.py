@@ -12,15 +12,21 @@ RUN_STATS: tuple[tuple[str, str], ...] = (
     ("Currency", "currency"),
     ("Lives", "lives"),
     ("Total Haul", "totalHaul"),
-    ("Save Level", "save level"),
 )
 
 
 class ResumeLocation(IntEnum):
-    """Known values for the save's resume-location selector."""
+    """Confirmed values for the save's resume-location selector."""
 
     NORMAL = 0
     SHOP = 1
+
+
+RESUME_LOCATION_LABELS: dict[ResumeLocation, str] = {
+    ResumeLocation.NORMAL: "Normal",
+    ResumeLocation.SHOP: "Shop / Service Station",
+}
+RESUME_LOCATION_OPTIONS: tuple[str, ...] = tuple(RESUME_LOCATION_LABELS.values())
 
 
 def get_run_stat(data: SaveData, key: str) -> int:
@@ -49,6 +55,38 @@ def set_display_level(data: SaveData, value: int) -> None:
     if value < 1:
         raise ValueError("Level must be at least 1.")
     set_run_stat(data, "level", value - 1)
+
+
+def get_resume_location_label(data: SaveData) -> str:
+    """Return a friendly label for the raw ``save level`` value."""
+    raw = get_run_stat(data, "save level")
+    try:
+        location = ResumeLocation(raw)
+    except ValueError:
+        return f"Unknown ({raw})"
+    return RESUME_LOCATION_LABELS[location]
+
+
+def set_resume_location_from_label(data: SaveData, label: str) -> None:
+    """Store a resume location selected by an interface.
+
+    Unknown values are accepted only in the exact ``Unknown (<int>)`` form so
+    loading and saving a future game value does not silently rewrite it.
+    """
+    for location, known_label in RESUME_LOCATION_LABELS.items():
+        if label == known_label:
+            set_run_stat(data, "save level", int(location))
+            return
+
+    if label.startswith("Unknown (") and label.endswith(")"):
+        try:
+            raw = int(label.removeprefix("Unknown (").removesuffix(")"))
+        except ValueError as exc:
+            raise ValueError("Resume Location is invalid.") from exc
+        set_run_stat(data, "save level", raw)
+        return
+
+    raise ValueError("Resume Location must be Normal or Shop / Service Station.")
 
 
 def get_run_stat_for_display(data: SaveData, key: str) -> int:
