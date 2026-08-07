@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.schema import SaveSchemaError
 from repo_save_editor.core.types import Player, SaveData
+from repo_save_editor.services.maps import MapDiscoveryError, discover_installed_maps
 from repo_save_editor.services.players import (
     get_player_health,
     get_players,
@@ -31,6 +32,7 @@ from repo_save_editor.services.upgrades import (
     set_player_upgrade,
 )
 from repo_save_editor.storage.repository import SaveRepository
+from repo_save_editor.ui.tkinter.tabs.maps import build_maps_tab, refresh_maps_tab
 from repo_save_editor.ui.tkinter.tabs.player import build_player_upgrade_tab
 from repo_save_editor.ui.tkinter.tabs.run import build_run_stats_tab
 
@@ -72,6 +74,7 @@ class RepoSaveEditor(tk.Tk):
 
         if self.repository.root.exists():
             self.after(150, self.scan_default_saves)
+        self.after(200, self.refresh_installed_maps)
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -205,8 +208,10 @@ class RepoSaveEditor(tk.Tk):
 
         self.player_tab = ttk.Frame(notebook, padding=12)
         run_tab = ttk.Frame(notebook, padding=12)
+        maps_tab = ttk.Frame(notebook, padding=12)
         notebook.add(self.player_tab, text="Player Upgrades")
         notebook.add(run_tab, text="Run Stats")
+        notebook.add(maps_tab, text="Maps")
 
         build_player_upgrade_tab(
             self.player_tab,
@@ -221,6 +226,10 @@ class RepoSaveEditor(tk.Tk):
             self.resume_var,
             RESUME_LOCATION_OPTIONS,
             self._mark_dirty,
+        )
+        self.maps_tree, self.maps_source_var = build_maps_tab(
+            maps_tab,
+            self.refresh_installed_maps,
         )
 
         footer = ttk.Frame(parent)
@@ -239,6 +248,26 @@ class RepoSaveEditor(tk.Tk):
             text="Apply Changes",
             command=self.apply_fields,
         ).grid(row=0, column=1, padx=(10, 0))
+
+    def refresh_installed_maps(self) -> None:
+        """Refresh the installed map catalog independently of the loaded save."""
+        try:
+            catalog = discover_installed_maps()
+        except MapDiscoveryError as exc:
+            refresh_maps_tab(self.maps_tree, self.maps_source_var, (), None)
+            self.maps_source_var.set(f"Could not read installed map catalog: {exc}")
+            return
+
+        if catalog is None:
+            refresh_maps_tab(self.maps_tree, self.maps_source_var, (), None)
+            return
+
+        refresh_maps_tab(
+            self.maps_tree,
+            self.maps_source_var,
+            catalog.maps,
+            catalog.path,
+        )
 
     def scan_default_saves(self) -> None:
         self.slot_list.delete(0, tk.END)
