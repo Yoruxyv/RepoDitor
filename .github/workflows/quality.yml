@@ -18,6 +18,7 @@ jobs:
   quality:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
@@ -44,3 +45,19 @@ jobs:
 
       - name: Run tests
         run: uv run --with "pytest>=8.3,<9" pytest
+
+  quality-gate:
+    name: Quality gate
+    needs: quality
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify quality checks
+        run: |
+          if [ "${{ needs.quality.result }}" != "success" ]; then
+            echo "One or more quality checks failed."
+            exit 1
+          fi
+
+          echo "All quality checks passed."
