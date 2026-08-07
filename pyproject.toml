@@ -26,3 +26,46 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = [
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "B",
+    "BLE",
+    "C4",
+    "DTZ",
+    "E",
+    "F",
+    "I",
+    "PERF",
+    "RUF",
+    "SIM",
+    "UP",
+    "W",
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["repo_save_editor"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.1",
+]

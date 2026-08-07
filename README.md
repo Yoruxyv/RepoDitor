@@ -1,141 +1,150 @@
-# R.E.P.O. Save Editor
+# RepoDitor
 
-A small desktop GUI for inspecting and editing local **R.E.P.O.** `.es3` save files.
+RepoDitor is an unofficial desktop editor for local **R.E.P.O.** `.es3` run saves.
 
-The editor can:
+The current Tkinter interface is intentionally kept separate from save-format and persistence logic so a later Electron frontend can reuse the same Python backend behavior instead of reimplementing it.
+
+## Current features
 
 - scan the default Windows R.E.P.O. save directory;
-- open an arbitrary `.es3` file;
+- open arbitrary run-save `.es3` files;
 - show save metadata and players;
-- edit player upgrades such as health, stamina, jump, speed, strength, range, and crouch rest;
-- edit common run values such as level, currency, lives, and total haul;
-- create a timestamped backup before overwriting a save;
-- save to a different file when you want to experiment safely.
+- edit current player health;
+- edit known player upgrades;
+- edit run level, currency, lives, total haul, and raw save level;
+- preserve the game's one-based displayed level while storing its zero-based save value;
+- create timestamped backups before overwriting;
+- write edited saves atomically;
+- save edited data to a different `.es3` file for safe experimentation.
 
 > [!IMPORTANT]
-> This is an unofficial community tool and is not affiliated with semiwork.
-> Back up your saves. Game updates may change the save format.
-> Use modified saves only where doing so is permitted by the game/server rules.
+> RepoDitor is an unofficial community tool and is not affiliated with semiwork. Back up important saves before editing them. Game updates can change save behavior or schema.
 
-## Screenshot
+## Development setup
 
-A screenshot can be added here once the first public build is ready.
-
-## Requirements
-
-- Windows 10/11
-- Python 3.11+
-- `cryptography`
-
-Tkinter is included with standard Windows Python installations.
-
-## Install
+The project uses `uv` for dependency and environment management.
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/repo-save-editor.git
-cd repo-save-editor
-
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e .
+cd E:\GitHub\RepoDitor
+uv sync --dev
+uv run repo-save-editor
 ```
 
-Run:
+You can also launch the package directly:
 
 ```powershell
-repo-save-editor
+uv run python -m repo_save_editor
 ```
 
-or:
+## Quality checks
+
+Run the same local quality gate before committing:
 
 ```powershell
-python -m repo_save_editor
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run pytest
 ```
 
-For a quick local run without installation:
+To apply Ruff's safe formatting/fixes during development:
 
 ```powershell
-python -m pip install -r requirements.txt
-$env:PYTHONPATH = "$PWD\src"
-python -m repo_save_editor
+uv run ruff check src tests --fix
+uv run ruff format src tests
 ```
 
 ## Default save location
 
-The application looks in:
+RepoDitor scans recursively under:
 
 ```text
 %USERPROFILE%\AppData\LocalLow\semiwork\Repo
 ```
 
-It recursively searches that directory for files matching:
+for files matching:
 
 ```text
 REPO_SAVE_*.es3
 ```
 
-Automatic backup files containing `BACKUP` are hidden from the main slot list by default.
+Files containing `BACKUP` in their filename are excluded from the normal slot list.
 
-## Supported player upgrades
+## Project architecture
 
-| UI label | Save key |
-|---|---|
-| Health | `playerUpgradeHealth` |
-| Stamina / Energy | `playerUpgradeStamina` |
-| Extra Jump | `playerUpgradeExtraJump` |
-| Tumble Launch | `playerUpgradeLaunch` |
-| Tumble Climb | `playerUpgradeTumbleClimb` |
-| Death Head Battery | `playerUpgradeDeathHeadBattery` |
-| Map Player Count | `playerUpgradeMapPlayerCount` |
-| Speed | `playerUpgradeSpeed` |
-| Strength | `playerUpgradeStrength` |
-| Range | `playerUpgradeRange` |
-| Throw | `playerUpgradeThrow` |
-| Crouch Rest | `playerUpgradeCrouchRest` |
-| Tumble Wings | `playerUpgradeTumbleWings` |
+```text
+RepoDitor/
+├── docs/
+│   ├── architecture.md
+│   ├── reverse-engineering.md
+│   └── save-format.md
+├── src/
+│   └── repo_save_editor/
+│       ├── core/
+│       │   ├── crypto.py
+│       │   ├── schema.py
+│       │   └── types.py
+│       ├── services/
+│       │   ├── players.py
+│       │   ├── run_state.py
+│       │   ├── saves.py
+│       │   └── upgrades.py
+│       ├── storage/
+│       │   └── repository.py
+│       ├── ui/
+│       │   └── tkinter/
+│       │       ├── tabs/
+│       │       │   ├── player.py
+│       │       │   └── run.py
+│       │       └── window.py
+│       ├── __init__.py
+│       ├── __main__.py
+│       └── main.py
+├── tests/
+│   ├── core/
+│   ├── services/
+│   └── storage/
+├── pyproject.toml
+└── uv.lock
+```
+
+The dependency direction is intentionally simple:
+
+```text
+UI / future IPC
+      ↓
+services
+      ↓
+core + storage
+      ↓
+.es3 files
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for the boundary rules.
+
+## Verified save behavior
+
+The current implementation is based on controlled save tests. In the tested game version:
+
+- `runStats["level"]` is zero-based internally while the game displays it one-based;
+- `runStats["save level"] = 1` resumes in the Shop/Service Station;
+- current player HP is stored separately from the Health upgrade progression.
+
+Dynamic upgrade discovery and map-selection research are intentionally left for the next feature phase rather than hardcoding unverified values during this architecture refactor.
 
 ## Safety behavior
 
-When **Save / Overwrite** is used, the editor first creates a sibling backup similar to:
+When **Save / Overwrite** is used, RepoDitor first creates a sibling backup similar to:
 
 ```text
-REPO_SAVE_2025_11_04_20_53_58.es3.bak-20260806-183000
+REPO_SAVE_2025_11_04_20_53_58.es3.bak-20260807-120000
 ```
 
-The application writes to a temporary file and then atomically replaces the target.
-
-## Development
-
-Install development dependencies:
-
-```powershell
-python -m pip install pytest
-pytest
-```
-
-Project structure:
-
-```text
-repo-save-editor/
-├── src/
-│   └── repo_save_editor/
-│       ├── crypto.py
-│       ├── model.py
-│       ├── gui.py
-│       └── main.py
-├── tests/
-├── pyproject.toml
-├── requirements.txt
-└── README.md
-```
+The edited save is written to a temporary file and then atomically replaces the target.
 
 ## Compatibility
 
-This project currently targets the save format observed in R.E.P.O. builds using an AES-encrypted ES3 payload containing JSON data.
-
-If a future game update changes encryption or the internal schema, the editor will fail with a descriptive error rather than writing unknown data.
+RepoDitor currently targets the observed AES-encrypted ES3 payload used by R.E.P.O. run saves. Unsupported or malformed saves are rejected before mutation.
 
 ## Legal / trademark note
 
-R.E.P.O. and related names are trademarks/property of their respective owners.
-This project is an unofficial save-management utility and contains no game assets.
+R.E.P.O. and related names are trademarks/property of their respective owners. RepoDitor is an unofficial save-management utility and contains no game assets.

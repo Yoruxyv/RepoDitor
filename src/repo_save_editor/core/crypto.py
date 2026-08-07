@@ -51,7 +51,7 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
 
         decoded = plaintext.decode("utf-8")
         data = json.loads(decoded)
-    except Exception as exc:
+    except ValueError as exc:
         raise SaveCryptoError(
             "Unable to decrypt this save. It may be corrupted or from an "
             "unsupported R.E.P.O. version."

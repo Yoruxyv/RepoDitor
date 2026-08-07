@@ -1,9 +1,10 @@
 """Application entry point."""
 
-from .gui import run_gui
+from repo_save_editor.ui.tkinter import run_gui
 
 
 def main() -> None:
+    """Launch the current desktop interface."""
     run_gui()
 
 
