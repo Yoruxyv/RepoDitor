@@ -1,0 +1,63 @@
+name: Quality
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync locked dependencies
+        run: uv sync --locked
+
+      - name: Ruff lint
+        run: uv run ruff check src tests
+
+      - name: Ruff format check
+        run: uv run ruff format --check src tests
+
+      - name: Run tests
+        run: uv run --with "pytest>=8.3,<9" pytest
+
+  quality-gate:
+    name: Quality gate
+    needs: quality
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify quality checks
+        run: |
+          if [ "${{ needs.quality.result }}" != "success" ]; then
+            echo "One or more quality checks failed."
+            exit 1
+          fi
+
+          echo "All quality checks passed."
