@@ -1,0 +1,39 @@
+"""Player identity and status operations."""
+
+from __future__ import annotations
+
+from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries, get_typed_value
+from repo_save_editor.core.types import Player, SaveData
+
+
+def get_players(data: SaveData) -> list[Player]:
+    """Return all players stored in the run save."""
+    raw = get_typed_value(data, "playerNames")
+    if not isinstance(raw, dict):
+        raise SaveSchemaError("'playerNames.value' is not a dictionary.")
+    return [Player(str(player_id), str(name)) for player_id, name in raw.items()]
+
+
+def get_player_health(data: SaveData, player_id: str) -> int:
+    """Return a player's current HP, defaulting to zero when absent."""
+    values = get_dictionaries(data).get("playerHealth", {})
+    if not isinstance(values, dict):
+        return 0
+
+    raw = values.get(player_id, 0)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+def set_player_health(data: SaveData, player_id: str, value: int) -> None:
+    """Set a player's current HP."""
+    if value < 0:
+        raise ValueError("Current Health cannot be negative.")
+
+    dictionaries = get_dictionaries(data)
+    values = dictionaries.setdefault("playerHealth", {})
+    if not isinstance(values, dict):
+        raise SaveSchemaError("Player health field is not a dictionary.")
+    values[player_id] = int(value)
