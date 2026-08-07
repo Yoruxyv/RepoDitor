@@ -25,3 +25,6 @@ backups/
 .idea/
 .DS_Store
 Thumbs.db
+
+.agents/
+skills-lock.json
