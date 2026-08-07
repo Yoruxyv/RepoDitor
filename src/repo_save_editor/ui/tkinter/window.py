@@ -16,13 +16,17 @@ from repo_save_editor.services.players import (
     set_player_health,
 )
 from repo_save_editor.services.run_state import (
+    RESUME_LOCATION_OPTIONS,
     RUN_STATS,
+    get_resume_location_label,
     get_run_stat_for_display,
+    set_resume_location_from_label,
     set_run_stat_from_display,
 )
 from repo_save_editor.services.saves import format_duration, get_save_summary
 from repo_save_editor.services.upgrades import (
-    PLAYER_UPGRADES,
+    PlayerUpgrade,
+    discover_player_upgrades,
     get_player_upgrade,
     set_player_upgrade,
 )
@@ -49,6 +53,7 @@ class RepoSaveEditor(tk.Tk):
         self.data: SaveData | None = None
         self.players: list[Player] = []
         self.player_by_display: dict[str, Player] = {}
+        self.player_upgrades: tuple[PlayerUpgrade, ...] = ()
         self.dirty = False
 
         self.path_var = tk.StringVar(value="No save loaded")
@@ -58,6 +63,7 @@ class RepoSaveEditor(tk.Tk):
 
         self.upgrade_vars: dict[str, tk.StringVar] = {}
         self.run_vars: dict[str, tk.StringVar] = {}
+        self.resume_var = tk.StringVar(value=RESUME_LOCATION_OPTIONS[0])
         self.health_var = tk.StringVar(value="0")
         self.health_var.trace_add("write", self._mark_dirty)
 
@@ -197,18 +203,25 @@ class RepoSaveEditor(tk.Tk):
         notebook = ttk.Notebook(parent)
         notebook.grid(row=3, column=0, sticky="nsew")
 
-        player_tab = ttk.Frame(notebook, padding=12)
+        self.player_tab = ttk.Frame(notebook, padding=12)
         run_tab = ttk.Frame(notebook, padding=12)
-        notebook.add(player_tab, text="Player Upgrades")
+        notebook.add(self.player_tab, text="Player Upgrades")
         notebook.add(run_tab, text="Run Stats")
 
         build_player_upgrade_tab(
-            player_tab,
-            PLAYER_UPGRADES,
+            self.player_tab,
+            self.player_upgrades,
             self.upgrade_vars,
             self._mark_dirty,
         )
-        build_run_stats_tab(run_tab, RUN_STATS, self.run_vars, self._mark_dirty)
+        self.resume_combo = build_run_stats_tab(
+            run_tab,
+            RUN_STATS,
+            self.run_vars,
+            self.resume_var,
+            RESUME_LOCATION_OPTIONS,
+            self._mark_dirty,
+        )
 
         footer = ttk.Frame(parent)
         footer.grid(row=4, column=0, sticky="ew", pady=(10, 0))
@@ -287,6 +300,8 @@ class RepoSaveEditor(tk.Tk):
         self.data = data
         self.players = get_players(data)
         self.player_by_display = {player.display_name: player for player in self.players}
+        self.player_upgrades = discover_player_upgrades(data)
+        self._rebuild_upgrade_tab()
 
         self.path_var.set(str(path))
         self._refresh_metadata()
@@ -329,6 +344,14 @@ class RepoSaveEditor(tk.Tk):
         else:
             self.player_var.set("")
 
+    def _rebuild_upgrade_tab(self) -> None:
+        build_player_upgrade_tab(
+            self.player_tab,
+            self.player_upgrades,
+            self.upgrade_vars,
+            self._mark_dirty,
+        )
+
     def _refresh_upgrade_fields(self) -> None:
         if self.data is None:
             return
@@ -336,8 +359,10 @@ class RepoSaveEditor(tk.Tk):
         if player is None:
             return
 
-        for _label, key in PLAYER_UPGRADES:
-            self.upgrade_vars[key].set(str(get_player_upgrade(self.data, player.player_id, key)))
+        for upgrade in self.player_upgrades:
+            self.upgrade_vars[upgrade.key].set(
+                str(get_player_upgrade(self.data, player.player_id, upgrade.key))
+            )
         self.dirty = False
 
     def _refresh_player_status_fields(self) -> None:
@@ -356,6 +381,13 @@ class RepoSaveEditor(tk.Tk):
 
         for _label, key in RUN_STATS:
             self.run_vars[key].set(str(get_run_stat_for_display(self.data, key)))
+
+        resume_label = get_resume_location_label(self.data)
+        resume_options = list(RESUME_LOCATION_OPTIONS)
+        if resume_label not in resume_options:
+            resume_options.append(resume_label)
+        self.resume_combo["values"] = tuple(resume_options)
+        self.resume_var.set(resume_label)
         self.dirty = False
 
     def _on_player_changed(self, _event: tk.Event | None = None) -> None:
@@ -382,11 +414,11 @@ class RepoSaveEditor(tk.Tk):
             return False
 
         try:
-            for label, key in PLAYER_UPGRADES:
-                value = self._parse_int(self.upgrade_vars[key].get(), label)
+            for upgrade in self.player_upgrades:
+                value = self._parse_int(self.upgrade_vars[upgrade.key].get(), upgrade.label)
                 if value < 0:
-                    raise ValueError(f"{label} cannot be negative.")
-                set_player_upgrade(self.data, player.player_id, key, value)
+                    raise ValueError(f"{upgrade.label} cannot be negative.")
+                set_player_upgrade(self.data, player.player_id, upgrade.key, value)
 
             current_health = self._parse_int(self.health_var.get(), "Current Health")
             set_player_health(self.data, player.player_id, current_health)
@@ -410,6 +442,8 @@ class RepoSaveEditor(tk.Tk):
             for label, key in RUN_STATS:
                 value = self._parse_int(self.run_vars[key].get(), label)
                 set_run_stat_from_display(self.data, key, value)
+
+            set_resume_location_from_label(self.data, self.resume_var.get())
         except (ValueError, SaveSchemaError) as exc:
             self.data = snapshot
             messagebox.showerror(APP_TITLE, str(exc))
