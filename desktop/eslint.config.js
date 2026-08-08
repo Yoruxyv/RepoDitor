@@ -6,9 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'dist-electron']),
+  globalIgnores(['dist', 'dist-electron', 'playwright-report', 'test-results']),
   {
-    files: ['electron/**/*.cts'],
+    files: ['electron/**/*.cts', 'electron/**/*.test.ts', 'e2e/**/*.ts', 'playwright.config.ts'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
