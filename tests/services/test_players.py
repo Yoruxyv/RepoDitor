@@ -1,3 +1,5 @@
+import pytest
+
 from repo_save_editor.services.players import (
     get_player_health,
     get_players,
@@ -16,3 +18,8 @@ def test_player_health_round_trip(sample_save):
     set_player_health(sample_save, "111", 120)
 
     assert get_player_health(sample_save, "111") == 120
+
+
+def test_player_health_rejects_negative_values(sample_save):
+    with pytest.raises(ValueError, match="cannot be negative"):
+        set_player_health(sample_save, "111", -1)
