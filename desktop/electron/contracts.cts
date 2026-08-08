@@ -2,6 +2,8 @@ export interface IpcChannelMap {
   environmentDetect: "environment:detect";
   savesList: "saves:list";
   savesOpen: "saves:open";
+  playersList: "players:list";
+  playersAvatar: "players:avatar";
 }
 
 export type SaveRootStatus =
@@ -32,6 +34,17 @@ export interface SaveSession {
   currency: number;
   playerCount: number;
   resumeLocation: string;
+}
+
+export interface PlayerDto {
+  id: string;
+  name: string;
+  health: number;
+}
+
+export interface PlayerAvatar {
+  playerId: string;
+  avatarUrl: string | null;
 }
 
 export interface EnvironmentDiscovery {
@@ -92,6 +105,19 @@ export interface RepoDitorApi {
       saveId: string,
     ) => Promise<
       DesktopOperationResult<SaveSession>
+    >;
+  };
+  players: {
+    list: (
+      saveId: string,
+    ) => Promise<
+      DesktopOperationResult<PlayerDto[]>
+    >;
+    avatar: (
+      saveId: string,
+      playerId: string,
+    ) => Promise<
+      DesktopOperationResult<PlayerAvatar>
     >;
   };
 }
