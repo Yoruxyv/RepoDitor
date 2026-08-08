@@ -8,7 +8,7 @@
 
 :root {
   --font-display: "Teko", "Bahnschrift Condensed", "Arial Narrow", sans-serif;
-  /* Polate is not bundled yet. Keep its offline fallback honest and centralized. */
+  /* Polate is not bundled because this repository has no licensed font files for it. */
   --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { app } from "electron";
 
 const PYTHON_TIMEOUT_MS = 30_000;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
@@ -42,12 +43,6 @@ export interface PythonClient {
   dispose(): void;
 }
 
-function isDevelopment(): boolean {
-  return Boolean(
-    process.env.VITE_DEV_SERVER_URL,
-  );
-}
-
 function getRepoRoot(): string {
   return path.resolve(
     __dirname,
@@ -75,17 +70,39 @@ function getDevelopmentPythonExecutable(): string {
   return executable;
 }
 
-function getPackagedPythonExecutable(): never {
-  throw new PythonClientError(
-    "python_unavailable",
-    "Packaged Python runtime is not configured yet.",
-  );
+interface PythonInvocation {
+  readonly executable: string;
+  readonly arguments: readonly string[];
+  readonly cwd: string;
 }
 
-function getPythonExecutable(): string {
-  return isDevelopment()
-    ? getDevelopmentPythonExecutable()
-    : getPackagedPythonExecutable();
+function getPythonInvocation(
+  command: PythonCommand,
+  arguments_: readonly string[],
+): PythonInvocation {
+  if (app.isPackaged) {
+    const executable = path.join(
+      process.resourcesPath,
+      "backend",
+      "repoditor-backend.exe",
+    );
+    return {
+      executable,
+      arguments: [command, ...arguments_],
+      cwd: path.dirname(executable),
+    };
+  }
+
+  return {
+    executable: getDevelopmentPythonExecutable(),
+    arguments: [
+      "-m",
+      "repo_save_editor.desktop_api",
+      command,
+      ...arguments_,
+    ],
+    cwd: getRepoRoot(),
+  };
 }
 
 class SpawnPythonClient implements PythonClient {
@@ -106,20 +123,17 @@ class SpawnPythonClient implements PythonClient {
       );
     }
 
-    const executable = getPythonExecutable();
-    const repoRoot = getRepoRoot();
+    const invocation = getPythonInvocation(
+      command,
+      arguments_,
+    );
 
     return new Promise((resolve, reject) => {
       const child = spawn(
-        executable,
-        [
-          "-m",
-          "repo_save_editor.desktop_api",
-          command,
-          ...arguments_,
-        ],
+        invocation.executable,
+        invocation.arguments,
         {
-          cwd: repoRoot,
+          cwd: invocation.cwd,
           windowsHide: true,
           stdio: [
             "ignore",
@@ -191,11 +205,9 @@ class SpawnPythonClient implements PythonClient {
       child.stderr.on(
         "data",
         (chunk: string) => {
-          if (isDevelopment()) {
-            console.error(
-              `[python:${command}] ${chunk.trimEnd()}`,
-            );
-          }
+          console.error(
+            `[python:${command}] ${chunk.trimEnd()}`,
+          );
         },
       );
 

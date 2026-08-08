@@ -2,6 +2,8 @@
   "name": "repoditor-desktop",
   "private": true,
   "version": "0.1.0",
+  "description": "A desktop save editor for R.E.P.O. .es3 save files.",
+  "author": "Hans Valerie",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
@@ -9,7 +11,8 @@
     "dev:renderer": "vite",
     "dev:electron:compile": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
     "dev:electron": "wait-on http://localhost:5173 dist-electron/main.cjs && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "build": "tsc -b && tsc -p tsconfig.electron.json && vite build",
+    "build": "npm run clean:electron-output && tsc -b && tsc -p tsconfig.electron.json && vite build",
+    "clean:electron-output": "node -e \"require('node:fs').rmSync('dist-electron', { recursive: true, force: true })\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "npm run test:imports && tsc -p tsconfig.electron.json && npm run typecheck:electron-tests && vitest run",
@@ -18,19 +21,54 @@
     "test:e2e": "tsc -p tsconfig.electron.json && playwright test",
     "preview": "vite preview",
     "start": "electron .",
+    "build:sidecar": "uv run --project .. --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../src --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../src/repo_save_editor/desktop_api/__main__.py",
+    "package:dir": "electron-builder --win dir",
+    "package:win": "electron-builder --win zip",
+    "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run package:win",
     "bundle:check": "node scripts/check-bundle-budget.mjs",
     "imports:preview": "node scripts/normalize-imports.mjs",
     "imports:fix": "node scripts/normalize-imports.mjs --write --strict",
     "imports:check": "node scripts/normalize-imports.mjs --check --strict",
     "typecheck:electron-tests": "tsc -p electron/tsconfig.json"
   },
-  "dependencies": {
-    "@phosphor-icons/react": "^2.1.10",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+  "build": {
+    "appId": "io.github.dendroculus.repoditor",
+    "productName": "RepoDitor",
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "artifactName": "RepoDitor-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/backend/repoditor-backend.exe",
+        "to": "backend/repoditor-backend.exe"
+      },
+      {
+        "from": "src/assets/fonts/teko/OFL.txt",
+        "to": "licenses/Teko-OFL.txt"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.1",
@@ -46,6 +84,7 @@
     "concurrently": "^10.0.4",
     "cross-env": "^10.1.0",
     "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-plugin-better-tailwindcss": "^4.7.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
@@ -55,6 +94,8 @@
     "eslint-plugin-sonarjs": "^4.2.0",
     "globals": "^17.7.0",
     "jsdom": "^30.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

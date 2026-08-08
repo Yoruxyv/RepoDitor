@@ -1,10 +1,17 @@
 # RepoDitor desktop
 
-Run desktop commands from this directory. The renderer uses `@/` for imports
-from `src` and `@electron/` for shared Electron contracts. Parent-directory
-imports are not allowed; same-directory relatives remain valid.
+The renderer uses `@/` for `src` imports and `@electron/` for shared Electron contracts. Parent-directory renderer imports are not allowed; same-directory relatives remain valid.
 
-The durable frontend quality gate is:
+## Development
+
+```powershell
+npm ci
+npm run dev
+```
+
+Development launches the Python desktop API from the repository `.venv`.
+
+## Quality gate
 
 ```powershell
 npm run imports:check
@@ -15,6 +22,10 @@ npm test
 npm run test:e2e
 ```
 
-Use `npm run imports:preview` to inspect import normalization and
-`npm run imports:fix` to apply it. The Electron-aware `dev`, `build`, and test
-commands must remain intact.
+## Windows package
+
+```powershell
+npm run package
+```
+
+The package command builds the locked PyInstaller sidecar, builds Electron, packages an unpacked application, runs the E2E flow without Vite against that application, and emits a self-contained Windows archive under `release/`.

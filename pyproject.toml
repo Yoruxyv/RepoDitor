@@ -66,3 +66,6 @@ docstring-code-format = true
 dev = [
     "ruff>=0.16.1",
 ]
+package = [
+    "pyinstaller>=6,<7",
+]
