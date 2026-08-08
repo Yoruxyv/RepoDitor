@@ -37,7 +37,6 @@
     "appId": "io.github.dendroculus.repoditor",
     "productName": "RepoDitor",
     "asar": true,
-    "electronDist": "node_modules/electron/dist",
     "artifactName": "RepoDitor-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"

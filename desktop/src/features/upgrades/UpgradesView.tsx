@@ -56,7 +56,7 @@ export function UpgradesView({
 
   return (
     <section aria-labelledby="upgrades-title">
-      <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">Per-player values</p>
           <h2 className="mt-1 text-2xl font-semibold text-ink" id="upgrades-title">Upgrades</h2>
