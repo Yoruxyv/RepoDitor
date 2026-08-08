@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,6 +53,29 @@ async function createFixture(home: string): Promise<string> {
   return savePath;
 }
 
+async function createGameFixture(home: string): Promise<string> {
+  const gameRoot = path.join(home, "game");
+  const catalogPath = path.join(
+    gameRoot,
+    "REPO_Data",
+    "StreamingAssets",
+    "aa",
+    "catalog.json",
+  );
+  await mkdir(path.dirname(catalogPath), { recursive: true });
+  const keyData = [
+    "Level/Arctic/Loading Graphics/a",
+    "Level/Manor/Loading Graphics/b",
+    "Level/Modded Moon/Loading Graphics/c",
+  ].join(" ");
+  await writeFile(
+    catalogPath,
+    JSON.stringify({ m_KeyDataString: Buffer.from(keyData).toString("base64") }),
+    "utf8",
+  );
+  return gameRoot;
+}
+
 async function setWindowSize(
   application: ElectronApplication,
   page: Page,
@@ -93,12 +116,13 @@ async function layout(page: Page) {
   });
 }
 
-test("opens Overview and keeps pending player edits in memory across supported sizes", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase6-isolated-profile-"));
+test("keeps Phase 7 editor changes in memory across workspaces and supported sizes", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase7-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
   try {
     const savePath = await createFixture(home);
+    const gameRoot = await createGameFixture(home);
     const sourceBefore = await readFile(savePath);
     application = await electron.launch({
       args: [".", `--user-data-dir=${path.join(home, "electron-profile")}`],
@@ -108,6 +132,7 @@ test("opens Overview and keeps pending player edits in memory across supported s
         APPDATA: path.join(home, "AppData", "Roaming"),
         HOME: home,
         LOCALAPPDATA: path.join(home, "AppData", "Local"),
+        REPO_GAME_DIR: gameRoot,
         USERPROFILE: home,
         VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
       },
@@ -122,6 +147,9 @@ test("opens Overview and keeps pending player edits in memory across supported s
       players: Object.keys(window.repoditor.players).sort((left, right) =>
         left.localeCompare(right),
       ),
+      upgrades: Object.keys(window.repoditor.upgrades),
+      run: Object.keys(window.repoditor.run),
+      maps: Object.keys(window.repoditor.maps),
       requireType: typeof window.require,
       saves: Object.keys(window.repoditor.saves).sort((left, right) =>
         left.localeCompare(right),
@@ -130,6 +158,9 @@ test("opens Overview and keeps pending player edits in memory across supported s
     expect(boundary).toEqual({
       environment: ["detect"],
       players: ["avatar", "list"],
+      upgrades: ["list"],
+      run: ["get"],
+      maps: ["list"],
       requireType: "undefined",
       saves: ["list", "open"],
     });
@@ -154,6 +185,27 @@ test("opens Overview and keeps pending player edits in memory across supported s
     await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
 
+    await page.getByRole("tab", { name: "Upgrades" }).click();
+    const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
+    await strength.fill("3");
+    await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toContainText("0 → 3");
+
+    await page.getByRole("tab", { name: "Run" }).click();
+    const currency = page.getByRole("spinbutton", { name: "Currency" });
+    await currency.fill("20");
+    await expect(page.getByTestId("pending-run-currency")).toContainText("12 → 20");
+
+    await page.getByRole("tab", { name: "Maps" }).click();
+    await expect(page.getByText("McJannek Station")).toBeVisible();
+    await expect(page.getByText("Headman Manor")).toBeVisible();
+    await expect(page.getByText("Modded Moon")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Upgrades" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
+    await page.getByRole("tab", { name: "Run" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("3 pending changes");
+
     for (const size of [
       { width: 1600, height: 900 },
       { width: 1200, height: 800 },
@@ -169,6 +221,13 @@ test("opens Overview and keeps pending player edits in memory across supported s
       await expect(page.getByRole("button", { name: /Alpha/ })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
       await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
+      await page.getByRole("tab", { name: "Upgrades" }).click();
+      await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
+      await page.getByRole("tab", { name: "Run" }).click();
+      await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+      await page.getByRole("tab", { name: "Maps" }).click();
+      await expect(page.getByText("McJannek Station")).toBeVisible();
+      expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByTestId("workspace-action-bar").scrollIntoViewIfNeeded();
       await expect(page.getByTestId("workspace-action-bar")).toBeVisible();
     }

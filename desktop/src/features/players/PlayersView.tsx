@@ -2,7 +2,7 @@ import { ArrowClockwiseIcon, UserIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
-import type { PlayerHealthEdit } from "./usePlayers";
+import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
 
 interface PlayersViewProps {
   readonly players: PlayerDto[];

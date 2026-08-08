@@ -7,9 +7,16 @@ import { useState, type KeyboardEvent } from "react";
 
 import type { SaveSession } from "@electron/contracts";
 import { formatDateTime } from "@/features/discovery/formatters";
+import { MapsView } from "@/features/maps/MapsView";
+import { useMaps } from "@/features/maps/useMaps";
 import { PlayersView } from "@/features/players/PlayersView";
 import { usePlayers } from "@/features/players/usePlayers";
-import { OverviewView } from "./OverviewView";
+import { RunView } from "@/features/run/RunView";
+import { useRunState } from "@/features/run/useRunState";
+import { UpgradesView } from "@/features/upgrades/UpgradesView";
+import { useUpgrades } from "@/features/upgrades/useUpgrades";
+import { OverviewView } from "@/features/editor/OverviewView";
+import type { PendingEdit } from "@/features/editor/pendingEdits";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
@@ -29,26 +36,17 @@ function formatPendingEditCount(count: number): string {
   return `${count} pending changes`;
 }
 
-function Placeholder({
-  section,
-}: {
-  readonly section: Exclude<WorkspaceSection, "Overview" | "Players">;
-}) {
-  return (
-    <section aria-labelledby="placeholder-title">
-      <h2 className="text-2xl font-semibold text-ink" id="placeholder-title">
-        {section}
-      </h2>
-      <p className="mt-3 max-w-[58ch] text-sm/6 text-secondary">
-        This section is reserved for a later phase. No save data can be changed here yet.
-      </p>
-    </section>
-  );
-}
-
 export function Workspace({ session, onClose }: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("Overview");
   const players = usePlayers(session.id);
+  const upgrades = useUpgrades(session.id);
+  const run = useRunState(session.id);
+  const maps = useMaps();
+  const pendingEdits: PendingEdit[] = [
+    ...players.pendingEdits,
+    ...upgrades.pendingEdits,
+    ...run.pendingEdits,
+  ];
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     let offset = 0;
@@ -131,8 +129,39 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
               onSelect={players.setSelectedPlayerId}
             />
           ) : null}
-          {activeSection !== "Overview" && activeSection !== "Players" ? (
-            <Placeholder section={activeSection} />
+          {activeSection === "Upgrades" ? (
+            <UpgradesView
+              error={upgrades.error}
+              loading={upgrades.loading}
+              pendingByUpgrade={upgrades.pendingByUpgrade}
+              players={players.players}
+              selectedPlayerId={players.selectedPlayerId}
+              upgrades={upgrades.upgrades}
+              onChange={upgrades.update}
+              onRetry={() => void upgrades.reload()}
+              onRevert={upgrades.revert}
+              onSelectPlayer={players.setSelectedPlayerId}
+            />
+          ) : null}
+          {activeSection === "Run" ? (
+            <RunView
+              error={run.error}
+              loading={run.loading}
+              pendingByField={run.pendingByField}
+              run={run.run}
+              onResumeChange={run.updateResume}
+              onRetry={() => void run.reload()}
+              onRevert={run.revert}
+              onStatChange={run.updateStat}
+            />
+          ) : null}
+          {activeSection === "Maps" ? (
+            <MapsView
+              discovery={maps.discovery}
+              error={maps.error}
+              loading={maps.loading}
+              onRetry={() => void maps.reload()}
+            />
           ) : null}
         </div>
 
@@ -155,7 +184,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
         <div>
           <p className="font-semibold text-ink">In-memory working copy</p>
           <p className="mt-1 text-xs text-muted" data-testid="pending-edit-count">
-            {formatPendingEditCount(players.pendingEdits.length)}
+            {formatPendingEditCount(pendingEdits.length)}
           </p>
         </div>
         <p className="text-xs text-secondary">Nothing in this workspace is written to disk.</p>

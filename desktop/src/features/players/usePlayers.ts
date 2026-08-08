@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
-
-export interface PlayerHealthEdit {
-  feature: "players";
-  entity: string;
-  field: "health";
-  before: number;
-  after: number;
-}
+import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
 
 interface PlayersState {
   players: PlayerDto[];
