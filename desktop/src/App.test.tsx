@@ -116,6 +116,44 @@ describe("save workspace transition", () => {
     expect(screen.getByLabelText("Discovering local R.E.P.O. saves")).toBeTruthy();
   });
 
+  it.each([
+    ["available" as const, "No valid saves yet"],
+    ["missing" as const, "Standard save folder not found"],
+  ])("renders the %s discovery state", async (saveRootStatus, expectedHeading) => {
+    window.repoditor.environment.detect = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        ...environment,
+        saveRootDetected: saveRootStatus === "available",
+        saveRootStatus,
+        saves: [],
+      },
+    });
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: expectedHeading })).toBeTruthy();
+  });
+
+  it("keeps the last discovery result when refresh fails", async () => {
+    const detect = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "discovery_failed", message: "The save folder is temporarily busy." },
+      });
+    window.repoditor.environment.detect = detect;
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByText(/Refresh failed/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(detect).toHaveBeenCalledTimes(2);
+  });
+
   it("shows opening state and transitions into the workspace", async () => {
     let finishOpen: ((value: { ok: true; data: SaveSession }) => void) | undefined;
     const open = vi.fn(
@@ -145,11 +183,15 @@ describe("save workspace transition", () => {
     );
   });
 
-  it("keeps discovery visible and reports open failures", async () => {
+  it.each([
+    ["save_missing" as const, "The selected save no longer exists."],
+    ["save_corrupt" as const, "The selected save is corrupted."],
+    ["save_unsupported" as const, "The selected save format is not supported."],
+  ])("keeps discovery visible and reports %s open failures", async (code, message) => {
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({
         ok: false,
-        error: { code: "save_corrupt", message: "The selected save is corrupted." },
+        error: { code, message },
       }),
     );
     const user = userEvent.setup();
@@ -157,7 +199,7 @@ describe("save workspace transition", () => {
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "The selected save is corrupted. No save files were changed.",
+      `${message} No save files were changed.`,
     );
     expect(screen.queryByTestId("workspace")).toBeNull();
   });

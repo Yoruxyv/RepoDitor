@@ -37,7 +37,7 @@ export function OverviewView({ session }: { readonly session: SaveSession }) {
         </h2>
         <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">
           Python decrypted and validated this local save. Any edits made in this workspace stay in
-          memory until a later save phase.
+          memory until you choose Save Changes.
         </p>
 
         <dl className="mt-7 grid gap-5 border-t border-line pt-6 sm:grid-cols-2">

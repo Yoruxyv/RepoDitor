@@ -136,8 +136,8 @@ async function layout(page: Page) {
   });
 }
 
-test("safely writes Phase 8 changes with backup and stale-save protection", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase8-isolated-profile-"));
+test("safely writes changes with backup and stale-save protection", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
   try {
@@ -153,6 +153,7 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
       USERPROFILE: home,
     };
     delete applicationEnvironment.VITE_DEV_SERVER_URL;
+    const launchStarted = performance.now();
     application = await electron.launch(
       packagedExecutable
         ? {
@@ -171,8 +172,18 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
           },
     );
     const page = await application.firstWindow();
+    await page.emulateMedia({ reducedMotion: "reduce" });
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
+    const launchReadyMs = performance.now() - launchStarted;
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
+      (button) => getComputedStyle(button).transitionDuration,
+    );
+    expect(
+      Number.parseFloat(reducedTransition) / (reducedTransition.endsWith("ms") ? 1_000 : 1),
+    ).toBeLessThanOrEqual(0.000_01);
     const boundary = await page.evaluate(() => ({
       environment: Object.keys(window.repoditor.environment).sort((left, right) =>
         left.localeCompare(right),
@@ -198,13 +209,20 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
       saves: ["list", "open", "write"],
     });
 
+    const openStarted = performance.now();
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.getByTestId("workspace")).toBeVisible();
+    const openReadyMs = performance.now() - openStarted;
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
     await expect(page.getByText("Save opened safely")).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
 
-    await page.getByRole("tab", { name: "Players" }).click();
+    await page.getByRole("tab", { name: "Overview" }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("tab", { name: "Players" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await page.getByRole("button", { name: /Beta/ }).click();
     await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
     await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
@@ -252,9 +270,11 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
     await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
+    const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
     await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
+    const saveReadyMs = performance.now() - saveStarted;
     await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
       .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
@@ -284,6 +304,7 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
       await setWindowSize(application, page, size.width, size.height);
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await expect(page.getByRole("tab", { name: "Maps" })).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.getByRole("tab", { name: "Overview" }).click();
       await expect(page.getByText("Save opened safely")).toBeVisible();
       await expect(page.getByText("Normal")).toBeVisible();
@@ -325,6 +346,9 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
         name.startsWith(`${path.basename(savePath)}.bak-`),
       ),
     ).toHaveLength(1);
+    console.info(
+      `Release timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, save=${saveReadyMs.toFixed(0)}`,
+    );
   } finally {
     await application?.close();
     await rm(home, { recursive: true, force: true });
