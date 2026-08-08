@@ -18,16 +18,16 @@ dependencies = [
 keywords = ["repo", "save-editor", "es3", "unity", "easy-save-3"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["python"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["python"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["src", "tests"]
+src = ["python", "tests"]
 extend-exclude = [
     ".pytest_cache",
     ".ruff_cache",
