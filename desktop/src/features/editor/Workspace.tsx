@@ -5,7 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import { useState, type KeyboardEvent } from "react";
 
-import type { SaveSession } from "@electron/contracts";
+import type { SaveChange, SaveSession } from "@electron/contracts";
 import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -16,28 +16,31 @@ import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView } from "@/features/editor/OverviewView";
-import type { PendingEdit } from "@/features/editor/pendingEdits";
+import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
+import { toSaveChange, type PendingEdit } from "@/features/editor/pendingEdits";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
   readonly session: SaveSession;
+  readonly saving: boolean;
+  readonly saveError: string | null;
+  readonly backupPath: string | null;
   readonly onClose: () => void;
+  readonly onSave: (changes: SaveChange[]) => Promise<void>;
 }
 
-function formatPendingEditCount(count: number): string {
-  if (count === 0) {
-    return "No pending changes";
-  }
-  if (count === 1) {
-    return "1 pending change";
-  }
-  return `${count} pending changes`;
-}
-
-export function Workspace({ session, onClose }: WorkspaceProps) {
+export function Workspace({
+  session,
+  saving,
+  saveError,
+  backupPath,
+  onClose,
+  onSave,
+}: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("Overview");
+  const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);
   const upgrades = useUpgrades(session.id);
   const run = useRunState(session.id);
@@ -47,6 +50,13 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
     ...upgrades.pendingEdits,
     ...run.pendingEdits,
   ];
+
+  function revertAll(): void {
+    players.revertAll();
+    upgrades.revertAll();
+    run.revertAll();
+    setEditVersion((current) => current + 1);
+  }
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     let offset = 0;
@@ -115,6 +125,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
           {activeSection === "Overview" ? <OverviewView session={session} /> : null}
           {activeSection === "Players" ? (
             <PlayersView
+              key={`players-${editVersion}`}
               avatarUrls={players.avatarUrls}
               error={players.error}
               loading={players.loading}
@@ -131,6 +142,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
           ) : null}
           {activeSection === "Upgrades" ? (
             <UpgradesView
+              key={`upgrades-${editVersion}`}
               error={upgrades.error}
               loading={upgrades.loading}
               pendingByUpgrade={upgrades.pendingByUpgrade}
@@ -145,6 +157,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
           ) : null}
           {activeSection === "Run" ? (
             <RunView
+              key={`run-${editVersion}`}
               error={run.error}
               loading={run.loading}
               pendingByField={run.pendingByField}
@@ -180,15 +193,14 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
         </aside>
       </div>
 
-      <footer className="mt-10 flex flex-col gap-3 border-t border-line pt-5 text-sm sm:flex-row sm:items-center sm:justify-between" data-testid="workspace-action-bar">
-        <div>
-          <p className="font-semibold text-ink">In-memory working copy</p>
-          <p className="mt-1 text-xs text-muted" data-testid="pending-edit-count">
-            {formatPendingEditCount(pendingEdits.length)}
-          </p>
-        </div>
-        <p className="text-xs text-secondary">Nothing in this workspace is written to disk.</p>
-      </footer>
+      <PendingChangesBar
+        backupPath={pendingEdits.length === 0 ? backupPath : null}
+        edits={pendingEdits}
+        error={saveError}
+        saving={saving}
+        onRevert={revertAll}
+        onSave={() => void onSave(pendingEdits.map(toSaveChange))}
+      />
     </section>
   );
 }

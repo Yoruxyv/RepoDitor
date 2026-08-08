@@ -15,7 +15,15 @@ function App() {
           onOpenSave={(saveId) => void save.open(saveId)}
         />
       ) : (
-        <Workspace session={save.session} onClose={save.close} />
+        <Workspace
+          key={save.session.fingerprint}
+          backupPath={save.lastBackupPath}
+          saveError={save.saveError}
+          saving={save.saving}
+          session={save.session}
+          onClose={save.close}
+          onSave={save.write}
+        />
       )}
     </AppShell>
   );

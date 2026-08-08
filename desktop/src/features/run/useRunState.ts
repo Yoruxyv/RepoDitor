@@ -40,23 +40,41 @@ export function useRunState(saveId: string) {
   }, [load]);
 
   function updateStat(stat: RunStatDto, value: number): void {
-    update(stat.key, stat.value, value);
+    update({
+      feature: "run",
+      entity: "run",
+      field: stat.key,
+      before: stat.value,
+      after: value,
+      label: stat.label,
+      subject: "Run",
+    });
   }
 
   function updateResume(value: string): void {
-    if (state.run) update("resumeLocation", state.run.resumeLocation.value, value);
+    if (state.run) {
+      update({
+        feature: "run",
+        entity: "run",
+        field: "resumeLocation",
+        before: state.run.resumeLocation.value,
+        after: value,
+        label: "Resume location",
+        subject: "Run",
+      });
+    }
   }
 
-  function update(field: string, before: number | string, after: number | string): void {
+  function update(edit: RunStatEdit): void {
     setPendingByField((current) => {
-      if (after === before) {
+      if (edit.after === edit.before) {
         const next = { ...current };
-        delete next[field];
+        delete next[edit.field];
         return next;
       }
       return {
         ...current,
-        [field]: { feature: "run", entity: "run", field, before, after },
+        [edit.field]: edit,
       };
     });
   }
@@ -69,6 +87,10 @@ export function useRunState(saveId: string) {
     });
   }
 
+  function revertAll(): void {
+    setPendingByField({});
+  }
+
   return {
     ...state,
     pendingByField,
@@ -76,6 +98,7 @@ export function useRunState(saveId: string) {
     updateStat,
     updateResume,
     revert,
+    revertAll,
     reload: load,
   };
 }

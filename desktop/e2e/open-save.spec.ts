@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +76,23 @@ async function createGameFixture(home: string): Promise<string> {
   return gameRoot;
 }
 
+function replaceFixtureCurrency(savePath: string, currency: number): void {
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-c",
+      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save,encrypt_save; from repo_save_editor.services.run_state import set_run_stat; p=Path(sys.argv[1]); d=decrypt_save(p.read_bytes()); set_run_stat(d,'currency',int(sys.argv[2])); p.write_bytes(encrypt_save(d))",
+      savePath,
+      String(currency),
+    ],
+    {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "src") },
+      stdio: "inherit",
+    },
+  );
+}
+
 async function setWindowSize(
   application: ElectronApplication,
   page: Page,
@@ -116,8 +133,8 @@ async function layout(page: Page) {
   });
 }
 
-test("keeps Phase 7 editor changes in memory across workspaces and supported sizes", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase7-isolated-profile-"));
+test("safely writes Phase 8 changes with backup and stale-save protection", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase8-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
   try {
@@ -162,7 +179,7 @@ test("keeps Phase 7 editor changes in memory across workspaces and supported siz
       run: ["get"],
       maps: ["list"],
       requireType: "undefined",
-      saves: ["list", "open"],
+      saves: ["list", "open", "write"],
     });
 
     await page.getByRole("button", { name: /Open workspace/ }).click();
@@ -203,11 +220,45 @@ test("keeps Phase 7 editor changes in memory across workspaces and supported siz
     await expect(page.getByText("Headman Manor")).toBeVisible();
     await expect(page.getByText("Modded Moon")).toBeVisible();
 
+    await expect(page.getByText("Beta · Health")).toBeVisible();
+    await expect(page.getByText("Beta · Strength")).toBeVisible();
+    await expect(page.getByText("Run · Currency")).toBeVisible();
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("3 pending changes");
+    await page.getByRole("button", { name: "Revert all" }).click();
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+
+    await page.getByRole("tab", { name: "Players" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("0");
+    await page.getByRole("button", { name: "Heal to Full" }).click();
+    await page.getByRole("tab", { name: "Upgrades" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("0");
+    await page.getByRole("spinbutton", { name: "Strength for Beta" }).fill("3");
+    await page.getByRole("tab", { name: "Run" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
+    await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
+    await page.getByRole("button", { name: "Save Changes" }).click();
+
+    await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    const backups = (await readdir(path.dirname(savePath)))
+      .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
+    expect(backups).toHaveLength(1);
+    expect((await readFile(path.join(path.dirname(savePath), backups[0]!))).equals(sourceBefore))
+      .toBe(true);
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(false);
+
+    await page.getByRole("button", { name: "Change save" }).click();
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByTestId("workspace")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Players" }).click();
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
     await page.getByRole("tab", { name: "Upgrades" }).click();
     await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("3 pending changes");
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
       { width: 1600, height: 900 },
@@ -244,7 +295,20 @@ test("keeps Phase 7 editor changes in memory across workspaces and supported siz
     await setWindowSize(application, page, 960, 640);
     const minimum = await layout(page);
     expect(minimum.context!.top).toBeGreaterThan(minimum.panel!.bottom);
-    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
+
+    await page.getByRole("tab", { name: "Run" }).click();
+    await page.getByRole("spinbutton", { name: "Currency" }).fill("30");
+    replaceFixtureCurrency(savePath, 777);
+    const externalBytes = await readFile(savePath);
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    await expect(page.getByRole("alert")).toContainText("changed after it was opened");
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
+    expect(
+      (await readdir(path.dirname(savePath))).filter((name) =>
+        name.startsWith(`${path.basename(savePath)}.bak-`),
+      ),
+    ).toHaveLength(1);
   } finally {
     await application?.close();
     await rm(home, { recursive: true, force: true });
