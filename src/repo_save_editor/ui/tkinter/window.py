@@ -24,6 +24,12 @@ from repo_save_editor.services.run_state import (
     set_resume_location_from_label,
     set_run_stat_from_display,
 )
+from repo_save_editor.services.save_discovery import (
+    DiscoveredSave,
+    SaveRootStatus,
+    discover_saves,
+    get_default_save_root,
+)
 from repo_save_editor.services.saves import format_duration, get_save_summary
 from repo_save_editor.services.upgrades import (
     PlayerUpgrade,
@@ -45,7 +51,7 @@ class RepoSaveEditor(tk.Tk):
     def __init__(self, repository: SaveRepository | None = None) -> None:
         super().__init__()
 
-        self.repository = repository or SaveRepository()
+        self.repository = repository or SaveRepository(get_default_save_root())
 
         self.title(APP_TITLE)
         self.minsize(940, 650)
@@ -72,8 +78,7 @@ class RepoSaveEditor(tk.Tk):
         self._build_ui()
         self._set_editor_enabled(False)
 
-        if self.repository.root.exists():
-            self.after(150, self.scan_default_saves)
+        self.after(150, self.scan_default_saves)
         self.after(200, self.refresh_installed_maps)
 
     def _build_ui(self) -> None:
@@ -273,23 +278,27 @@ class RepoSaveEditor(tk.Tk):
         self.slot_list.delete(0, tk.END)
         self.slot_paths = []
 
-        if not self.repository.root.exists():
+        result = discover_saves(self.repository.root)
+        if result.status is SaveRootStatus.MISSING:
             self.status_var.set(f"Default save directory not found: {self.repository.root}")
             return
+        if result.status is SaveRootStatus.UNREADABLE:
+            self.status_var.set(f"Default save directory is not readable: {self.repository.root}")
+            return
 
-        paths = self.repository.scan()
-        for path in paths:
-            self.slot_paths.append(path)
-            self.slot_list.insert(tk.END, self._slot_label(path))
+        for save in result.saves:
+            self.slot_paths.append(save.path)
+            self.slot_list.insert(tk.END, self._slot_label(save))
 
-        self.status_var.set(f"Found {len(paths)} main save file(s) under {self.repository.root}")
+        self.status_var.set(
+            f"Found {len(result.saves)} main save file(s) under {self.repository.root}"
+        )
 
-    def _slot_label(self, path: Path) -> str:
-        try:
-            summary = get_save_summary(self.repository.load(path))
-            return f"Lv {summary.level} | {summary.team_name} | {summary.date} | {path.name}"
-        except (OSError, SaveCryptoError, SaveSchemaError, ValueError):
-            return f"Unreadable | {path.name}"
+    @staticmethod
+    def _slot_label(save: DiscoveredSave) -> str:
+        modified = save.modified_at.astimezone().strftime("%Y-%m-%d %H:%M")
+        size_kib = save.file_size / 1024
+        return f"{save.display_name} | {modified} | {size_kib:.1f} KiB"
 
     def open_selected_slot(self) -> None:
         selection = self.slot_list.curselection()

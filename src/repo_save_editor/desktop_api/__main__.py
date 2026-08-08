@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 
+from repo_save_editor.desktop_api.environment import discover_environment
+
 
 def ping() -> dict[str, object]:
     """Return a minimal health response for the desktop application."""
@@ -21,13 +23,15 @@ def main() -> None:
 
     parser.add_argument(
         "command",
-        choices=("ping",),
+        choices=("ping", "environment"),
     )
 
     args = parser.parse_args()
 
     if args.command == "ping":
         print(json.dumps(ping()))
+    elif args.command == "environment":
+        print(json.dumps(discover_environment()))
 
 
 if __name__ == "__main__":

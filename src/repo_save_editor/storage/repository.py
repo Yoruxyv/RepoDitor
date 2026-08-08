@@ -1,4 +1,4 @@
-"""Save-file discovery, loading, backup, and atomic persistence."""
+"""Save-file loading, backup, and atomic persistence."""
 
 from __future__ import annotations
 
@@ -12,35 +12,12 @@ from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
 
-DEFAULT_SAVE_ROOT = (
-    Path(os.environ.get("USERPROFILE", "~")).expanduser()
-    / "AppData"
-    / "LocalLow"
-    / "semiwork"
-    / "Repo"
-)
-
 
 class SaveRepository:
     """Read and write local R.E.P.O. run saves."""
 
-    def __init__(self, root: Path = DEFAULT_SAVE_ROOT) -> None:
+    def __init__(self, root: Path) -> None:
         self.root = root
-
-    def scan(self) -> list[Path]:
-        """Return main run saves newest-first, excluding game backup files."""
-        if not self.root.exists():
-            return []
-
-        return sorted(
-            (
-                path
-                for path in self.root.rglob("REPO_SAVE_*.es3")
-                if "BACKUP" not in path.name.upper()
-            ),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )
 
     @staticmethod
     def load(path: Path) -> SaveData:
