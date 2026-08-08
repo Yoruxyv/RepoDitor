@@ -24,7 +24,8 @@ Download the Windows artifact from the project releases and run `RepoDitor`. The
 Development requires `uv`, Python 3.11 or newer, and Node.js 24.
 
 ```powershell
-uv sync --dev
+uv sync --devcls
+
 cd desktop
 npm ci
 npm run dev
@@ -39,8 +40,8 @@ uv run python -m repo_save_editor.desktop_api environment
 ## Quality checks
 
 ```powershell
-uv run ruff check src tests
-uv run ruff format --check src tests
+uv run ruff check python tests
+uv run ruff format --check python tests
 uv run --with "pytest>=8.3,<9" pytest
 
 cd desktop

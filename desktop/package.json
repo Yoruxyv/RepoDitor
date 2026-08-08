@@ -22,7 +22,7 @@
     "test:e2e:packaged": "cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test",
     "preview": "vite preview",
     "start": "electron .",
-    "build:sidecar": "uv run --project .. --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../src --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../src/repo_save_editor/desktop_api/__main__.py",
+    "build:sidecar": "uv run --project .. --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../python/repo_save_editor/desktop_api/__main__.py",
     "package:dir": "electron-builder --win dir",
     "package:win": "electron-builder --win zip",
     "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run test:e2e:packaged && npm run package:win",

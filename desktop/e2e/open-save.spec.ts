@@ -49,7 +49,7 @@ async function createFixture(home: string): Promise<string> {
     ],
     {
       cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "src") },
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
       stdio: "inherit",
     },
   );
@@ -90,7 +90,7 @@ function replaceFixtureCurrency(savePath: string, currency: number): void {
     ],
     {
       cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "src") },
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
       stdio: "inherit",
     },
   );
