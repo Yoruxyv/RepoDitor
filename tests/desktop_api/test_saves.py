@@ -26,6 +26,7 @@ def test_open_save_returns_renderer_safe_snapshot_without_mutating_source(
         "displayName": "2026-08-08 10:20:30",
         "path": str(save_path),
         "lastModified": result["session"]["lastModified"],
+        "fingerprint": result["session"]["fingerprint"],
         "level": 5,
         "currency": 12,
         "playerCount": 2,
@@ -36,11 +37,13 @@ def test_open_save_returns_renderer_safe_snapshot_without_mutating_source(
         "displayName",
         "path",
         "lastModified",
+        "fingerprint",
         "level",
         "currency",
         "playerCount",
         "resumeLocation",
     }
+    assert len(result["session"]["fingerprint"]) == 64
     assert save_path.read_bytes() == before
 
 

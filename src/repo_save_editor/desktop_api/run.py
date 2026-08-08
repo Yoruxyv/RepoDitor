@@ -15,7 +15,7 @@ from repo_save_editor.services.run_state import (
 def get_run_state(save_id: str, root: Path | None = None) -> dict[str, object]:
     """Return friendly run values without exposing raw save structure."""
     try:
-        _, data = load_discovered_save(save_id, root)
+        _, data, _ = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 

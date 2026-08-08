@@ -12,7 +12,7 @@ interface UpgradesViewProps {
   readonly error: string | null;
   readonly pendingByUpgrade: Record<string, UpgradeValueEdit>;
   readonly onSelectPlayer: (playerId: string) => void;
-  readonly onChange: (upgrade: PlayerUpgradeDto, playerId: string, value: number) => void;
+  readonly onChange: (upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void;
   readonly onRevert: (playerId: string, upgradeKey: string) => void;
   readonly onRetry: () => void;
 }
@@ -93,7 +93,7 @@ export function UpgradesView({
                     const value = event.target.value;
                     setInputs((current) => ({ ...current, [inputKey]: value }));
                     const next = Number(value);
-                    if (value.trim() && Number.isSafeInteger(next) && next >= 0) onChange(upgrade, player.id, next);
+                    if (value.trim() && Number.isSafeInteger(next) && next >= 0) onChange(upgrade, player, next);
                   }} />
                   {edit ? <button className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
                     setInputs((current) => { const next = { ...current }; delete next[inputKey]; return next; });

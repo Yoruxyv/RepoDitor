@@ -33,6 +33,7 @@ const environment: EnvironmentDiscovery = {
 };
 const session: SaveSession = {
   ...environment.saves[0]!,
+  fingerprint: "a".repeat(64),
   level: 5,
   currency: 12,
   playerCount: 2,
@@ -79,12 +80,20 @@ function bridge(
   avatar: RepoDitorApi["players"]["avatar"] = vi.fn((_saveId: string, playerId: string) =>
     Promise.resolve({ ok: true as const, data: { playerId, avatarUrl: null } }),
   ),
+  write: RepoDitorApi["saves"]["write"] = vi.fn().mockResolvedValue({
+    ok: true,
+    data: {
+      backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+      session: { ...session, fingerprint: "b".repeat(64) },
+    },
+  }),
 ): RepoDitorApi {
   return {
     environment: { detect: vi.fn().mockResolvedValue({ ok: true, data: environment }) },
     saves: {
       list: vi.fn().mockResolvedValue({ ok: true, data: environment.saves }),
       open,
+      write,
     },
     players: {
       list: vi.fn().mockResolvedValue({ ok: true, data: playerList }),
@@ -289,6 +298,90 @@ describe("save workspace transition", () => {
       .toBe("20");
   });
 
+  it("summarizes, reverts, and safely submits pending changes", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect((screen.getByRole("button", { name: "Save Changes" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    const health = screen.getByRole("spinbutton", { name: "Current health" });
+    await user.clear(health);
+    await user.type(health, "42");
+
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    const strength = screen.getByRole("spinbutton", { name: "Strength for Beta" });
+    await user.clear(strength);
+    await user.type(strength, "3");
+
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = screen.getByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+
+    expect(screen.getByText("Beta · Health")).toBeTruthy();
+    expect(screen.getByText("Beta · Strength")).toBeTruthy();
+    expect(screen.getByText("Run · Currency")).toBeTruthy();
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("3 pending changes");
+
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
+      .toBe("12");
+    expect(write).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByRole("spinbutton", { name: "Currency" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Currency" }), "20");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(write).toHaveBeenCalledWith(session.id, session.fingerprint, [
+      { feature: "run", entity: "run", field: "currency", after: 20 },
+    ]);
+    expect(await screen.findByText(/Saved safely\. Backup:/)).toBeTruthy();
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+  });
+
+  it("keeps pending changes when a stale save is rejected", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: false as const,
+      error: { code: "save_stale" as const, message: "Reopen it before saving edits." },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Reopen it");
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+  });
+
   it("keeps editing available while an avatar loads and falls back if the image fails", async () => {
     let finishAvatar:
       | ((value: {
@@ -313,6 +406,8 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    expect(avatar).toHaveBeenCalledWith(saveId, "111");
     await user.click(screen.getByRole("tab", { name: "Players" }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);

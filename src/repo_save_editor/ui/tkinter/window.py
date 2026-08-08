@@ -510,7 +510,7 @@ class RepoSaveEditor(tk.Tk):
             return
 
         try:
-            backup = self.repository.overwrite(self.current_path, self.data)
+            backup, _ = self.repository.overwrite(self.current_path, self.data)
         except OSError as exc:
             messagebox.showerror(APP_TITLE, f"Could not save file:\n{exc}")
             return

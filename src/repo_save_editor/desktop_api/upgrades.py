@@ -12,7 +12,7 @@ from repo_save_editor.services.upgrades import discover_player_upgrades, get_pla
 def list_upgrades(save_id: str, root: Path | None = None) -> dict[str, object]:
     """Return dynamically discovered upgrades and their per-player values."""
     try:
-        _, data = load_discovered_save(save_id, root)
+        _, data, _ = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 

@@ -2,6 +2,7 @@ export interface IpcChannelMap {
   environmentDetect: "environment:detect";
   savesList: "saves:list";
   savesOpen: "saves:open";
+  savesWrite: "saves:write";
   playersList: "players:list";
   playersAvatar: "players:avatar";
   upgradesList: "upgrades:list";
@@ -33,6 +34,7 @@ export interface SaveSession {
   name: string;
   path: string;
   modifiedAt: string;
+  fingerprint: string;
   level: number;
   currency: number;
   playerCount: number;
@@ -49,6 +51,41 @@ export interface PlayerDto {
 export interface PlayerAvatar {
   playerId: string;
   avatarUrl: string | null;
+}
+
+export interface PlayerHealthChange {
+  feature: "players";
+  entity: string;
+  field: "health";
+  after: number;
+}
+
+export interface UpgradeValueChange {
+  feature: "upgrades";
+  entity: string;
+  field: string;
+  after: number;
+}
+
+export interface RunStatChange {
+  feature: "run";
+  entity: "run";
+  field: "level" | "currency" | "lives" | "totalHaul";
+  after: number;
+}
+
+export interface RunResumeChange {
+  feature: "run";
+  entity: "run";
+  field: "resumeLocation";
+  after: string;
+}
+
+export type SaveChange = PlayerHealthChange | UpgradeValueChange | RunStatChange | RunResumeChange;
+
+export interface SaveWriteResult {
+  backupPath: string;
+  session: SaveSession;
 }
 
 export interface PlayerUpgradeValueDto {
@@ -111,6 +148,11 @@ export type DesktopOperationErrorCode =
   | "save_corrupt"
   | "save_decrypt_failed"
   | "save_unsupported"
+  | "save_stale"
+  | "save_validation_failed"
+  | "backup_failed"
+  | "save_write_failed"
+  | "save_verification_failed"
   | "backend_unavailable"
   | "internal_error";
 
@@ -147,6 +189,13 @@ export interface RepoDitorApi {
       saveId: string,
     ) => Promise<
       DesktopOperationResult<SaveSession>
+    >;
+    write: (
+      saveId: string,
+      fingerprint: string,
+      changes: SaveChange[],
+    ) => Promise<
+      DesktopOperationResult<SaveWriteResult>
     >;
   };
   players: {

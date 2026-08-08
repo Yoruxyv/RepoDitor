@@ -3,14 +3,30 @@
 from __future__ import annotations
 
 import os
-import shutil
 import tempfile
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
+
+
+class SaveBackupError(OSError):
+    """Raised when the original save cannot be backed up safely."""
+
+
+class SaveStaleError(OSError):
+    """Raised when a save changes after the editor snapshot was opened."""
+
+
+class SaveVerificationError(OSError):
+    """Raised when staged encrypted output cannot be loaded exactly."""
+
+
+class SaveWriteError(OSError):
+    """Raised when staged output cannot atomically replace the source."""
 
 
 class SaveRepository:
@@ -22,26 +38,85 @@ class SaveRepository:
     @staticmethod
     def load(path: Path) -> SaveData:
         """Decrypt and validate one run save."""
-        data = decrypt_save(path.read_bytes())
+        return SaveRepository.load_bytes(path.read_bytes())
+
+    @staticmethod
+    def load_bytes(blob: bytes) -> SaveData:
+        """Decrypt and validate one in-memory run save snapshot."""
+        data = decrypt_save(blob)
         validate_run_save(data)
         return data
 
-    def overwrite(self, path: Path, data: SaveData) -> Path:
+    def overwrite(
+        self,
+        path: Path,
+        data: SaveData,
+        *,
+        expected_source: bytes | None = None,
+    ) -> tuple[Path, bytes]:
         """Back up ``path`` and atomically replace it with edited save data."""
-        timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-        backup = path.with_name(f"{path.name}.bak-{timestamp}")
-        shutil.copy2(path, backup)
-        self._write_atomic(path, encrypt_save(data))
-        return backup
+        validate_run_save(data)
+        source = path.read_bytes()
+        if expected_source is not None and source != expected_source:
+            raise SaveStaleError("The save changed after it was opened.")
+
+        backup = self._create_backup(path, source)
+        written = encrypt_save(data)
+        temp_path: Path | None = None
+        try:
+            temp_path = self._write_temp(path, written)
+            try:
+                if self.load(temp_path) != data:
+                    raise SaveVerificationError("The staged save did not match the edited data.")
+            except SaveVerificationError:
+                raise
+            except (OSError, ValueError) as exc:
+                raise SaveVerificationError("The staged save could not be verified.") from exc
+
+            if path.read_bytes() != source:
+                raise SaveStaleError("The save changed while edits were being prepared.")
+            try:
+                os.replace(temp_path, path)
+            except OSError as exc:
+                raise SaveWriteError("The original save could not be replaced.") from exc
+            temp_path = None
+        except (SaveStaleError, SaveVerificationError, SaveWriteError):
+            raise
+        except OSError as exc:
+            raise SaveWriteError("The edited save could not be staged.") from exc
+        finally:
+            if temp_path is not None:
+                with suppress(OSError):
+                    temp_path.unlink(missing_ok=True)
+        return backup, written
 
     def save_as(self, path: Path, data: SaveData) -> None:
         """Write edited save data to a separate path atomically."""
         self._write_atomic(path, encrypt_save(data))
 
     @staticmethod
-    def _write_atomic(path: Path, blob: bytes) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def _create_backup(path: Path, source: bytes) -> Path:
+        timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+        collision = 0
+        while True:
+            suffix = "" if collision == 0 else f"-{collision}"
+            backup = path.with_name(f"{path.name}.bak-{timestamp}{suffix}")
+            try:
+                with backup.open("xb") as output:
+                    output.write(source)
+                    output.flush()
+                    os.fsync(output.fileno())
+                return backup
+            except FileExistsError:
+                collision += 1
+            except OSError as exc:
+                with suppress(OSError):
+                    backup.unlink(missing_ok=True)
+                raise SaveBackupError("The original save could not be backed up.") from exc
 
+    @staticmethod
+    def _write_temp(path: Path, blob: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -51,12 +126,22 @@ class SaveRepository:
                 dir=path.parent,
                 delete=False,
             ) as temp:
+                temp_path = Path(temp.name)
                 temp.write(blob)
                 temp.flush()
                 os.fsync(temp.fileno())
-                temp_path = Path(temp.name)
+            return temp_path
+        except OSError:
+            if temp_path is not None:
+                with suppress(OSError):
+                    temp_path.unlink(missing_ok=True)
+            raise
 
+    @staticmethod
+    def _write_atomic(path: Path, blob: bytes) -> None:
+        temp_path = SaveRepository._write_temp(path, blob)
+        try:
             os.replace(temp_path, path)
         finally:
-            if temp_path is not None and temp_path.exists():
+            with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
