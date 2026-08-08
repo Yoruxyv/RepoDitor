@@ -1,12 +1,6 @@
 export interface IpcChannelMap {
-  appPing: "app:ping";
   environmentDetect: "environment:detect";
   savesList: "saves:list";
-}
-
-export interface AppPing {
-  ok: true;
-  message: string;
 }
 
 export type SaveRootStatus =
@@ -67,9 +61,6 @@ export type DesktopOperationResult<T> =
   | DesktopOperationFailure;
 
 export interface RepoDitorApi {
-  app: {
-    ping: () => Promise<AppPing>;
-  };
   environment: {
     detect: () => Promise<
       DesktopOperationResult<EnvironmentDiscovery>
