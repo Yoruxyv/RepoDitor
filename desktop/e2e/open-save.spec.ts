@@ -11,6 +11,9 @@ const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const repoRoot = path.resolve(desktopRoot, "..");
 const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
+const packagedExecutable = process.env.REPODITOR_E2E_EXECUTABLE
+  ? path.resolve(desktopRoot, process.env.REPODITOR_E2E_EXECUTABLE)
+  : null;
 
 function getPythonExecutable(): string {
   const executable = path.join(
@@ -141,19 +144,32 @@ test("safely writes Phase 8 changes with backup and stale-save protection", asyn
     const savePath = await createFixture(home);
     const gameRoot = await createGameFixture(home);
     const sourceBefore = await readFile(savePath);
-    application = await electron.launch({
-      args: [".", `--user-data-dir=${path.join(home, "electron-profile")}`],
-      cwd: desktopRoot,
-      env: {
-        ...process.env,
-        APPDATA: path.join(home, "AppData", "Roaming"),
-        HOME: home,
-        LOCALAPPDATA: path.join(home, "AppData", "Local"),
-        REPO_GAME_DIR: gameRoot,
-        USERPROFILE: home,
-        VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-      },
-    });
+    const applicationEnvironment = {
+      ...process.env,
+      APPDATA: path.join(home, "AppData", "Roaming"),
+      HOME: home,
+      LOCALAPPDATA: path.join(home, "AppData", "Local"),
+      REPO_GAME_DIR: gameRoot,
+      USERPROFILE: home,
+    };
+    delete applicationEnvironment.VITE_DEV_SERVER_URL;
+    application = await electron.launch(
+      packagedExecutable
+        ? {
+            executablePath: packagedExecutable,
+            args: [`--user-data-dir=${path.join(home, "electron-profile")}`],
+            cwd: path.dirname(packagedExecutable),
+            env: applicationEnvironment,
+          }
+        : {
+            args: [".", `--user-data-dir=${path.join(home, "electron-profile")}`],
+            cwd: desktopRoot,
+            env: {
+              ...applicationEnvironment,
+              VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
+            },
+          },
+    );
     const page = await application.firstWindow();
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows executable
+    name: Build Windows desktop application
     runs-on: windows-latest
 
     steps:
@@ -24,31 +24,50 @@ jobs:
           enable-cache: true
           python-version: "3.13"
 
-      - name: Sync locked dependencies
-        run: uv sync --locked
+      - name: Sync locked Python and packaging dependencies
+        run: uv sync --locked --group package
 
-      - name: Build RepoDitor.exe
-        run: >-
-          uv run --with pyinstaller
-          pyinstaller
-          --noconfirm
-          --clean
-          --onefile
-          --windowed
-          --name RepoDitor
-          --paths src
-          src/repo_save_editor/__main__.py
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build Python sidecar
+        working-directory: desktop
+        run: npm run build:sidecar
+
+      - name: Build Electron application
+        working-directory: desktop
+        run: npm run build
+
+      - name: Package unpacked application
+        working-directory: desktop
+        run: npm run package:dir
+
+      - name: Run packaged smoke test
+        working-directory: desktop
+        run: npm run test:e2e:packaged
+
+      - name: Build Windows archive
+        working-directory: desktop
+        run: npm run package:win
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: RepoDitor-windows
-          path: dist/RepoDitor.exe
+          path: desktop/release/*.zip
           if-no-files-found: error
 
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/RepoDitor.exe
+          files: desktop/release/*.zip
           generate_release_notes: true
