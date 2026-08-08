@@ -15,16 +15,22 @@ RepoDitor is an unofficial Electron desktop editor for local **R.E.P.O.** `.es3`
 > [!IMPORTANT]
 > RepoDitor is an unofficial community tool and is not affiliated with semiwork. Back up important saves before editing them. Game updates can change save behavior or schema.
 
+## Preview
+
+![RepoDitor workspace showing a safely opened local save](docs/screenshots/repoditor-workspace.png)
+
 ## Install
 
-Download the Windows artifact from the project releases and run `RepoDitor`. The packaged application includes Electron and its Python backend; users do not need Python, `uv`, Node.js, or npm.
+Download `RepoDitor-<version>-x64.zip` from the project releases, extract it, and run `RepoDitor.exe`. The archive includes Electron and the Python backend; users do not need Python, `uv`, Node.js, or npm.
+
+Current builds are unsigned, so Windows SmartScreen may ask for confirmation. Each release also includes a SHA-256 checksum beside the archive.
 
 ## Development setup
 
 Development requires `uv`, Python 3.11 or newer, and Node.js 24.
 
 ```powershell
-uv sync --devcls
+uv sync --locked
 
 cd desktop
 npm ci
@@ -47,11 +53,14 @@ uv run --with "pytest>=8.3,<9" pytest
 cd desktop
 npm run imports:check
 npm run lint
+npm run release:check
 npm run build
 npm run bundle:check
 npm test
 npm run test:e2e
 ```
+
+Python tests use temporary directories and generated encrypted fixtures. Electron E2E creates an isolated fake Windows profile, verifies backups and stale-file protection, and never targets real user saves.
 
 ## Windows packaging
 
@@ -61,7 +70,9 @@ From `desktop/`, run:
 npm run package
 ```
 
-This builds the PyInstaller sidecar, builds Electron, runs the full E2E flow against the unpacked production application, and creates the self-contained Windows archive under `desktop/release/`.
+This builds the locked Python 3.13 PyInstaller sidecar, builds Electron, runs the full E2E flow against the unpacked production application, and creates the self-contained Windows archive under `desktop/release/`.
+
+The release workflow accepts semantic tags matching the project version, such as `v0.1.0`. It reruns the required quality checks, packaged smoke test, archive build, and checksum generation before publishing. See [`docs/release-checklist.md`](docs/release-checklist.md) for the release gate.
 
 ## Default save location
 
@@ -91,4 +102,8 @@ RepoDitor validates pending edits and detects stale source files before mutation
 
 RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run saves. Unsupported or malformed saves are rejected before mutation.
 
-R.E.P.O. and related names are trademarks/property of their respective owners. RepoDitor is an unofficial save-management utility and contains no game assets.
+## Fonts and license
+
+The desktop package bundles Teko under the SIL Open Font License. Body text uses the Windows Segoe UI stack, so release builds do not depend on a font CDN or network connection.
+
+RepoDitor is released under the [MIT License](LICENSE). R.E.P.O. and related names are trademarks/property of their respective owners. RepoDitor is an unofficial save-management utility and contains no game assets.

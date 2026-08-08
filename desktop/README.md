@@ -16,10 +16,12 @@ Development launches the Python desktop API from the repository `.venv`.
 ```powershell
 npm run imports:check
 npm run lint
+npm run release:check
 npm run build
 npm run bundle:check
 npm test
 npm run test:e2e
+npm run test:e2e:packaged
 ```
 
 ## Windows package
