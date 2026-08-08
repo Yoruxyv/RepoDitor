@@ -1,0 +1,121 @@
+import base64
+import json
+from pathlib import Path
+
+from repo_save_editor.desktop_api.maps import list_maps
+from repo_save_editor.desktop_api.run import get_run_state
+from repo_save_editor.desktop_api.upgrades import list_upgrades
+from repo_save_editor.storage.repository import SaveRepository
+
+
+def _write_save(root: Path, data: dict[str, object]) -> Path:
+    save_id = "REPO_SAVE_2026_08_08_10_20_30"
+    save_path = root / save_id / f"{save_id}.es3"
+    SaveRepository(root).save_as(save_path, data)
+    return save_path
+
+
+def _write_catalog(game_root: Path, text: str) -> Path:
+    catalog = game_root / "REPO_Data/StreamingAssets/aa/catalog.json"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text(
+        json.dumps({"m_KeyDataString": base64.b64encode(text.encode()).decode()}),
+        encoding="utf-8",
+    )
+    return catalog
+
+
+def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["playerUpgradeMoonBoots"] = {"222": 7}
+    save_path = _write_save(tmp_path, sample_save)
+    before = save_path.read_bytes()
+
+    result = list_upgrades(save_path.parent.name, tmp_path)
+
+    assert result == {
+        "ok": True,
+        "upgrades": [
+            {
+                "key": "playerUpgradeStrength",
+                "label": "Strength",
+                "known": True,
+                "values": [
+                    {"playerId": "111", "value": 2},
+                    {"playerId": "222", "value": 0},
+                ],
+            },
+            {
+                "key": "playerUpgradeMoonBoots",
+                "label": "Moon Boots",
+                "known": False,
+                "values": [
+                    {"playerId": "111", "value": 0},
+                    {"playerId": "222", "value": 7},
+                ],
+            },
+        ],
+    }
+    assert save_path.read_bytes() == before
+
+
+def test_run_state_uses_friendly_values_and_preserves_unknown_resume(
+    tmp_path: Path, sample_save
+) -> None:
+    sample_save["dictionaryOfDictionaries"]["value"]["runStats"]["save level"] = 9
+    save_path = _write_save(tmp_path, sample_save)
+
+    result = get_run_state(save_path.parent.name, tmp_path)
+
+    assert result["ok"] is True
+    assert result["run"] == {
+        "stats": [
+            {"key": "level", "label": "Level", "value": 5},
+            {"key": "currency", "label": "Currency", "value": 12},
+            {"key": "lives", "label": "Lives", "value": 3},
+            {"key": "totalHaul", "label": "Total Haul", "value": 500},
+        ],
+        "resumeLocation": {
+            "value": "Unknown (9)",
+            "options": ["Normal", "Shop / Service Station", "Unknown (9)"],
+        },
+    }
+
+
+def test_maps_report_available_unavailable_and_feature_errors(tmp_path: Path) -> None:
+    missing = list_maps(tmp_path / "missing")
+    assert missing == {"ok": True, "available": False, "catalogPath": None, "maps": []}
+
+    game_root = tmp_path / "game"
+    catalog = _write_catalog(
+        game_root,
+        "Level/Arctic/Loading Graphics/a Level/Modded Moon/Loading Graphics/b",
+    )
+    assert list_maps(game_root) == {
+        "ok": True,
+        "available": True,
+        "catalogPath": str(catalog),
+        "maps": [
+            {
+                "internalName": "Arctic",
+                "displayName": "McJannek Station",
+                "knownLabel": True,
+            },
+            {
+                "internalName": "Modded Moon",
+                "displayName": "Modded Moon",
+                "knownLabel": False,
+            },
+        ],
+    }
+
+    catalog.write_text("not json", encoding="utf-8")
+    error = list_maps(game_root)
+    assert error["ok"] is False
+    assert error["error"]["code"] == "backend_unavailable"
+
+
+def test_editor_reads_reuse_stable_missing_save_failure(tmp_path: Path) -> None:
+    save_id = "REPO_SAVE_2026_08_08_10_20_30"
+    assert list_upgrades(save_id, tmp_path)["error"]["code"] == "save_missing"
+    assert get_run_state(save_id, tmp_path)["error"]["code"] == "save_missing"

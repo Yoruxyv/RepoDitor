@@ -96,6 +96,16 @@ def get_run_stat_for_display(data: SaveData, key: str) -> int:
     return get_run_stat(data, key)
 
 
+def get_available_run_stats(data: SaveData) -> tuple[tuple[str, str, int], ...]:
+    """Return friendly run stats supported by the loaded save."""
+    run_stats = get_dictionaries(data)["runStats"]
+    return tuple(
+        (label, key, get_run_stat_for_display(data, key))
+        for label, key in RUN_STATS
+        if key in {"level", "currency"} or key in run_stats
+    )
+
+
 def set_run_stat_from_display(data: SaveData, key: str, value: int) -> None:
     """Store a run stat supplied by an interface."""
     if key == "level":
