@@ -74,6 +74,9 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      - name: Check release version alignment
+        run: npm run release:check
+
       - name: Build desktop
         run: npm run build
 
@@ -83,8 +86,8 @@ jobs:
       - name: Component and contract tests
         run: npm test
 
-  windows-integration:
-    name: Windows integration
+  windows-e2e:
+    name: Windows Electron E2E
     runs-on: windows-latest
 
     defaults:
@@ -118,6 +121,47 @@ jobs:
       - name: Electron E2E
         run: npm run test:e2e
 
+      - name: Upload Electron E2E diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-e2e-diagnostics
+          path: desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package-smoke:
+    name: Windows package smoke
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Sync locked Python and packaging dependencies
+        working-directory: .
+        run: uv sync --locked --group package
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
       - name: Build Python sidecar
         run: npm run build:sidecar
 
@@ -130,9 +174,18 @@ jobs:
       - name: Packaged Electron E2E
         run: npm run test:e2e:packaged
 
+      - name: Upload package smoke diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-smoke-diagnostics
+          path: desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   quality-gate:
     name: Quality gate
-    needs: [quality, desktop-quality, windows-integration]
+    needs: [quality, desktop-quality, windows-e2e, package-smoke]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
@@ -149,8 +202,13 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ needs.windows-integration.result }}" != "success" ]; then
-            echo "Windows integration failed."
+          if [ "${{ needs.windows-e2e.result }}" != "success" ]; then
+            echo "Windows Electron E2E failed."
+            exit 1
+          fi
+
+          if [ "${{ needs.package-smoke.result }}" != "success" ]; then
+            echo "Windows package smoke failed."
             exit 1
           fi
 

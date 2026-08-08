@@ -27,6 +27,12 @@ jobs:
       - name: Sync locked Python and packaging dependencies
         run: uv sync --locked --group package
 
+      - name: Python quality and tests
+        run: |
+          uv run ruff check python tests
+          uv run ruff format --check python tests
+          uv run --with "pytest>=8.3,<9" pytest
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -38,6 +44,14 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      - name: Desktop quality and tests
+        working-directory: desktop
+        run: |
+          npm run imports:check
+          npm run lint
+          npm run release:check
+          npm test
+
       - name: Build Python sidecar
         working-directory: desktop
         run: npm run build:sidecar
@@ -45,6 +59,10 @@ jobs:
       - name: Build Electron application
         working-directory: desktop
         run: npm run build
+
+      - name: Check renderer bundle budget
+        working-directory: desktop
+        run: npm run bundle:check
 
       - name: Package unpacked application
         working-directory: desktop
@@ -54,20 +72,41 @@ jobs:
         working-directory: desktop
         run: npm run test:e2e:packaged
 
+      - name: Upload packaged smoke diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-diagnostics
+          path: desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build Windows archive
         working-directory: desktop
         run: npm run package:win
+
+      - name: Create archive checksum
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem release/*.zip | Select-Object -First 1
+          $hash = (Get-FileHash $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($archive.Name)" | Set-Content "$($archive.FullName).sha256"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: RepoDitor-windows
-          path: desktop/release/*.zip
+          path: |
+            desktop/release/*.zip
+            desktop/release/*.sha256
           if-no-files-found: error
 
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/release/*.zip
+          files: |
+            desktop/release/*.zip
+            desktop/release/*.sha256
           generate_release_notes: true
