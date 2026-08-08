@@ -7,6 +7,8 @@ import {
   type DesktopOperationResult,
   type EnvironmentDiscovery,
   type IpcChannelMap,
+  type PlayerAvatar,
+  type PlayerDto,
   type RepoDitorApi,
   type SaveSession,
   type SaveSummary,
@@ -18,6 +20,8 @@ const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
   savesList: "saves:list",
   savesOpen: "saves:open",
+  playersList: "players:list",
+  playersAvatar: "players:avatar",
 };
 
 const repoditorApi: RepoDitorApi = {
@@ -42,6 +46,23 @@ const repoditorApi: RepoDitorApi = {
         saveId,
       ) as Promise<
         DesktopOperationResult<SaveSession>
+      >,
+  },
+  players: {
+    list: (saveId) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.playersList,
+        saveId,
+      ) as Promise<
+        DesktopOperationResult<PlayerDto[]>
+      >,
+    avatar: (saveId, playerId) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.playersAvatar,
+        saveId,
+        playerId,
+      ) as Promise<
+        DesktopOperationResult<PlayerAvatar>
       >,
   },
 };

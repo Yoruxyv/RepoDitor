@@ -6,7 +6,9 @@ const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 
 export type PythonCommand =
   | "environment"
-  | "saves-open";
+  | "saves-open"
+  | "players-list"
+  | "players-avatar";
 
 export type PythonClientErrorCode =
   | "python_unavailable"
