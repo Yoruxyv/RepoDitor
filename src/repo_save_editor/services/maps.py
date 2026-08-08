@@ -5,14 +5,16 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import os
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-CATALOG_RELATIVE_PATH: Final = Path("REPO_Data/StreamingAssets/aa/catalog.json")
+from repo_save_editor.services.game_discovery import (
+    discover_game_installation,
+    validate_game_installation,
+)
+
 MAP_LOADING_GRAPHICS_PATTERN: Final = re.compile(
     r"Level[\\/](?P<family>[^\\/\x00]+)[\\/]Loading Graphics[\\/]",
     re.IGNORECASE,
@@ -111,74 +113,6 @@ def load_map_catalog(catalog_path: Path) -> MapCatalog:
     return MapCatalog(path=catalog_path, maps=maps)
 
 
-def _catalog_from_game_dir(game_dir: Path) -> Path | None:
-    catalog = game_dir / CATALOG_RELATIVE_PATH
-    return catalog if catalog.is_file() else None
-
-
-def _parse_steam_library_paths(library_file: Path) -> tuple[Path, ...]:
-    """Extract Steam library roots without requiring a VDF dependency."""
-    try:
-        text = library_file.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ()
-
-    paths: list[Path] = []
-    for match in re.finditer(r'"path"\s+"(?P<path>[^"]+)"', text, re.IGNORECASE):
-        value = match.group("path").replace("\\\\", "\\")
-        path = Path(value)
-        if path not in paths:
-            paths.append(path)
-    return tuple(paths)
-
-
-def _windows_steam_roots() -> tuple[Path, ...]:
-    if sys.platform != "win32":
-        return ()
-
-    try:
-        import winreg
-    except ImportError:
-        return ()
-
-    candidates: list[Path] = []
-    lookups = (
-        (winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
-    )
-    for hive, key_name, value_name in lookups:
-        try:
-            with winreg.OpenKey(hive, key_name) as key:
-                value, _kind = winreg.QueryValueEx(key, value_name)
-        except OSError:
-            continue
-        if isinstance(value, str) and value:
-            path = Path(value)
-            if path not in candidates:
-                candidates.append(path)
-
-    for fallback in (Path("C:/Program Files (x86)/Steam"), Path("C:/Program Files/Steam")):
-        if fallback not in candidates:
-            candidates.append(fallback)
-
-    return tuple(candidates)
-
-
-def discover_steam_library_roots() -> tuple[Path, ...]:
-    """Return Steam library roots, including secondary libraries such as E:\\SteamLibrary."""
-    roots: list[Path] = []
-    for steam_root in _windows_steam_roots():
-        if steam_root not in roots:
-            roots.append(steam_root)
-
-        library_file = steam_root / "steamapps/libraryfolders.vdf"
-        for library_root in _parse_steam_library_paths(library_file):
-            if library_root not in roots:
-                roots.append(library_root)
-
-    return tuple(roots)
-
-
 def find_installed_catalog(game_dir: Path | None = None) -> Path | None:
     """Locate R.E.P.O.'s local Addressables catalog.
 
@@ -186,21 +120,10 @@ def find_installed_catalog(game_dir: Path | None = None) -> Path | None:
     RepoDitor checks ``REPO_GAME_DIR`` and then installed Steam libraries.
     """
     if game_dir is not None:
-        return _catalog_from_game_dir(game_dir)
-
-    override = os.environ.get("REPO_GAME_DIR")
-    if override:
-        catalog = _catalog_from_game_dir(Path(override).expanduser())
-        if catalog is not None:
-            return catalog
-
-    for library_root in discover_steam_library_roots():
-        game_root = library_root / "steamapps/common/REPO"
-        catalog = _catalog_from_game_dir(game_root)
-        if catalog is not None:
-            return catalog
-
-    return None
+        installation = validate_game_installation(game_dir)
+    else:
+        installation = discover_game_installation().installation
+    return None if installation is None else installation.catalog_path
 
 
 def discover_installed_maps(game_dir: Path | None = None) -> MapCatalog | None:
