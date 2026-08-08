@@ -25,6 +25,8 @@ Download `RepoDitor-<version>-x64.zip` from the project releases, extract it, an
 
 Current builds are unsigned, so Windows SmartScreen may ask for confirmation. Each release also includes a SHA-256 checksum beside the archive.
 
+Updates are manual: download and extract a newer GitHub Release archive when one is published. RepoDitor does not include an auto-updater or a background update service.
+
 ## Development setup
 
 Development requires `uv`, Python 3.11 or newer, and Node.js 24.
