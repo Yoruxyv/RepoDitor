@@ -4,8 +4,8 @@
 
 RepoDitor is a local desktop save editor for R.E.P.O.
 
-The Electron interface replaces the existing Tkinter interface, but it must not
-copy the Tkinter layout. Tkinter is only a behavioral reference.
+The Electron interface replaced the legacy Tkinter interface without copying
+its layout. Tkinter was only a behavioral reference during migration.
 
 The web editor at repo-save-editor.jerasoft.com.br may be studied for UX ideas,
 but its visual design and implementation must not be copied.
@@ -47,8 +47,8 @@ Primary flow:
 1. Detect the normal R.E.P.O. saves directory.
 2. Show the latest save prominently.
 3. Show recent saves.
-4. Allow choosing another save manually.
-5. Support drag-and-drop as an alternative.
+4. Keep arbitrary file selection behind a future narrow, typed desktop contract.
+5. Keep drag-and-drop behind that same validated contract if it is added later.
 6. Open the selected save in the editor.
 
 The user should not need to manually browse for their save every time.
@@ -136,7 +136,8 @@ interaction problem.
 
 ## Migration rule
 
-Do not remove Tkinter until the Electron UI reaches functional parity.
+Tkinter was removed only after the Electron UI reached the supported production
+parity gate in Phase 9.
 
 Migrate incrementally:
 
@@ -150,4 +151,4 @@ Migrate incrementally:
 8. Maps
 9. save/backup workflow
 10. packaging
-11. remove Tkinter
+11. remove Tkinter (complete)
