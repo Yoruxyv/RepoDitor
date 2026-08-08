@@ -1,17 +1,17 @@
-import { Clock, File, HardDrive } from "@phosphor-icons/react";
+import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
 
-import type { SaveSummary } from "../../../../electron/contracts.cts";
+import type { SaveSummary } from "@electron/contracts";
 import {
   formatDateTime,
   formatFileSize,
   formatRelativeTime,
-} from "../formatters";
+} from "@/features/discovery/formatters";
 
 interface LatestSaveProps {
-  save: SaveSummary;
-  isDisabled: boolean;
-  isOpening: boolean;
-  onOpen: (saveId: string) => void;
+  readonly save: SaveSummary;
+  readonly isDisabled: boolean;
+  readonly isOpening: boolean;
+  readonly onOpen: (saveId: string) => void;
 }
 
 export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSaveProps) {
@@ -30,7 +30,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
         <div className="border-l-2 border-accent p-5 sm:p-6">
           <div className="flex items-start gap-4">
             <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-sm bg-accent-muted text-accent">
-              <File aria-hidden="true" size={21} weight="regular" />
+              <FileIcon aria-hidden="true" size={21} weight="regular" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.01em] text-ink sm:text-4xl">
@@ -38,11 +38,11 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
               </p>
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
                 <span className="inline-flex items-center gap-2">
-                  <Clock aria-hidden="true" size={15} weight="regular" />
+                  <ClockIcon aria-hidden="true" size={15} weight="regular" />
                   <span>{formatRelativeTime(save.modifiedAt)}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <HardDrive aria-hidden="true" size={15} weight="regular" />
+                  <HardDriveIcon aria-hidden="true" size={15} weight="regular" />
                   <span>{formatFileSize(save.sizeBytes)}</span>
                 </span>
               </div>
@@ -55,7 +55,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
         </div>
 
         <div className="border-t border-line px-5 py-3 sm:px-6">
-          <p className="truncate font-mono text-[0.7rem] leading-5 text-muted" title={save.path}>
+          <p className="truncate font-mono text-[0.7rem]/5 text-muted" title={save.path}>
             {save.path}
           </p>
         </div>

@@ -1,9 +1,9 @@
-import { CheckCircle } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
 
-import type { SaveSession } from "../../../electron/contracts.cts";
-import { formatDateTime } from "../discovery/formatters";
+import type { SaveSession } from "@electron/contracts";
+import { formatDateTime } from "@/features/discovery/formatters";
 
-export function OverviewView({ session }: { session: SaveSession }) {
+export function OverviewView({ session }: { readonly session: SaveSession }) {
   const metrics = [
     ["Level", session.level],
     ["Currency", session.currency.toLocaleString()],
@@ -31,11 +31,11 @@ export function OverviewView({ session }: { session: SaveSession }) {
       </dl>
 
       <section className="mt-8" aria-labelledby="session-ready-title">
-        <CheckCircle aria-hidden="true" className="text-success" size={27} weight="regular" />
+        <CheckCircleIcon aria-hidden="true" className="text-success" size={27} weight="regular" />
         <h2 className="mt-4 text-xl font-semibold text-ink" id="session-ready-title">
           Save opened safely
         </h2>
-        <p className="mt-2 max-w-[60ch] text-sm leading-6 text-secondary">
+        <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">
           Python decrypted and validated this local save. Any edits made in this workspace stay in
           memory until a later save phase.
         </p>

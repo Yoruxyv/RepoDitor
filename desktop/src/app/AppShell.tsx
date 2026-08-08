@@ -1,13 +1,13 @@
-import { HardDrive } from "@phosphor-icons/react";
+import { HardDriveIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 interface AppShellProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="min-h-[100dvh] bg-app text-ink">
+    <div className="min-h-dvh bg-app text-ink">
       <a
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-20 focus:bg-accent focus:px-4 focus:py-2 focus:text-accent-ink"
         href="#app-content"
@@ -27,7 +27,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-2 text-sm text-secondary">
-            <HardDrive aria-hidden="true" size={17} weight="regular" />
+            <HardDriveIcon aria-hidden="true" size={17} weight="regular" />
             <span className="hidden sm:inline">Local desktop</span>
           </div>
         </div>

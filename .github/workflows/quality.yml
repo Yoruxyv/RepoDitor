@@ -68,11 +68,17 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
 
+      - name: Check renderer imports
+        run: npm run imports:check
+
       - name: ESLint
         run: npm run lint
 
       - name: Build desktop
         run: npm run build
+
+      - name: Check bundle budget
+        run: npm run bundle:check
 
       - name: Component and contract tests
         run: npm test

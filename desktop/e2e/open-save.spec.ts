@@ -116,10 +116,16 @@ test("opens Overview and keeps pending player edits in memory across supported s
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     const boundary = await page.evaluate(() => ({
-      environment: Object.keys(window.repoditor.environment).sort(),
-      players: Object.keys(window.repoditor.players).sort(),
+      environment: Object.keys(window.repoditor.environment).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+      players: Object.keys(window.repoditor.players).sort((left, right) =>
+        left.localeCompare(right),
+      ),
       requireType: typeof window.require,
-      saves: Object.keys(window.repoditor.saves).sort(),
+      saves: Object.keys(window.repoditor.saves).sort((left, right) =>
+        left.localeCompare(right),
+      ),
     }));
     expect(boundary).toEqual({
       environment: ["detect"],

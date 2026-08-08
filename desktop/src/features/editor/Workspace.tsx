@@ -1,27 +1,45 @@
-import { ArrowLeft, FolderOpen, ShieldCheck } from "@phosphor-icons/react";
+import {
+  ArrowLeftIcon,
+  FolderOpenIcon,
+  ShieldCheckIcon,
+} from "@phosphor-icons/react";
 import { useState, type KeyboardEvent } from "react";
 
-import type { SaveSession } from "../../../electron/contracts.cts";
-import { formatDateTime } from "../discovery/formatters";
-import { PlayersView } from "../players/PlayersView";
-import { usePlayers } from "../players/usePlayers";
+import type { SaveSession } from "@electron/contracts";
+import { formatDateTime } from "@/features/discovery/formatters";
+import { PlayersView } from "@/features/players/PlayersView";
+import { usePlayers } from "@/features/players/usePlayers";
 import { OverviewView } from "./OverviewView";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
-  session: SaveSession;
-  onClose: () => void;
+  readonly session: SaveSession;
+  readonly onClose: () => void;
 }
 
-function Placeholder({ section }: { section: Exclude<WorkspaceSection, "Overview" | "Players"> }) {
+function formatPendingEditCount(count: number): string {
+  if (count === 0) {
+    return "No pending changes";
+  }
+  if (count === 1) {
+    return "1 pending change";
+  }
+  return `${count} pending changes`;
+}
+
+function Placeholder({
+  section,
+}: {
+  readonly section: Exclude<WorkspaceSection, "Overview" | "Players">;
+}) {
   return (
     <section aria-labelledby="placeholder-title">
       <h2 className="text-2xl font-semibold text-ink" id="placeholder-title">
         {section}
       </h2>
-      <p className="mt-3 max-w-[58ch] text-sm leading-6 text-secondary">
+      <p className="mt-3 max-w-[58ch] text-sm/6 text-secondary">
         This section is reserved for a later phase. No save data can be changed here yet.
       </p>
     </section>
@@ -33,13 +51,18 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
   const players = usePlayers(session.id);
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
-    const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    let offset = 0;
+    if (event.key === "ArrowRight") {
+      offset = 1;
+    } else if (event.key === "ArrowLeft") {
+      offset = -1;
+    }
     if (offset === 0) {
       return;
     }
     event.preventDefault();
     const nextIndex = (index + offset + SECTIONS.length) % SECTIONS.length;
-    setActiveSection(SECTIONS[nextIndex]);
+    setActiveSection(SECTIONS[nextIndex]!);
     document.getElementById(`workspace-tab-${nextIndex}`)?.focus();
   }
 
@@ -58,7 +81,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
           type="button"
           onClick={onClose}
         >
-          <ArrowLeft aria-hidden="true" size={17} weight="bold" />
+          <ArrowLeftIcon aria-hidden="true" size={17} weight="bold" />
           Change save
         </button>
       </header>
@@ -115,14 +138,14 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
 
         <aside className="min-w-0 border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0" data-testid="workspace-context" aria-label="Save context">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <FolderOpen aria-hidden="true" className="text-accent" size={18} />
+            <FolderOpenIcon aria-hidden="true" className="text-accent" size={18} />
             Source
           </div>
-          <p className="mt-3 break-all font-mono text-[0.7rem] leading-5 text-muted" title={session.path}>
+          <p className="mt-3 break-all font-mono text-[0.7rem]/5 text-muted" title={session.path}>
             {session.path}
           </p>
-          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs leading-5 text-secondary">
-            <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
+          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs/5 text-secondary">
+            <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
             <p>Validated locally. Raw decrypted data stays behind the Python boundary.</p>
           </div>
         </aside>
@@ -132,11 +155,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
         <div>
           <p className="font-semibold text-ink">In-memory working copy</p>
           <p className="mt-1 text-xs text-muted" data-testid="pending-edit-count">
-            {players.pendingEdits.length === 0
-              ? "No pending changes"
-              : `${players.pendingEdits.length} pending ${
-                  players.pendingEdits.length === 1 ? "change" : "changes"
-                }`}
+            {formatPendingEditCount(players.pendingEdits.length)}
           </p>
         </div>
         <p className="text-xs text-secondary">Nothing in this workspace is written to disk.</p>

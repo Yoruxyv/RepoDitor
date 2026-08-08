@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 
 interface PathTextProps {
-  className: string;
-  path: string;
+  readonly className: string;
+  readonly path: string;
 }
 
 export function PathText({ className, path }: PathTextProps) {

@@ -1,12 +1,12 @@
-import { Clock, File } from "@phosphor-icons/react";
+import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
-import type { SaveSummary } from "../../../../electron/contracts.cts";
-import { formatDateTime, formatFileSize } from "../formatters";
+import type { SaveSummary } from "@electron/contracts";
+import { formatDateTime, formatFileSize } from "@/features/discovery/formatters";
 
 interface RecentSaveListProps {
-  saves: SaveSummary[];
-  openingSaveId: string | null;
-  onOpen: (saveId: string) => void;
+  readonly saves: SaveSummary[];
+  readonly openingSaveId: string | null;
+  readonly onOpen: (saveId: string) => void;
 }
 
 export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListProps) {
@@ -36,7 +36,7 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
                 onClick={() => onOpen(save.id)}
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <File
+                  <FileIcon
                     aria-hidden="true"
                     className="mt-0.5 shrink-0 text-muted"
                     size={18}
@@ -46,7 +46,7 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
                     <p className="truncate text-sm font-semibold text-ink" title={save.name}>
                       {save.name}
                     </p>
-                    <p className="mt-1 truncate font-mono text-[0.68rem] leading-5 text-muted" title={save.path}>
+                    <p className="mt-1 truncate font-mono text-[0.68rem]/5 text-muted" title={save.path}>
                       {save.path}
                     </p>
                   </div>
@@ -54,7 +54,7 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
 
                 <div className="flex items-center gap-4 pl-7 text-xs text-secondary sm:pl-0">
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <Clock aria-hidden="true" size={14} weight="regular" />
+                    <ClockIcon aria-hidden="true" size={14} weight="regular" />
                     {formatDateTime(save.modifiedAt)}
                   </span>
                   <span className="min-w-14 text-right font-mono text-muted">

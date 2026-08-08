@@ -1,22 +1,22 @@
-import { ArrowClockwise, User } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, UserIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import type { PlayerDto } from "../../../electron/contracts.cts";
+import type { PlayerDto } from "@electron/contracts";
 import type { PlayerHealthEdit } from "./usePlayers";
 
 interface PlayersViewProps {
-  players: PlayerDto[];
-  loading: boolean;
-  error: string | null;
-  selectedPlayerId: string | null;
-  pendingByPlayer: Record<string, PlayerHealthEdit>;
-  avatarUrls: Record<string, string | null>;
-  onSelect: (playerId: string) => void;
-  onLoadAvatar: (playerId: string) => void;
-  onRejectAvatar: (playerId: string) => void;
-  onHealthChange: (player: PlayerDto, health: number) => void;
-  onRevertHealth: (playerId: string) => void;
-  onRetry: () => void;
+  readonly players: PlayerDto[];
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly selectedPlayerId: string | null;
+  readonly pendingByPlayer: Record<string, PlayerHealthEdit>;
+  readonly avatarUrls: Record<string, string | null>;
+  readonly onSelect: (playerId: string) => void;
+  readonly onLoadAvatar: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string) => void;
+  readonly onHealthChange: (player: PlayerDto, health: number) => void;
+  readonly onRevertHealth: (playerId: string) => void;
+  readonly onRetry: () => void;
 }
 
 function initials(name: string): string {
@@ -80,7 +80,7 @@ export function PlayersView({
           type="button"
           onClick={onRetry}
         >
-          <ArrowClockwise aria-hidden="true" size={16} />
+          <ArrowClockwiseIcon aria-hidden="true" size={16} />
           Try again
         </button>
       </section>
@@ -182,7 +182,7 @@ export function PlayersView({
           <label className="text-sm font-semibold text-ink" htmlFor="player-health">
             Current health
           </label>
-          <p className="mt-1 text-xs leading-5 text-muted">
+          <p className="mt-1 text-xs/5 text-muted">
             This creates an in-memory pending edit. It does not write to the save file.
           </p>
           <div className="mt-3 flex flex-wrap items-start gap-3">
@@ -219,7 +219,7 @@ export function PlayersView({
             </p>
           ) : (
             <p className="mt-4 flex items-center gap-2 text-xs text-muted">
-              <User aria-hidden="true" size={15} /> No pending health edit
+              <UserIcon aria-hidden="true" size={15} /> No pending health edit
             </p>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlayerDto } from "../../../electron/contracts.cts";
+import type { PlayerDto } from "@electron/contracts";
 
 export interface PlayerHealthEdit {
   feature: "players";

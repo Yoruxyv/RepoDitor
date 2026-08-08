@@ -1,4 +1,4 @@
-import type { RepoDitorApi } from "../electron/contracts.cts";
+import type { RepoDitorApi } from "@electron/contracts";
 
 export {};
 

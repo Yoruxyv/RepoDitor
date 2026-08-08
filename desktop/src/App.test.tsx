@@ -7,7 +7,7 @@ import type {
   PlayerDto,
   RepoDitorApi,
   SaveSession,
-} from "../electron/contracts.cts";
+} from "@electron/contracts";
 import App from "./App";
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
@@ -29,7 +29,7 @@ const environment: EnvironmentDiscovery = {
   ],
 };
 const session: SaveSession = {
-  ...environment.saves[0],
+  ...environment.saves[0]!,
   level: 5,
   currency: 12,
   playerCount: 2,
@@ -188,7 +188,7 @@ describe("save workspace transition", () => {
     );
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({ ok: true, data: session }),
-      [players[0]],
+      [players[0]!],
       avatar,
     );
     const user = userEvent.setup();

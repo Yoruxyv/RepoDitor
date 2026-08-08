@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.electron.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "**/*.cts",
+    "**/*.test.ts"
+  ]
+}
