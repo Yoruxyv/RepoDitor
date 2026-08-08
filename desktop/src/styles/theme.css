@@ -1,0 +1,51 @@
+:root {
+  color-scheme: dark;
+
+  --theme-app: #0d1110;
+  --theme-surface: #141a18;
+  --theme-surface-raised: #1b2320;
+  --theme-line: #2a3430;
+  --theme-line-strong: #3a4742;
+  --theme-ink: #f0f1eb;
+  --theme-secondary: #b6beb8;
+  --theme-muted: #89938d;
+  --theme-accent: #d99a52;
+  --theme-accent-strong: #e6ab65;
+  --theme-accent-muted: rgb(217 154 82 / 0.12);
+  --theme-accent-ink: #17130e;
+  --theme-success: #78a983;
+  --theme-warning: #d5a053;
+  --theme-warning-muted: rgb(213 160 83 / 0.09);
+  --theme-danger: #cb7467;
+  --theme-focus: #efb873;
+}
+
+@theme inline {
+  --color-app: var(--theme-app);
+  --color-surface: var(--theme-surface);
+  --color-surface-raised: var(--theme-surface-raised);
+  --color-line: var(--theme-line);
+  --color-line-strong: var(--theme-line-strong);
+  --color-ink: var(--theme-ink);
+  --color-secondary: var(--theme-secondary);
+  --color-muted: var(--theme-muted);
+  --color-accent: var(--theme-accent);
+  --color-accent-strong: var(--theme-accent-strong);
+  --color-accent-muted: var(--theme-accent-muted);
+  --color-accent-ink: var(--theme-accent-ink);
+  --color-success: var(--theme-success);
+  --color-warning: var(--theme-warning);
+  --color-warning-muted: var(--theme-warning-muted);
+  --color-danger: var(--theme-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
