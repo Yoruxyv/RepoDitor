@@ -1,9 +1,9 @@
 import {
-  CheckCircle,
-  Folder,
-  GameController,
-  WarningCircle,
-  XCircle,
+  CheckCircleIcon,
+  FolderIcon,
+  GameControllerIcon,
+  WarningCircleIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
@@ -11,23 +11,23 @@ import type {
   EnvironmentDiscovery,
   GameDiscoveryStatus,
   SaveRootStatus,
-} from "../../../../electron/contracts.cts";
-import { formatSaveCount } from "../formatters";
+} from "@electron/contracts";
+import { formatSaveCount } from "@/features/discovery/formatters";
 import { PathText } from "./PathText";
 
 type StatusTone = "success" | "warning" | "danger";
 
 interface EnvironmentStatusProps {
-  environment: EnvironmentDiscovery;
+  readonly environment: EnvironmentDiscovery;
 }
 
 interface EnvironmentRowProps {
-  icon: ReactNode;
-  label: string;
-  path: string | null;
-  status: string;
-  detail: string;
-  tone: StatusTone;
+  readonly icon: ReactNode;
+  readonly label: string;
+  readonly path: string | null;
+  readonly status: string;
+  readonly detail: string;
+  readonly tone: StatusTone;
 }
 
 const TONE_CLASSES: Record<StatusTone, string> = {
@@ -36,14 +36,14 @@ const TONE_CLASSES: Record<StatusTone, string> = {
   danger: "text-danger",
 };
 
-function StatusIcon({ tone }: { tone: StatusTone }) {
+function StatusIcon({ tone }: { readonly tone: StatusTone }) {
   if (tone === "success") {
-    return <CheckCircle aria-hidden="true" size={18} weight="fill" />;
+    return <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />;
   }
   if (tone === "warning") {
-    return <WarningCircle aria-hidden="true" size={18} weight="fill" />;
+    return <WarningCircleIcon aria-hidden="true" size={18} weight="fill" />;
   }
-  return <XCircle aria-hidden="true" size={18} weight="fill" />;
+  return <XCircleIcon aria-hidden="true" size={18} weight="fill" />;
 }
 
 function getSaveStatus(status: SaveRootStatus, count: number) {
@@ -115,12 +115,12 @@ function EnvironmentRow({
             <StatusIcon tone={tone} />
             <span>{status}</span>
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted">{detail}</p>
+          <p className="mt-1 text-xs/5 text-muted">{detail}</p>
         </div>
       </div>
       {path !== null && (
         <PathText
-          className="mt-3 font-mono text-[0.7rem] leading-5 text-secondary"
+          className="mt-3 font-mono text-[0.7rem]/5 text-secondary"
           path={path}
         />
       )}
@@ -135,12 +135,12 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
   return (
     <aside className="self-start rounded-sm border border-line bg-surface p-5 sm:p-6">
       <h2 className="text-base font-semibold text-ink">Local environment</h2>
-      <p className="mt-1 text-xs leading-5 text-muted">Automatic discovery on this PC</p>
+      <p className="mt-1 text-xs/5 text-muted">Automatic discovery on this PC</p>
 
       <div className="mt-5">
         <EnvironmentRow
           detail={gameStatus.detail}
-          icon={<GameController aria-hidden="true" size={20} weight="regular" />}
+          icon={<GameControllerIcon aria-hidden="true" size={20} weight="regular" />}
           label="R.E.P.O. game"
           path={environment.gameRoot}
           status={gameStatus.status}
@@ -148,7 +148,7 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
         />
         <EnvironmentRow
           detail={saveStatus.detail}
-          icon={<Folder aria-hidden="true" size={20} weight="regular" />}
+          icon={<FolderIcon aria-hidden="true" size={20} weight="regular" />}
           label="Save folder"
           path={environment.saveRoot}
           status={saveStatus.status}

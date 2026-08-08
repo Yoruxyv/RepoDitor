@@ -1,7 +1,7 @@
 import type {
   DesktopOperationResult,
   EnvironmentDiscovery,
-} from "../../../electron/contracts.cts";
+} from "@electron/contracts";
 
 const BRIDGE_FAILURE: DesktopOperationResult<EnvironmentDiscovery> = {
   ok: false,

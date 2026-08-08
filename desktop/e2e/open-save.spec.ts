@@ -116,9 +116,13 @@ test("discovers and opens an isolated fixture across supported window sizes", as
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     const boundary = await page.evaluate(() => ({
-      environment: Object.keys(window.repoditor.environment).sort(),
+      environment: Object.keys(window.repoditor.environment).sort((left, right) =>
+        left.localeCompare(right),
+      ),
       requireType: typeof window.require,
-      saves: Object.keys(window.repoditor.saves).sort(),
+      saves: Object.keys(window.repoditor.saves).sort((left, right) =>
+        left.localeCompare(right),
+      ),
     }));
     expect(boundary).toEqual({
       environment: ["detect"],

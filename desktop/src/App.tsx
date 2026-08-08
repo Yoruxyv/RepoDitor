@@ -1,7 +1,7 @@
-import { AppShell } from "./app/AppShell";
-import { DiscoveryHome } from "./features/discovery/components/DiscoveryHome";
-import { Workspace } from "./features/editor/Workspace";
-import { useSaveSession } from "./features/editor/useSaveSession";
+import { AppShell } from "@/app/AppShell";
+import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
+import { Workspace } from "@/features/editor/Workspace";
+import { useSaveSession } from "@/features/editor/useSaveSession";
 
 function App() {
   const save = useSaveSession();

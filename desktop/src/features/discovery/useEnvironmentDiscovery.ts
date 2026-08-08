@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DesktopOperationError,
   EnvironmentDiscovery,
-} from "../../../electron/contracts.cts";
+} from "@electron/contracts";
 import { detectEnvironment } from "./discoveryApi";
 
 interface DiscoveryState {

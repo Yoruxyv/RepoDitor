@@ -6,7 +6,7 @@ import type {
   EnvironmentDiscovery,
   RepoDitorApi,
   SaveSession,
-} from "../electron/contracts.cts";
+} from "@electron/contracts";
 import App from "./App";
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
@@ -28,7 +28,7 @@ const environment: EnvironmentDiscovery = {
   ],
 };
 const session: SaveSession = {
-  ...environment.saves[0],
+  ...environment.saves[0]!,
   level: 5,
   currency: 12,
   playerCount: 2,

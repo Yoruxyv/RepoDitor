@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import type { SaveSession } from "../../../electron/contracts.cts";
+import type { SaveSession } from "@electron/contracts";
 
 export function useSaveSession() {
   const [session, setSession] = useState<SaveSession | null>(null);

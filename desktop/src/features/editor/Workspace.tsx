@@ -1,18 +1,23 @@
-import { ArrowLeft, CheckCircle, FolderOpen, ShieldCheck } from "@phosphor-icons/react";
+import {
+  ArrowLeftIcon,
+  CheckCircleIcon,
+  FolderOpenIcon,
+  ShieldCheckIcon,
+} from "@phosphor-icons/react";
 import { useState, type KeyboardEvent } from "react";
 
-import type { SaveSession } from "../../../electron/contracts.cts";
-import { formatDateTime } from "../discovery/formatters";
+import type { SaveSession } from "@electron/contracts";
+import { formatDateTime } from "@/features/discovery/formatters";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
-  session: SaveSession;
-  onClose: () => void;
+  readonly session: SaveSession;
+  readonly onClose: () => void;
 }
 
-function Overview({ session }: { session: SaveSession }) {
+function Overview({ session }: { readonly session: SaveSession }) {
   const metrics = [
     ["Level", session.level],
     ["Currency", session.currency.toLocaleString()],
@@ -34,11 +39,11 @@ function Overview({ session }: { session: SaveSession }) {
       </dl>
 
       <section className="mt-8" aria-labelledby="session-ready-title">
-        <CheckCircle aria-hidden="true" className="text-success" size={27} weight="regular" />
+        <CheckCircleIcon aria-hidden="true" className="text-success" size={27} weight="regular" />
         <h2 className="mt-4 text-xl font-semibold text-ink" id="session-ready-title">
           Save opened safely
         </h2>
-        <p className="mt-2 max-w-[60ch] text-sm leading-6 text-secondary">
+        <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">
           Python decrypted and validated this save. This workspace is read-only in Phase 5.
         </p>
       </section>
@@ -46,13 +51,13 @@ function Overview({ session }: { session: SaveSession }) {
   );
 }
 
-function Placeholder({ section }: { section: Exclude<WorkspaceSection, "Overview"> }) {
+function Placeholder({ section }: { readonly section: Exclude<WorkspaceSection, "Overview"> }) {
   return (
     <section aria-labelledby="placeholder-title">
       <h2 className="text-2xl font-semibold text-ink" id="placeholder-title">
         {section}
       </h2>
-      <p className="mt-3 max-w-[58ch] text-sm leading-6 text-secondary">
+      <p className="mt-3 max-w-[58ch] text-sm/6 text-secondary">
         This section is reserved for a later phase. No save data can be changed here yet.
       </p>
     </section>
@@ -63,13 +68,18 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("Overview");
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
-    const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    let offset = 0;
+    if (event.key === "ArrowRight") {
+      offset = 1;
+    } else if (event.key === "ArrowLeft") {
+      offset = -1;
+    }
     if (offset === 0) {
       return;
     }
     event.preventDefault();
     const nextIndex = (index + offset + SECTIONS.length) % SECTIONS.length;
-    setActiveSection(SECTIONS[nextIndex]);
+    setActiveSection(SECTIONS[nextIndex]!);
     document.getElementById(`workspace-tab-${nextIndex}`)?.focus();
   }
 
@@ -88,7 +98,7 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
           type="button"
           onClick={onClose}
         >
-          <ArrowLeft aria-hidden="true" size={17} weight="bold" />
+          <ArrowLeftIcon aria-hidden="true" size={17} weight="bold" />
           Change save
         </button>
       </header>
@@ -126,14 +136,14 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
 
         <aside className="min-w-0 border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0" data-testid="workspace-context" aria-label="Save context">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <FolderOpen aria-hidden="true" className="text-accent" size={18} />
+            <FolderOpenIcon aria-hidden="true" className="text-accent" size={18} />
             Source
           </div>
-          <p className="mt-3 break-all font-mono text-[0.7rem] leading-5 text-muted" title={session.path}>
+          <p className="mt-3 break-all font-mono text-[0.7rem]/5 text-muted" title={session.path}>
             {session.path}
           </p>
-          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs leading-5 text-secondary">
-            <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
+          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs/5 text-secondary">
+            <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
             <p>Validated locally. Raw decrypted data stays behind the Python boundary.</p>
           </div>
         </aside>

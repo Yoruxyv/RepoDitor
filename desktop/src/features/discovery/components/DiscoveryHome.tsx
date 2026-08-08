@@ -1,8 +1,8 @@
-import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
-import type { EnvironmentDiscovery } from "../../../../electron/contracts.cts";
-import { formatSaveCount } from "../formatters";
-import { useEnvironmentDiscovery } from "../useEnvironmentDiscovery";
+import type { EnvironmentDiscovery } from "@electron/contracts";
+import { formatSaveCount } from "@/features/discovery/formatters";
+import { useEnvironmentDiscovery } from "@/features/discovery/useEnvironmentDiscovery";
 import { DiscoveryFailure, DiscoveryState } from "./DiscoveryState";
 import { DiscoveryLoading } from "./DiscoveryLoading";
 import { EnvironmentStatus } from "./EnvironmentStatus";
@@ -46,9 +46,9 @@ function getSummary(environment: EnvironmentDiscovery): string {
 }
 
 interface DiscoveryHomeProps {
-  onOpenSave: (saveId: string) => void;
-  openingSaveId: string | null;
-  openError: string | null;
+  readonly onOpenSave: (saveId: string) => void;
+  readonly openingSaveId: string | null;
+  readonly openError: string | null;
 }
 
 export function DiscoveryHome({
@@ -71,7 +71,7 @@ export function DiscoveryHome({
     return null;
   }
 
-  const hasSaves = data.saveRootStatus === "available" && data.saves.length > 0;
+  const latestSave = data.saveRootStatus === "available" ? data.saves[0] : undefined;
 
   return (
     <section aria-busy={isRefreshing} aria-labelledby="discovery-title">
@@ -81,12 +81,12 @@ export function DiscoveryHome({
             Automatic local discovery
           </p>
           <h1
-            className="font-display mt-3 text-5xl font-semibold uppercase leading-[0.9] tracking-[-0.025em] text-ink sm:text-6xl"
+            className="font-display mt-3 text-5xl font-semibold uppercase leading-[0.9] tracking-tight text-ink sm:text-6xl"
             id="discovery-title"
           >
             {getHeadline(data)}
           </h1>
-          <p className="mt-4 max-w-[62ch] text-sm leading-6 text-secondary">
+          <p className="mt-4 max-w-[62ch] text-sm/6 text-secondary">
             {getSummary(data)}
           </p>
         </div>
@@ -97,7 +97,7 @@ export function DiscoveryHome({
           type="button"
           onClick={() => void refresh()}
         >
-          <ArrowClockwise
+          <ArrowClockwiseIcon
             aria-hidden="true"
             className={isRefreshing ? "animate-spin motion-reduce:animate-none" : undefined}
             size={17}
@@ -108,11 +108,10 @@ export function DiscoveryHome({
       </header>
 
       {error !== null && (
-        <div
+        <output
           className="mt-5 flex items-start gap-3 border-l-2 border-warning bg-warning-muted px-4 py-3 text-sm text-secondary"
-          role="status"
         >
-          <WarningCircle
+          <WarningCircleIcon
             aria-hidden="true"
             className="mt-0.5 shrink-0 text-warning"
             size={18}
@@ -121,7 +120,7 @@ export function DiscoveryHome({
           <p>
             Refresh failed. Showing the last discovery result. {error.message}
           </p>
-        </div>
+        </output>
       )}
 
       {openError !== null && (
@@ -129,7 +128,7 @@ export function DiscoveryHome({
           className="mt-5 flex items-start gap-3 border-l-2 border-danger bg-surface px-4 py-3 text-sm text-secondary"
           role="alert"
         >
-          <WarningCircle
+          <WarningCircleIcon
             aria-hidden="true"
             className="mt-0.5 shrink-0 text-danger"
             size={18}
@@ -141,12 +140,14 @@ export function DiscoveryHome({
 
       <div className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
         <div className="min-w-0 space-y-8">
-          {hasSaves ? (
+          {latestSave === undefined ? (
+            <DiscoveryState saveRoot={data.saveRoot} status={data.saveRootStatus} />
+          ) : (
             <>
               <LatestSave
                 isDisabled={openingSaveId !== null}
-                isOpening={openingSaveId === data.saves[0].id}
-                save={data.saves[0]}
+                isOpening={openingSaveId === latestSave.id}
+                save={latestSave}
                 onOpen={onOpenSave}
               />
               <RecentSaveList
@@ -155,8 +156,6 @@ export function DiscoveryHome({
                 onOpen={onOpenSave}
               />
             </>
-          ) : (
-            <DiscoveryState saveRoot={data.saveRoot} status={data.saveRootStatus} />
           )}
         </div>
 

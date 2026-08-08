@@ -12,11 +12,7 @@ Graphify is an architecture/navigation aid, not an infallible source of truth. V
 
 Prefer targeted Graphify queries with a bounded context budget. Do not dump the entire repository graph into context when a small subgraph answers the question.
 
-After significant merged structural changes, refresh the graph with:
-
-```text
-$graphify . --update
-```
+After significant merged structural changes, refresh the graph using the currently installed Graphify workflow. Verify the refresh completed successfully before relying on the graph.
 
 `graphify-out/` is generated local tooling and should remain ignored.
 
@@ -212,12 +208,125 @@ Before adding any package:
 
 Continue using Phosphor as the icon family.
 
+## 12. Frontend Quality, Imports, and Completion Gates
+
+The desktop renderer must comply with the repository's configured TypeScript, ESLint, React, React Hooks, accessibility, SonarJS, Tailwind CSS, and import-normalization rules.
+
+Do not weaken TypeScript strictness, lint rules, accessibility rules, or security settings merely to make checks pass.
+
+Do not add broad `eslint-disable` comments or config-wide suppressions as a shortcut. A narrowly scoped suppression is allowed only when the rule is demonstrably incorrect for that exact case, and the reason must be documented.
+
+### Renderer path aliases
+
+Renderer source code uses `@/` for `desktop/src` and `@electron/` for the
+shared Electron contract boundary.
+
+Use an alias whenever a renderer import would otherwise traverse a parent
+directory or cross renderer feature/app/shared boundaries.
+
+Examples:
+
+```ts
+import { Foo } from "@/features/foo/Foo";
+```
+
+instead of:
+
+```ts
+import { Foo } from "../../features/foo/Foo";
+```
+
+Same-directory relative imports remain valid:
+
+```ts
+import { Foo } from "./Foo";
+```
+
+Renderer parent-directory imports such as `../helper` are not allowed.
+
+Existing valid `@/` aliases must remain aliases. Import normalization must never "normalize" an existing valid alias back into a relative path.
+
+The `@/` and `@electron/` aliases apply to renderer/source code only.
+
+Do not use the renderer alias in Electron `.cts` files merely for consistency.
+
+Keep TypeScript, Vite, Vitest, ESLint, and import-normalization resolution synchronized.
+
+### Import normalization
+
+The import-normalization script is a maintenance tool, not the architectural source of truth.
+
+Expected behavior:
+- preview is non-destructive
+- check exits non-zero when normalization is required
+- fix rewrites only imports covered by the renderer alias policy
+- existing valid `@/` aliases are preserved
+- renderer parent-directory imports are converted to `@/` or `@electron/`
+- same-directory renderer imports may remain relative
+- Electron/preload/main imports are not rewritten by renderer alias policy
+- unresolved imports fail strict mode rather than being guessed
+
+Always inspect the resulting diff after an automatic import rewrite.
+
+### Required frontend completion gate
+
+Frontend work is not complete until the configured checks required by the task have actually run and passed.
+
+For ordinary renderer/frontend work, the minimum gate is:
+
+```powershell
+npm run imports:check
+npm run lint
+npm run build
+npm test
+```
+
+Run:
+
+```powershell
+npm run test:e2e
+```
+
+when the change crosses Electron/preload/IPC/Python boundaries or changes a real desktop user journey.
+
+Run:
+
+```powershell
+npm run bundle:check
+```
+
+after a production build when renderer bundle size is affected and during release/performance hardening.
+
+Rules:
+- `npm run imports:check` must pass.
+- `npm run lint` must exit successfully with no ESLint errors.
+- New work should not introduce new lint warnings.
+- Fix the underlying lint/type/import issue instead of weakening the rule.
+- Never claim a check passed unless it was actually run.
+- If a required check cannot run, report the exact blocker and do not report the task as complete.
+
+### CI parity
+
+Local quality policy and CI must stay aligned.
+
+When a required local quality command becomes part of the durable completion gate, add the equivalent check to the appropriate GitHub Actions quality job unless there is a documented platform-specific reason not to.
+
+The desktop quality workflow should enforce at least:
+- clean dependency install with `npm ci`
+- import normalization check
+- ESLint
+- production build
+- renderer/component/contract tests
+
+Electron E2E remains in the Windows integration job.
+
+Bundle-budget checks may remain warning-only until RepoDitor has a measured release budget, but the script itself must execute successfully after build.
 
 ## 13. Toolchain and Instruction Freshness
 
 Do not assume agent/tool instructions remain correct forever.
 
-If Graphify, Ponytail, Codex, Electron, Playwright, Python tooling, or another required development tool behaves differently from the documented workflow:
+If Graphify, Ponytail, Codex, Electron, Playwright, Python tooling, ESLint, Vite, Vitest, or another required development tool behaves differently from the documented workflow:
 
 1. inspect the currently installed version
 2. check the tool's current official documentation/help output
@@ -256,7 +365,7 @@ While modifying:
 
 After modifying:
 - run relevant tests
-- run lint/format/build
+- run lint/format/build/import checks
 - run E2E when the changed behavior crosses the desktop stack
 - report exact results
 - stop at the requested phase boundary
