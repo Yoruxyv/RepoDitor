@@ -93,8 +93,8 @@ async function layout(page: Page) {
   });
 }
 
-test("discovers and opens an isolated fixture across supported window sizes", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase5-isolated-profile-"));
+test("opens Overview and keeps pending player edits in memory across supported sizes", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-phase6-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
   try {
@@ -117,11 +117,13 @@ test("discovers and opens an isolated fixture across supported window sizes", as
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     const boundary = await page.evaluate(() => ({
       environment: Object.keys(window.repoditor.environment).sort(),
+      players: Object.keys(window.repoditor.players).sort(),
       requireType: typeof window.require,
       saves: Object.keys(window.repoditor.saves).sort(),
     }));
     expect(boundary).toEqual({
       environment: ["detect"],
+      players: ["avatar", "list"],
       requireType: "undefined",
       saves: ["list", "open"],
     });
@@ -129,6 +131,22 @@ test("discovers and opens an isolated fixture across supported window sizes", as
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.getByTestId("workspace")).toBeVisible();
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
+    await expect(page.getByText("Save opened safely")).toBeVisible();
+    await expect(page.getByText("Normal")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Players" }).click();
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    const health = page.getByRole("spinbutton", { name: "Current health" });
+    await health.fill("42");
+    await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 42");
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+
+    await page.getByRole("tab", { name: "Overview" }).click();
+    await page.getByRole("tab", { name: "Players" }).click();
+    await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
 
     for (const size of [
       { width: 1600, height: 900 },
@@ -138,6 +156,13 @@ test("discovers and opens an isolated fixture across supported window sizes", as
       await setWindowSize(application, page, size.width, size.height);
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await expect(page.getByRole("tab", { name: "Maps" })).toBeVisible();
+      await page.getByRole("tab", { name: "Overview" }).click();
+      await expect(page.getByText("Save opened safely")).toBeVisible();
+      await expect(page.getByText("Normal")).toBeVisible();
+      await page.getByRole("tab", { name: "Players" }).click();
+      await expect(page.getByRole("button", { name: /Alpha/ })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
+      await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
       await page.getByTestId("workspace-action-bar").scrollIntoViewIfNeeded();
       await expect(page.getByTestId("workspace-action-bar")).toBeVisible();
     }

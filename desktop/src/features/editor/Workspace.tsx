@@ -1,8 +1,11 @@
-import { ArrowLeft, CheckCircle, FolderOpen, ShieldCheck } from "@phosphor-icons/react";
+import { ArrowLeft, FolderOpen, ShieldCheck } from "@phosphor-icons/react";
 import { useState, type KeyboardEvent } from "react";
 
 import type { SaveSession } from "../../../electron/contracts.cts";
 import { formatDateTime } from "../discovery/formatters";
+import { PlayersView } from "../players/PlayersView";
+import { usePlayers } from "../players/usePlayers";
+import { OverviewView } from "./OverviewView";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
@@ -12,41 +15,7 @@ interface WorkspaceProps {
   onClose: () => void;
 }
 
-function Overview({ session }: { session: SaveSession }) {
-  const metrics = [
-    ["Level", session.level],
-    ["Currency", session.currency.toLocaleString()],
-    ["Players", session.playerCount],
-    ["Resume at", session.resumeLocation],
-  ];
-
-  return (
-    <div>
-      <dl className="grid grid-cols-2 border-y border-line xl:grid-cols-4">
-        {metrics.map(([label, value]) => (
-          <div className="min-w-0 px-4 py-5 first:pl-0 xl:border-r xl:border-line xl:last:border-r-0" key={label}>
-            <dt className="text-xs font-medium text-muted">{label}</dt>
-            <dd className="mt-2 truncate font-mono text-xl font-semibold text-ink" title={String(value)}>
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-
-      <section className="mt-8" aria-labelledby="session-ready-title">
-        <CheckCircle aria-hidden="true" className="text-success" size={27} weight="regular" />
-        <h2 className="mt-4 text-xl font-semibold text-ink" id="session-ready-title">
-          Save opened safely
-        </h2>
-        <p className="mt-2 max-w-[60ch] text-sm leading-6 text-secondary">
-          Python decrypted and validated this save. This workspace is read-only in Phase 5.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-function Placeholder({ section }: { section: Exclude<WorkspaceSection, "Overview"> }) {
+function Placeholder({ section }: { section: Exclude<WorkspaceSection, "Overview" | "Players"> }) {
   return (
     <section aria-labelledby="placeholder-title">
       <h2 className="text-2xl font-semibold text-ink" id="placeholder-title">
@@ -61,6 +30,7 @@ function Placeholder({ section }: { section: Exclude<WorkspaceSection, "Overview
 
 export function Workspace({ session, onClose }: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("Overview");
+  const players = usePlayers(session.id);
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -121,7 +91,26 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
 
       <div className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-10">
         <div className="min-w-0" id="workspace-panel" role="tabpanel" tabIndex={0} aria-labelledby={`workspace-tab-${SECTIONS.indexOf(activeSection)}`}>
-          {activeSection === "Overview" ? <Overview session={session} /> : <Placeholder section={activeSection} />}
+          {activeSection === "Overview" ? <OverviewView session={session} /> : null}
+          {activeSection === "Players" ? (
+            <PlayersView
+              avatarUrls={players.avatarUrls}
+              error={players.error}
+              loading={players.loading}
+              pendingByPlayer={players.pendingByPlayer}
+              players={players.players}
+              selectedPlayerId={players.selectedPlayerId}
+              onHealthChange={players.updateHealth}
+              onLoadAvatar={(playerId) => void players.loadAvatar(playerId)}
+              onRejectAvatar={players.rejectAvatar}
+              onRetry={players.reload}
+              onRevertHealth={players.revertHealth}
+              onSelect={players.setSelectedPlayerId}
+            />
+          ) : null}
+          {activeSection !== "Overview" && activeSection !== "Players" ? (
+            <Placeholder section={activeSection} />
+          ) : null}
         </div>
 
         <aside className="min-w-0 border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0" data-testid="workspace-context" aria-label="Save context">
@@ -141,10 +130,16 @@ export function Workspace({ session, onClose }: WorkspaceProps) {
 
       <footer className="mt-10 flex flex-col gap-3 border-t border-line pt-5 text-sm sm:flex-row sm:items-center sm:justify-between" data-testid="workspace-action-bar">
         <div>
-          <p className="font-semibold text-ink">Read-only session</p>
-          <p className="mt-1 text-xs text-muted">No pending changes</p>
+          <p className="font-semibold text-ink">In-memory working copy</p>
+          <p className="mt-1 text-xs text-muted" data-testid="pending-edit-count">
+            {players.pendingEdits.length === 0
+              ? "No pending changes"
+              : `${players.pendingEdits.length} pending ${
+                  players.pendingEdits.length === 1 ? "change" : "changes"
+                }`}
+          </p>
         </div>
-        <p className="text-xs text-secondary">Editing and save actions begin in a later phase.</p>
+        <p className="text-xs text-secondary">Nothing in this workspace is written to disk.</p>
       </footer>
     </section>
   );
