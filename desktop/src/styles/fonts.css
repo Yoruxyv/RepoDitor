@@ -1,6 +1,14 @@
+@font-face {
+  font-family: "Teko";
+  src: url("../assets/fonts/teko/Teko-VariableFont_wght.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
 :root {
-  /* Teko and Polate are not bundled yet. Keep their offline fallbacks honest and centralized. */
-  --font-display: "Bahnschrift Condensed", "Arial Narrow", "Aptos Display", sans-serif;
+  --font-display: "Teko", "Bahnschrift Condensed", "Arial Narrow", sans-serif;
+  /* Polate is not bundled yet. Keep its offline fallback honest and centralized. */
   --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }
