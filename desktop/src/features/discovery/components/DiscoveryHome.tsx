@@ -1,8 +1,8 @@
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react";
 
 import type { EnvironmentDiscovery } from "../../../../electron/contracts.cts";
-import { useEnvironmentDiscovery } from "../hooks/useEnvironmentDiscovery";
-import { formatSaveCount } from "../utils/formatters";
+import { formatSaveCount } from "../formatters";
+import { useEnvironmentDiscovery } from "../useEnvironmentDiscovery";
 import { DiscoveryFailure, DiscoveryState } from "./DiscoveryState";
 import { DiscoveryLoading } from "./DiscoveryLoading";
 import { EnvironmentStatus } from "./EnvironmentStatus";
@@ -45,7 +45,17 @@ function getSummary(environment: EnvironmentDiscovery): string {
   return "RepoDitor found the save location but could not read its contents.";
 }
 
-export function DiscoveryHome() {
+interface DiscoveryHomeProps {
+  onOpenSave: (saveId: string) => void;
+  openingSaveId: string | null;
+  openError: string | null;
+}
+
+export function DiscoveryHome({
+  onOpenSave,
+  openingSaveId,
+  openError,
+}: DiscoveryHomeProps) {
   const { data, error, isInitialLoading, isRefreshing, refresh } =
     useEnvironmentDiscovery();
 
@@ -114,12 +124,36 @@ export function DiscoveryHome() {
         </div>
       )}
 
+      {openError !== null && (
+        <div
+          className="mt-5 flex items-start gap-3 border-l-2 border-danger bg-surface px-4 py-3 text-sm text-secondary"
+          role="alert"
+        >
+          <WarningCircle
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-danger"
+            size={18}
+            weight="fill"
+          />
+          <p>{openError} No save files were changed.</p>
+        </div>
+      )}
+
       <div className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
         <div className="min-w-0 space-y-8">
           {hasSaves ? (
             <>
-              <LatestSave save={data.saves[0]} />
-              <RecentSaveList saves={data.saves} />
+              <LatestSave
+                isDisabled={openingSaveId !== null}
+                isOpening={openingSaveId === data.saves[0].id}
+                save={data.saves[0]}
+                onOpen={onOpenSave}
+              />
+              <RecentSaveList
+                openingSaveId={openingSaveId}
+                saves={data.saves}
+                onOpen={onOpenSave}
+              />
             </>
           ) : (
             <DiscoveryState saveRoot={data.saveRoot} status={data.saveRootStatus} />

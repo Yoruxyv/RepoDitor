@@ -46,9 +46,75 @@ jobs:
       - name: Run tests
         run: uv run --with "pytest>=8.3,<9" pytest
 
+  desktop-quality:
+    name: Desktop quality
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build desktop
+        run: npm run build
+
+      - name: Component and contract tests
+        run: npm test
+
+  windows-integration:
+    name: Windows integration
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Sync locked Python dependencies
+        working-directory: .
+        run: uv sync --locked
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Electron E2E
+        run: npm run test:e2e
+
   quality-gate:
     name: Quality gate
-    needs: quality
+    needs: [quality, desktop-quality, windows-integration]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
@@ -57,6 +123,16 @@ jobs:
         run: |
           if [ "${{ needs.quality.result }}" != "success" ]; then
             echo "One or more quality checks failed."
+            exit 1
+          fi
+
+          if [ "${{ needs.desktop-quality.result }}" != "success" ]; then
+            echo "Desktop quality failed."
+            exit 1
+          fi
+
+          if [ "${{ needs.windows-integration.result }}" != "success" ]; then
+            echo "Windows integration failed."
             exit 1
           fi
 

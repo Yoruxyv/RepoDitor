@@ -8,6 +8,7 @@ import {
   type EnvironmentDiscovery,
   type IpcChannelMap,
   type RepoDitorApi,
+  type SaveSession,
   type SaveSummary,
 } from "./contracts.cjs";
 
@@ -16,6 +17,7 @@ import {
 const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
   savesList: "saves:list",
+  savesOpen: "saves:open",
 };
 
 const repoditorApi: RepoDitorApi = {
@@ -33,6 +35,13 @@ const repoditorApi: RepoDitorApi = {
         IPC_CHANNELS.savesList,
       ) as Promise<
         DesktopOperationResult<SaveSummary[]>
+      >,
+    open: (saveId) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.savesOpen,
+        saveId,
+      ) as Promise<
+        DesktopOperationResult<SaveSession>
       >,
   },
 };

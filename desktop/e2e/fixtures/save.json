@@ -1,0 +1,23 @@
+{
+  "teamName": { "__type": "System.String", "value": "Phase Five" },
+  "dateAndTime": { "__type": "System.String", "value": "2026-08-08" },
+  "timePlayed": { "__type": "System.Single", "value": 100.0 },
+  "playerNames": {
+    "__type": "Dictionary",
+    "value": { "111": "Alpha", "222": "Beta" }
+  },
+  "dictionaryOfDictionaries": {
+    "__type": "Dictionary",
+    "value": {
+      "runStats": {
+        "level": 4,
+        "currency": 12,
+        "lives": 3,
+        "totalHaul": 500,
+        "save level": 0
+      },
+      "playerUpgradeStrength": { "111": 2 },
+      "playerHealth": { "111": 80 }
+    }
+  }
+}

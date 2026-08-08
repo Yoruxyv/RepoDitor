@@ -1,13 +1,15 @@
 import { Clock, File } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "../../../../electron/contracts.cts";
-import { formatDateTime, formatFileSize } from "../utils/formatters";
+import { formatDateTime, formatFileSize } from "../formatters";
 
 interface RecentSaveListProps {
   saves: SaveSummary[];
+  openingSaveId: string | null;
+  onOpen: (saveId: string) => void;
 }
 
-export function RecentSaveList({ saves }: RecentSaveListProps) {
+export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListProps) {
   const recentSaves = saves.slice(1, 6);
 
   return (
@@ -27,7 +29,12 @@ export function RecentSaveList({ saves }: RecentSaveListProps) {
         <ol className="mt-3 border-t border-line">
           {recentSaves.map((save) => (
             <li className="border-b border-line py-4 last:border-b-0" key={save.id}>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <button
+                className="grid w-full gap-3 text-left transition duration-150 hover:text-accent active:translate-y-px disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                disabled={openingSaveId !== null}
+                type="button"
+                onClick={() => onOpen(save.id)}
+              >
                 <div className="flex min-w-0 items-start gap-3">
                   <File
                     aria-hidden="true"
@@ -51,10 +58,10 @@ export function RecentSaveList({ saves }: RecentSaveListProps) {
                     {formatDateTime(save.modifiedAt)}
                   </span>
                   <span className="min-w-14 text-right font-mono text-muted">
-                    {formatFileSize(save.sizeBytes)}
+                    {openingSaveId === save.id ? "Opening" : formatFileSize(save.sizeBytes)}
                   </span>
                 </div>
-              </div>
+              </button>
             </li>
           ))}
         </ol>

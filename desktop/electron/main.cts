@@ -6,6 +6,7 @@ import {
 } from "electron";
 
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
+import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
 
 const developmentRendererUrl =
@@ -89,6 +90,7 @@ function createWindow(): void {
 }
 
 registerEnvironmentIpc();
+registerSaveIpc();
 
 void app.whenReady().then(() => {
   createWindow();
