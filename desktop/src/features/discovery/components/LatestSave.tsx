@@ -5,20 +5,28 @@ import {
   formatDateTime,
   formatFileSize,
   formatRelativeTime,
-} from "../utils/formatters";
+} from "../formatters";
 
 interface LatestSaveProps {
   save: SaveSummary;
+  isDisabled: boolean;
+  isOpening: boolean;
+  onOpen: (saveId: string) => void;
 }
 
-export function LatestSave({ save }: LatestSaveProps) {
+export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSaveProps) {
   return (
     <section aria-labelledby="latest-save-title">
       <h2 className="text-base font-semibold text-ink" id="latest-save-title">
         Latest save
       </h2>
 
-      <div className="mt-3 rounded-sm border border-line bg-surface">
+      <button
+        className="mt-3 w-full rounded-sm border border-line bg-surface text-left transition duration-150 hover:border-accent active:translate-y-px disabled:cursor-wait disabled:opacity-70"
+        disabled={isDisabled}
+        type="button"
+        onClick={() => onOpen(save.id)}
+      >
         <div className="border-l-2 border-accent p-5 sm:p-6">
           <div className="flex items-start gap-4">
             <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-sm bg-accent-muted text-accent">
@@ -39,6 +47,9 @@ export function LatestSave({ save }: LatestSaveProps) {
                 </span>
               </div>
               <p className="mt-2 text-xs text-muted">{formatDateTime(save.modifiedAt)}</p>
+              <p className="mt-4 text-sm font-semibold text-accent">
+                {isOpening ? "Opening save" : "Open workspace"}
+              </p>
             </div>
           </div>
         </div>
@@ -48,7 +59,7 @@ export function LatestSave({ save }: LatestSaveProps) {
             {save.path}
           </p>
         </div>
-      </div>
+      </button>
     </section>
   );
 }

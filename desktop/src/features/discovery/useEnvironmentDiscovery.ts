@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DesktopOperationError,
   EnvironmentDiscovery,
-} from "../../../../electron/contracts.cts";
-import { detectEnvironment } from "../api/discoveryApi";
+} from "../../../electron/contracts.cts";
+import { detectEnvironment } from "./discoveryApi";
 
 interface DiscoveryState {
   data: EnvironmentDiscovery | null;
@@ -37,27 +37,14 @@ export function useEnvironmentDiscovery(): EnvironmentDiscoveryController {
     }
 
     requestInFlight.current = true;
-    setState((current) => ({
-      ...current,
-      error: null,
-      pending: true,
-    }));
-
+    setState((current) => ({ ...current, error: null, pending: true }));
     const result = await detectEnvironment();
 
     if (mounted.current) {
       setState((current) =>
         result.ok
-          ? {
-              data: result.data,
-              error: null,
-              pending: false,
-            }
-          : {
-              data: current.data,
-              error: result.error,
-              pending: false,
-            },
+          ? { data: result.data, error: null, pending: false }
+          : { data: current.data, error: result.error, pending: false },
       );
     }
 
@@ -67,7 +54,6 @@ export function useEnvironmentDiscovery(): EnvironmentDiscoveryController {
   useEffect(() => {
     mounted.current = true;
     void refresh();
-
     return () => {
       mounted.current = false;
     };

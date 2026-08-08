@@ -10,9 +10,9 @@ export function AppShell({ children }: AppShellProps) {
     <div className="min-h-[100dvh] bg-app text-ink">
       <a
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-20 focus:bg-accent focus:px-4 focus:py-2 focus:text-accent-ink"
-        href="#discovery-home"
+        href="#app-content"
       >
-        Skip to discovery
+        Skip to content
       </a>
 
       <header className="border-b border-line bg-app/95">
@@ -35,7 +35,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <main
         className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8 sm:py-10"
-        id="discovery-home"
+        id="app-content"
       >
         {children}
       </main>

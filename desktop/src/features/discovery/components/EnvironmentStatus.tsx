@@ -12,7 +12,7 @@ import type {
   GameDiscoveryStatus,
   SaveRootStatus,
 } from "../../../../electron/contracts.cts";
-import { formatSaveCount } from "../utils/formatters";
+import { formatSaveCount } from "../formatters";
 import { PathText } from "./PathText";
 
 type StatusTone = "success" | "warning" | "danger";
