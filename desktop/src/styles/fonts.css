@@ -1,0 +1,11 @@
+:root {
+  /* Teko and Polate are not bundled yet. Keep their offline fallbacks honest and centralized. */
+  --font-display: "Bahnschrift Condensed", "Arial Narrow", "Aptos Display", sans-serif;
+  --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-stretch: condensed;
+}
