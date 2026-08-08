@@ -14,6 +14,7 @@ venv/
 # Build
 build/
 dist/
+release/
 
 # R.E.P.O. saves / backups
 *.es3

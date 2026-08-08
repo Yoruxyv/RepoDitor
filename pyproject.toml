@@ -17,9 +17,6 @@ dependencies = [
 ]
 keywords = ["repo", "save-editor", "es3", "unity", "easy-save-3"]
 
-[project.scripts]
-repo-save-editor = "repo_save_editor.main:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -68,4 +65,7 @@ docstring-code-format = true
 [dependency-groups]
 dev = [
     "ruff>=0.16.1",
+]
+package = [
+    "pyinstaller>=6,<7",
 ]

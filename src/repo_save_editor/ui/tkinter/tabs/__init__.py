@@ -1,1 +1,0 @@
-"""Tkinter editor-tab builders."""

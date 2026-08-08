@@ -99,11 +99,11 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          python-version: "3.14"
+          python-version: "3.13"
 
-      - name: Sync locked Python dependencies
+      - name: Sync locked Python and packaging dependencies
         working-directory: .
-        run: uv sync --locked
+        run: uv sync --locked --group package
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -117,6 +117,18 @@ jobs:
 
       - name: Electron E2E
         run: npm run test:e2e
+
+      - name: Build Python sidecar
+        run: npm run build:sidecar
+
+      - name: Build Electron application
+        run: npm run build
+
+      - name: Package unpacked application
+        run: npm run package:dir
+
+      - name: Packaged Electron E2E
+        run: npm run test:e2e:packaged
 
   quality-gate:
     name: Quality gate
