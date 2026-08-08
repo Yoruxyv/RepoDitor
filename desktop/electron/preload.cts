@@ -13,8 +13,10 @@ import {
   type PlayerUpgradeDto,
   type RepoDitorApi,
   type RunStateDto,
+  type SaveChange,
   type SaveSession,
   type SaveSummary,
+  type SaveWriteResult,
 } from "./contracts.cjs";
 
 // Sandboxed preload scripts cannot require local runtime modules.
@@ -23,6 +25,7 @@ const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
   savesList: "saves:list",
   savesOpen: "saves:open",
+  savesWrite: "saves:write",
   playersList: "players:list",
   playersAvatar: "players:avatar",
   upgradesList: "upgrades:list",
@@ -52,6 +55,15 @@ const repoditorApi: RepoDitorApi = {
         saveId,
       ) as Promise<
         DesktopOperationResult<SaveSession>
+      >,
+    write: (saveId, fingerprint, changes: SaveChange[]) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.savesWrite,
+        saveId,
+        fingerprint,
+        changes,
+      ) as Promise<
+        DesktopOperationResult<SaveWriteResult>
       >,
   },
   players: {

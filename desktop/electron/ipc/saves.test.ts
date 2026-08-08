@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { PythonClientError } = require("../../dist-electron/python/client.cjs");
-const { openSave } = require("../../dist-electron/ipc/saves.cjs");
+const { openSave, saveChanges } = require("../../dist-electron/ipc/saves.cjs");
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
@@ -16,6 +16,7 @@ const session = {
   displayName: "2026-08-08 10:20:30",
   path: "C:\\fixture\\save.es3",
   lastModified: "2026-08-08T10:20:30+00:00",
+  fingerprint: "a".repeat(64),
   level: 5,
   currency: 12,
   playerCount: 2,
@@ -46,6 +47,7 @@ describe("openSave", () => {
         name: session.displayName,
         path: session.path,
         modifiedAt: session.lastModified,
+        fingerprint: session.fingerprint,
         level: session.level,
         currency: session.currency,
         playerCount: session.playerCount,
@@ -88,5 +90,96 @@ describe("openSave", () => {
       ok: false,
       error: { code: "process_timeout", message: "The Python save service timed out." },
     });
+  });
+});
+
+describe("saveChanges", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  it("passes only validated typed changes to Python and parses the receipt", async () => {
+    const updated = {
+      ...session,
+      lastModified: "2026-08-08T10:21:00+00:00",
+      fingerprint: "b".repeat(64),
+      currency: 20,
+    };
+    const fake = client({
+      ok: true,
+      result: { backupPath: "C:\\fixture\\save.es3.bak-20260808-102100", session: updated },
+    });
+    const changes = [
+      { feature: "players", entity: "222", field: "health", after: 100 },
+      { feature: "upgrades", entity: "222", field: "playerUpgradeStrength", after: 3 },
+      { feature: "run", entity: "run", field: "currency", after: 20 },
+      { feature: "run", entity: "run", field: "resumeLocation", after: "Shop / Service Station" },
+    ];
+
+    await expect(saveChanges(fake, session.id, session.fingerprint, changes)).resolves.toEqual({
+      ok: true,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: {
+          id: updated.id,
+          name: updated.displayName,
+          path: updated.path,
+          modifiedAt: updated.lastModified,
+          fingerprint: updated.fingerprint,
+          level: updated.level,
+          currency: updated.currency,
+          playerCount: updated.playerCount,
+          resumeLocation: updated.resumeLocation,
+        },
+      },
+    });
+    expect(fake.run).toHaveBeenCalledWith("saves-write", [
+      session.id,
+      session.fingerprint,
+      JSON.stringify(changes),
+    ]);
+  });
+
+  it("rejects malformed or duplicate changes before starting Python", async () => {
+    const fake = client({});
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, [
+        { feature: "players", entity: "222", field: "health", after: -1 },
+      ]),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, [
+        { feature: "run", entity: "run", field: "currency", after: 20 },
+        { feature: "run", entity: "run", field: "currency", after: 30 },
+      ]),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    expect(fake.run).not.toHaveBeenCalled();
+  });
+
+  it("passes through stale-save failures and rejects malformed receipts", async () => {
+    await expect(
+      saveChanges(
+        client({
+          ok: false,
+          error: { code: "save_stale", message: "Reopen before saving." },
+        }),
+        session.id,
+        session.fingerprint,
+        [{ feature: "run", entity: "run", field: "currency", after: 20 }],
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "save_stale", message: "Reopen before saving." },
+    });
+
+    await expect(
+      saveChanges(
+        client({ ok: true, result: { backupPath: "", session } }),
+        session.id,
+        session.fingerprint,
+        [{ feature: "run", entity: "run", field: "currency", after: 20 }],
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 });
