@@ -1,6 +1,7 @@
 export interface IpcChannelMap {
   environmentDetect: "environment:detect";
   savesList: "saves:list";
+  savesOpen: "saves:open";
 }
 
 export type SaveRootStatus =
@@ -22,6 +23,17 @@ export interface SaveSummary {
   sizeBytes: number;
 }
 
+export interface SaveSession {
+  id: string;
+  name: string;
+  path: string;
+  modifiedAt: string;
+  level: number;
+  currency: number;
+  playerCount: number;
+  resumeLocation: string;
+}
+
 export interface EnvironmentDiscovery {
   saveRoot: string;
   saveRootStatus: SaveRootStatus;
@@ -39,6 +51,12 @@ export type DesktopOperationErrorCode =
   | "empty_response"
   | "malformed_response"
   | "invalid_response"
+  | "invalid_request"
+  | "save_missing"
+  | "save_corrupt"
+  | "save_decrypt_failed"
+  | "save_unsupported"
+  | "backend_unavailable"
   | "internal_error";
 
 export interface DesktopOperationError {
@@ -69,6 +87,11 @@ export interface RepoDitorApi {
   saves: {
     list: () => Promise<
       DesktopOperationResult<SaveSummary[]>
+    >;
+    open: (
+      saveId: string,
+    ) => Promise<
+      DesktopOperationResult<SaveSession>
     >;
   };
 }

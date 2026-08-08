@@ -5,7 +5,8 @@ const PYTHON_TIMEOUT_MS = 30_000;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 
 export type PythonCommand =
-  "environment";
+  | "environment"
+  | "saves-open";
 
 export type PythonClientErrorCode =
   | "python_unavailable"
@@ -28,7 +29,10 @@ export class PythonClientError extends Error {
 }
 
 export interface PythonClient {
-  run(command: PythonCommand): Promise<unknown>;
+  run(
+    command: PythonCommand,
+    arguments_?: readonly string[],
+  ): Promise<unknown>;
   dispose(): void;
 }
 
@@ -87,6 +91,7 @@ class SpawnPythonClient implements PythonClient {
 
   async run(
     command: PythonCommand,
+    arguments_: readonly string[] = [],
   ): Promise<unknown> {
     if (this.disposed) {
       throw new PythonClientError(
@@ -105,6 +110,7 @@ class SpawnPythonClient implements PythonClient {
           "-m",
           "repo_save_editor.desktop_api",
           command,
+          ...arguments_,
         ],
         {
           cwd: repoRoot,
