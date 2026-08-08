@@ -4,6 +4,9 @@ export interface IpcChannelMap {
   savesOpen: "saves:open";
   playersList: "players:list";
   playersAvatar: "players:avatar";
+  upgradesList: "upgrades:list";
+  runGet: "run:get";
+  mapsList: "maps:list";
 }
 
 export type SaveRootStatus =
@@ -45,6 +48,44 @@ export interface PlayerDto {
 export interface PlayerAvatar {
   playerId: string;
   avatarUrl: string | null;
+}
+
+export interface PlayerUpgradeValueDto {
+  playerId: string;
+  value: number;
+}
+
+export interface PlayerUpgradeDto {
+  key: string;
+  label: string;
+  known: boolean;
+  values: PlayerUpgradeValueDto[];
+}
+
+export interface RunStatDto {
+  key: "level" | "currency" | "lives" | "totalHaul";
+  label: string;
+  value: number;
+}
+
+export interface RunStateDto {
+  stats: RunStatDto[];
+  resumeLocation: {
+    value: string;
+    options: string[];
+  };
+}
+
+export interface InstalledMapDto {
+  internalName: string;
+  displayName: string;
+  knownLabel: boolean;
+}
+
+export interface InstalledMapsDto {
+  available: boolean;
+  catalogPath: string | null;
+  maps: InstalledMapDto[];
 }
 
 export interface EnvironmentDiscovery {
@@ -118,6 +159,25 @@ export interface RepoDitorApi {
       playerId: string,
     ) => Promise<
       DesktopOperationResult<PlayerAvatar>
+    >;
+  };
+  upgrades: {
+    list: (
+      saveId: string,
+    ) => Promise<
+      DesktopOperationResult<PlayerUpgradeDto[]>
+    >;
+  };
+  run: {
+    get: (
+      saveId: string,
+    ) => Promise<
+      DesktopOperationResult<RunStateDto>
+    >;
+  };
+  maps: {
+    list: () => Promise<
+      DesktopOperationResult<InstalledMapsDto>
     >;
   };
 }

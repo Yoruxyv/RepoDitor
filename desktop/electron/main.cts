@@ -6,6 +6,7 @@ import {
 } from "electron";
 
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
+import { registerEditorIpc } from "./ipc/editor.cjs";
 import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
@@ -93,6 +94,7 @@ function createWindow(): void {
 registerEnvironmentIpc();
 registerSaveIpc();
 registerPlayerIpc();
+registerEditorIpc();
 
 void app.whenReady().then(() => {
   createWindow();
