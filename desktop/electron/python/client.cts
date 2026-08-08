@@ -8,7 +8,10 @@ export type PythonCommand =
   | "environment"
   | "saves-open"
   | "players-list"
-  | "players-avatar";
+  | "players-avatar"
+  | "upgrades-list"
+  | "run-get"
+  | "maps-list";
 
 export type PythonClientErrorCode =
   | "python_unavailable"

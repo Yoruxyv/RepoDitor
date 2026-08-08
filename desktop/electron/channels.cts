@@ -6,4 +6,7 @@ export const IPC_CHANNELS: IpcChannelMap = {
   savesOpen: "saves:open",
   playersList: "players:list",
   playersAvatar: "players:avatar",
+  upgradesList: "upgrades:list",
+  runGet: "run:get",
+  mapsList: "maps:list",
 } as const;

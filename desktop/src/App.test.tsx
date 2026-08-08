@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   EnvironmentDiscovery,
+  InstalledMapsDto,
   PlayerDto,
+  PlayerUpgradeDto,
   RepoDitorApi,
+  RunStateDto,
   SaveSession,
 } from "@electron/contracts";
-import App from "./App";
+import App from "@/App";
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const environment: EnvironmentDiscovery = {
@@ -39,6 +42,36 @@ const players: PlayerDto[] = [
   { id: "111", name: "Alpha", health: 80 },
   { id: "222", name: "Beta", health: 0 },
 ];
+const upgrades: PlayerUpgradeDto[] = [
+  {
+    key: "playerUpgradeStrength",
+    label: "Strength",
+    known: true,
+    values: [{ playerId: "111", value: 2 }, { playerId: "222", value: 0 }],
+  },
+  {
+    key: "playerUpgradeMoonBoots",
+    label: "Moon Boots",
+    known: false,
+    values: [{ playerId: "111", value: 0 }, { playerId: "222", value: 7 }],
+  },
+];
+const run: RunStateDto = {
+  stats: [
+    { key: "level", label: "Level", value: 5 },
+    { key: "currency", label: "Currency", value: 12 },
+    { key: "lives", label: "Lives", value: 3 },
+  ],
+  resumeLocation: { value: "Normal", options: ["Normal", "Shop / Service Station"] },
+};
+const maps: InstalledMapsDto = {
+  available: true,
+  catalogPath: "C:\\fixture\\game\\catalog.json",
+  maps: [
+    { internalName: "Arctic", displayName: "McJannek Station", knownLabel: true },
+    { internalName: "Modded Moon", displayName: "Modded Moon", knownLabel: false },
+  ],
+};
 
 function bridge(
   open: RepoDitorApi["saves"]["open"],
@@ -57,6 +90,9 @@ function bridge(
       list: vi.fn().mockResolvedValue({ ok: true, data: playerList }),
       avatar,
     },
+    upgrades: { list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }) },
+    run: { get: vi.fn().mockResolvedValue({ ok: true, data: run }) },
+    maps: { list: vi.fn().mockResolvedValue({ ok: true, data: maps }) },
   };
 }
 
@@ -169,6 +205,43 @@ describe("save workspace transition", () => {
 
     expect(screen.getByRole("alert").textContent).toContain("whole number");
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+  });
+
+  it("keeps upgrade and run edits while navigating through installed maps", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(await screen.findByText("Moon Boots")).toBeTruthy();
+    const strength = screen.getByRole("spinbutton", { name: "Strength for Beta" });
+    await user.clear(strength);
+    await user.type(strength, "3");
+    expect(screen.getByTestId("pending-upgrade-playerUpgradeStrength").textContent).toContain(
+      "0 → 3",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    expect(await screen.findByText("McJannek Station")).toBeTruthy();
+    expect(screen.getByText("Modded Moon")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect((screen.getByRole("spinbutton", { name: "Strength for Beta" }) as HTMLInputElement).value)
+      .toBe("3");
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
+      .toBe("20");
   });
 
   it("keeps editing available while an avatar loads and falls back if the image fails", async () => {
