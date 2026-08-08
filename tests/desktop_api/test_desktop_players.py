@@ -20,8 +20,8 @@ def test_list_players_returns_safe_dtos_without_mutating_source(
     assert list_players(save_path.parent.name, tmp_path) == {
         "ok": True,
         "players": [
-            {"id": "111", "name": "Alpha", "health": 80},
-            {"id": "222", "name": "Beta", "health": 0},
+            {"id": "111", "name": "Alpha", "health": 80, "maxHealth": 100},
+            {"id": "222", "name": "Beta", "health": 0, "maxHealth": 100},
         ],
     }
     assert save_path.read_bytes() == before

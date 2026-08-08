@@ -9,7 +9,12 @@ from xml.etree import ElementTree
 
 STEAM_ID64_MIN = 76_561_197_960_265_728
 STEAM_ID64_MAX = STEAM_ID64_MIN + 2**32 - 1
-STEAM_AVATAR_HOST = "avatars.akamai.steamstatic.com"
+STEAM_AVATAR_HOSTS = frozenset(
+    {
+        "avatars.akamai.steamstatic.com",
+        "avatars.fastly.steamstatic.com",
+    }
+)
 MAX_PROFILE_BYTES = 256 * 1024
 
 
@@ -49,7 +54,7 @@ def get_steam_avatar_url(
         parsed = urlparse(avatar_url)
         if (
             parsed.scheme != "https"
-            or parsed.hostname != STEAM_AVATAR_HOST
+            or parsed.hostname not in STEAM_AVATAR_HOSTS
             or parsed.username is not None
             or parsed.password is not None
             or parsed.port not in (None, 443)

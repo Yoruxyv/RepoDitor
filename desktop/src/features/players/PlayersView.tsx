@@ -55,6 +55,7 @@ export function PlayersView({
     healthInput.trim() === "" || !Number.isSafeInteger(parsedHealth) || parsedHealth < 0
       ? "Health must be a whole number of zero or more."
       : null;
+  const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
 
   useEffect(() => {
     if (player && avatarUrls[player.id] === undefined) {
@@ -186,18 +187,34 @@ export function PlayersView({
             This creates an in-memory pending edit. It does not write to the save file.
           </p>
           <div className="mt-3 flex flex-wrap items-start gap-3">
-            <input
-              aria-describedby={healthError ? "player-health-error" : undefined}
-              aria-invalid={healthError ? "true" : undefined}
-              className="w-36 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
-              id="player-health"
-              inputMode="numeric"
-              min="0"
-              step="1"
-              type="number"
-              value={healthInput}
-              onChange={(event) => editHealth(event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                aria-describedby={healthError ? "player-health-error" : undefined}
+                aria-invalid={healthError ? "true" : undefined}
+                className="w-28 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+                id="player-health"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                type="number"
+                value={healthInput}
+                onChange={(event) => editHealth(event.target.value)}
+              />
+              <span
+                aria-label={`Maximum health ${player.maxHealth}`}
+                className="font-mono text-sm text-secondary"
+              >
+                / {player.maxHealth}
+              </span>
+            </div>
+            <button
+              className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-strong disabled:hover:text-secondary"
+              disabled={isAtFullHealth}
+              type="button"
+              onClick={() => editHealth(String(player.maxHealth))}
+            >
+              Heal to Full
+            </button>
             {pending ? (
               <button
                 className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"

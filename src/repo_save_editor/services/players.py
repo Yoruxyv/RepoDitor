@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries, get_typed_value
 from repo_save_editor.core.types import Player, SaveData
+from repo_save_editor.services.upgrades import get_player_upgrade
+
+BASE_PLAYER_HEALTH = 100
+HEALTH_PER_UPGRADE = 20
 
 
 def get_players(data: SaveData) -> list[Player]:
@@ -25,6 +29,12 @@ def get_player_health(data: SaveData, player_id: str) -> int:
         return int(raw)
     except (TypeError, ValueError):
         return 0
+
+
+def get_player_max_health(data: SaveData, player_id: str) -> int:
+    """Return base health plus twenty HP per saved Health upgrade."""
+    health_upgrades = max(get_player_upgrade(data, player_id, "playerUpgradeHealth"), 0)
+    return BASE_PLAYER_HEALTH + health_upgrades * HEALTH_PER_UPGRADE
 
 
 def set_player_health(data: SaveData, player_id: str, value: int) -> None:
