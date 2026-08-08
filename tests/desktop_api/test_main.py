@@ -1,17 +1,8 @@
 from pathlib import Path
 
-from repo_save_editor.desktop_api.__main__ import ping
 from repo_save_editor.desktop_api.environment import serialize_environment
 from repo_save_editor.services.game_discovery import discover_game_installation
 from repo_save_editor.services.save_discovery import discover_saves
-
-
-def test_ping_returns_desktop_api_health_response() -> None:
-    assert ping() == {
-        "ok": True,
-        "message": "pong",
-        "source": "python",
-    }
 
 
 def test_environment_serialization_adapts_domain_names(tmp_path: Path) -> None:

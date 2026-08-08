@@ -1,23 +1,64 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   app,
   BrowserWindow,
-  ipcMain,
 } from "electron";
 
-import {
-  IPC_CHANNELS,
-} from "./channels.cjs";
-import {
-  type AppPing,
-} from "./contracts.cjs";
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
+import { pythonClient } from "./python/client.cjs";
 
-const isDevelopment = Boolean(
-  process.env.VITE_DEV_SERVER_URL,
-);
+const developmentRendererUrl =
+  process.env.VITE_DEV_SERVER_URL;
+
+function getRendererUrl(): string {
+  if (developmentRendererUrl) {
+    return developmentRendererUrl;
+  }
+
+  return pathToFileURL(
+    path.join(
+      __dirname,
+      "..",
+      "dist",
+      "index.html",
+    ),
+  ).href;
+}
+
+function normalizeNavigationUrl(url: string): string {
+  const normalized = new URL(url);
+  normalized.hash = "";
+  return normalized.href;
+}
+
+function secureRendererNavigation(
+  window: BrowserWindow,
+  rendererUrl: string,
+): void {
+  const allowedUrl = normalizeNavigationUrl(
+    rendererUrl,
+  );
+
+  window.webContents.setWindowOpenHandler(
+    () => ({ action: "deny" }),
+  );
+  window.webContents.on(
+    "will-navigate",
+    (event, navigationUrl) => {
+      if (
+        normalizeNavigationUrl(
+          navigationUrl,
+        ) !== allowedUrl
+      ) {
+        event.preventDefault();
+      }
+    },
+  );
+}
 
 function createWindow(): void {
+  const rendererUrl = getRendererUrl();
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -35,38 +76,18 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+  secureRendererNavigation(
+    window,
+    rendererUrl,
+  );
 
   window.once("ready-to-show", () => {
     window.show();
   });
 
-  if (
-    isDevelopment &&
-    process.env.VITE_DEV_SERVER_URL
-  ) {
-    void window.loadURL(
-      process.env.VITE_DEV_SERVER_URL,
-    );
-    return;
-  }
-
-  void window.loadFile(
-    path.join(
-      __dirname,
-      "..",
-      "dist",
-      "index.html",
-    ),
-  );
+  void window.loadURL(rendererUrl);
 }
 
-ipcMain.handle(
-  IPC_CHANNELS.appPing,
-  (): AppPing => ({
-    ok: true,
-    message: "pong",
-  }),
-);
 registerEnvironmentIpc();
 
 void app.whenReady().then(() => {
@@ -85,4 +106,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  pythonClient.dispose();
 });

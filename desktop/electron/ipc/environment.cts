@@ -47,14 +47,27 @@ function readString(
   return value;
 }
 
-function readNullableString(
+function readNonEmptyString(
+  value: unknown,
+  field: string,
+): string {
+  const text = readString(value, field);
+  if (!text.trim()) {
+    throw new EnvironmentProtocolError(
+      `Invalid ${field}.`,
+    );
+  }
+  return text;
+}
+
+function readNullableNonEmptyString(
   value: unknown,
   field: string,
 ): string | null {
   if (value === null) {
     return null;
   }
-  return readString(value, field);
+  return readNonEmptyString(value, field);
 }
 
 function readBoolean(
@@ -100,12 +113,15 @@ function parseSaveSummary(
   }
 
   return {
-    id: readString(value.id, "save id"),
-    name: readString(
+    id: readNonEmptyString(
+      value.id,
+      "save id",
+    ),
+    name: readNonEmptyString(
       value.displayName,
       "save displayName",
     ),
-    path: readString(
+    path: readNonEmptyString(
       value.path,
       "save path",
     ),
@@ -205,8 +221,16 @@ function parseEnvironment(
       "Inconsistent save-root state.",
     );
   }
+  if (
+    saveRootStatus !== "available" &&
+    saves.length > 0
+  ) {
+    throw new EnvironmentProtocolError(
+      "Unavailable save root returned saves.",
+    );
+  }
 
-  const gameRoot = readNullableString(
+  const gameRoot = readNullableNonEmptyString(
     value.gameRoot,
     "gameRoot",
   );
@@ -228,7 +252,7 @@ function parseEnvironment(
   }
 
   return {
-    saveRoot: readString(
+    saveRoot: readNonEmptyString(
       value.saveRoot,
       "saveRoot",
     ),

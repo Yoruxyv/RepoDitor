@@ -5,8 +5,7 @@ const PYTHON_TIMEOUT_MS = 30_000;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 
 export type PythonCommand =
-  | "ping"
-  | "environment";
+  "environment";
 
 export type PythonClientErrorCode =
   | "python_unavailable"
@@ -30,6 +29,7 @@ export class PythonClientError extends Error {
 
 export interface PythonClient {
   run(command: PythonCommand): Promise<unknown>;
+  dispose(): void;
 }
 
 function isDevelopment(): boolean {
@@ -79,9 +79,22 @@ function getPythonExecutable(): string {
 }
 
 class SpawnPythonClient implements PythonClient {
+  private readonly activeChildren = new Set<
+    ReturnType<typeof spawn>
+  >();
+
+  private disposed = false;
+
   async run(
     command: PythonCommand,
   ): Promise<unknown> {
+    if (this.disposed) {
+      throw new PythonClientError(
+        "process_failed",
+        "Python client is no longer available.",
+      );
+    }
+
     const executable = getPythonExecutable();
     const repoRoot = getRepoRoot();
 
@@ -103,6 +116,7 @@ class SpawnPythonClient implements PythonClient {
           ],
         },
       );
+      this.activeChildren.add(child);
 
       let settled = false;
       let stdout = "";
@@ -174,6 +188,7 @@ class SpawnPythonClient implements PythonClient {
       );
 
       child.on("error", (error) => {
+        this.activeChildren.delete(child);
         const code =
           "code" in error &&
           typeof error.code === "string"
@@ -192,6 +207,7 @@ class SpawnPythonClient implements PythonClient {
       });
 
       child.on("close", (code) => {
+        this.activeChildren.delete(child);
         if (settled) {
           return;
         }
@@ -228,6 +244,17 @@ class SpawnPythonClient implements PythonClient {
         }
       });
     });
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    this.disposed = true;
+    for (const child of this.activeChildren) {
+      child.kill();
+    }
   }
 }
 
