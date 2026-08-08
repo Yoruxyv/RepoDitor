@@ -17,7 +17,10 @@ import {
 
 const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
-const STEAM_AVATAR_HOST = "avatars.akamai.steamstatic.com";
+const STEAM_AVATAR_HOSTS = new Set([
+  "avatars.akamai.steamstatic.com",
+  "avatars.fastly.steamstatic.com",
+]);
 const PLAYER_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
   "save_missing",
@@ -65,6 +68,10 @@ function parsePlayer(value: unknown): PlayerDto {
   if (typeof health !== "number" || !Number.isSafeInteger(health) || health < 0) {
     throw new PlayerProtocolError("Invalid player health.");
   }
+  const maxHealth = value.maxHealth;
+  if (typeof maxHealth !== "number" || !Number.isSafeInteger(maxHealth) || maxHealth < 100) {
+    throw new PlayerProtocolError("Invalid player max health.");
+  }
   const id = readString(value.id, "player ID");
   if (!PLAYER_ID_PATTERN.test(id)) {
     throw new PlayerProtocolError("Invalid player ID.");
@@ -73,6 +80,7 @@ function parsePlayer(value: unknown): PlayerDto {
     id,
     name: readString(value.name, "player name"),
     health,
+    maxHealth,
   };
 }
 
@@ -96,7 +104,7 @@ function parseAvatarUrl(value: unknown): string | null {
   const url = new URL(readString(value, "avatar URL"));
   if (
     url.protocol !== "https:" ||
-    url.hostname !== STEAM_AVATAR_HOST ||
+    !STEAM_AVATAR_HOSTS.has(url.hostname) ||
     url.username ||
     url.password ||
     (url.port && url.port !== "443")

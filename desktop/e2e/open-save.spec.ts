@@ -176,14 +176,17 @@ test("keeps Phase 7 editor changes in memory across workspaces and supported siz
     await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
     await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
     const health = page.getByRole("spinbutton", { name: "Current health" });
-    await health.fill("42");
-    await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 42");
+    await expect(page.getByLabel("Maximum health 100")).toBeVisible();
+    await page.getByRole("button", { name: "Heal to Full" }).click();
+    await expect(health).toHaveValue("100");
+    await expect(page.getByRole("button", { name: "Heal to Full" })).toBeDisabled();
+    await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 100");
     await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
 
     await page.getByRole("tab", { name: "Overview" }).click();
     await page.getByRole("tab", { name: "Players" }).click();
     await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
-    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
 
     await page.getByRole("tab", { name: "Upgrades" }).click();
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
@@ -220,7 +223,7 @@ test("keeps Phase 7 editor changes in memory across workspaces and supported siz
       await page.getByRole("tab", { name: "Players" }).click();
       await expect(page.getByRole("button", { name: /Alpha/ })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
-      await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("42");
+      await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
       await page.getByRole("tab", { name: "Upgrades" }).click();
       await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
       await page.getByRole("tab", { name: "Run" }).click();

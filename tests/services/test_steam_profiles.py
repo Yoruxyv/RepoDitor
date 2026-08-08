@@ -1,11 +1,11 @@
 from repo_save_editor.services.steam_profiles import (
-    STEAM_AVATAR_HOST,
+    STEAM_AVATAR_HOSTS,
     get_steam_avatar_url,
     is_plausible_steam_id,
 )
 
 STEAM_ID = "76561197960287930"
-AVATAR_URL = f"https://{STEAM_AVATAR_HOST}/avatar.jpg"
+AVATAR_URL = "https://avatars.fastly.steamstatic.com/avatar.jpg"
 
 
 def test_plausible_steam_id_range() -> None:
@@ -21,11 +21,33 @@ def test_avatar_lookup_accepts_only_the_expected_https_host() -> None:
         return f"<profile><avatarMedium>{AVATAR_URL}</avatarMedium></profile>".encode()
 
     assert get_steam_avatar_url(STEAM_ID, fetch_profile=fetch_profile) == AVATAR_URL
+    for host in STEAM_AVATAR_HOSTS:
+        url = f"https://{host}/avatar.jpg"
+        assert (
+            get_steam_avatar_url(
+                STEAM_ID,
+                fetch_profile=lambda _url, _timeout, avatar_url=url: (
+                    f"<profile><avatarMedium>{avatar_url}</avatarMedium></profile>".encode()
+                ),
+            )
+            == url
+        )
     assert (
         get_steam_avatar_url(
             STEAM_ID,
             fetch_profile=lambda _url, _timeout: (
                 b"<profile><avatarMedium>https://example.com/avatar.jpg</avatarMedium></profile>"
+            ),
+        )
+        is None
+    )
+    assert (
+        get_steam_avatar_url(
+            STEAM_ID,
+            fetch_profile=lambda _url, _timeout: (
+                b"<profile><avatarMedium>"
+                b"https://avatars.fastly.steamstatic.com.example.com/avatar.jpg"
+                b"</avatarMedium></profile>"
             ),
         )
         is None

@@ -39,8 +39,8 @@ const session: SaveSession = {
   resumeLocation: "Normal",
 };
 const players: PlayerDto[] = [
-  { id: "111", name: "Alpha", health: 80 },
-  { id: "222", name: "Beta", health: 0 },
+  { id: "111", name: "Alpha", health: 80, maxHealth: 100 },
+  { id: "222", name: "Beta", health: 0, maxHealth: 100 },
 ];
 const upgrades: PlayerUpgradeDto[] = [
   {
@@ -207,6 +207,51 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
   });
 
+  it("heals to Python-provided max health through the existing pending edit", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+
+    expect(screen.getByLabelText("Maximum health 100")).toBeTruthy();
+    const heal = screen.getByRole("button", { name: "Heal to Full" });
+    await user.click(heal);
+    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
+      .toBe("100");
+    expect((heal as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 100");
+
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
+      .toBe("100");
+
+    await user.click(screen.getByRole("button", { name: "Revert" }));
+    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
+      .toBe("0");
+    expect((screen.getByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled)
+      .toBe(false);
+  });
+
+  it("disables Heal to Full when current health already equals max health", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), [
+      { ...players[0]!, health: 100 },
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+
+    expect(
+      (await screen.findByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+  });
+
   it("keeps upgrade and run edits while navigating through installed maps", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const user = userEvent.setup();
@@ -274,7 +319,7 @@ describe("save workspace transition", () => {
     await user.type(health, "95");
     expect(screen.getByTestId("pending-health-edit")).toBeTruthy();
 
-    const avatarUrl = "https://avatars.akamai.steamstatic.com/avatar.jpg";
+    const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
     await act(async () => {
       finishAvatar?.({ ok: true, data: { playerId: "111", avatarUrl } });
     });

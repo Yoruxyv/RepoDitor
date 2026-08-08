@@ -36,15 +36,15 @@ describe("player IPC", () => {
     const fake = client({
       ok: true,
       players: [
-        { id: "111", name: "Alpha", health: 80 },
-        { id: "222", name: "Beta", health: 0 },
+        { id: "111", name: "Alpha", health: 80, maxHealth: 100 },
+        { id: "222", name: "Beta", health: 0, maxHealth: 140 },
       ],
     });
     await expect(listPlayers(fake, saveId)).resolves.toEqual({
       ok: true,
       data: [
-        { id: "111", name: "Alpha", health: 80 },
-        { id: "222", name: "Beta", health: 0 },
+        { id: "111", name: "Alpha", health: 80, maxHealth: 100 },
+        { id: "222", name: "Beta", health: 0, maxHealth: 140 },
       ],
     });
     expect(fake.run).toHaveBeenCalledWith("players-list", [saveId]);
@@ -52,12 +52,27 @@ describe("player IPC", () => {
 
   it("rejects malformed player DTOs", async () => {
     await expect(
-      listPlayers(client({ ok: true, players: [{ id: "111", name: "Alpha", health: -1 }] }), saveId),
+      listPlayers(
+        client({
+          ok: true,
+          players: [{ id: "111", name: "Alpha", health: -1, maxHealth: 100 }],
+        }),
+        saveId,
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      listPlayers(
+        client({
+          ok: true,
+          players: [{ id: "111", name: "Alpha", health: 80, maxHealth: null }],
+        }),
+        saveId,
+      ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("allows only a matching safe avatar contract", async () => {
-    const avatarUrl = "https://avatars.akamai.steamstatic.com/avatar.jpg";
+    const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
     await expect(
       getPlayerAvatar(
         client({ ok: true, avatar: { playerId: "111", avatarUrl } }),
@@ -71,6 +86,19 @@ describe("player IPC", () => {
         client({
           ok: true,
           avatar: { playerId: "111", avatarUrl: "https://example.com/avatar.jpg" },
+        }),
+        saveId,
+        "111",
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getPlayerAvatar(
+        client({
+          ok: true,
+          avatar: {
+            playerId: "111",
+            avatarUrl: "https://avatars.fastly.steamstatic.com.example.com/avatar.jpg",
+          },
         }),
         saveId,
         "111",

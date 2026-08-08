@@ -43,6 +43,7 @@ export interface PlayerDto {
   id: string;
   name: string;
   health: number;
+  maxHealth: number;
 }
 
 export interface PlayerAvatar {
