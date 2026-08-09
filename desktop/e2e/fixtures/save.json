@@ -10,11 +10,27 @@
     "__type": "Dictionary",
     "value": {
       "runStats": {
+        "chargingStationCharge": 10,
+        "chargingStationChargeTotal": 95,
         "level": 4,
         "currency": 12,
         "lives": 3,
         "totalHaul": 500,
         "save level": 0
+      },
+      "item": {
+        "Item Cart Medium/1": 2,
+        "Item Cart Medium/2": 2,
+        "Item Health Pack Medium/2": 23,
+        "Item Melee Inflatable Hammer/1": 21
+      },
+      "itemStatBattery": { "Item Melee Inflatable Hammer/1": 99 },
+      "itemBatteryUpgrades": {},
+      "itemsUpgradesPurchased": { "Item Upgrade Player Health": 18 },
+      "itemsPurchased": { "Item Cart Medium": 4 },
+      "itemsPurchasedTotal": {
+        "Item Cart Medium": 4,
+        "Item Upgrade Player Health": 18
       },
       "playerUpgradeStrength": { "111": 2 },
       "playerHealth": { "111": 80 }

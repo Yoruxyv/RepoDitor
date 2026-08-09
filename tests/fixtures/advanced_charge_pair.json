@@ -1,0 +1,26 @@
+{
+  "action": "Use the single Inflatable Hammer once, then cross one normal save transition.",
+  "beforeSha256": "70eeda192ea6e2e7c60043141d547c85b36cc860d6db0825a937481eefe2f84d",
+  "afterSha256": "3cb6f29377bef2b5d2d76b371e515393522e0a557dbe0b99c7bce8d98a78110b",
+  "before": {
+    "item": {
+      "Item Melee Inflatable Hammer/1": 21
+    },
+    "itemStatBattery": {
+      "Item Melee Inflatable Hammer/1": 99
+    },
+    "runStats": {
+      "save level": 2
+    }
+  },
+  "after": {
+    "item": {
+      "Item Melee Inflatable Hammer/1": 21,
+      "Item Staff Torque/1": 40
+    },
+    "itemStatBattery": {},
+    "runStats": {
+      "save level": 0
+    }
+  }
+}

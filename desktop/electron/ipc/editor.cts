@@ -2,6 +2,13 @@ import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";
 import {
+  type AdvancedCapabilitiesDto,
+  type AdvancedDomainDto,
+  type AdvancedDomainKey,
+  type AdvancedEvidenceStatus,
+  type AdvancedItemDto,
+  type AdvancedRunValueDto,
+  type AdvancedSaveDto,
   type DesktopOperationError,
   type DesktopOperationErrorCode,
   type DesktopOperationFailure,
@@ -25,6 +32,24 @@ const RUN_STAT_KEYS = new Set<RunStatDto["key"]>([
   "currency",
   "lives",
   "totalHaul",
+]);
+const ADVANCED_DOMAIN_KEYS = new Set<AdvancedDomainKey>([
+  "items",
+  "currentCharge",
+  "batteryUpgrades",
+  "purchasedUpgrades",
+  "purchasedItems",
+  "purchasedItemsTotal",
+  "runMetadata",
+]);
+const ADVANCED_STATUSES = new Set<AdvancedEvidenceStatus>([
+  "confirmed",
+  "partially_confirmed",
+  "unknown",
+]);
+const ADVANCED_RUN_KEYS = new Set<AdvancedRunValueDto["saveKey"]>([
+  "chargingStationCharge",
+  "chargingStationChargeTotal",
 ]);
 const EDITOR_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
@@ -60,6 +85,10 @@ function readBoolean(value: unknown, field: string): boolean {
     throw new EditorProtocolError(`Invalid ${field}.`);
   }
   return value;
+}
+
+function readNullableInteger(value: unknown, field: string): number | null {
+  return value === null ? null : readInteger(value, field);
 }
 
 function parseError(value: unknown): DesktopOperationFailure {
@@ -158,6 +187,122 @@ function parseRun(value: unknown): DesktopOperationResult<RunStateDto> {
     data: {
       stats: value.run.stats.map(parseRunStat),
       resumeLocation: { value: resumeValue, options },
+    },
+  };
+}
+
+function parseAdvancedCapabilities(value: unknown): AdvancedCapabilitiesDto {
+  if (!isRecord(value)) {
+    throw new EditorProtocolError("Invalid advanced capabilities.");
+  }
+  const canRead = readBoolean(value.canRead, "advanced read capability");
+  const canEdit = readBoolean(value.canEdit, "advanced edit capability");
+  const canAdd = readBoolean(value.canAdd, "advanced add capability");
+  const canDelete = readBoolean(value.canDelete, "advanced delete capability");
+  const canDuplicate = readBoolean(value.canDuplicate, "advanced duplicate capability");
+  if (canEdit || canAdd || canDelete || canDuplicate) {
+    throw new EditorProtocolError("Advanced mutation capabilities are not supported.");
+  }
+  return { canRead, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false };
+}
+
+function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
+  if (!isRecord(value)) {
+    throw new EditorProtocolError("Invalid advanced domain.");
+  }
+  const key = readString(value.key, "advanced domain key");
+  const status = readString(value.status, "advanced evidence status");
+  const entryCount = readNullableInteger(value.entryCount, "advanced entry count");
+  if (
+    !ADVANCED_DOMAIN_KEYS.has(key as AdvancedDomainKey)
+    || !ADVANCED_STATUSES.has(status as AdvancedEvidenceStatus)
+    || (entryCount !== null && entryCount < 0)
+  ) {
+    throw new EditorProtocolError("Invalid advanced domain.");
+  }
+  return {
+    key: key as AdvancedDomainKey,
+    label: readString(value.label, "advanced domain label"),
+    status: status as AdvancedEvidenceStatus,
+    entryCount,
+    capabilities: parseAdvancedCapabilities(value.capabilities),
+  };
+}
+
+function parseAdvancedItem(value: unknown): AdvancedItemDto {
+  if (!isRecord(value)) {
+    throw new EditorProtocolError("Invalid advanced item.");
+  }
+  const saveKey = readString(value.saveKey, "item save key");
+  const instanceId = readString(value.instanceId, "item instance ID");
+  const storedCharge = readNullableInteger(value.storedCharge, "stored item charge");
+  if (!/^\d+$/.test(instanceId) || !saveKey.startsWith("Item ") || !saveKey.endsWith(`/${instanceId}`)) {
+    throw new EditorProtocolError("Invalid advanced item identity.");
+  }
+  return {
+    saveKey,
+    name: readString(value.name, "item name"),
+    instanceId,
+    storedCharge,
+  };
+}
+
+function parseAdvancedRunValue(value: unknown): AdvancedRunValueDto {
+  if (!isRecord(value)) {
+    throw new EditorProtocolError("Invalid advanced Run value.");
+  }
+  const saveKey = readString(value.saveKey, "advanced Run key");
+  const status = readString(value.status, "advanced Run evidence status");
+  if (
+    !ADVANCED_RUN_KEYS.has(saveKey as AdvancedRunValueDto["saveKey"])
+    || !ADVANCED_STATUSES.has(status as AdvancedEvidenceStatus)
+  ) {
+    throw new EditorProtocolError("Invalid advanced Run value.");
+  }
+  return {
+    saveKey: saveKey as AdvancedRunValueDto["saveKey"],
+    label: readString(value.label, "advanced Run label"),
+    value: readInteger(value.value, "advanced Run value"),
+    status: status as AdvancedEvidenceStatus,
+  };
+}
+
+function parseAdvanced(value: unknown): DesktopOperationResult<AdvancedSaveDto> {
+  if (!isRecord(value)) {
+    throw new EditorProtocolError("Invalid advanced response.");
+  }
+  if (value.ok !== true) {
+    return parseError(value);
+  }
+  if (
+    !isRecord(value.advanced)
+    || !Array.isArray(value.advanced.domains)
+    || !Array.isArray(value.advanced.items)
+    || !Array.isArray(value.advanced.runValues)
+  ) {
+    throw new EditorProtocolError("Invalid advanced data.");
+  }
+  const domains = value.advanced.domains.map(parseAdvancedDomain);
+  const domainKeys = new Set(domains.map((domain) => domain.key));
+  const unlinkedChargeEntryCount = readInteger(
+    value.advanced.unlinkedChargeEntryCount,
+    "unlinked charge entry count",
+  );
+  if (
+    domains.length !== ADVANCED_DOMAIN_KEYS.size
+    || domainKeys.size !== ADVANCED_DOMAIN_KEYS.size
+    || [...ADVANCED_DOMAIN_KEYS].some((key) => !domainKeys.has(key))
+    || unlinkedChargeEntryCount < 0
+  ) {
+    throw new EditorProtocolError("Invalid advanced data.");
+  }
+  return {
+    ok: true,
+    data: {
+      domains,
+      items: value.advanced.items.map(parseAdvancedItem),
+      runValues: value.advanced.runValues.map(parseAdvancedRunValue),
+      unlinkedChargeEntryCount,
     },
   };
 }
@@ -266,6 +411,23 @@ export async function getRunState(
   }
 }
 
+export async function getAdvancedSave(
+  client: PythonClient,
+  saveId: unknown,
+): Promise<DesktopOperationResult<AdvancedSaveDto>> {
+  if (!validSaveId(saveId)) {
+    return {
+      ok: false,
+      error: { code: "invalid_request", message: "A valid discovered save ID is required." },
+    };
+  }
+  try {
+    return parseAdvanced(await client.run("advanced-get", [saveId]));
+  } catch (error) {
+    return failure("advanced data", error);
+  }
+}
+
 export async function listMaps(
   client: PythonClient,
 ): Promise<DesktopOperationResult<InstalledMapsDto>> {
@@ -282,6 +444,9 @@ export function registerEditorIpc(client: PythonClient = pythonClient): void {
   );
   ipcMain.handle(IPC_CHANNELS.runGet, (_event, saveId: unknown) =>
     getRunState(client, saveId),
+  );
+  ipcMain.handle(IPC_CHANNELS.advancedGet, (_event, saveId: unknown) =>
+    getAdvancedSave(client, saveId),
   );
   ipcMain.handle(IPC_CHANNELS.mapsList, () => listMaps(client));
 }

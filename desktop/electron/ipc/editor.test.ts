@@ -3,15 +3,33 @@
 import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AdvancedDomainDto } from "../contracts.cjs";
+
 const require = createRequire(import.meta.url);
 const { PythonClientError } = require("../../dist-electron/python/client.cjs");
-const { getRunState, listMaps, listUpgrades } = require("../../dist-electron/ipc/editor.cjs");
+const { getAdvancedSave, getRunState, listMaps, listUpgrades } = require("../../dist-electron/ipc/editor.cjs");
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
 }
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
+const readOnlyCapabilities = {
+  canRead: true,
+  canEdit: false,
+  canAdd: false,
+  canDelete: false,
+  canDuplicate: false,
+} as const;
+const advancedDomains: AdvancedDomainDto[] = [
+  { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: readOnlyCapabilities },
+  { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyCapabilities },
+  { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { ...readOnlyCapabilities, canRead: false } },
+  { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
+  { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
+  { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyCapabilities, canRead: false } },
+  { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 2, capabilities: readOnlyCapabilities },
+];
 
 describe("editor data IPC", () => {
   beforeEach(() => {
@@ -26,6 +44,10 @@ describe("editor data IPC", () => {
       error: { code: "invalid_request" },
     });
     await expect(getRunState(fake, "../save")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_request" },
+    });
+    await expect(getAdvancedSave(fake, "../save")).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid_request" },
     });
@@ -71,6 +93,73 @@ describe("editor data IPC", () => {
       ok: true,
       data: run,
     });
+  });
+
+  it("parses narrow read-only advanced data and drops raw fields", async () => {
+    const advanced = {
+      domains: advancedDomains,
+      items: [
+        {
+          saveKey: "Item Melee Inflatable Hammer/1",
+          name: "Melee Inflatable Hammer",
+          instanceId: "1",
+          storedCharge: 99,
+          rawValue: 21,
+        },
+      ],
+      runValues: [
+        {
+          saveKey: "chargingStationCharge",
+          label: "Charging station charge",
+          value: 10,
+          status: "partially_confirmed",
+        },
+      ],
+      unlinkedChargeEntryCount: 0,
+      rawSave: { secret: true },
+    };
+
+    const result = await getAdvancedSave(client({ ok: true, advanced }), saveId);
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        items: [{ storedCharge: 99 }],
+        runValues: [{ saveKey: "chargingStationCharge", value: 10 }],
+      },
+    });
+    expect(result.data.items[0]).not.toHaveProperty("rawValue");
+    expect(result.data).not.toHaveProperty("rawSave");
+  });
+
+  it("accepts absent stored charge and rejects malformed advanced responses", async () => {
+    const advanced = {
+      domains: advancedDomains,
+      items: [
+        {
+          saveKey: "Item Melee Inflatable Hammer/1",
+          name: "Melee Inflatable Hammer",
+          instanceId: "1",
+          storedCharge: null,
+        },
+      ],
+      runValues: [],
+      unlinkedChargeEntryCount: 0,
+    };
+    await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
+      ok: true,
+      data: { items: [{ storedCharge: null }] },
+    });
+
+    const mutable = structuredClone(advanced) as unknown as {
+      domains: Array<{ capabilities: { canEdit: boolean } }>;
+    };
+    mutable.domains[0].capabilities.canEdit = true;
+    await expect(getAdvancedSave(client({ ok: true, advanced: mutable }), saveId)).resolves
+      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [{}] } }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("parses available and unavailable map discovery", async () => {

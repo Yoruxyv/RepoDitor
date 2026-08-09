@@ -7,6 +7,7 @@ export interface IpcChannelMap {
   playersAvatar: "players:avatar";
   upgradesList: "upgrades:list";
   runGet: "run:get";
+  advancedGet: "advanced:get";
   mapsList: "maps:list";
 }
 
@@ -112,6 +113,54 @@ export interface RunStateDto {
     value: string;
     options: string[];
   };
+}
+
+export type AdvancedEvidenceStatus = "confirmed" | "partially_confirmed" | "unknown";
+
+export type AdvancedDomainKey =
+  | "items"
+  | "currentCharge"
+  | "batteryUpgrades"
+  | "purchasedUpgrades"
+  | "purchasedItems"
+  | "purchasedItemsTotal"
+  | "runMetadata";
+
+export interface AdvancedCapabilitiesDto {
+  canRead: boolean;
+  canEdit: false;
+  canAdd: false;
+  canDelete: false;
+  canDuplicate: false;
+}
+
+export interface AdvancedDomainDto {
+  key: AdvancedDomainKey;
+  label: string;
+  status: AdvancedEvidenceStatus;
+  entryCount: number | null;
+  capabilities: AdvancedCapabilitiesDto;
+}
+
+export interface AdvancedItemDto {
+  saveKey: string;
+  name: string;
+  instanceId: string;
+  storedCharge: number | null;
+}
+
+export interface AdvancedRunValueDto {
+  saveKey: "chargingStationCharge" | "chargingStationChargeTotal";
+  label: string;
+  value: number;
+  status: AdvancedEvidenceStatus;
+}
+
+export interface AdvancedSaveDto {
+  domains: AdvancedDomainDto[];
+  items: AdvancedItemDto[];
+  runValues: AdvancedRunValueDto[];
+  unlinkedChargeEntryCount: number;
 }
 
 export interface InstalledMapDto {
@@ -223,6 +272,13 @@ export interface RepoDitorApi {
       saveId: string,
     ) => Promise<
       DesktopOperationResult<RunStateDto>
+    >;
+  };
+  advanced: {
+    get: (
+      saveId: string,
+    ) => Promise<
+      DesktopOperationResult<AdvancedSaveDto>
     >;
   };
   maps: {

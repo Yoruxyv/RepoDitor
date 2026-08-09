@@ -1,7 +1,9 @@
 import base64
 import json
+from copy import deepcopy
 from pathlib import Path
 
+from repo_save_editor.desktop_api.advanced import get_advanced_save
 from repo_save_editor.desktop_api.maps import list_maps
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.upgrades import list_upgrades
@@ -115,7 +117,72 @@ def test_maps_report_available_unavailable_and_feature_errors(tmp_path: Path) ->
     assert error["error"]["code"] == "backend_unavailable"
 
 
+def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample_save) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries.update(
+        {
+            "item": {"Item Melee Inflatable Hammer/1": 21},
+            "itemStatBattery": {"Item Melee Inflatable Hammer/1": 99},
+            "itemBatteryUpgrades": {},
+            "itemsUpgradesPurchased": {"Item Upgrade Player Health": 18},
+            "itemsPurchased": {"Item Melee Inflatable Hammer": 1},
+            "itemsPurchasedTotal": {"Item Melee Inflatable Hammer": 1},
+            "privateUnrelatedData": {"mustNotLeak": 123},
+        }
+    )
+    dictionaries["runStats"]["chargingStationCharge"] = 10
+    source = deepcopy(sample_save)
+    save_path = _write_save(tmp_path, sample_save)
+    before = save_path.read_bytes()
+
+    result = get_advanced_save(save_path.parent.name, tmp_path)
+
+    assert result["ok"] is True
+    advanced = result["advanced"]
+    assert set(advanced) == {
+        "domains",
+        "items",
+        "runValues",
+        "unlinkedChargeEntryCount",
+    }
+    assert advanced["items"] == [
+        {
+            "saveKey": "Item Melee Inflatable Hammer/1",
+            "name": "Melee Inflatable Hammer",
+            "instanceId": "1",
+            "storedCharge": 99,
+        }
+    ]
+    assert advanced["runValues"] == [
+        {
+            "saveKey": "chargingStationCharge",
+            "label": "Charging station charge",
+            "value": 10,
+            "status": "partially_confirmed",
+        }
+    ]
+    assert "privateUnrelatedData" not in json.dumps(result)
+    assert sample_save == source
+    assert save_path.read_bytes() == before
+
+
+def test_advanced_read_rejects_malformed_structure(tmp_path: Path, sample_save) -> None:
+    sample_save["dictionaryOfDictionaries"]["value"]["item"] = []
+    save_path = _write_save(tmp_path, sample_save)
+
+    result = get_advanced_save(save_path.parent.name, tmp_path)
+
+    assert result == {
+        "ok": False,
+        "error": {
+            "code": "save_unsupported",
+            "message": "The selected save contains malformed advanced item data.",
+        },
+    }
+
+
 def test_editor_reads_reuse_stable_missing_save_failure(tmp_path: Path) -> None:
     save_id = "REPO_SAVE_2026_08_08_10_20_30"
     assert list_upgrades(save_id, tmp_path)["error"]["code"] == "save_missing"
     assert get_run_state(save_id, tmp_path)["error"]["code"] == "save_missing"
+    assert get_advanced_save(save_id, tmp_path)["error"]["code"] == "save_missing"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from repo_save_editor.desktop_api.advanced import get_advanced_save
 from repo_save_editor.desktop_api.environment import discover_environment
 from repo_save_editor.desktop_api.maps import list_maps
 from repo_save_editor.desktop_api.players import get_player_avatar, list_players
@@ -27,6 +28,7 @@ def main() -> None:
             "players-avatar",
             "upgrades-list",
             "run-get",
+            "advanced-get",
             "maps-list",
         ),
     )
@@ -89,8 +91,10 @@ def main() -> None:
         print(json.dumps(get_player_avatar(args.save_id, args.player_id)))
     elif args.command == "upgrades-list":
         print(json.dumps(list_upgrades(args.save_id)))
-    else:
+    elif args.command == "run-get":
         print(json.dumps(get_run_state(args.save_id)))
+    else:
+        print(json.dumps(get_advanced_save(args.save_id)))
 
 
 if __name__ == "__main__":
