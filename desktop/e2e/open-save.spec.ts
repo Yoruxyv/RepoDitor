@@ -248,7 +248,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     await expect(page.getByText(
-      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     ))
       .toBeVisible();
     const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
@@ -257,6 +257,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(hammer.getByText("99")).toBeVisible();
     await hammer.getByText("Show save key").click();
     await expect(hammer.getByText("Item Melee Inflatable Hammer/1")).toBeVisible();
+    await hammer.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" })
+      .click();
+    await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
     await page.getByRole("tab", { name: "Overview" }).focus();
@@ -278,7 +282,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(health).toHaveValue("100");
     await expect(page.getByRole("button", { name: "Heal to Full" })).toBeDisabled();
     await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 100");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("2 pending changes");
 
     await page.getByRole("tab", { name: "Overview" }).click();
     await page.getByRole("tab", { name: "Players" }).click();
@@ -305,7 +309,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Beta · Health")).toBeVisible();
     await expect(page.getByText("Beta · Strength")).toBeVisible();
     await expect(page.getByText("Run · Currency")).toBeVisible();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("3 pending changes");
+    await expect(page.getByText("Melee Inflatable Hammer #1 · Stored charge")).toBeVisible();
+    await expect(page.getByTestId("pending-edit-count")).toHaveText("4 pending changes");
     await page.getByRole("button", { name: "Revert all" }).click();
     await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
 
@@ -318,6 +323,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
     await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
+    await page.getByRole("tab", { name: "Items" }).click();
+    await page.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }).click();
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
@@ -343,12 +350,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
     await page.getByRole("tab", { name: "Items" }).click();
-    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
+    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
       .toBeVisible();
     await expect(page.getByText(
-      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     ))
       .toBeVisible();
+    const refilledHammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer #1" });
+    await expect(refilledHammer.getByText("Full / Default")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Refill .* to full/ })).toHaveCount(0);
     await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
@@ -373,7 +383,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
       await page.getByRole("tab", { name: "Items" }).click();
-      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
+      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
         .toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("tab", { name: "Maps" }).click();

@@ -1,4 +1,5 @@
 import type {
+  AdvancedRefillChange,
   PlayerHealthChange,
   RunResumeChange,
   RunStatChange,
@@ -22,7 +23,17 @@ export type RunStatEdit = (RunStatChange | RunResumeChange) & {
   subject: "Run";
 };
 
-export type PendingEdit = PlayerHealthEdit | UpgradeValueEdit | RunStatEdit;
+export interface AdvancedRefillEdit extends AdvancedRefillChange {
+  before: number;
+  label: "Stored charge";
+  subject: string;
+}
+
+export type PendingEdit =
+  | PlayerHealthEdit
+  | UpgradeValueEdit
+  | RunStatEdit
+  | AdvancedRefillEdit;
 
 export function toSaveChange(edit: PendingEdit): SaveChange {
   return {
