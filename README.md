@@ -1,50 +1,133 @@
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?label=release" alt="Latest release">
+  <img src="https://img.shields.io/github/actions/workflow/status/Yoruxyv/RepoDitor/quality.yml?branch=main&label=quality" alt="Quality workflow">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows11&logoColor=white" alt="Windows x64">
+  <img src="https://img.shields.io/badge/license-MIT-22C55E" alt="MIT License">
+</p>
+
+<div align="center">
+
 # RepoDitor
 
-RepoDitor is an unofficial Electron desktop editor for local **R.E.P.O.** `.es3` run saves. Save encryption, validation, game semantics, backups, and writes remain in the bundled Python backend.
+### Inspect and safely edit local R.E.P.O. saves from a focused Windows desktop app
 
-## Current features
+RepoDitor is an unofficial Electron editor for encrypted R.E.P.O. `.es3` run
+saves. It keeps save parsing, validation, backups, and writes inside a bundled
+Python backend instead of exposing raw save data to the interface.
 
-- discover the default Windows R.E.P.O. save directory and recent saves;
-- inspect Overview, Players, Upgrades, Run, installed Maps, and evidence-backed Advanced Items data;
-- edit current health, detected player upgrades, and supported run fields in memory;
-- review and revert pending edits before saving;
-- validate the source fingerprint before every write;
-- create a timestamped backup and atomically replace the selected save;
-- enrich valid Steam players with optional, fail-soft avatars;
-- keep unproven advanced item and purchase structures explicitly read-only.
+<sub>Overview · Players · Upgrades · Run · Maps · Read-only advanced discovery</sub>
+
+[Download the latest release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
+
+</div>
+
+---
 
 > [!IMPORTANT]
-> RepoDitor is an unofficial community tool and is not affiliated with semiwork. Back up important saves before editing them. Game updates can change save behavior or schema.
+> RepoDitor is an unofficial community tool and is not affiliated with semiwork.
+> Back up important saves and close R.E.P.O. before editing. Game updates can
+> change the save format or behavior.
+
+## What RepoDitor provides
+
+| Workspace | Purpose |
+|---|---|
+| **Overview** | Review the selected save, run summary, and pending changes |
+| **Players** | Edit current health, heal to the Python-calculated maximum, and inspect optional Steam avatars |
+| **Upgrades** | Edit dynamically discovered player upgrades without a hardcoded upgrade catalog |
+| **Run** | Edit supported run values through validated typed fields |
+| **Maps** | Discover locally installed maps without modifying game runtime behavior |
+| **Advanced Items** | Inspect evidence-backed item and charge structures in read-only mode |
+
+Core safety behavior:
+
+- edits remain in memory until **Save Changes** is confirmed;
+- the source fingerprint is checked before every write;
+- a timestamped exact-byte backup is created beside the save;
+- output is staged, reopened, and verified before atomic replacement;
+- malformed and unsupported saves are rejected before mutation;
+- automated tests use generated fixtures and temporary copies, never real saves.
 
 ## Preview
 
 ![RepoDitor workspace showing a safely opened local save](docs/screenshots/repoditor-workspace.png)
 
-## Install
+## Quick start
 
-Download `RepoDitor-Setup-<version>-x64.exe` from the project releases and run it. The assisted installer shows the destination directory before installing and allows a different location to be selected. RepoDitor then appears in the Start Menu and Windows Installed Apps. The installation includes Electron and the Python backend; users do not need Python, `uv`, Node.js, npm, or network access to launch the app.
+### Requirements
 
-Current builds are unsigned, so Windows SmartScreen may ask for confirmation. Each release also includes a SHA-256 checksum beside the installer.
+- Windows x64
+- a local R.E.P.O. installation and save
 
-Updates are manual: download and run the newer GitHub Release installer when one is published. RepoDitor does not include an auto-updater or a background update service.
+### 1. Download
 
-### Uninstall
+Open the [latest GitHub Release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
+and download `RepoDitor-Setup-<version>-x64.exe`.
 
-Open **Windows Settings â†’ Apps â†’ Installed apps â†’ RepoDitor â†’ Uninstall**. Uninstalling removes RepoDitor's installed application files, shortcuts, and Windows registration. It does not delete or modify R.E.P.O. saves or RepoDitor-created `.bak-*` save backups.
+### 2. Install
 
-## Development setup
+Run the assisted installer and choose a destination. RepoDitor appears in the
+Start Menu and Windows Installed Apps. Python, Node.js, npm, and `uv` are not
+required to use the installed application.
+
+Current builds are unsigned, so Windows SmartScreen may show an unknown-publisher
+warning. Each release includes a `.sha256` file for verifying the installer.
+
+### 3. Open a save
+
+RepoDitor discovers `REPO_SAVE_*.es3` files below:
+
+```text
+%USERPROFILE%\AppData\LocalLow\semiwork\Repo
+```
+
+Files containing `BACKUP` are excluded from automatic discovery. You can also
+choose a save manually.
+
+### Updates and uninstall
+
+Updates are manual: download and run a newer installer when published. RepoDitor
+does not install an updater or background service.
+
+Uninstall through **Windows Settings → Apps → Installed apps → RepoDitor**.
+Uninstalling removes RepoDitor files and shortcuts, but does not delete R.E.P.O.
+saves or RepoDitor-created `.bak-*` backups.
+
+## How it works
+
+```text
+React renderer
+  ↓ typed feature calls
+Sandboxed Electron preload
+  ↓ narrow IPC contracts
+Electron main process
+  ↓ structured requests
+Bundled Python desktop API
+  ↓
+Services → core/storage → encrypted .es3 file
+```
+
+The renderer cannot access the filesystem, spawn processes, decrypt saves, or
+receive raw decrypted save JSON. Electron keeps `contextIsolation: true` and
+`nodeIntegration: false`. See [Architecture](docs/architecture.md) for the full
+boundary and ownership rules.
+
+## Development
 
 Development requires `uv`, Python 3.11 or newer, and Node.js 24.
 
 ```powershell
+git clone https://github.com/Yoruxyv/RepoDitor.git
+Set-Location RepoDitor
 uv sync --locked
 
-cd desktop
+Set-Location desktop
 npm ci
 npm run dev
 ```
 
-The Python desktop protocol can also be exercised directly:
+The Python desktop protocol can also be exercised directly from the repository
+root:
 
 ```powershell
 uv run python -m repo_save_editor.desktop_api environment
@@ -52,12 +135,18 @@ uv run python -m repo_save_editor.desktop_api environment
 
 ## Quality checks
 
+Python:
+
 ```powershell
 uv run ruff check python tests
 uv run ruff format --check python tests
 uv run --with "pytest>=8.3,<9" pytest
+```
 
-cd desktop
+Desktop:
+
+```powershell
+Set-Location desktop
 npm run imports:check
 npm run lint
 npm run release:check
@@ -67,9 +156,7 @@ npm test
 npm run test:e2e
 ```
 
-Python tests use temporary directories and generated encrypted fixtures. Electron E2E creates an isolated fake Windows profile, verifies backups and stale-file protection, and never targets real user saves.
-
-## Windows packaging
+## Packaging
 
 From `desktop/`, run:
 
@@ -77,44 +164,70 @@ From `desktop/`, run:
 npm run package
 ```
 
-This builds the locked Python 3.13 PyInstaller sidecar, builds Electron, verifies the unpacked production application, runs the full packaged E2E flow, and creates `RepoDitor-Setup-0.1.0-x64.exe` under `desktop/release/`.
+This builds the locked Python sidecar, production Electron application, packaged
+smoke test, assisted NSIS installer, and installer verification. Output is placed
+under `desktop/release/`. The complete release gate is documented in the
+[release checklist](docs/release-checklist.md).
 
-The release workflow accepts semantic tags matching the project version, such as `v0.1.0`. It reruns the required quality checks, packaged smoke test, installer verification, and checksum generation before publishing. See [`docs/release-checklist.md`](docs/release-checklist.md) for the release gate.
-
-RepoDitor v0.1.0 uses a current-user-first, assisted Windows x64 installer with a selectable destination and standard generated uninstaller. Package generation removes only the previous `desktop/release/` build output, verifies the bundled sidecar and required licenses, and never terminates running processes automatically.
-
-## Default save location
-
-RepoDitor scans recursively under `%USERPROFILE%\AppData\LocalLow\semiwork\Repo` for `REPO_SAVE_*.es3`. Files containing `BACKUP` are excluded from discovery.
-
-## Architecture
+## Project structure
 
 ```text
-React renderer
-  -> sandboxed Electron preload
-  -> Electron main IPC
-  -> Python desktop API sidecar
-  -> services
-  -> core + storage
-  -> encrypted .es3 files
+RepoDitor/
+├── desktop/                 Electron, React renderer, packaging, and E2E
+├── python/repo_save_editor/ Python desktop API, services, core, and storage
+├── tests/                   Python tests and generated/sanitized fixtures
+├── docs/                    Architecture, format, research, and release notes
+├── .github/                 CI and community templates
+└── pyproject.toml           Python project and tool configuration
 ```
 
-The renderer never receives raw decrypted save JSON and cannot access the filesystem or spawn processes. Development uses the repository `.venv`; packaged builds resolve only the sidecar under Electron's resources directory.
+## Important limitations
 
-See [`docs/architecture.md`](docs/architecture.md) for boundary and migration decisions.
+- RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run
+  saves; game updates may introduce incompatible structures.
+- Advanced Items is read-only in v0.1.0. Item charge, battery-upgrade,
+  purchased-item, add/delete/duplicate, and generic numeric-dictionary writes
+  remain disabled until controlled evidence proves safe mutation rules.
+- Maps are discovery-only; RepoDitor does not inject code or force map selection.
+- Steam avatar enrichment is optional, fail-soft, and never written into a save.
+- RepoDitor currently targets Windows x64 and is not code-signed.
 
-## Safety behavior
+## Documentation
 
-RepoDitor validates pending edits and detects stale source files before mutation. A successful save first creates a sibling backup such as `REPO_SAVE_2025_11_04_20_53_58.es3.bak-20260807-120000`, writes and validates a temporary encrypted file, then atomically replaces the target.
+| Document | Purpose |
+|---|---|
+| [Architecture](docs/architecture.md) | Desktop boundaries and dependency direction |
+| [Save format](docs/save-format.md) | Confirmed encrypted-save structure |
+| [Reverse engineering](docs/reverse-engineering.md) | Evidence and unresolved advanced semantics |
+| [Release checklist](docs/release-checklist.md) | Automated and manual v0.1.0 release gates |
+| [Asset research](docs/asset-research.md) | Local asset-discovery findings and restrictions |
 
-## Compatibility
+## Contributing and security
 
-RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run saves. Unsupported or malformed saves are rejected before mutation.
+Focused bug reports, feature proposals, documentation improvements, and pull
+requests are welcome. Use the repository templates and never attach real save
+files, backups, personal Steam identifiers, or other private data to a public
+issue.
 
-Advanced Items discovery is read-only in v0.1.0. Item charge, battery upgrade, purchased-item, add/delete/duplicate, and generic numeric-dictionary mutations remain unavailable because controlled evidence has not established safe write invariants.
+Report suspected vulnerabilities privately through the repository's
+[security advisories](https://github.com/Yoruxyv/RepoDitor/security/advisories/new).
+See [SECURITY.md](SECURITY.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-## Fonts and license
+## Maintainer
 
-The desktop package bundles Teko under the SIL Open Font License. Body text uses the Windows Segoe UI stack, so release builds do not depend on a font CDN or network connection.
+<table>
+  <tr>
+    <td align="center" width="180">
+      <a href="https://github.com/Yoruxyv">
+        <img src="https://github.com/Yoruxyv.png?size=96" width="96" alt="Hans avatar"><br>
+        <b>Hans</b>
+      </a>
+    </td>
+  </tr>
+</table>
 
-RepoDitor is released under the [MIT License](LICENSE). R.E.P.O. and related names are trademarks/property of their respective owners. RepoDitor is an unofficial save-management utility and contains no game assets.
+## License
+
+RepoDitor is released under the [MIT License](LICENSE). R.E.P.O. and related
+names are trademarks or property of their respective owners. RepoDitor is an
+unofficial save-management utility and does not bundle game assets.
