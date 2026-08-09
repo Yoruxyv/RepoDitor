@@ -185,10 +185,14 @@ test("safely writes changes with backup and stale-save protection", async () => 
       version: app.getVersion(),
     }));
     expect(chrome.version).toBe("0.1.0");
-    if (packagedExecutable) {
-      expect(chrome.hasApplicationMenu).toBe(false);
-    }
+    expect(chrome.hasApplicationMenu).toBe(false);
+    await page.keyboard.press("Alt");
+    expect(await application.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null)).toBe(false);
     await expect(page).toHaveTitle("RepoDitor");
+    const appIcon = page.locator('header img[src$="icon.png"]');
+    await expect(appIcon).toHaveJSProperty("complete", true);
+    expect(await appIcon.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
     await expect(page.getByLabel("About RepoDitor")).toContainText("RepoDitor v0.1.0");
     await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
       "href",
@@ -248,6 +252,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     ))
       .toBeVisible();
     const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
+    await expect(hammer.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
+      .toHaveAttribute("data-icon-source", "specific");
     await expect(hammer.getByText("99")).toBeVisible();
     await hammer.getByText("Show save key").click();
     await expect(hammer.getByText("Item Melee Inflatable Hammer/1")).toBeVisible();
@@ -280,6 +286,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
 
     await page.getByRole("tab", { name: "Upgrades" }).click();
+    await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength"))
+      .toHaveAttribute("data-icon-source", "specific");
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
     await strength.fill("3");
     await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toContainText("0 → 3");
@@ -361,6 +369,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
       await page.getByRole("tab", { name: "Upgrades" }).click();
       await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
+      expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
       await page.getByRole("tab", { name: "Items" }).click();

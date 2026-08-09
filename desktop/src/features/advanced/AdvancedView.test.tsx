@@ -97,6 +97,31 @@ describe("AdvancedView", () => {
     expect(screen.getByText("This save contains no item instances.")).toBeTruthy();
   });
 
+  it("uses specific, category, and generic item icon fallbacks", () => {
+    render(
+      <AdvancedView
+        advanced={{
+          ...advanced,
+          items: [
+            ...advanced.items,
+            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null },
+            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null },
+          ],
+        }}
+        error={null}
+        loading={false}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("item-icon-Item Melee Inflatable Hammer/1").dataset.iconSource)
+      .toBe("specific");
+    expect(screen.getByTestId("item-icon-Item Gun Handgun/2").dataset.iconSource)
+      .toBe("category");
+    expect(screen.getByTestId("item-icon-Item Future Tool/3").dataset.iconSource)
+      .toBe("fallback");
+  });
+
   it("reports bridge errors and retries", async () => {
     const retry = vi.fn();
     const user = userEvent.setup();

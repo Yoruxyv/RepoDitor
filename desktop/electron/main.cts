@@ -79,6 +79,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     title: "RepoDitor",
+    icon: path.join(__dirname, "..", app.isPackaged ? "dist" : "public", "icon.png"),
 
     webPreferences: {
       preload: path.join(
@@ -108,9 +109,7 @@ registerPlayerIpc();
 registerEditorIpc();
 
 void app.whenReady().then(() => {
-  if (app.isPackaged) {
-    Menu.setApplicationMenu(null);
-  }
+  Menu.setApplicationMenu(null);
   createWindow();
 
   app.on("activate", () => {

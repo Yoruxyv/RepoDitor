@@ -2,7 +2,9 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import { FeatureIcon } from "@/components/FeatureIcon";
 import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
+import { getUpgradeIcon } from "./upgradeIcons";
 
 interface UpgradesViewProps {
   readonly players: PlayerDto[];
@@ -74,6 +76,7 @@ export function UpgradesView({
       ) : (
         <div className="mt-6 grid min-w-0 gap-x-8 gap-y-5 xl:grid-cols-2">
           {upgrades.map((upgrade) => {
+            const presentation = getUpgradeIcon(upgrade.key);
             const edit = pendingByUpgrade[key(player.id, upgrade.key)];
             const stored = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
             const inputKey = key(player.id, upgrade.key);
@@ -82,7 +85,10 @@ export function UpgradesView({
             const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0;
             const errorId = `${upgrade.key}-error`;
             return (
-              <div className="min-w-0 border-t border-line pt-4" key={upgrade.key}>
+              <div className="relative min-h-24 min-w-0 border-t border-line pt-4 pr-24" key={upgrade.key}>
+                <div className="absolute top-4 right-0">
+                  <FeatureIcon icon={presentation.icon} source={presentation.source} testId={`upgrade-icon-${upgrade.key}`} variant="upgrade" />
+                </div>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <label className="min-w-0 text-sm font-semibold text-ink" htmlFor={upgrade.key} title={upgrade.label}>{upgrade.label}</label>
                   {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">Detected</span> : null}
