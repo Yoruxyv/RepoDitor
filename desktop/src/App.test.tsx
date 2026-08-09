@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  AdvancedSaveDto,
   EnvironmentDiscovery,
   InstalledMapsDto,
   PlayerDto,
@@ -73,6 +74,20 @@ const maps: InstalledMapsDto = {
     { internalName: "Modded Moon", displayName: "Modded Moon", knownLabel: false },
   ],
 };
+const advanced: AdvancedSaveDto = {
+  domains: [
+    { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+  ],
+  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99 }],
+  runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
+  unlinkedChargeEntryCount: 0,
+};
 
 function bridge(
   open: RepoDitorApi["saves"]["open"],
@@ -101,6 +116,7 @@ function bridge(
     },
     upgrades: { list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }) },
     run: { get: vi.fn().mockResolvedValue({ ok: true, data: run }) },
+    advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
     maps: { list: vi.fn().mockResolvedValue({ ok: true, data: maps }) },
   };
 }
@@ -303,7 +319,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
   });
 
-  it("keeps upgrade and run edits while navigating through installed maps", async () => {
+  it("keeps upgrade and run edits while navigating through read-only sections", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const user = userEvent.setup();
     render(<App />);
@@ -326,6 +342,11 @@ describe("save workspace transition", () => {
     await user.clear(currency);
     await user.type(currency, "20");
     expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    expect(await screen.findByText("Melee Inflatable Hammer")).toBeTruthy();
+    expect(screen.getByText("No item changes can be created or saved in this phase.")).toBeTruthy();
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));

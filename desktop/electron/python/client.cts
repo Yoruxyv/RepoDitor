@@ -13,6 +13,7 @@ export type PythonCommand =
   | "players-avatar"
   | "upgrades-list"
   | "run-get"
+  | "advanced-get"
   | "maps-list";
 
 export type PythonClientErrorCode =

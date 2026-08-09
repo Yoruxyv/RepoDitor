@@ -193,6 +193,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       ),
       upgrades: Object.keys(window.repoditor.upgrades),
       run: Object.keys(window.repoditor.run),
+      advanced: Object.keys(window.repoditor.advanced),
       maps: Object.keys(window.repoditor.maps),
       requireType: typeof window.require,
       saves: Object.keys(window.repoditor.saves).sort((left, right) =>
@@ -204,6 +205,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       players: ["avatar", "list"],
       upgrades: ["list"],
       run: ["get"],
+      advanced: ["get"],
       maps: ["list"],
       requireType: "undefined",
       saves: ["list", "open", "write"],
@@ -216,6 +218,16 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
     await expect(page.getByText("Save opened safely")).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Items" }).click();
+    await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
+    await expect(page.getByText("No item changes can be created or saved in this phase."))
+      .toBeVisible();
+    const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
+    await expect(hammer.getByText("99")).toBeVisible();
+    await hammer.getByText("Show save key").click();
+    await expect(hammer.getByText("Item Melee Inflatable Hammer/1")).toBeVisible();
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
     await page.getByRole("tab", { name: "Overview" }).focus();
     await page.keyboard.press("ArrowRight");
@@ -294,6 +306,11 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+    await page.getByRole("tab", { name: "Items" }).click();
+    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
+      .toBeVisible();
+    await expect(page.getByText("No item changes can be created or saved in this phase."))
+      .toBeVisible();
     await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
@@ -316,6 +333,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+      await page.getByRole("tab", { name: "Items" }).click();
+      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
+        .toBeVisible();
+      expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("tab", { name: "Maps" }).click();
       await expect(page.getByText("McJannek Station")).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);

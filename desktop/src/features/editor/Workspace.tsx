@@ -6,6 +6,8 @@ import {
 import { useState, type KeyboardEvent } from "react";
 
 import type { SaveChange, SaveSession } from "@electron/contracts";
+import { AdvancedView } from "@/features/advanced/AdvancedView";
+import { useAdvanced } from "@/features/advanced/useAdvanced";
 import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -19,7 +21,7 @@ import { OverviewView } from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
 import { toSaveChange, type PendingEdit } from "@/features/editor/pendingEdits";
 
-const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Maps"] as const;
+const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
@@ -44,6 +46,7 @@ export function Workspace({
   const players = usePlayers(session.id);
   const upgrades = useUpgrades(session.id);
   const run = useRunState(session.id);
+  const advanced = useAdvanced(session.id);
   const maps = useMaps();
   const pendingEdits: PendingEdit[] = [
     ...players.pendingEdits,
@@ -166,6 +169,14 @@ export function Workspace({
               onRetry={() => void run.reload()}
               onRevert={run.revert}
               onStatChange={run.updateStat}
+            />
+          ) : null}
+          {activeSection === "Items" ? (
+            <AdvancedView
+              advanced={advanced.advanced}
+              error={advanced.error}
+              loading={advanced.loading}
+              onRetry={() => void advanced.reload()}
             />
           ) : null}
           {activeSection === "Maps" ? (

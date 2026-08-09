@@ -4,6 +4,7 @@ import {
 } from "electron";
 
 import {
+  type AdvancedSaveDto,
   type DesktopOperationResult,
   type EnvironmentDiscovery,
   type InstalledMapsDto,
@@ -30,6 +31,7 @@ const IPC_CHANNELS: IpcChannelMap = {
   playersAvatar: "players:avatar",
   upgradesList: "upgrades:list",
   runGet: "run:get",
+  advancedGet: "advanced:get",
   mapsList: "maps:list",
 };
 
@@ -99,6 +101,15 @@ const repoditorApi: RepoDitorApi = {
         saveId,
       ) as Promise<
         DesktopOperationResult<RunStateDto>
+      >,
+  },
+  advanced: {
+    get: (saveId) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.advancedGet,
+        saveId,
+      ) as Promise<
+        DesktopOperationResult<AdvancedSaveDto>
       >,
   },
   maps: {
