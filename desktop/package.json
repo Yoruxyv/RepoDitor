@@ -38,7 +38,7 @@
     "typecheck:electron-tests": "tsc -p electron/tsconfig.json"
   },
   "build": {
-    "appId": "io.github.dendroculus.repoditor",
+    "appId": "io.github.Yoruxyv.repoditor",
     "productName": "RepoDitor",
     "asar": true,
     "directories": {
