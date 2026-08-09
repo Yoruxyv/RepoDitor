@@ -22,11 +22,15 @@ RepoDitor is an unofficial Electron desktop editor for local **R.E.P.O.** `.es3`
 
 ## Install
 
-Download `RepoDitor-<version>-x64.zip` from the project releases, extract it, and run `RepoDitor.exe`. The archive includes Electron and the Python backend; users do not need Python, `uv`, Node.js, or npm.
+Download `RepoDitor-Setup-<version>-x64.exe` from the project releases and run it. The assisted installer shows the destination directory before installing and allows a different location to be selected. RepoDitor then appears in the Start Menu and Windows Installed Apps. The installation includes Electron and the Python backend; users do not need Python, `uv`, Node.js, npm, or network access to launch the app.
 
-Current builds are unsigned, so Windows SmartScreen may ask for confirmation. Each release also includes a SHA-256 checksum beside the archive.
+Current builds are unsigned, so Windows SmartScreen may ask for confirmation. Each release also includes a SHA-256 checksum beside the installer.
 
-Updates are manual: download and extract a newer GitHub Release archive when one is published. RepoDitor does not include an auto-updater or a background update service.
+Updates are manual: download and run the newer GitHub Release installer when one is published. RepoDitor does not include an auto-updater or a background update service.
+
+### Uninstall
+
+Open **Windows Settings â†’ Apps â†’ Installed apps â†’ RepoDitor â†’ Uninstall**. Uninstalling removes RepoDitor's installed application files, shortcuts, and Windows registration. It does not delete or modify R.E.P.O. saves or RepoDitor-created `.bak-*` save backups.
 
 ## Development setup
 
@@ -73,11 +77,11 @@ From `desktop/`, run:
 npm run package
 ```
 
-This builds the locked Python 3.13 PyInstaller sidecar, builds Electron, runs the full E2E flow against the unpacked production application, and creates the self-contained Windows archive under `desktop/release/`.
+This builds the locked Python 3.13 PyInstaller sidecar, builds Electron, verifies the unpacked production application, runs the full packaged E2E flow, and creates `RepoDitor-Setup-0.1.0-x64.exe` under `desktop/release/`.
 
-The release workflow accepts semantic tags matching the project version, such as `v0.1.0`. It reruns the required quality checks, packaged smoke test, archive build, and checksum generation before publishing. See [`docs/release-checklist.md`](docs/release-checklist.md) for the release gate.
+The release workflow accepts semantic tags matching the project version, such as `v0.1.0`. It reruns the required quality checks, packaged smoke test, installer verification, and checksum generation before publishing. See [`docs/release-checklist.md`](docs/release-checklist.md) for the release gate.
 
-RepoDitor v0.1.0 supports self-contained Windows x64 ZIP releases. Package generation removes only the previous `desktop/release/` output, verifies the bundled sidecar and required licenses, and never terminates running processes automatically.
+RepoDitor v0.1.0 uses a current-user-first, assisted Windows x64 installer with a selectable destination and standard generated uninstaller. Package generation removes only the previous `desktop/release/` build output, verifies the bundled sidecar and required licenses, and never terminates running processes automatically.
 
 ## Default save location
 

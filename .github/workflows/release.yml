@@ -81,24 +81,24 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build Windows archive
+      - name: Build and verify Windows installer
         working-directory: desktop
-        run: npm run package:win
+        run: npm run package:installer
 
-      - name: Create archive checksum
+      - name: Create installer checksum
         working-directory: desktop
         shell: pwsh
         run: |
-          $archive = Get-ChildItem release/*.zip | Select-Object -First 1
-          $hash = (Get-FileHash $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $($archive.Name)" | Set-Content "$($archive.FullName).sha256"
+          $installer = Get-Item release/RepoDitor-Setup-*-x64.exe
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: RepoDitor-windows
           path: |
-            desktop/release/*.zip
+            desktop/release/RepoDitor-Setup-*-x64.exe
             desktop/release/*.sha256
           if-no-files-found: error
 
@@ -107,6 +107,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/release/*.zip
+            desktop/release/RepoDitor-Setup-*-x64.exe
             desktop/release/*.sha256
           generate_release_notes: true

@@ -25,9 +25,10 @@
     "start": "electron .",
     "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../python/repo_save_editor/desktop_api/__main__.py",
     "package:dir": "npm run clean:release-output && electron-builder --win dir && npm run package:verify",
-    "package:win": "electron-builder --win zip",
+    "package:installer": "electron-builder --win nsis --prepackaged release/win-unpacked && npm run package:verify:installer",
     "package:verify": "node scripts/check-package-contents.mjs",
-    "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run test:e2e:packaged && npm run package:win",
+    "package:verify:installer": "node scripts/check-installer-artifact.mjs",
+    "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run test:e2e:packaged && npm run package:installer",
     "bundle:check": "node scripts/check-bundle-budget.mjs",
     "release:check": "node scripts/check-release-version.mjs",
     "imports:preview": "node scripts/normalize-imports.mjs",
@@ -40,7 +41,6 @@
     "appId": "io.github.dendroculus.repoditor",
     "productName": "RepoDitor",
     "asar": true,
-    "artifactName": "RepoDitor-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -67,12 +67,26 @@
       "icon": "public/icon.ico",
       "target": [
         {
-          "target": "zip",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ]
+    },
+    "nsis": {
+      "artifactName": "RepoDitor-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "selectPerMachineByDefault": false,
+      "packElevateHelper": false,
+      "differentialPackage": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RepoDitor",
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "uninstallDisplayName": "RepoDitor"
     }
   },
   "devDependencies": {
