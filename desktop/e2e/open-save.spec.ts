@@ -196,7 +196,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByLabel("About RepoDitor")).toContainText("RepoDitor v0.1.0");
     await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
       "href",
-      "https://github.com/Dendroculus/RepoDitor",
+      "https://github.com/Yoruxyv/RepoDitor",
     );
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();

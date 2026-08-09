@@ -15,7 +15,7 @@ import { pythonClient } from "./python/client.cjs";
 
 const developmentRendererUrl =
   process.env.VITE_DEV_SERVER_URL;
-const projectUrl = "https://github.com/Dendroculus/RepoDitor";
+const projectUrl = "https://github.com/Yoruxyv/RepoDitor";
 
 function getRendererUrl(): string {
   if (developmentRendererUrl) {

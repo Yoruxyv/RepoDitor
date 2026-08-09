@@ -5,7 +5,7 @@ interface AppShellProps {
   readonly children: ReactNode;
 }
 
-const PROJECT_URL = "https://github.com/Dendroculus/RepoDitor";
+const PROJECT_URL = "https://github.com/Yoruxyv/RepoDitor";
 
 export function AppShell({ children }: AppShellProps) {
   return (

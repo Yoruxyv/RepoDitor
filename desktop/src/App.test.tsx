@@ -134,7 +134,7 @@ describe("save workspace transition", () => {
       "Unofficial R.E.P.O. save utility",
     );
     expect(screen.getByRole("link", { name: "Project source" }).getAttribute("href")).toBe(
-      "https://github.com/Dendroculus/RepoDitor",
+      "https://github.com/Yoruxyv/RepoDitor",
     );
   });
 
