@@ -57,7 +57,7 @@ Primary sections:
 - Players
 - Upgrades
 - Run
-- Items (read-only advanced discovery in v0.1.0)
+- Items (advanced discovery plus evidence-backed Refill to Full)
 - Maps
 
 Prefer top-level navigation over a large permanent sidebar unless later testing
@@ -134,7 +134,7 @@ interaction problem.
 ## Supported scope
 
 The production workflow includes automatic discovery, save selection, Overview,
-Players, Upgrades, Run, read-only Advanced Items, Maps, pending edits, safe
+Players, Upgrades, Run, Advanced Items with exact-instance refill-to-full, Maps, pending edits, safe
 writes, backups, stale-file protection, and packaged Windows operation. Advanced
-item mutations, arbitrary file browsing, and drag-and-drop remain outside the
+other item mutations, arbitrary file browsing, and drag-and-drop remain outside the
 supported narrow desktop boundary.

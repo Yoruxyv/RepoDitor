@@ -8,7 +8,7 @@ RepoDitor's first public release is v0.1.0. Releases are assisted Windows x64 NS
 - Desktop quality: clean npm install, import normalization, ESLint, release
   version alignment, production build, bundle budget, component tests, and
   Electron contract tests.
-- Windows Electron E2E: isolated discovery, all editor tabs including read-only Advanced Items, pending edits,
+- Windows Electron E2E: isolated discovery, all editor tabs including Advanced Items refill-to-full, pending edits,
   revert, safe write, backup, reopen, stale-file rejection, keyboard navigation,
   reduced motion, and 1600x900, 1200x800, and 960x640 layouts.
 - Windows package smoke: Python 3.13 sidecar build, Electron package, required
@@ -56,7 +56,7 @@ This is a blocking manual release-candidate check. Do not treat the unpacked E2E
    ```
 
    Confirm `DisplayName` is `RepoDitor`, `DisplayVersion` is `0.1.0`, and `UninstallString` targets the generated RepoDitor uninstaller.
-6. Launch from the installed application or Start Menu without repository tooling. Confirm the bundled backend, discovery, Overview, Players, Upgrades, Run, Maps, read-only Advanced Items, icon, and v0.1.0 About information.
+6. Launch from the installed application or Start Menu without repository tooling. Confirm the bundled backend, discovery, Overview, Players, Upgrades, Run, Maps, Advanced Items refill-to-full, icon, and v0.1.0 About information.
 7. With network access disabled, confirm the app still launches and local save features work; optional Steam avatars may fail softly.
 8. Using only a disposable/generated save, confirm open → edit → pending changes → save → backup → reopen, plus stale-file rejection.
 9. Uninstall through Windows Installed Apps. Confirm the application files, custom installation directory, shortcuts, uninstaller, and uninstall registration are removed.
