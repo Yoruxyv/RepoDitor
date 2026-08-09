@@ -120,54 +120,56 @@ the tested Tranq Gun, and present integers are consistent with stored non-full c
 not establish universal maximums, arbitrary numeric ranges, per-use decrements, normalization, or
 equivalent behavior for every battery-backed item.
 
-#### Refill-to-full implementation experiment assessment
+#### Refill-to-full synthesized validation
 
-A narrow, research-only synthesized experiment is justified for a disposable copy of the depleted
-Tranq save. It must remove only
-`itemStatBattery["Item Gun Tranq/1"]`, produce a separate output file, reopen and validate that
-output through existing RepoDitor code, and prove that the decrypted before/after difference is
-exactly that one leaf removal. The original evidence file must remain byte-for-byte unchanged.
+The research helper removed only `itemStatBattery["Item Gun Tranq/1"]` from the depleted source
+(`798e24438d170b9a06dac2ca22c49c8733a862c38ea468b633ad3ff9bdb3e537`) and produced the separate
+synthetic save `757c36c7a1f8b4a34d2db0bde86c83aaea18c50c925a69615da8bc4c3f1fe1b9`. Reopening both saves
+through RepoDitor confirmed that `0 -> absent` was the complete semantic diff and that the source
+remained byte-for-byte unchanged.
 
-The synthesized save must then load successfully in R.E.P.O., the same Tranq Gun must be confirmed
-full, and the next normal game save must be captured and compared. Until all of those checks pass,
-this is only **READY FOR CONTROLLED IMPLEMENTATION EXPERIMENT**, not ready for production. Arbitrary
-numeric charge editing remains **MORE EVIDENCE REQUIRED**, and every production advanced
-capability flag remains `false`.
+R.E.P.O. loaded the synthetic save, retained the same `Item Gun Tranq/1`, presented that Tranq Gun
+as full, remained playable, and completed a subsequent normal save. That game-generated save
+(`711f79db5147cc782a2cadf595712e7058c59555ce21b15d3b39022438bfbfb1`) retained the absent charge
+entry. Relative to the synthetic save, only normal Run progress changed: currency `398 -> 450`,
+level `44 -> 45`, save level `0 -> 1`, and total haul `2625 -> 2998`.
+
+**CONFIRMED NARROW INVARIANT:** for the tested battery-backed representation, removing an existing
+exact-instance `itemStatBattery` entry selects the canonical full/default state. Production may
+offer only this exact refill operation. This evidence does not establish numeric maximums, editable
+ranges, battery-upgrade behavior, item lifecycle behavior, or purchased-item mutation rules.
 
 ### Evidence status
 
 | Domain | Status | Exact path and observed shape | Read support | Write support and remaining unknowns |
 | --- | --- | --- | --- | --- |
 | Item instance identity | **CONFIRMED** | `dictionaryOfDictionaries.value["item"]`; 85 baseline string keys mapping to integers. Keys match `Item <name>/<decimal instance ID>`. Duplicate types have distinct suffixes, and gaps exist (for example Medium Health Packs `/2`, `/3`, `/4` without `/1`). | Safe to expose the exact key, friendly name, and instance ID. | None. The stored integer's meaning, ordering significance, allocation rules, and companion-entry requirements are unknown. |
-| Current item charge | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. Exact item entries remained unchanged. | Safe to expose a present integer as stored charge and absence as `null`/not recorded. For the tested Tranq, `0` is empty; for the tested Tranq and Hammer, recharge produces absence as the canonical full/default representation. Exact-key links are made in Python. | No production write support. Removing the exact Tranq charge entry is ready only for a controlled synthesized refill experiment. Universal bounds, arbitrary numeric edits, per-use deltas, and behavior across all item types remain unproven. |
+| Current item charge | **CONFIRMED NARROW MUTATION** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. The synthesized exact-entry removal loaded as a full Tranq and remained absent after a normal game save. Exact item entries remained unchanged. | Safe to expose a present integer as stored charge and absence as `null`/full-default. Exact-key links are made in Python. | Production may remove an existing exact-instance charge entry as **Refill to Full**. Universal bounds, arbitrary numeric edits, per-use deltas, and behavior across every item type remain unproven. |
 | Item battery upgrades | **UNKNOWN** | `dictionaryOfDictionaries.value["itemBatteryUpgrades"]` existed as an empty dictionary in both saves. | Only structural presence and entry count are exposed. | No entry key, type, zero/absence rule, or item relationship is proven. |
 | Purchased item upgrades | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsUpgradesPurchased"]`; 12 string-to-integer entries, unchanged in the A/B pair. Keys are item-type names without instance suffixes. | Only structural status and entry count are exposed. | Purchase action, count semantics, instance/type relationship, and independent mutability are unproven. |
 | Purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries. The broad comparison changed `Item Power Crystal: 10 -> 9`; the controlled Tranq recharge later changed it `9 -> 8` while the Tranq purchase entry remained `1`. | Only structural status and entry count are exposed. | The Power Crystal transition is likely related to recharging, but whether this means inventory, purchased quantity, charging resource, or another state remains unproven. |
 | Total purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchasedTotal"]`; 58 string-to-integer entries, unchanged in the A/B pair. | Only structural status and entry count are exposed. | It is not proven whether this is historical, derived, or independently mutable. |
 | Additional Run charge values | **PARTIALLY CONFIRMED** | The broad comparison observed `chargingStationCharge: 10 -> 9` and `chargingStationChargeTotal: 95 -> 90`; the controlled Tranq recharge observed `9 -> 8` and `82 -> 73`. | Safe to expose the exact observed keys and values read-only. | Their transitions are likely related to recharging, but their units, relationship, bounds, and mutation behavior remain unproven. |
 
-All advanced capabilities are read-only. `canEdit`, `canAdd`, `canDelete`, and `canDuplicate` are
-false across every domain. The renderer receives typed projections, never the decrypted save or
-the unverified `item` integer payload.
+`canRefillToFull` is the only supported advanced mutation capability and applies only to stored
+charge. Broad `canEdit`, `canAdd`, `canDelete`, and `canDuplicate` capabilities remain false across
+every domain. The renderer receives typed projections and the narrow action, never the decrypted
+save or the unverified `item` integer payload.
 
 ### Required next controlled experiments
 
 Run each experiment from a separately preserved before-save and change exactly one in-game state:
 
-1. **Synthesized refill-to-full validation:** on a disposable copy of the depleted Tranq evidence,
-   remove only `itemStatBattery["Item Gun Tranq/1"]`, write to a separate path, reopen and verify the
-   output, confirm the one-leaf decrypted diff, then load it in the game and confirm the Tranq is
-   full. Preserve and re-hash the original evidence before and after. This must remain research-only.
-2. **Single-use transition:** capture a game-generated full/default Tranq or Hammer before and after
+1. **Single-use transition:** capture a game-generated full/default Tranq or Hammer before and after
    exactly one use. The full-to-empty Tranq evidence does not establish one-use decrement behavior
    or arbitrary numeric ranges.
-3. **Battery upgrade:** capture before/after saves around exactly one battery upgrade applied to a
+2. **Battery upgrade:** capture before/after saves around exactly one battery upgrade applied to a
    uniquely identified item. Do not recharge or use it in the same comparison.
-4. **Purchased upgrade:** purchase exactly one player/item upgrade, save before applying it, and
+3. **Purchased upgrade:** purchase exactly one player/item upgrade, save before applying it, and
    compare `itemsUpgradesPurchased`, `itemsPurchased`, `itemsPurchasedTotal`, `item`, and the
    matching player-upgrade dictionary.
-5. **Purchased item:** purchase exactly one non-consumable item type with no other shop action,
+4. **Purchased item:** purchase exactly one non-consumable item type with no other shop action,
    cross the save transition, and compare the two purchased containers plus `item`.
-6. **Removal and instance allocation:** after a clean acquisition pair exists, remove exactly one
+5. **Removal and instance allocation:** after a clean acquisition pair exists, remove exactly one
    of two duplicate instances and capture another pair. A later separate purchase of the same type
    is required to establish whether gaps are reused or new suffixes are allocated.

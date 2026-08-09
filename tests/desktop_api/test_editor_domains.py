@@ -161,6 +161,20 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "status": "partially_confirmed",
         }
     ]
+    capabilities = {domain["key"]: domain["capabilities"] for domain in advanced["domains"]}
+    assert capabilities["currentCharge"] == {
+        "canRead": True,
+        "canEdit": False,
+        "canAdd": False,
+        "canDelete": False,
+        "canDuplicate": False,
+        "canRefillToFull": True,
+    }
+    assert all(
+        not capability["canRefillToFull"]
+        for key, capability in capabilities.items()
+        if key != "currentCharge"
+    )
     assert "privateUnrelatedData" not in json.dumps(result)
     assert sample_save == source
     assert save_path.read_bytes() == before

@@ -36,6 +36,7 @@ def get_advanced_save(save_id: str, root: Path | None = None) -> dict[str, objec
                         "canAdd": domain.can_add,
                         "canDelete": domain.can_delete,
                         "canDuplicate": domain.can_duplicate,
+                        "canRefillToFull": domain.can_refill_to_full,
                     },
                 }
                 for domain in advanced.domains

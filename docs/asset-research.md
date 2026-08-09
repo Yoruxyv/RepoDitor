@@ -198,7 +198,7 @@ No product icon resolver was added. There are currently no legally shippable ite
 for it to resolve, so a typed catalog would be unused scaffolding and a hardcoded gameplay list
 would conflict with dynamic item discovery.
 
-The v0.1.0 read-only Items UI remains safe and complete with text, exact keys, instance IDs, stored
+The Items UI remains safe and complete with text, exact keys, instance IDs, stored
 charge, and capability flags. If original icons are added later, the minimum architecture is a
 presentation-only renderer mapping from a dynamic save/domain name to a RepoDitor-owned icon ID,
 with the existing Phosphor item/package symbol as the fallback. Icon availability must never gate

@@ -20,10 +20,11 @@ const readOnlyCapabilities = {
   canAdd: false,
   canDelete: false,
   canDuplicate: false,
+  canRefillToFull: false,
 } as const;
 const advancedDomains: AdvancedDomainDto[] = [
   { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: readOnlyCapabilities },
-  { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyCapabilities },
+  { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRefillToFull: true } },
   { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
@@ -95,7 +96,7 @@ describe("editor data IPC", () => {
     });
   });
 
-  it("parses narrow read-only advanced data and drops raw fields", async () => {
+  it("parses narrow advanced data and the precise refill capability", async () => {
     const advanced = {
       domains: advancedDomains,
       items: [
@@ -130,6 +131,8 @@ describe("editor data IPC", () => {
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
     expect(result.data).not.toHaveProperty("rawSave");
+    expect(result.data.domains[1].capabilities)
+      .toMatchObject({ canEdit: false, canRefillToFull: true });
   });
 
   it("accepts absent stored charge and rejects malformed advanced responses", async () => {
@@ -160,6 +163,11 @@ describe("editor data IPC", () => {
     await expect(
       getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [{}] } }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+
+    const wrongDomain = structuredClone(advanced);
+    wrongDomain.domains[0]!.capabilities.canRefillToFull = true;
+    await expect(getAdvancedSave(client({ ok: true, advanced: wrongDomain }), saveId)).resolves
+      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("parses available and unavailable map discovery", async () => {

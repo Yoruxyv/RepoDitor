@@ -34,4 +34,4 @@ The package command builds the locked PyInstaller sidecar, builds Electron, pack
 
 Packaging first removes only the disposable `release/` directory. If a packaged RepoDitor process still holds the output open, packaging stops with an instruction to close it; the build never kills processes. The unpacked application is then checked for the executable, ASAR, bundled Python sidecar, RepoDitor MIT license, and Teko OFL license.
 
-Advanced Items is intentionally read-only in v0.1.0. The renderer exposes no advanced mutation controls and uses no alternate persistence path.
+Advanced Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other advanced mutation controls remain unavailable.

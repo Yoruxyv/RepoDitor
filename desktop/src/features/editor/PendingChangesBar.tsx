@@ -42,7 +42,7 @@ export function PendingChangesBar({
                   {edit.subject} · {edit.label}
                 </span>
                 <span className="break-all font-mono text-xs text-ink">
-                  {edit.before} → {edit.after}
+                  {edit.before} → {edit.feature === "advanced" ? "Full / Default" : edit.after}
                 </span>
               </li>
             ))}

@@ -74,15 +74,23 @@ const maps: InstalledMapsDto = {
     { internalName: "Modded Moon", displayName: "Modded Moon", knownLabel: false },
   ],
 };
+const readOnlyAdvancedCapabilities = {
+  canRead: true,
+  canEdit: false,
+  canAdd: false,
+  canDelete: false,
+  canDuplicate: false,
+  canRefillToFull: false,
+} as const;
 const advanced: AdvancedSaveDto = {
   domains: [
-    { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { canRead: false, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
-    { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: { canRead: true, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false } },
+    { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
+    { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRefillToFull: true } },
+    { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
+    { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
+    { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
+    { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
+    { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
   ],
   items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99 }],
   runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
@@ -331,7 +339,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
   });
 
-  it("keeps upgrade and run edits while navigating through read-only sections", async () => {
+  it("keeps advanced refill and other edits while navigating sections", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const user = userEvent.setup();
     render(<App />);
@@ -357,11 +365,12 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    expect(await screen.findByText("Melee Inflatable Hammer")).toBeTruthy();
+    expect(await screen.findByText("Melee Inflatable Hammer #1")).toBeTruthy();
     expect(screen.getByText(
-      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     )).toBeTruthy();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+    await user.click(screen.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("3 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));
     expect(await screen.findByText("McJannek Station")).toBeTruthy();
@@ -373,6 +382,10 @@ describe("save workspace transition", () => {
     await user.click(screen.getByRole("tab", { name: "Run" }));
     expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
       .toBe("20");
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert refill" }));
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
   });
 
   it("summarizes, reverts, and safely submits pending changes", async () => {
@@ -425,10 +438,18 @@ describe("save workspace transition", () => {
 
     await user.clear(screen.getByRole("spinbutton", { name: "Currency" }));
     await user.type(screen.getByRole("spinbutton", { name: "Currency" }), "20");
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(screen.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(write).toHaveBeenCalledWith(session.id, session.fingerprint, [
       { feature: "run", entity: "run", field: "currency", after: 20 },
+      {
+        feature: "advanced",
+        entity: "Item Melee Inflatable Hammer/1",
+        field: "refillToFull",
+        after: true,
+      },
     ]);
     expect(await screen.findByText(/Saved safely\. Backup:/)).toBeTruthy();
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");

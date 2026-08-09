@@ -18,7 +18,7 @@ RepoDitor is an unofficial Electron editor for encrypted R.E.P.O. `.es3` run
 saves. It keeps save parsing, validation, backups, and writes inside a bundled
 Python backend instead of exposing raw save data to the interface.
 
-<sub>Overview · Players · Upgrades · Run · Maps · Read-only advanced discovery</sub>
+<sub>Overview · Players · Upgrades · Run · Maps · Evidence-backed item tools</sub>
 
 [Download the latest release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
@@ -40,7 +40,7 @@ Python backend instead of exposing raw save data to the interface.
 | **Upgrades** | Edit dynamically discovered player upgrades without a hardcoded upgrade catalog |
 | **Run** | Edit supported run values through validated typed fields |
 | **Maps** | Discover locally installed maps without modifying game runtime behavior |
-| **Advanced Items** | Inspect evidence-backed item and charge structures in read-only mode |
+| **Advanced Items** | Inspect item charge state and safely refill recorded charge to the full/default state |
 
 Core safety behavior:
 
@@ -188,9 +188,9 @@ RepoDitor/
 
 - RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run
   saves; game updates may introduce incompatible structures.
-- Advanced Items is read-only in v0.1.0. Item charge, battery-upgrade,
-  purchased-item, add/delete/duplicate, and generic numeric-dictionary writes
-  remain disabled until controlled evidence proves safe mutation rules.
+- Advanced Items supports only **Refill to Full** for an exact item instance with a recorded charge.
+  Numeric charge editing, battery-upgrade, purchased-item, add/delete/duplicate, and generic
+  numeric-dictionary writes remain disabled until controlled evidence proves safe mutation rules.
 - Maps are discovery-only; RepoDitor does not inject code or force map selection.
 - Steam avatar enrichment is optional, fail-soft, and never written into a save.
 - RepoDitor currently targets Windows x64 and is not code-signed.

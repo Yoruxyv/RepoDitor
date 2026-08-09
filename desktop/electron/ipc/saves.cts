@@ -160,6 +160,14 @@ function parseChange(value: unknown): SaveChange {
   if (feature === "run" && entity === "run" && field === "resumeLocation") {
     return { feature, entity, field, after: readString(value.after, "resume location") };
   }
+  if (
+    feature === "advanced"
+    && /^Item .+\/\d+$/.test(entity)
+    && field === "refillToFull"
+    && value.after === true
+  ) {
+    return { feature, entity, field, after: true };
+  }
   throw new SaveProtocolError("Unsupported pending change.");
 }
 

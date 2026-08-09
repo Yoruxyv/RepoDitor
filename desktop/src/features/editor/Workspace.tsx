@@ -52,12 +52,14 @@ export function Workspace({
     ...players.pendingEdits,
     ...upgrades.pendingEdits,
     ...run.pendingEdits,
+    ...advanced.pendingEdits,
   ];
 
   function revertAll(): void {
     players.revertAll();
     upgrades.revertAll();
     run.revertAll();
+    advanced.revertAll();
     setEditVersion((current) => current + 1);
   }
 
@@ -176,7 +178,10 @@ export function Workspace({
               advanced={advanced.advanced}
               error={advanced.error}
               loading={advanced.loading}
+              pendingByItem={advanced.pendingByItem}
+              onRefillToFull={advanced.refillToFull}
               onRetry={() => void advanced.reload()}
+              onRevertRefill={advanced.revertRefill}
             />
           ) : null}
           {activeSection === "Maps" ? (
