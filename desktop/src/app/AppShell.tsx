@@ -19,13 +19,23 @@ export function AppShell({ children }: AppShellProps) {
 
       <header className="border-b border-line bg-app/95">
         <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center justify-between px-5 sm:px-8">
-          <div className="flex min-w-0 items-baseline gap-3">
-            <span className="font-display text-[1.9rem] font-semibold uppercase leading-none tracking-[-0.02em] text-ink">
-              RepoDitor
-            </span>
-            <span className="hidden truncate text-xs font-medium text-muted sm:inline">
-              R.E.P.O. save utility
-            </span>
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-8 shrink-0 rounded-md"
+              height="32"
+              src={`${import.meta.env.BASE_URL}icon.png`}
+              width="32"
+            />
+            <div className="flex min-w-0 items-baseline gap-3">
+              <span className="font-display text-[1.9rem] font-semibold uppercase leading-none tracking-[-0.02em] text-ink">
+                RepoDitor
+              </span>
+              <span className="hidden truncate text-xs font-medium text-muted sm:inline">
+                R.E.P.O. save utility
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 text-sm text-secondary">

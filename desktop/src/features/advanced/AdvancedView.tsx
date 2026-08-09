@@ -1,6 +1,8 @@
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
 import type { AdvancedEvidenceStatus, AdvancedSaveDto } from "@electron/contracts";
+import { FeatureIcon } from "@/components/FeatureIcon";
+import { getItemIcon } from "./itemIcons";
 
 interface AdvancedViewProps {
   readonly advanced: AdvancedSaveDto | null;
@@ -100,20 +102,28 @@ export function AdvancedView({ advanced, loading, error, onRetry }: AdvancedView
           <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Item instances">
             {advanced.items.map((item) => (
               <li className="min-w-0 rounded-sm border border-line bg-surface p-4" key={item.saveKey}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h4 className="wrap-break-word text-sm font-semibold text-ink">{item.name}</h4>
-                    <p className="mt-1 font-mono text-[0.68rem] text-muted">
-                      Instance {item.instanceId}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted">
-                      Stored charge
-                    </p>
-                    <p className="mt-1 font-mono text-sm font-semibold text-ink">
-                      {item.storedCharge ?? "Not recorded"}
-                    </p>
+                <div className="flex items-start gap-3">
+                  <FeatureIcon
+                    icon={getItemIcon(item.name).icon}
+                    source={getItemIcon(item.name).source}
+                    testId={`item-icon-${item.saveKey}`}
+                    variant="item"
+                  />
+                  <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="wrap-break-word text-sm font-semibold text-ink">{item.name}</h4>
+                      <p className="mt-1 font-mono text-[0.68rem] text-muted">
+                        Instance {item.instanceId}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted">
+                        Stored charge
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-semibold text-ink">
+                        {item.storedCharge ?? "Not recorded"}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <details className="mt-4 border-t border-line pt-3">
