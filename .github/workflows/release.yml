@@ -13,6 +13,7 @@ jobs:
   build-windows:
     name: Build Windows desktop application
     runs-on: windows-latest
+    environment: release-signing
 
     steps:
       - name: Checkout repository
@@ -64,9 +65,29 @@ jobs:
         working-directory: desktop
         run: npm run bundle:check
 
-      - name: Package unpacked application
+      - name: Package signed unpacked application
         working-directory: desktop
-        run: npm run package:dir
+        env:
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: npm run package:dir:signed
+
+      - name: Verify packaged executable signatures
+        working-directory: desktop
+        shell: pwsh
+        env:
+          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
+        run: |
+          $executables = @(
+            "release/win-unpacked/RepoDitor.exe"
+            "release/win-unpacked/resources/backend/repoditor-backend.exe"
+          )
+          ./scripts/verify-authenticode.ps1 -Path $executables -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
 
       - name: Run packaged smoke test
         working-directory: desktop
@@ -81,9 +102,28 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build and verify Windows installer
+      - name: Build and verify signed Windows installer
         working-directory: desktop
-        run: npm run package:installer
+        env:
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: npm run package:installer:signed
+
+      - name: Verify installer Authenticode signature
+        working-directory: desktop
+        shell: pwsh
+        env:
+          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
+        run: |
+          $installer = Get-Item release/RepoDitor-Setup-*-x64.exe
+          ./scripts/verify-authenticode.ps1 `
+            -Path $installer.FullName `
+            -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
 
       - name: Create installer checksum
         working-directory: desktop
