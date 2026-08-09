@@ -2,6 +2,77 @@
 
 RepoDitor's first public release is v0.1.0. Releases are assisted Windows x64 NSIS installers built from semantic tags that match the version in both `pyproject.toml` and `desktop/package.json`.
 
+## Windows code signing preparation
+
+RepoDitor v0.1.0 remains the historical unsigned release. Future official tagged releases are
+prepared to use Microsoft Artifact Signing through electron-builder's Azure signing integration.
+This preparation does not create a certificate or signing identity and contains no credential
+values.
+
+Local packaging remains intentionally usable without cloud access:
+
+```powershell
+Set-Location desktop
+npm run package
+```
+
+That command produces an unsigned developer package and retains the existing package, installer,
+and smoke checks. The GitHub release job instead calls `package:dir:signed` and
+`package:installer:signed`. Those commands load `electron-builder.release.cjs`, set
+`forceCodeSigning: true`, and fail before producing an official artifact when any required signing
+input is absent. They are not local development defaults.
+
+The GitHub repository must have a protected environment named `release-signing`. Configure these
+environment variables after the Microsoft resources exist:
+
+| GitHub environment variable | Microsoft value |
+| --- | --- |
+| `AZURE_ARTIFACT_SIGNING_ENDPOINT` | Region endpoint for the Artifact Signing account, such as an official `https://<region>.codesigning.azure.net` endpoint |
+| `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME` | Artifact Signing account name |
+| `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME` | Public Trust certificate profile name |
+| `AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME` | Exact certificate Common Name (CN) shown by the completed profile |
+
+Configure these as environment secrets, not repository files or plain workflow values:
+
+| GitHub environment secret | Microsoft value |
+| --- | --- |
+| `AZURE_TENANT_ID` | Microsoft Entra tenant ID |
+| `AZURE_CLIENT_ID` | Application (client) ID of the dedicated signing app registration |
+| `AZURE_CLIENT_SECRET` | Client-secret value for that app registration, not the secret ID |
+
+The dedicated service principal needs only the **Artifact Signing Certificate Profile Signer**
+role, scoped to the selected certificate profile. It does not need Owner or Contributor access.
+The existing workflow permissions remain unchanged; this direct electron-builder integration does
+not enable GitHub OIDC or add `id-token: write`.
+
+Before final wiring, the maintainer must obtain or complete:
+
+1. an eligible Azure subscription and Microsoft Entra tenant;
+2. an Artifact Signing account in a supported region;
+3. completed Public Trust identity validation;
+4. a Public Trust certificate profile and its exact certificate subject Common Name;
+5. a dedicated Entra app registration, its tenant/client IDs, and a client-secret value;
+6. the Certificate Profile Signer role assignment scoped to that profile;
+7. the protected GitHub `release-signing` environment and the variables/secrets above.
+
+The release job verifies Authenticode on `RepoDitor.exe`, the bundled
+`repoditor-backend.exe`, and the NSIS installer. Verification requires a signer certificate,
+`Status = Valid`, and an exact publisher Common Name match. Installer structure verification still
+runs. SHA-256 generation occurs only after all signature checks pass.
+
+Maintainers can verify a downloaded installer locally without exposing credentials:
+
+```powershell
+$signature = Get-AuthenticodeSignature .\RepoDitor-Setup-<version>-x64.exe
+$signature | Select-Object Status, StatusMessage
+$signature.SignerCertificate |
+  Select-Object Subject, Thumbprint, NotBefore, NotAfter
+```
+
+`Status` must be `Valid`, and the certificate subject's `CN` must match the configured
+`AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME`. Perform the checksum comparison against the published
+`.sha256` file after signature validation.
+
 ## Required automated gates
 
 - Python 3.11 and 3.14: locked sync, Ruff lint/format, and pytest.
@@ -14,7 +85,8 @@ RepoDitor's first public release is v0.1.0. Releases are assisted Windows x64 NS
 - Windows package smoke: Python 3.13 sidecar build, Electron package, required
   file/license verification, and the same E2E journey against the unpacked production executable.
 - Windows installer: assisted current-user-first NSIS build, deterministic
-  `RepoDitor-Setup-<version>-x64.exe` verification, and SHA-256 generation.
+  `RepoDitor-Setup-<version>-x64.exe` verification, valid expected Authenticode signatures, and
+  post-signing SHA-256 generation.
 - Failed E2E jobs retain Playwright screenshots and traces for seven days.
 
 The quality gate must pass every job. The tag-driven release workflow reruns
@@ -26,11 +98,12 @@ and installer checksum generation before publishing.
 1. Set matching versions in `pyproject.toml` and `desktop/package.json`.
 2. Run `npm run release:check` from `desktop/`.
 3. Confirm the RepoDitor icon, product name, v0.1.0 About information,
-   unsigned-build notice, and native-menu removal are current.
+   signing-status notice, and native-menu removal are current.
 4. Run the complete local quality and package gates from the root README.
 5. Run the installer acceptance gate below on a clean current-user installation.
 6. Push a tag matching the version, for example `v0.1.0`.
-7. Download the workflow installer and verify its SHA-256 checksum.
+7. Download the workflow installer, verify its Authenticode publisher/status, and then verify its
+   SHA-256 checksum.
 8. Confirm the downloaded installer repeats the accepted install, launch,
    uninstall, save-preservation, and reinstall behavior.
 
