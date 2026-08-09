@@ -1,0 +1,54 @@
+name: Documentation improvement
+description: Report missing, inaccurate, or unclear RepoDitor documentation
+title: "docs: "
+labels:
+  - documentation
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the README and relevant file in `docs/`.
+          required: true
+        - label: I searched existing documentation issues.
+          required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation location
+      placeholder: README section, file path, heading, or URL
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of improvement
+      options:
+        - Incorrect information
+        - Missing installation or setup step
+        - Unclear save-safety guidance
+        - Unclear explanation
+        - Missing example
+        - Broken link
+        - Outdated version or command
+        - Typo or formatting
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What should be improved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording or structure
+    validations:
+      required: false

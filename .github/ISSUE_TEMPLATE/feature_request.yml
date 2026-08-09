@@ -1,0 +1,98 @@
+name: Feature request
+description: Propose a focused improvement to RepoDitor
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the problem first, then propose the smallest useful feature.
+        RepoDitor prioritizes proven save semantics, recoverable writes, a narrow
+        desktop security boundary, and changes that can be tested without real saves.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: This request fits RepoDitor's local save-editor scope.
+          required: true
+        - label: I considered whether existing behavior or documentation already solves the problem.
+          required: true
+        - label: I will not publicly attach real saves, backups, or personal identifiers as evidence.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Save discovery and opening
+        - Overview
+        - Players
+        - Upgrades
+        - Run
+        - Maps
+        - Advanced save discovery
+        - Safe writes and backups
+        - Installer and release
+        - User interface or accessibility
+        - Developer experience
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or user need should be addressed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Save-semantic evidence
+      description: If this changes save data, explain what controlled evidence supports the behavior. Do not attach a real save.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or smaller solutions did you consider?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Expected impact
+      options:
+        - label: Changes save-writing behavior
+        - label: Changes the renderer/Electron/Python contract
+        - label: Adds network access
+        - label: Changes installer or uninstall behavior
+        - label: Requires new dependencies
+        - label: Requires visible user-interface changes
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false

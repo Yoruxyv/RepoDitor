@@ -1,0 +1,127 @@
+name: Bug report
+description: Report reproducible incorrect behavior in RepoDitor
+title: "fix: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug.
+
+        Do not publicly attach real `.es3` saves, `.bak-*` backups, personal
+        Steam identifiers, usernames, or private paths. Security vulnerabilities
+        must be reported privately through `SECURITY.md`.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I reproduced this on the latest release or latest `main` branch.
+          required: true
+        - label: This is not a private security vulnerability.
+          required: true
+        - label: I removed save data, Steam identifiers, usernames, and private paths from all evidence.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Installer, startup, or uninstall
+        - Save discovery or opening
+        - Overview
+        - Players or Steam avatars
+        - Upgrades
+        - Run
+        - Maps
+        - Advanced Items (read-only)
+        - Saving, backups, or stale-file protection
+        - User interface or accessibility
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe what is wrong and why it matters.
+      placeholder: RepoDitor...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reliable sequence without including private save contents.
+      placeholder: |
+        1. Launch RepoDitor...
+        2. Open...
+        3. Select...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: RepoDitor version
+      placeholder: v0.1.0, commit SHA, or branch
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        Windows version:
+        Install type: GitHub installer or development checkout
+        R.E.P.O. version, if relevant:
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety
+    attributes:
+      label: Save-safety impact
+      description: Did the original save remain usable? Was a `.bak-*` backup created? Do not attach either file.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove save contents, Steam identifiers, usernames, and private filesystem paths.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false
