@@ -23,7 +23,7 @@ R.E.P.O. .es3 files
 - `desktop/src/` owns presentation and typed in-memory pending edits. It cannot read files, spawn processes, parse raw saves, or derive game mechanics.
 - `desktop/electron/` owns narrow IPC validation, the secure preload surface, and Python process lifecycle.
 - `python/repo_save_editor/desktop_api/` translates the stable command protocol into Python service calls. Standard output is reserved for one JSON response; diagnostics use standard error.
-- `python/repo_save_editor/services/` owns editor behavior for discovery, players, upgrades, run data, maps, and save summaries.
+- `python/repo_save_editor/services/` owns editor behavior for discovery, players, upgrades, run data, maps, read-only advanced discovery, and save summaries.
 - `python/repo_save_editor/core/` owns encryption, schema validation, and shared save types.
 - `python/repo_save_editor/storage/` owns repository access, backups, temporary validation, stale-file protection, and atomic replacement.
 
@@ -40,6 +40,6 @@ The package command builds the sidecar with Python 3.13. The packaged applicatio
 
 ## Supported production scope
 
-Electron covers the supported production workflow: discovery/select/open, Overview, Players, Upgrades, Run, Maps, pending edits, revert, safe writes, backups, stale-file protection, and failure states.
+Electron covers the supported production workflow: discovery/select/open, Overview, Players, Upgrades, Run, read-only Advanced Items, Maps, pending edits, revert, safe writes, backups, stale-file protection, and failure states.
 
-Arbitrary file browsing, Save As, and drag-and-drop are intentionally unsupported: discovered opaque save IDs keep filesystem access narrow, and backup-first overwrite is the only write path. Change save/reopen handles reloads, and the persistent pending-change bar makes the write boundary explicit.
+Advanced item mutations, arbitrary file browsing, Save As, and drag-and-drop are intentionally unsupported: discovered opaque save IDs keep filesystem access narrow, and backup-first overwrite is the only write path. Change save/reopen handles reloads, and the persistent pending-change bar makes the write boundary explicit.

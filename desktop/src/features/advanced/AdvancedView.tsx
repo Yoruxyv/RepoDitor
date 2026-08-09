@@ -21,7 +21,7 @@ function entryCount(value: number | null): string {
 
 export function AdvancedView({ advanced, loading, error, onRetry }: AdvancedViewProps) {
   if (loading) {
-    return <p className="text-sm text-secondary">Reading advanced save structures…</p>;
+    return <output aria-live="polite" className="text-sm text-secondary">Reading advanced save structures…</output>;
   }
   if (error) {
     return (
@@ -60,7 +60,7 @@ export function AdvancedView({ advanced, loading, error, onRetry }: AdvancedView
 
       <div className="mt-6 flex items-start gap-2 border-l-2 border-success bg-surface px-4 py-3 text-xs/5 text-secondary">
         <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
-        <p>No item changes can be created or saved in this phase.</p>
+        <p>Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.</p>
       </div>
 
       <dl className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

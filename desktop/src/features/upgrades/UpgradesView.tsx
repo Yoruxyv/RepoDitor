@@ -37,7 +37,7 @@ export function UpgradesView({
   const player = players.find((item) => item.id === selectedPlayerId) ?? players[0] ?? null;
 
   if (loading) {
-    return <p className="text-sm text-secondary">Loading upgrades…</p>;
+    return <output aria-live="polite" className="text-sm text-secondary">Loading upgrades…</output>;
   }
   if (error) {
     return (
@@ -63,7 +63,7 @@ export function UpgradesView({
         </div>
         <label className="text-sm font-semibold text-ink">
           <span>Player</span>
-          <select className="mt-1 block min-w-52 rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
+          <select className="mt-1 block min-w-52 rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
             {players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
@@ -89,7 +89,7 @@ export function UpgradesView({
                 </div>
                 <p className="mt-1 truncate font-mono text-[0.68rem] text-muted" title={upgrade.key}>{upgrade.key}</p>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
-                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={`${upgrade.label} for ${player.name}`} className="w-32 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
+                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={`${upgrade.label} for ${player.name}`} className="w-32 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
                     const value = event.target.value;
                     setInputs((current) => ({ ...current, [inputKey]: value }));
                     const next = Number(value);

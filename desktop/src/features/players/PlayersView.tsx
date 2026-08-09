@@ -64,7 +64,7 @@ export function PlayersView({
   }, [avatarUrls, onLoadAvatar, player]);
 
   if (loading) {
-    return <p className="text-sm text-secondary">Loading players…</p>;
+    return <output aria-live="polite" className="text-sm text-secondary">Loading players…</output>;
   }
 
   if (error) {
@@ -191,7 +191,7 @@ export function PlayersView({
               <input
                 aria-describedby={healthError ? "player-health-error" : undefined}
                 aria-invalid={healthError ? "true" : undefined}
-                className="w-28 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+                className="w-28 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                 id="player-health"
                 inputMode="numeric"
                 min="0"

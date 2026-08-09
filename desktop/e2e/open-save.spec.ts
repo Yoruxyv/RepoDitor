@@ -172,9 +172,31 @@ test("safely writes changes with backup and stale-save protection", async () => 
           },
     );
     const page = await application.firstWindow();
-    await page.emulateMedia({ reducedMotion: "reduce" });
+    await application.evaluate(({ BrowserWindow }) => {
+      const renderer = BrowserWindow.getAllWindows()[0];
+      if (!renderer || !renderer.webContents.isLoadingMainFrame()) return;
+      return new Promise<void>((resolve) => {
+        renderer.webContents.once("did-finish-load", () => resolve());
+      });
+    });
+
+    const chrome = await application.evaluate(({ app, Menu }) => ({
+      hasApplicationMenu: Menu.getApplicationMenu() !== null,
+      version: app.getVersion(),
+    }));
+    expect(chrome.version).toBe("0.1.0");
+    if (packagedExecutable) {
+      expect(chrome.hasApplicationMenu).toBe(false);
+    }
+    await expect(page).toHaveTitle("RepoDitor");
+    await expect(page.getByLabel("About RepoDitor")).toContainText("RepoDitor v0.1.0");
+    await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
+      "href",
+      "https://github.com/Dendroculus/RepoDitor",
+    );
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
@@ -221,7 +243,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
-    await expect(page.getByText("No item changes can be created or saved in this phase."))
+    await expect(page.getByText(
+      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+    ))
       .toBeVisible();
     const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
     await expect(hammer.getByText("99")).toBeVisible();
@@ -239,6 +263,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "Beta" })).toBeVisible();
     await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
     const health = page.getByRole("spinbutton", { name: "Current health" });
+    await health.focus();
+    expect(await health.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe(
+      "solid",
+    );
     await expect(page.getByLabel("Maximum health 100")).toBeVisible();
     await page.getByRole("button", { name: "Heal to Full" }).click();
     await expect(health).toHaveValue("100");
@@ -309,7 +337,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
       .toBeVisible();
-    await expect(page.getByText("No item changes can be created or saved in this phase."))
+    await expect(page.getByText(
+      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+    ))
       .toBeVisible();
     await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
 

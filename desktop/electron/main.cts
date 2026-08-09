@@ -3,6 +3,8 @@ import { pathToFileURL } from "node:url";
 import {
   app,
   BrowserWindow,
+  Menu,
+  shell,
 } from "electron";
 
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
@@ -13,6 +15,7 @@ import { pythonClient } from "./python/client.cjs";
 
 const developmentRendererUrl =
   process.env.VITE_DEV_SERVER_URL;
+const projectUrl = "https://github.com/Dendroculus/RepoDitor";
 
 function getRendererUrl(): string {
   if (developmentRendererUrl) {
@@ -44,7 +47,14 @@ function secureRendererNavigation(
   );
 
   window.webContents.setWindowOpenHandler(
-    () => ({ action: "deny" }),
+    ({ url }) => {
+      if (url === projectUrl) {
+        void shell.openExternal(url).catch((error: unknown) => {
+          console.error("Unable to open the RepoDitor project page.", error);
+        });
+      }
+      return { action: "deny" };
+    },
   );
   window.webContents.on(
     "will-navigate",
@@ -68,6 +78,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     show: false,
+    title: "RepoDitor",
 
     webPreferences: {
       preload: path.join(
@@ -97,6 +108,9 @@ registerPlayerIpc();
 registerEditorIpc();
 
 void app.whenReady().then(() => {
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null);
+  }
   createWindow();
 
   app.on("activate", () => {

@@ -44,17 +44,51 @@ or Run write semantics. The exact hammer-key change is the only `itemStatBattery
 is evidence that this is sparse, per-instance stored charge data. Absence is not interpreted as
 zero, empty, or full.
 
+### Broad completed-level comparison
+
+A later excluded comparison started from the second evidence file above and ended after a normally
+completed level. It is structural and behavioral evidence only: multiple items were used, so no
+individual gameplay action can be assigned to a changed value.
+
+| Evidence | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `before.es3` | 9,424 | `3cb6f29377bef2b5d2d76b371e515393522e0a557dbe0b99c7bce8d98a78110b` |
+| `after.es3` | 9,520 | `cb978022f08d91ae1cb5bf9bfc03e7d28eba4f1ed0c022bfe6f05521d478f845` |
+
+**CONFIRMED STRUCTURE:** only `timePlayed` and `dictionaryOfDictionaries` changed at the top
+level. The latter retained the same 22 containers; only `itemStatBattery`, `itemsPurchased`,
+`playerHealth`, and `runStats` changed. The `item` container retained the same 86 instances and
+suffixes, including the existing missing `/1` in the otherwise surviving Medium Health Pack
+`/2`, `/3`, `/4` sequence.
+
+**BEHAVIORAL EVIDENCE:** three previously absent exact-instance charge entries reappeared:
+`Item Drone Battery/1 = 25`, `Item Drone Indestructible/1 = 50`, and
+`Item Melee Inflatable Hammer/1 = 20`. All three exact item keys survived unchanged and have no
+`itemBatteryUpgrades` companion. This strengthens the read-only model of sparse, per-instance
+stored integers, but does not establish bounds or write behavior.
+
+**CAUSALLY AMBIGUOUS:** `itemsPurchased["Item Power Crystal"]` changed from `10` to `9` while
+`itemsPurchasedTotal["Item Power Crystal"]` remained `29`; `chargingStationCharge` changed from
+`10` to `9` and `chargingStationChargeTotal` from `95` to `90`. The shared direction is a
+correlation only. The same comparison advanced `level` from `44` to `45`, changed `currency` from
+`220` to `398`, changed `totalHaul` from `2447` to `2625`, and changed one anonymized player-health
+value from `2100` to `1273`. `save level = 0` and `lives = 3` were unchanged.
+
+**UNKNOWN:** `itemBatteryUpgrades` remained empty, all 12 `itemsUpgradesPurchased` entries and all
+58 `itemsPurchasedTotal` entries remained unchanged, and the meaning of the integer stored in each
+`item` entry remains unproven. This comparison enables no new mutation by itself.
+
 ### Evidence status
 
 | Domain | Status | Exact path and observed shape | Read support | Write support and remaining unknowns |
 | --- | --- | --- | --- | --- |
 | Item instance identity | **CONFIRMED** | `dictionaryOfDictionaries.value["item"]`; 85 baseline string keys mapping to integers. Keys match `Item <name>/<decimal instance ID>`. Duplicate types have distinct suffixes, and gaps exist (for example Medium Health Packs `/2`, `/3`, `/4` without `/1`). | Safe to expose the exact key, friendly name, and instance ID. | None. The stored integer's meaning, ordering significance, allocation rules, and companion-entry requirements are unknown. |
-| Current item charge | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemStatBattery"]`; baseline contained `"Item Melee Inflatable Hammer/1": 99`; after one use the entry was absent while the item remained. | Safe to expose a present integer as stored charge and absence as `null`/not recorded. Exact-key links are made in Python. | None. Missing-value meaning, bounds, units, normalization, recharge behavior, and valid mutation rules remain unknown. |
+| Current item charge | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the first pair observed the Hammer `99 -> absent`, and the broad later comparison observed three `absent -> present integer` transitions while the items remained. | Safe to expose a present integer as stored charge and absence as `null`/not recorded. Exact-key links are made in Python. | None. Missing-value meaning, bounds, units, normalization, recharge behavior, and valid mutation rules remain unknown. |
 | Item battery upgrades | **UNKNOWN** | `dictionaryOfDictionaries.value["itemBatteryUpgrades"]` existed as an empty dictionary in both saves. | Only structural presence and entry count are exposed. | No entry key, type, zero/absence rule, or item relationship is proven. |
 | Purchased item upgrades | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsUpgradesPurchased"]`; 12 string-to-integer entries, unchanged in the A/B pair. Keys are item-type names without instance suffixes. | Only structural status and entry count are exposed. | Purchase action, count semantics, instance/type relationship, and independent mutability are unproven. |
-| Purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries, unchanged in the A/B pair. | Only structural status and entry count are exposed. | Whether this means current inventory, purchased quantity, or another state is unproven. |
+| Purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries. The broad comparison changed only `Item Power Crystal: 10 -> 9`. | Only structural status and entry count are exposed. | Whether this means current inventory, purchased quantity, or another state is unproven. |
 | Total purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchasedTotal"]`; 58 string-to-integer entries, unchanged in the A/B pair. | Only structural status and entry count are exposed. | It is not proven whether this is historical, derived, or independently mutable. |
-| Additional Run charge values | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["runStats"]["chargingStationCharge"] = 10` and `["chargingStationChargeTotal"] = 95`; both integers and unchanged in the A/B pair. | Safe to expose the exact observed keys and values read-only. | Their units, relationship, bounds, and mutation behavior are unproven. |
+| Additional Run charge values | **PARTIALLY CONFIRMED** | The broad comparison observed `chargingStationCharge: 10 -> 9` and `chargingStationChargeTotal: 95 -> 90` alongside other level activity. | Safe to expose the exact observed keys and values read-only. | Their units, relationship, bounds, and mutation behavior are unproven. |
 
 All advanced capabilities are read-only. `canEdit`, `canAdd`, `canDelete`, and `canDuplicate` are
 false across every domain. The renderer receives typed projections, never the decrypted save or
@@ -64,11 +98,11 @@ the unverified `item` integer payload.
 
 Run each experiment from a separately preserved before-save and change exactly one in-game state:
 
-1. **Charge absence/recharge:** start from the after-use state where the hammer remains but its
-   `itemStatBattery` entry is absent. Recharge that same hammer once, do not use or purchase
-   anything else, cross one normal save transition, and capture
-   `03-after-inflatable-hammer-recharge.es3`. This determines whether the entry reappears and how
-   the two charging-station Run values respond.
+1. **Single recharge and use:** capture a fresh save with the uniquely identified Hammer, perform
+   exactly one charging action on it without using, purchasing, or upgrading anything else, and
+   capture the next normal save. From that resulting state, capture another pair around exactly
+   one Hammer use. This is still required because the broad comparison proves reappearance but not
+   what caused it, its increment/decrement rule, or the linked charging-station values.
 2. **Battery upgrade:** capture before/after saves around exactly one battery upgrade applied to a
    uniquely identified item. Do not recharge or use it in the same comparison.
 3. **Purchased upgrade:** purchase exactly one player/item upgrade, save before applying it, and

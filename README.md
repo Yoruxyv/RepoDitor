@@ -5,12 +5,13 @@ RepoDitor is an unofficial Electron desktop editor for local **R.E.P.O.** `.es3`
 ## Current features
 
 - discover the default Windows R.E.P.O. save directory and recent saves;
-- inspect Overview, Players, Upgrades, Run, and installed Maps data;
+- inspect Overview, Players, Upgrades, Run, installed Maps, and evidence-backed Advanced Items data;
 - edit current health, detected player upgrades, and supported run fields in memory;
 - review and revert pending edits before saving;
 - validate the source fingerprint before every write;
 - create a timestamped backup and atomically replace the selected save;
-- enrich valid Steam players with optional, fail-soft avatars.
+- enrich valid Steam players with optional, fail-soft avatars;
+- keep unproven advanced item and purchase structures explicitly read-only.
 
 > [!IMPORTANT]
 > RepoDitor is an unofficial community tool and is not affiliated with semiwork. Back up important saves before editing them. Game updates can change save behavior or schema.
@@ -76,6 +77,8 @@ This builds the locked Python 3.13 PyInstaller sidecar, builds Electron, runs th
 
 The release workflow accepts semantic tags matching the project version, such as `v0.1.0`. It reruns the required quality checks, packaged smoke test, archive build, and checksum generation before publishing. See [`docs/release-checklist.md`](docs/release-checklist.md) for the release gate.
 
+RepoDitor v0.1.0 supports self-contained Windows x64 ZIP releases. Package generation removes only the previous `desktop/release/` output, verifies the bundled sidecar and required licenses, and never terminates running processes automatically.
+
 ## Default save location
 
 RepoDitor scans recursively under `%USERPROFILE%\AppData\LocalLow\semiwork\Repo` for `REPO_SAVE_*.es3`. Files containing `BACKUP` are excluded from discovery.
@@ -103,6 +106,8 @@ RepoDitor validates pending edits and detects stale source files before mutation
 ## Compatibility
 
 RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run saves. Unsupported or malformed saves are rejected before mutation.
+
+Advanced Items discovery is read-only in v0.1.0. Item charge, battery upgrade, purchased-item, add/delete/duplicate, and generic numeric-dictionary mutations remain unavailable because controlled evidence has not established safe write invariants.
 
 ## Fonts and license
 
