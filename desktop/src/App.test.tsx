@@ -126,6 +126,18 @@ describe("save workspace transition", () => {
     window.repoditor = bridge(vi.fn());
   });
 
+  it("presents release identity and project attribution", () => {
+    render(<App />);
+
+    expect(screen.getAllByText("v0.1.0").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("About RepoDitor").textContent).toContain(
+      "Unofficial R.E.P.O. save utility",
+    );
+    expect(screen.getByRole("link", { name: "Project source" }).getAttribute("href")).toBe(
+      "https://github.com/Dendroculus/RepoDitor",
+    );
+  });
+
   it("shows discovery loading while the desktop bridge responds", () => {
     window.repoditor.environment.detect = vi.fn(() => new Promise<never>(() => undefined));
     render(<App />);
@@ -346,7 +358,9 @@ describe("save workspace transition", () => {
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
     expect(await screen.findByText("Melee Inflatable Hammer")).toBeTruthy();
-    expect(screen.getByText("No item changes can be created or saved in this phase.")).toBeTruthy();
+    expect(screen.getByText(
+      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+    )).toBeTruthy();
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));

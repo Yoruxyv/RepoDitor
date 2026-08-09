@@ -51,7 +51,9 @@ describe("AdvancedView", () => {
     const item = screen.getByRole("listitem");
     expect(within(item).getByText("Melee Inflatable Hammer")).toBeTruthy();
     expect(within(item).getByText("99")).toBeTruthy();
-    expect(screen.getByText("No item changes can be created or saved in this phase.")).toBeTruthy();
+    expect(screen.getByText(
+      "Advanced Items is read-only in v0.1.0. Unverified item mutations remain unavailable.",
+    )).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
 
     await user.click(within(item).getByText("Show save key"));
