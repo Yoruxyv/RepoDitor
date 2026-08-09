@@ -115,6 +115,12 @@ describe("saveChanges", () => {
       { feature: "upgrades", entity: "222", field: "playerUpgradeStrength", after: 3 },
       { feature: "run", entity: "run", field: "currency", after: 20 },
       { feature: "run", entity: "run", field: "resumeLocation", after: "Shop / Service Station" },
+      {
+        feature: "advanced",
+        entity: "Item Gun Tranq/1",
+        field: "refillToFull",
+        after: true,
+      },
     ];
 
     await expect(saveChanges(fake, session.id, session.fingerprint, changes)).resolves.toEqual({
@@ -146,6 +152,16 @@ describe("saveChanges", () => {
     await expect(
       saveChanges(fake, session.id, session.fingerprint, [
         { feature: "players", entity: "222", field: "health", after: -1 },
+      ]),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, [
+        {
+          feature: "advanced",
+          entity: "Item Gun Tranq/1",
+          field: "refillToFull",
+          after: 100,
+        },
       ]),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
     await expect(

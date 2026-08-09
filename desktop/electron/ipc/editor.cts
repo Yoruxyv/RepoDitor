@@ -191,7 +191,10 @@ function parseRun(value: unknown): DesktopOperationResult<RunStateDto> {
   };
 }
 
-function parseAdvancedCapabilities(value: unknown): AdvancedCapabilitiesDto {
+function parseAdvancedCapabilities(
+  value: unknown,
+  domainKey: AdvancedDomainKey,
+): AdvancedCapabilitiesDto {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid advanced capabilities.");
   }
@@ -200,10 +203,24 @@ function parseAdvancedCapabilities(value: unknown): AdvancedCapabilitiesDto {
   const canAdd = readBoolean(value.canAdd, "advanced add capability");
   const canDelete = readBoolean(value.canDelete, "advanced delete capability");
   const canDuplicate = readBoolean(value.canDuplicate, "advanced duplicate capability");
+  const canRefillToFull = readBoolean(
+    value.canRefillToFull,
+    "advanced refill-to-full capability",
+  );
   if (canEdit || canAdd || canDelete || canDuplicate) {
     throw new EditorProtocolError("Advanced mutation capabilities are not supported.");
   }
-  return { canRead, canEdit: false, canAdd: false, canDelete: false, canDuplicate: false };
+  if (canRefillToFull && domainKey !== "currentCharge") {
+    throw new EditorProtocolError("Refill-to-full is only supported for stored charge.");
+  }
+  return {
+    canRead,
+    canEdit: false,
+    canAdd: false,
+    canDelete: false,
+    canDuplicate: false,
+    canRefillToFull,
+  };
 }
 
 function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
@@ -225,7 +242,10 @@ function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
     label: readString(value.label, "advanced domain label"),
     status: status as AdvancedEvidenceStatus,
     entryCount,
-    capabilities: parseAdvancedCapabilities(value.capabilities),
+    capabilities: parseAdvancedCapabilities(
+      value.capabilities,
+      key as AdvancedDomainKey,
+    ),
   };
 }
 

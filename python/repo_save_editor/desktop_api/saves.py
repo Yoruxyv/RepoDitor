@@ -10,6 +10,7 @@ from pathlib import Path
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
+from repo_save_editor.services.advanced import refill_item_to_full
 from repo_save_editor.services.players import get_players, set_player_health
 from repo_save_editor.services.run_state import (
     get_available_run_stats,
@@ -153,6 +154,8 @@ def _apply_changes(data: SaveData, changes: object) -> None:
             set_resume_location_from_label(data, after)
         elif feature == "run" and entity == "run" and field in run_fields:
             set_run_stat_from_display(data, field, _integer(after))
+        elif feature == "advanced" and field == "refillToFull" and after is True:
+            refill_item_to_full(data, entity)
         else:
             raise ValueError("A pending change is not supported by this save.")
 

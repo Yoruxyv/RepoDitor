@@ -82,7 +82,19 @@ export interface RunResumeChange {
   after: string;
 }
 
-export type SaveChange = PlayerHealthChange | UpgradeValueChange | RunStatChange | RunResumeChange;
+export interface AdvancedRefillChange {
+  feature: "advanced";
+  entity: string;
+  field: "refillToFull";
+  after: true;
+}
+
+export type SaveChange =
+  | PlayerHealthChange
+  | UpgradeValueChange
+  | RunStatChange
+  | RunResumeChange
+  | AdvancedRefillChange;
 
 export interface SaveWriteResult {
   backupPath: string;
@@ -132,6 +144,7 @@ export interface AdvancedCapabilitiesDto {
   canAdd: false;
   canDelete: false;
   canDuplicate: false;
+  canRefillToFull: boolean;
 }
 
 export interface AdvancedDomainDto {

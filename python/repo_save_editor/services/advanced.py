@@ -1,4 +1,4 @@
-"""Evidence-backed, read-only advanced save discovery."""
+"""Evidence-backed advanced save discovery and narrow mutations."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ class AdvancedCapability:
     can_add: bool = False
     can_delete: bool = False
     can_duplicate: bool = False
+    can_refill_to_full: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +93,7 @@ def _capability(
     container: dict[object, object] | None,
     *,
     can_read: bool,
+    can_refill_to_full: bool = False,
 ) -> AdvancedCapability:
     return AdvancedCapability(
         key=key,
@@ -99,7 +101,25 @@ def _capability(
         status=status,
         entry_count=None if container is None else len(container),
         can_read=can_read,
+        can_refill_to_full=can_refill_to_full,
     )
+
+
+def refill_item_to_full(data: SaveData, save_key: str) -> bool:
+    """Remove one confirmed item's stored-charge leaf; return False when already full."""
+    dictionaries = get_dictionaries(data)
+    item_entries = _integer_entries(_container(dictionaries, "item"), "item")
+    charge_container = _container(dictionaries, "itemStatBattery")
+    charge_entries = _integer_entries(charge_container, "itemStatBattery")
+
+    if ITEM_KEY_PATTERN.fullmatch(save_key) is None or save_key not in item_entries:
+        raise AdvancedSaveError("The selected item instance does not exist in this save.")
+    if save_key not in charge_entries:
+        return False
+
+    assert charge_container is not None
+    del charge_container[save_key]
+    return True
 
 
 def discover_advanced_save(data: SaveData) -> AdvancedSaveView:
@@ -167,6 +187,7 @@ def discover_advanced_save(data: SaveData) -> AdvancedSaveView:
                 "partially_confirmed" if charge_container is not None else "unknown",
                 charge_container,
                 can_read=charge_container is not None,
+                can_refill_to_full=(item_container is not None and charge_container is not None),
             ),
             _capability(
                 "batteryUpgrades",

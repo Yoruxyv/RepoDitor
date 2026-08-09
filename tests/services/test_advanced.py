@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.advanced import AdvancedSaveError, discover_advanced_save
+from repo_save_editor.services.advanced import (
+    AdvancedSaveError,
+    discover_advanced_save,
+    refill_item_to_full,
+)
 
 EVIDENCE_PAIR = Path(__file__).parents[1] / "fixtures" / "advanced_charge_pair.json"
 
@@ -61,6 +65,7 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     assert domains["items"].entry_count == 4
     assert domains["items"].can_read is True
     assert domains["currentCharge"].status == "partially_confirmed"
+    assert domains["currentCharge"].can_refill_to_full is True
     assert domains["batteryUpgrades"].status == "unknown"
     assert domains["batteryUpgrades"].entry_count == 0
     assert domains["batteryUpgrades"].can_read is False
@@ -76,6 +81,52 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
             domain.can_duplicate,
         )
     )
+    assert all(
+        domain.can_refill_to_full is (domain.key == "currentCharge") for domain in advanced.domains
+    )
+
+
+def test_refill_removes_only_the_exact_charge_leaf(sample_save) -> None:
+    data = _advanced_save(sample_save)
+    before = deepcopy(data)
+
+    assert refill_item_to_full(data, "Item Melee Inflatable Hammer/1") is True
+
+    before_dictionaries = before["dictionaryOfDictionaries"]["value"]
+    after_dictionaries = data["dictionaryOfDictionaries"]["value"]
+    assert after_dictionaries["itemStatBattery"] == {}
+    before_dictionaries["itemStatBattery"] = {}
+    assert data == before
+
+
+def test_refill_is_a_safe_noop_when_charge_is_absent(sample_save) -> None:
+    data = _advanced_save(sample_save)
+    del data["dictionaryOfDictionaries"]["value"]["itemStatBattery"][
+        "Item Melee Inflatable Hammer/1"
+    ]
+    before = deepcopy(data)
+
+    assert refill_item_to_full(data, "Item Melee Inflatable Hammer/1") is False
+    assert data == before
+
+
+@pytest.mark.parametrize(
+    ("save_key", "charge_container"),
+    [
+        ("Item Missing/1", {}),
+        ("bad-key", {}),
+        ("Item Melee Inflatable Hammer/1", []),
+        ("Item Melee Inflatable Hammer/1", {"Item Melee Inflatable Hammer/1": 1.5}),
+    ],
+)
+def test_refill_rejects_missing_items_and_malformed_charge(
+    sample_save, save_key, charge_container
+) -> None:
+    data = _advanced_save(sample_save)
+    data["dictionaryOfDictionaries"]["value"]["itemStatBattery"] = charge_container
+
+    with pytest.raises(AdvancedSaveError):
+        refill_item_to_full(data, save_key)
 
 
 def test_charge_evidence_is_sparse_after_one_hammer_use(sample_save) -> None:
