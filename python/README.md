@@ -18,6 +18,7 @@ renderer:
 - player upgrade discovery and mutation
 - run-state semantics
 - evidence-backed advanced item projections and exact-instance refill-to-full
+- evidence-backed MetaSave cosmetic ownership discovery and mutation
 - installed-map discovery
 - stale-save detection
 - backup creation

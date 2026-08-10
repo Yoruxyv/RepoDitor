@@ -41,3 +41,7 @@ variables, secrets, role scope, and verification flow.
 Packaging first removes only the disposable `release/` directory. If a packaged RepoDitor process still holds the output open, packaging stops with an instruction to close it; the build never kills processes. The unpacked application is then checked for the executable, ASAR, bundled Python sidecar, RepoDitor MIT license, and Teko OFL license.
 
 Advanced Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other advanced mutation controls remain unavailable.
+
+Cosmetics uses separate `cosmetics:get` and `cosmetics:write` IPC calls backed by
+`MetaSave.es3`. Ownership changes join the existing pending bar, but retain an independent
+fingerprint and exact-byte backup from the selected Run save.
