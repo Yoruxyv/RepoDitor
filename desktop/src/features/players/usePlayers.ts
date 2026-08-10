@@ -58,9 +58,6 @@ export function usePlayers(saveId: string) {
         if (result.ok) {
           setState({ players: result.data, error: null, loading: false });
           setSelectedPlayerId((current) => current ?? result.data[0]?.id ?? null);
-          for (const player of result.data) {
-            void loadAvatar(player.id);
-          }
         } else {
           setState({ players: [], error: result.error.message, loading: false });
         }
@@ -72,7 +69,7 @@ export function usePlayers(saveId: string) {
     } finally {
       playerRequestInFlight.current = false;
     }
-  }, [loadAvatar, saveId]);
+  }, [saveId]);
 
   useEffect(() => {
     mounted.current = true;
