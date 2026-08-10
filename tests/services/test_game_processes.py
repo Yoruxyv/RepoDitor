@@ -32,8 +32,7 @@ def test_validated_installation_path_is_used_for_process_identity() -> None:
     status = get_game_process_status(
         discover=lambda _game_dir: _discovery(root),
         inspect=lambda expected: (
-            inspected.append(expected)
-            or ProcessInspection((root / "REPO.exe",))
+            inspected.append(expected) or ProcessInspection((root / "REPO.exe",))
         ),
     )
 
@@ -45,14 +44,19 @@ def test_different_repo_executable_path_is_not_the_validated_game() -> None:
     expected = Path(r"D:\fixture\SteamLibrary\steamapps\common\REPO\REPO.exe")
     other = Path(r"C:\unrelated\REPO.exe")
 
-    assert classify_game_process(expected, ProcessInspection((other,))) is GameProcessStatus.NOT_RUNNING
+    assert (
+        classify_game_process(expected, ProcessInspection((other,)))
+        is GameProcessStatus.NOT_RUNNING
+    )
 
 
 def test_windows_process_path_matching_is_case_insensitive() -> None:
     expected = Path(r"E:\Fixture\SteamLibrary\steamapps\common\REPO\REPO.exe")
     observed = Path(r"e:\fixture\steamlibrary\STEAMAPPS\COMMON\repo\repo.EXE")
 
-    assert classify_game_process(expected, ProcessInspection((observed,))) is GameProcessStatus.RUNNING
+    assert (
+        classify_game_process(expected, ProcessInspection((observed,))) is GameProcessStatus.RUNNING
+    )
 
 
 def test_unverifiable_repo_candidate_fails_closed() -> None:

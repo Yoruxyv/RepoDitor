@@ -574,7 +574,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       repoProcess.kill();
       await once(repoProcess, "exit");
       repoProcess = undefined;
-      await page.getByRole("button", { name: "Check Again" }).click();
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     }

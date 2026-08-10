@@ -16,4 +16,4 @@ def test_unknown_status_is_not_reported_as_running_but_fails_closed() -> None:
     assert result == {"ok": True, "status": "unknown", "running": False}
     with pytest.raises(RuntimeError) as error:
         require_game_closed(lambda: GameProcessStatus.UNKNOWN)
-    assert getattr(error.value, "code") == "game_status_unknown"
+    assert error.value.code == "game_status_unknown"
