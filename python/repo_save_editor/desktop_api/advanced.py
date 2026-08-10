@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure, load_discovered_save
-from repo_save_editor.services.advanced import AdvancedSaveError, discover_advanced_save
+from repo_save_editor.services.items.discovery import discover_advanced_save
+from repo_save_editor.services.items.models import AdvancedSaveError
 
 
 def get_advanced_save(save_id: str, root: Path | None = None) -> dict[str, object]:

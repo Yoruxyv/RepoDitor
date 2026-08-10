@@ -1,89 +1,26 @@
-"""Evidence-backed advanced save discovery and narrow mutations."""
+"""Evidence-backed item and related save discovery."""
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
-
 from repo_save_editor.core.schema import get_dictionaries
 from repo_save_editor.core.types import SaveData
+from repo_save_editor.services.items.models import (
+    AdvancedCapability,
+    AdvancedItem,
+    AdvancedRunValue,
+    AdvancedSaveError,
+    AdvancedSaveView,
+)
+from repo_save_editor.services.items.schema import (
+    ITEM_KEY_PATTERN,
+    _container,
+    _integer_entries,
+)
 
-ITEM_KEY_PATTERN = re.compile(r"^(?P<name>Item .+)/(?P<instance_id>\d+)$")
 RUN_VALUE_LABELS = {
     "chargingStationCharge": "Charging station charge",
     "chargingStationChargeTotal": "Charging station charge total",
 }
-
-
-class AdvancedSaveError(ValueError):
-    """Raised when an observed advanced structure is malformed."""
-
-
-@dataclass(frozen=True, slots=True)
-class AdvancedCapability:
-    """Read and mutation support for one advanced save domain."""
-
-    key: str
-    label: str
-    status: str
-    entry_count: int | None
-    can_read: bool
-    can_edit: bool = False
-    can_add: bool = False
-    can_delete: bool = False
-    can_duplicate: bool = False
-    can_refill_to_full: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class AdvancedItem:
-    """One confirmed item instance without its unverified stored integer."""
-
-    save_key: str
-    name: str
-    instance_id: str
-    stored_charge: int | None
-
-
-@dataclass(frozen=True, slots=True)
-class AdvancedRunValue:
-    """One observed, read-only lower-level Run value."""
-
-    save_key: str
-    label: str
-    value: int
-
-
-@dataclass(frozen=True, slots=True)
-class AdvancedSaveView:
-    """Renderer-safe projection of evidence-supported advanced structures."""
-
-    domains: tuple[AdvancedCapability, ...]
-    items: tuple[AdvancedItem, ...]
-    run_values: tuple[AdvancedRunValue, ...]
-    unlinked_charge_entry_count: int
-
-
-def _container(dictionaries: dict[str, object], key: str) -> dict[object, object] | None:
-    if key not in dictionaries:
-        return None
-    value = dictionaries[key]
-    if not isinstance(value, dict):
-        raise AdvancedSaveError(f"Advanced save field '{key}' is not a dictionary.")
-    return value
-
-
-def _integer_entries(container: dict[object, object] | None, key: str) -> dict[str, int]:
-    if container is None:
-        return {}
-    entries: dict[str, int] = {}
-    for save_key, value in container.items():
-        if not isinstance(save_key, str) or isinstance(value, bool) or not isinstance(value, int):
-            raise AdvancedSaveError(
-                f"Advanced save field '{key}' must contain string keys and whole numbers."
-            )
-        entries[save_key] = value
-    return entries
 
 
 def _capability(
@@ -103,23 +40,6 @@ def _capability(
         can_read=can_read,
         can_refill_to_full=can_refill_to_full,
     )
-
-
-def refill_item_to_full(data: SaveData, save_key: str) -> bool:
-    """Remove one confirmed item's stored-charge leaf; return False when already full."""
-    dictionaries = get_dictionaries(data)
-    item_entries = _integer_entries(_container(dictionaries, "item"), "item")
-    charge_container = _container(dictionaries, "itemStatBattery")
-    charge_entries = _integer_entries(charge_container, "itemStatBattery")
-
-    if ITEM_KEY_PATTERN.fullmatch(save_key) is None or save_key not in item_entries:
-        raise AdvancedSaveError("The selected item instance does not exist in this save.")
-    if save_key not in charge_entries:
-        return False
-
-    assert charge_container is not None
-    del charge_container[save_key]
-    return True
 
 
 def discover_advanced_save(data: SaveData) -> AdvancedSaveView:

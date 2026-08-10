@@ -6,7 +6,7 @@ from repo_save_editor.services.game_discovery import (
     GameDiscoveryResult,
     discover_game_installation,
 )
-from repo_save_editor.services.save_discovery import (
+from repo_save_editor.services.saves.discovery import (
     SaveDiscoveryResult,
     discover_saves,
 )
