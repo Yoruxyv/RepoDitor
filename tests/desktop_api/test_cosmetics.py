@@ -4,16 +4,12 @@ from pathlib import Path
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
-from repo_save_editor.storage.repository import SaveRepository
-
-SAVE_ID = "REPO_SAVE_2026_08_08_10_20_30"
 
 
-def _paths(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _paths(tmp_path: Path) -> tuple[Path, Path]:
     save_root = tmp_path / "Repo" / "saves"
-    run_path = save_root / SAVE_ID / f"{SAVE_ID}.es3"
     meta_path = save_root.parent / "MetaSave.es3"
-    return save_root, run_path, meta_path
+    return save_root, meta_path
 
 
 def _meta_save() -> dict[str, object]:
@@ -28,19 +24,18 @@ def _meta_save() -> dict[str, object]:
     }
 
 
-def _write_fixture(tmp_path: Path, sample_save) -> tuple[Path, Path]:
-    save_root, run_path, meta_path = _paths(tmp_path)
-    SaveRepository(save_root).save_as(run_path, sample_save)
+def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    save_root, meta_path = _paths(tmp_path)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_bytes(encrypt_save(_meta_save()))
     return save_root, meta_path
 
 
-def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path, sample_save) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
 
-    result = get_cosmetics(SAVE_ID, save_root)
+    result = get_cosmetics(save_root)
 
     assert result["ok"] is True
     view = result["cosmetics"]
@@ -60,15 +55,12 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path, sample_save
     assert meta_path.read_bytes() == original
 
 
-def test_save_cosmetics_creates_exact_backup_and_reopens_output(
-    tmp_path: Path, sample_save
-) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_save_cosmetics_creates_exact_backup_and_reopens_output(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
     before = decrypt_save(original)
 
     result = save_cosmetics(
-        SAVE_ID,
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "28", "field": "owned", "after": True}],
         save_root,
@@ -84,8 +76,8 @@ def test_save_cosmetics_creates_exact_backup_and_reopens_output(
         assert reopened[key] == before[key]
 
 
-def test_save_cosmetics_rejects_stale_source_without_backup(tmp_path: Path, sample_save) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_save_cosmetics_rejects_stale_source_without_backup(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     opened = meta_path.read_bytes()
     externally_changed = deepcopy(_meta_save())
     externally_changed["cosmeticTokens"]["value"] = [8]
@@ -93,7 +85,6 @@ def test_save_cosmetics_rejects_stale_source_without_backup(tmp_path: Path, samp
     external_bytes = meta_path.read_bytes()
 
     result = save_cosmetics(
-        SAVE_ID,
         sha256(opened).hexdigest(),
         [{"feature": "cosmetics", "entity": "28", "field": "owned", "after": True}],
         save_root,
@@ -104,14 +95,11 @@ def test_save_cosmetics_rejects_stale_source_without_backup(tmp_path: Path, samp
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
-def test_validation_failure_never_modifies_or_backs_up_meta_save(
-    tmp_path: Path, sample_save
-) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_validation_failure_never_modifies_or_backs_up_meta_save(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
 
     result = save_cosmetics(
-        SAVE_ID,
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "999", "field": "owned", "after": False}],
         save_root,
@@ -122,12 +110,11 @@ def test_validation_failure_never_modifies_or_backs_up_meta_save(
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
-def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path, sample_save) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
 
     result = save_cosmetics(
-        SAVE_ID,
         sha256(original).hexdigest(),
         [
             {"feature": "cosmetics", "entity": "known", "field": "unlockAll", "after": True},
@@ -141,12 +128,11 @@ def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path, samp
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
-def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path, sample_save) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
 
     result = save_cosmetics(
-        SAVE_ID,
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "known", "field": "lockAll", "after": False}],
         save_root,
@@ -159,10 +145,10 @@ def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path, sample_s
     assert Path(result["result"]["backupPath"]).read_bytes() == original
 
 
-def test_missing_or_malformed_meta_save_fails_safely(tmp_path: Path, sample_save) -> None:
-    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+def test_missing_or_malformed_meta_save_fails_safely(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
     meta_path.unlink()
-    assert get_cosmetics(SAVE_ID, save_root)["error"]["code"] == "meta_missing"
+    assert get_cosmetics(save_root)["error"]["code"] == "meta_missing"
 
     meta_path.write_bytes(encrypt_save({"cosmeticHistory": {"value": []}}))
-    assert get_cosmetics(SAVE_ID, save_root)["error"]["code"] == "save_unsupported"
+    assert get_cosmetics(save_root)["error"]["code"] == "save_unsupported"

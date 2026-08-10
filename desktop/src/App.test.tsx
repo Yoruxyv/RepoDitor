@@ -176,7 +176,7 @@ function bridge(
     advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
     cosmetics: {
       get: vi.fn().mockResolvedValue({ ok: true, data: cosmetics }),
-      write: vi.fn().mockImplementation((_saveId, _fingerprint, changes: CosmeticChange[]) => {
+      write: vi.fn().mockImplementation((_fingerprint, changes: CosmeticChange[]) => {
         const next = structuredClone(cosmetics);
         changes.forEach((change) => applyCosmeticChange(next, change));
         return Promise.resolve({
@@ -322,12 +322,12 @@ describe("save workspace transition", () => {
     await user.clear(health);
     await user.type(health, "42");
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 42");
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
 
     await user.clear(health);
     await user.type(health, "0");
     expect(screen.queryByTestId("pending-health-edit")).toBeNull();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
 
     await user.clear(health);
     await user.type(health, "42");
@@ -340,7 +340,7 @@ describe("save workspace transition", () => {
 
     await user.click(screen.getByRole("button", { name: "Revert" }));
     expect(screen.queryByTestId("pending-health-edit")).toBeNull();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("rejects invalid health without creating a pending edit", async () => {
@@ -354,7 +354,7 @@ describe("save workspace transition", () => {
     fireEvent.change(health, { target: { value: "-1" } });
 
     expect(screen.getByRole("alert").textContent).toContain("whole number");
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("heals to Python-provided max health through the existing pending edit", async () => {
@@ -399,7 +399,7 @@ describe("save workspace transition", () => {
     expect(
       (await screen.findByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("keeps advanced refill and other edits while navigating sections", async () => {
@@ -425,7 +425,7 @@ describe("save workspace transition", () => {
     await user.clear(currency);
     await user.type(currency, "20");
     expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
     expect(await screen.findByText("Melee Inflatable Hammer #1")).toBeTruthy();
@@ -433,7 +433,7 @@ describe("save workspace transition", () => {
       "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     )).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("3 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("3 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));
     expect(await screen.findByText("McJannek Station")).toBeTruthy();
@@ -448,18 +448,16 @@ describe("save workspace transition", () => {
     await user.click(screen.getByRole("tab", { name: "Items" }));
     expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert refill" }));
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
   });
 
-  it("uses a compact summary and keeps Lock All pending until save", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+  it("opens Cosmetics without a Run save and keeps Lock All pending until save", async () => {
     const cosmeticWrite = vi.mocked(window.repoditor.cosmetics.write);
     const runWrite = vi.mocked(window.repoditor.saves.write);
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
 
     expect(await screen.findByRole("heading", { name: "Cosmetics" })).toBeTruthy();
     expect(screen.getByText("Known catalog")).toBeTruthy();
@@ -470,41 +468,90 @@ describe("save workspace transition", () => {
       (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,
     ).toBe(true);
 
-    await user.click(screen.getByRole("button", { name: "Lock All Cosmetics", exact: true }));
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    await user.click(screen.getByRole("button", { name: /^Lock All Cosmetics$/ }));
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
     expect(screen.getByText(/Cosmetics.*Known ownership/)).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     expect(
       (screen.getByRole("button", { name: "Lock All pending" }) as HTMLButtonElement).disabled,
     ).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
-    expect(cosmeticWrite).toHaveBeenCalledWith(saveId, cosmetics.fingerprint, [
+    expect(cosmeticWrite).toHaveBeenCalledWith(cosmetics.fingerprint, [
       { feature: "cosmetics", entity: "known", field: "lockAll", after: false },
     ]);
     expect(runWrite).not.toHaveBeenCalled();
     expect(await screen.findByText(/MetaSave\.es3\.bak/)).toBeTruthy();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
-  it("represents Unlock All as one revertible pending action", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }));
+  it("keeps Run and Cosmetics pending state independent across workspace navigation", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
-    await user.click(
-      await screen.findByRole("button", { name: "Unlock All Cosmetics", exact: true }),
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "1 pending change",
     );
 
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }),
+    );
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value).toBe(
+      "20",
+    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
+  });
+
+  it("represents Unlock All as one revertible pending action", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }),
+    );
+
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
     expect(screen.getByText(/Cosmetics.*Known ownership/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("summarizes, reverts, and safely submits pending changes", async () => {
@@ -547,10 +594,10 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Beta · Health")).toBeTruthy();
     expect(screen.getByText("Beta · Strength")).toBeTruthy();
     expect(screen.getByText("Run · Currency")).toBeTruthy();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("3 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("3 pending changes");
 
     await user.click(screen.getByRole("button", { name: "Revert all" }));
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
     expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
       .toBe("12");
     expect(write).not.toHaveBeenCalled();
@@ -571,7 +618,7 @@ describe("save workspace transition", () => {
       },
     ]);
     expect(await screen.findByText(/Saved safely\. Backup:/)).toBeTruthy();
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("keeps pending changes when a stale save is rejected", async () => {
@@ -596,7 +643,7 @@ describe("save workspace transition", () => {
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("Reopen it");
-    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
   });
 
   it("keeps editing available while an avatar loads and falls back if the image fails", async () => {

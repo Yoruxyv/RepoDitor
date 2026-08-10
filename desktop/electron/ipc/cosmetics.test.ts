@@ -8,7 +8,6 @@ import type { CosmeticDto } from "../contracts.cjs";
 const require = createRequire(import.meta.url);
 const { getCosmetics, saveCosmetics } = require("../../dist-electron/ipc/cosmetics.cjs");
 
-const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const fingerprint = "a".repeat(64);
 
 function client(response: unknown) {
@@ -55,8 +54,10 @@ describe("cosmetics IPC", () => {
 
   it("parses the narrow catalog projection without raw MetaSave data", async () => {
     const response = { ...view(), rawMetaSave: { cosmeticTokens: [7] } };
-    const result = await getCosmetics(client({ ok: true, cosmetics: response }), saveId);
+    const fake = client({ ok: true, cosmetics: response });
+    const result = await getCosmetics(fake);
 
+    expect(fake.run).toHaveBeenCalledWith("cosmetics-get");
     expect(result).toMatchObject({
       ok: true,
       data: { knownCatalogCount: 547, unknownOwnedIds: [999] },
@@ -77,12 +78,11 @@ describe("cosmetics IPC", () => {
       { feature: "cosmetics", entity: "28", field: "owned", after: true },
     ];
 
-    await expect(saveCosmetics(fake, saveId, fingerprint, changes)).resolves.toMatchObject({
+    await expect(saveCosmetics(fake, fingerprint, changes)).resolves.toMatchObject({
       ok: true,
       data: { backupPath: "C:\\fixture\\MetaSave.es3.bak-1" },
     });
     expect(fake.run).toHaveBeenCalledWith("cosmetics-write", [
-      saveId,
       fingerprint,
       JSON.stringify(changes),
     ]);
@@ -100,10 +100,9 @@ describe("cosmetics IPC", () => {
       after: true,
     };
 
-    await saveCosmetics(fake, saveId, fingerprint, [change]);
+    await saveCosmetics(fake, fingerprint, [change]);
 
     expect(fake.run).toHaveBeenCalledWith("cosmetics-write", [
-      saveId,
       fingerprint,
       JSON.stringify([change]),
     ]);
@@ -121,20 +120,19 @@ describe("cosmetics IPC", () => {
       after: false,
     };
 
-    await saveCosmetics(fake, saveId, fingerprint, [change]);
+    await saveCosmetics(fake, fingerprint, [change]);
 
     expect(fake.run).toHaveBeenCalledWith("cosmetics-write", [
-      saveId,
       fingerprint,
       JSON.stringify([change]),
     ]);
   });
 
-  it("rejects paths, unknown IDs, arbitrary fields, duplicates, and malformed output", async () => {
+  it("rejects unknown IDs, arbitrary fields, duplicates, and malformed output", async () => {
     const fake = client({});
-    await expect(getCosmetics(fake, "C:\\MetaSave.es3")).resolves.toMatchObject({
+    await expect(getCosmetics(fake)).resolves.toMatchObject({
       ok: false,
-      error: { code: "invalid_request" },
+      error: { code: "invalid_response" },
     });
     for (const changes of [
       [{ feature: "cosmetics", entity: "999", field: "owned", after: true }],
@@ -148,16 +146,17 @@ describe("cosmetics IPC", () => {
         { feature: "cosmetics", entity: "28", field: "owned", after: false },
       ],
     ]) {
-      await expect(saveCosmetics(fake, saveId, fingerprint, changes)).resolves.toMatchObject({
+      await expect(saveCosmetics(fake, fingerprint, changes)).resolves.toMatchObject({
         ok: false,
         error: { code: "invalid_request" },
       });
     }
+    fake.run.mockClear();
     expect(fake.run).not.toHaveBeenCalled();
 
     const malformed = view();
     malformed.knownLockedCount = 547;
-    await expect(getCosmetics(client({ ok: true, cosmetics: malformed }), saveId)).resolves
+    await expect(getCosmetics(client({ ok: true, cosmetics: malformed }))).resolves
       .toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
@@ -165,7 +164,6 @@ describe("cosmetics IPC", () => {
     await expect(
       getCosmetics(
         client({ ok: false, error: { code: "meta_missing", message: "MetaSave missing." } }),
-        saveId,
       ),
     ).resolves.toEqual({
       ok: false,

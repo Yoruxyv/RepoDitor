@@ -18,7 +18,6 @@ import {
   type PythonClient,
 } from "../python/client.cjs";
 
-const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 const KNOWN_COSMETIC_COUNT = 547;
 const MAX_CHANGES = KNOWN_COSMETIC_COUNT;
@@ -259,19 +258,11 @@ function failure(error: unknown): DesktopOperationFailure {
   return { ok: false, error: publicError(error) };
 }
 
-function validSaveId(value: unknown): value is string {
-  return typeof value === "string" && SAVE_ID_PATTERN.test(value);
-}
-
 export async function getCosmetics(
   client: PythonClient,
-  saveId: unknown,
 ): Promise<DesktopOperationResult<CosmeticsViewDto>> {
-  if (!validSaveId(saveId)) {
-    return { ok: false, error: { code: "invalid_request", message: "A valid save ID is required." } };
-  }
   try {
-    return readGetResponse(await client.run("cosmetics-get", [saveId]));
+    return readGetResponse(await client.run("cosmetics-get"));
   } catch (error) {
     return failure(error);
   }
@@ -279,13 +270,9 @@ export async function getCosmetics(
 
 export async function saveCosmetics(
   client: PythonClient,
-  saveId: unknown,
   fingerprint: unknown,
   changes: unknown,
 ): Promise<DesktopOperationResult<CosmeticsWriteResult>> {
-  if (!validSaveId(saveId)) {
-    return { ok: false, error: { code: "invalid_request", message: "A valid save ID is required." } };
-  }
   let safeFingerprint: string;
   let safeChanges: CosmeticChange[];
   try {
@@ -299,7 +286,7 @@ export async function saveCosmetics(
   }
   try {
     return readWriteResponse(
-      await client.run("cosmetics-write", [saveId, safeFingerprint, JSON.stringify(safeChanges)]),
+      await client.run("cosmetics-write", [safeFingerprint, JSON.stringify(safeChanges)]),
     );
   } catch (error) {
     return failure(error);
@@ -307,12 +294,10 @@ export async function saveCosmetics(
 }
 
 export function registerCosmeticsIpc(client: PythonClient = pythonClient): void {
-  ipcMain.handle(IPC_CHANNELS.cosmeticsGet, (_event, saveId: unknown) =>
-    getCosmetics(client, saveId),
-  );
+  ipcMain.handle(IPC_CHANNELS.cosmeticsGet, () => getCosmetics(client));
   ipcMain.handle(
     IPC_CHANNELS.cosmeticsWrite,
-    (_event, saveId: unknown, fingerprint: unknown, changes: unknown) =>
-      saveCosmetics(client, saveId, fingerprint, changes),
+    (_event, fingerprint: unknown, changes: unknown) =>
+      saveCosmetics(client, fingerprint, changes),
   );
 }

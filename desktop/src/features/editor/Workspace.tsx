@@ -8,8 +8,6 @@ import { useState, type KeyboardEvent } from "react";
 import type { SaveChange, SaveSession } from "@electron/contracts";
 import { AdvancedView } from "@/features/advanced/AdvancedView";
 import { useAdvanced } from "@/features/advanced/useAdvanced";
-import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
-import { useCosmetics } from "@/features/cosmetics/useCosmetics";
 import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -23,11 +21,10 @@ import { OverviewView } from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
 import {
   toSaveChange,
-  type PendingEdit,
   type RunSavePendingEdit,
 } from "@/features/editor/pendingEdits";
 
-const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Cosmetics", "Maps"] as const;
+const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
@@ -53,7 +50,6 @@ export function Workspace({
   const upgrades = useUpgrades(session.id);
   const run = useRunState(session.id);
   const advanced = useAdvanced(session.id);
-  const cosmetics = useCosmetics(session.id);
   const maps = useMaps();
   const runSavePendingEdits: RunSavePendingEdit[] = [
     ...players.pendingEdits,
@@ -61,22 +57,17 @@ export function Workspace({
     ...run.pendingEdits,
     ...advanced.pendingEdits,
   ];
-  const pendingEdits: PendingEdit[] = [
-    ...runSavePendingEdits,
-    ...cosmetics.pendingEdits,
-  ];
+  const pendingEdits: RunSavePendingEdit[] = runSavePendingEdits;
 
   function revertAll(): void {
     players.revertAll();
     upgrades.revertAll();
     run.revertAll();
     advanced.revertAll();
-    cosmetics.revertAll();
     setEditVersion((current) => current + 1);
   }
 
   async function saveAll(): Promise<void> {
-    if (cosmetics.pendingEdits.length > 0 && !(await cosmetics.save())) return;
     if (runSavePendingEdits.length > 0) {
       await onSave(runSavePendingEdits.map(toSaveChange));
     }
@@ -203,21 +194,6 @@ export function Workspace({
               onRevertRefill={advanced.revertRefill}
             />
           ) : null}
-          {activeSection === "Cosmetics" ? (
-            <CosmeticsView
-              error={cosmetics.loadError}
-              knownLockedCount={cosmetics.knownLockedCount}
-              knownOwnedCount={cosmetics.knownOwnedCount}
-              lockAllBlockedReason={cosmetics.lockAllBlockedReason}
-              lockAllPending={cosmetics.lockAllPending}
-              loading={cosmetics.loading}
-              unlockAllPending={cosmetics.unlockAllPending}
-              view={cosmetics.view}
-              onLockAll={cosmetics.lockAll}
-              onRetry={() => void cosmetics.reload()}
-              onUnlockAll={cosmetics.unlockAll}
-            />
-          ) : null}
           {activeSection === "Maps" ? (
             <MapsView
               discovery={maps.discovery}
@@ -244,10 +220,10 @@ export function Workspace({
       </div>
 
       <PendingChangesBar
-        backupPath={pendingEdits.length === 0 ? (backupPath ?? cosmetics.backupPath) : null}
+        backupPath={pendingEdits.length === 0 ? backupPath : null}
         edits={pendingEdits}
-        error={saveError ?? cosmetics.writeError}
-        saving={saving || cosmetics.saving}
+        error={saveError}
+        saving={saving}
         onRevert={revertAll}
         onSave={() => void saveAll()}
       />

@@ -118,17 +118,15 @@ const repoditorApi: RepoDitorApi = {
       >,
   },
   cosmetics: {
-    get: (saveId) =>
+    get: () =>
       ipcRenderer.invoke(
         IPC_CHANNELS.cosmeticsGet,
-        saveId,
       ) as Promise<
         DesktopOperationResult<CosmeticsViewDto>
       >,
-    write: (saveId, fingerprint, changes: CosmeticChange[]) =>
+    write: (fingerprint, changes: CosmeticChange[]) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.cosmeticsWrite,
-        saveId,
         fingerprint,
         changes,
       ) as Promise<

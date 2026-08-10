@@ -49,12 +49,9 @@ def main() -> None:
     elif args.command == "maps-list":
         print(json.dumps(list_maps()))
     elif args.command == "cosmetics-get":
-        if args.save_id is None:
-            print(json.dumps(_invalid_request("The required save ID is missing.")))
-        else:
-            print(json.dumps(get_cosmetics(args.save_id)))
+        print(json.dumps(get_cosmetics()))
     elif args.command == "cosmetics-write":
-        if args.save_id is None or args.player_id is None or args.payload is None:
+        if args.save_id is None or args.player_id is None:
             print(
                 json.dumps(
                     _invalid_request("The save fingerprint and pending changes are required.")
@@ -62,11 +59,11 @@ def main() -> None:
             )
         else:
             try:
-                cosmetic_changes = json.loads(args.payload)
+                cosmetic_changes = json.loads(args.player_id)
             except json.JSONDecodeError:
                 print(json.dumps(_invalid_request("The pending changes payload is invalid.")))
             else:
-                print(json.dumps(save_cosmetics(args.save_id, args.player_id, cosmetic_changes)))
+                print(json.dumps(save_cosmetics(args.save_id, cosmetic_changes)))
     elif args.save_id is None or (args.command == "players-avatar" and args.player_id is None):
         print(json.dumps(_invalid_request("The required save or player ID is missing.")))
     elif args.command == "saves-open":

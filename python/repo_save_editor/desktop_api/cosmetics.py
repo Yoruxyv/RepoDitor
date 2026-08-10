@@ -16,7 +16,7 @@ from repo_save_editor.services.cosmetics.mutations import (
     unlock_cosmetic,
 )
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
-from repo_save_editor.services.saves.discovery import SaveRootStatus, discover_saves
+from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
     SaveBackupError,
@@ -29,20 +29,15 @@ META_SAVE_NAME = "MetaSave.es3"
 MAX_COSMETIC_CHANGES = 547
 
 
-def _meta_path(save_id: str, root: Path | None) -> Path:
-    discovery = discover_saves(root)
-    if discovery.status is SaveRootStatus.UNREADABLE:
-        raise DesktopSaveError("backend_unavailable", "The save folder could not be read.")
-    if not any(save.identifier == save_id for save in discovery.saves):
-        raise DesktopSaveError("save_missing", "The selected save no longer exists.")
-    return discovery.root.parent / META_SAVE_NAME
+def _meta_path(root: Path | None) -> Path:
+    save_root = get_default_save_root() if root is None else root
+    return save_root.parent / META_SAVE_NAME
 
 
 def _load_meta_save(
-    save_id: str,
     root: Path | None,
 ) -> tuple[Path, SaveData, bytes, EncryptedSaveRepository]:
-    path = _meta_path(save_id, root)
+    path = _meta_path(root)
     repository = EncryptedSaveRepository(path.parent, validate_meta_save)
     try:
         source = path.read_bytes()
@@ -87,10 +82,10 @@ def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
     }
 
 
-def get_cosmetics(save_id: str, root: Path | None = None) -> dict[str, object]:
+def get_cosmetics(root: Path | None = None) -> dict[str, object]:
     """Return the typed cosmetic ownership projection for MetaSave.es3."""
     try:
-        _path, data, source, _repository = _load_meta_save(save_id, root)
+        _path, data, source, _repository = _load_meta_save(root)
         return {"ok": True, "cosmetics": _serialize(data, source)}
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
@@ -140,14 +135,13 @@ def _apply_changes(data: SaveData, changes: object) -> None:
 
 
 def save_cosmetics(
-    save_id: str,
     expected_fingerprint: str,
     changes: object,
     root: Path | None = None,
 ) -> dict[str, object]:
     """Validate and safely persist typed MetaSave ownership changes."""
     try:
-        path, data, source, repository = _load_meta_save(save_id, root)
+        path, data, source, repository = _load_meta_save(root)
         if (
             not isinstance(expected_fingerprint, str)
             or len(expected_fingerprint) != 64

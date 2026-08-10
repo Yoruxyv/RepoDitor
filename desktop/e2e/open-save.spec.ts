@@ -275,6 +275,11 @@ test("safely writes changes with backup and stale-save protection", async () => 
       saves: ["list", "open", "write"],
     });
 
+    await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
+    await expect(page.getByText("MetaSave.es3")).toBeVisible();
+    await page.getByRole("button", { name: "Run Saves" }).click();
+
     const openStarted = performance.now();
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.getByTestId("workspace")).toBeVisible();
@@ -283,7 +288,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Save opened safely")).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
 
-    await page.getByRole("tab", { name: "Cosmetics" }).click();
+    await page.getByRole("button", { name: "Cosmetics" }).click();
     await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
     await expect(page.getByText("Known catalog")).toBeVisible();
     await expect(page.getByText("Saved presets")).toBeVisible();
@@ -291,15 +296,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
-    await page.getByRole("tab", { name: "Overview" }).click();
-    await page.getByRole("tab", { name: "Cosmetics" }).click();
+    await page.getByRole("button", { name: "Run Saves" }).click();
+    await page.getByRole("button", { name: "Cosmetics" }).click();
     await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
@@ -327,7 +332,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await hammer.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" })
       .click();
     await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
     await page.getByRole("tab", { name: "Overview" }).focus();
@@ -349,7 +354,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(health).toHaveValue("100");
     await expect(page.getByRole("button", { name: "Heal to Full" })).toBeDisabled();
     await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 100");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("2 pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("2 pending changes");
 
     await page.getByRole("tab", { name: "Overview" }).click();
     await page.getByRole("tab", { name: "Players" }).click();
@@ -377,9 +382,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Beta · Strength")).toBeVisible();
     await expect(page.getByText("Run · Currency")).toBeVisible();
     await expect(page.getByText("Melee Inflatable Hammer #1 · Stored charge")).toBeVisible();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("4 pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("4 pending changes");
     await page.getByRole("button", { name: "Revert all" }).click();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     await page.getByRole("tab", { name: "Players" }).click();
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("0");
@@ -397,7 +402,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
     const saveReadyMs = performance.now() - saveStarted;
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
       .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
     expect(backups).toHaveLength(1);
@@ -426,7 +431,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const refilledHammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer #1" });
     await expect(refilledHammer.getByText("Full / Default")).toBeVisible();
     await expect(page.getByRole("button", { name: /Refill .* to full/ })).toHaveCount(0);
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
       { width: 1600, height: 900 },
@@ -453,9 +458,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
         .toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
-      await page.getByRole("tab", { name: "Cosmetics" }).click();
+      await page.getByRole("button", { name: "Cosmetics" }).click();
       await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
+      await page.getByRole("button", { name: "Run Saves" }).click();
       await page.getByRole("tab", { name: "Maps" }).click();
       await expect(page.getByText("McJannek Station")).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
@@ -473,13 +479,13 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const minimum = await layout(page);
     expect(minimum.context!.top).toBeGreaterThan(minimum.panel!.bottom);
 
-    await page.getByRole("tab", { name: "Cosmetics" }).click();
+    await page.getByRole("button", { name: "Cosmetics" }).click();
     await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
     replaceMetaTokens(metaPath, 8);
     const externalMetaBytes = await readFile(metaPath);
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByRole("alert")).toContainText("changed after it was opened");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
     expect(
       (await readdir(path.dirname(metaPath))).filter((name) =>
@@ -488,13 +494,14 @@ test("safely writes changes with backup and stale-save protection", async () => 
     ).toHaveLength(1);
     await page.getByRole("button", { name: "Revert all" }).click();
 
+    await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Run" }).click();
     await page.getByRole("spinbutton", { name: "Currency" }).fill("30");
     replaceFixtureCurrency(savePath, 777);
     const externalBytes = await readFile(savePath);
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByRole("alert")).toContainText("changed after it was opened");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
     expect(
       (await readdir(path.dirname(savePath))).filter((name) =>

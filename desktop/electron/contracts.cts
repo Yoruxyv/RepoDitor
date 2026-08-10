@@ -355,13 +355,10 @@ export interface RepoDitorApi {
     >;
   };
   cosmetics: {
-    get: (
-      saveId: string,
-    ) => Promise<
+    get: () => Promise<
       DesktopOperationResult<CosmeticsViewDto>
     >;
     write: (
-      saveId: string,
       fingerprint: string,
       changes: CosmeticChange[],
     ) => Promise<

@@ -7,6 +7,7 @@ interface PendingChangesBarProps {
   readonly backupPath: string | null;
   readonly onRevert: () => void;
   readonly onSave: () => void;
+  readonly testIdPrefix?: string;
 }
 
 function changeCount(count: number): string {
@@ -32,14 +33,15 @@ export function PendingChangesBar({
   backupPath,
   onRevert,
   onSave,
+  testIdPrefix = "workspace",
 }: PendingChangesBarProps) {
   return (
     <footer
       className="mt-10 grid gap-5 border-t border-line pt-5 text-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
-      data-testid="workspace-action-bar"
+      data-testid={`${testIdPrefix}-action-bar`}
     >
       <div className="min-w-0">
-        <p className="font-semibold text-ink" data-testid="pending-edit-count">
+        <p className="font-semibold text-ink" data-testid={`${testIdPrefix}-pending-edit-count`}>
           {changeCount(edits.length)}
         </p>
         {edits.length > 0 ? (

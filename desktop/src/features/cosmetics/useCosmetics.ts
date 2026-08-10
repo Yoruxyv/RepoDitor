@@ -16,7 +16,7 @@ interface State {
 
 const INITIAL_STATE: State = { view: null, loadError: null, loading: true };
 
-export function useCosmetics(saveId: string) {
+export function useCosmetics() {
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [bulkPending, setBulkPending] = useState<
     CosmeticUnlockAllEdit | CosmeticLockAllEdit | null
@@ -29,7 +29,7 @@ export function useCosmetics(saveId: string) {
 
   const load = useCallback(async () => {
     try {
-      const result = await window.repoditor.cosmetics.get(saveId);
+      const result = await window.repoditor.cosmetics.get();
       if (mounted.current) {
         setState(
           result.ok
@@ -46,7 +46,7 @@ export function useCosmetics(saveId: string) {
         });
       }
     }
-  }, [saveId]);
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -103,7 +103,6 @@ export function useCosmetics(saveId: string) {
     setBackupPath(null);
     try {
       const result = await window.repoditor.cosmetics.write(
-        saveId,
         state.view.fingerprint,
         pendingEdits.map(toCosmeticChange),
       );
