@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -29,22 +30,21 @@ class SaveWriteError(OSError):
     """Raised when staged output cannot atomically replace the source."""
 
 
-class SaveRepository:
-    """Read and write local R.E.P.O. run saves."""
+class EncryptedSaveRepository:
+    """Shared encrypted-save persistence with caller-owned schema validation."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, validator: Callable[[SaveData], None]) -> None:
         self.root = root
+        self.validator = validator
 
-    @staticmethod
-    def load(path: Path) -> SaveData:
-        """Decrypt and validate one run save."""
-        return SaveRepository.load_bytes(path.read_bytes())
+    def load(self, path: Path) -> SaveData:
+        """Decrypt and validate one save."""
+        return self.load_bytes(path.read_bytes())
 
-    @staticmethod
-    def load_bytes(blob: bytes) -> SaveData:
-        """Decrypt and validate one in-memory run save snapshot."""
+    def load_bytes(self, blob: bytes) -> SaveData:
+        """Decrypt and validate one in-memory save snapshot."""
         data = decrypt_save(blob)
-        validate_run_save(data)
+        self.validator(data)
         return data
 
     def overwrite(
@@ -55,7 +55,7 @@ class SaveRepository:
         expected_source: bytes | None = None,
     ) -> tuple[Path, bytes]:
         """Back up ``path`` and atomically replace it with edited save data."""
-        validate_run_save(data)
+        self.validator(data)
         source = path.read_bytes()
         if expected_source is not None and source != expected_source:
             raise SaveStaleError("The save changed after it was opened.")
@@ -92,6 +92,7 @@ class SaveRepository:
 
     def save_as(self, path: Path, data: SaveData) -> None:
         """Write edited save data to a separate path atomically."""
+        self.validator(data)
         self._write_atomic(path, encrypt_save(data))
 
     @staticmethod
@@ -139,9 +140,28 @@ class SaveRepository:
 
     @staticmethod
     def _write_atomic(path: Path, blob: bytes) -> None:
-        temp_path = SaveRepository._write_temp(path, blob)
+        temp_path = EncryptedSaveRepository._write_temp(path, blob)
         try:
             os.replace(temp_path, path)
         finally:
             with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
+
+
+class SaveRepository(EncryptedSaveRepository):
+    """Read and write local R.E.P.O. run saves."""
+
+    def __init__(self, root: Path) -> None:
+        super().__init__(root, validate_run_save)
+
+    @staticmethod
+    def load(path: Path) -> SaveData:
+        """Decrypt and validate one run save."""
+        return SaveRepository.load_bytes(path.read_bytes())
+
+    @staticmethod
+    def load_bytes(blob: bytes) -> SaveData:
+        """Decrypt and validate one in-memory run save snapshot."""
+        data = decrypt_save(blob)
+        validate_run_save(data)
+        return data

@@ -13,9 +13,60 @@ Only behavior verified against controlled saves should be promoted into named ed
 - Dynamic discovery of every `playerUpgrade*` dictionary.
 - Map/level catalog discovery and whether map selection can be changed purely through the save.
 - Persistent physical item placement for truck/shop customization.
-- `MetaSave.es3` cosmetics support.
+- Cosmetic display names and unsupported MetaSave domains such as tokens, equipment, presets,
+  and colors.
 
 Do not hardcode unverified map or item identifiers into production UI code.
+
+## MetaSave cosmetic ownership
+
+RepoDitor's existing ES3 crypto decrypts the observed `MetaSave.es3`. The ownership model is
+separate from Run saves and uses `cosmeticUnlocks.value` as the authoritative owned set, with
+`cosmeticHistory.value` as supporting mutation state. Production exposes only a typed ownership
+projection; raw MetaSave data never crosses into Electron or React.
+
+Observed top-level MetaSave structures include `colorsEquipped`, `colorPresets`,
+`cosmeticPresets`, `cosmeticEquipped`, `cosmeticHistory`, `cosmeticUnlocks`, and
+`cosmeticTokens`. Only the two ownership lists are writable.
+
+| Evidence | SHA-256 | Result |
+| --- | --- | --- |
+| Clean MetaSave | `49379a449ac38bc06d415231b7723e6e045fe84498bd4bbaa769ba7f23f463fa` | History, unlocks, and tokens were empty. |
+| Synthetic ID 28 unlock | `800afbd5f5309fdccf50a426e5ac7f1210e8e9eee8acb98c609986d3fb00cdbd` | ID 28 was added to history and unlocks only; R.E.P.O. loaded it as owned. |
+| Game rewrite after ID 28 unlock | `4f300925d20a4dd6ecd31f423b5e74a54709ee3807624864ee2bd422c8cd81ec` | The two lists remained `[28]` with zero semantic difference from the synthetic state. |
+| Game-generated full unlock | `22bbb9102d93d7fff8c4b2d3fb86dd6dc2c4475030ecb76a7c858c750741b483` | Both lists contained the exact 547-ID set `0..546`, without duplicates. |
+| Synthetic Unlock All | `2cf98a08e4cfab88ba1c3460235379f57128585d0287bca16b39df06d6a6542d` | Missing known IDs were added through the ownership representation. |
+| Game rewrite after Unlock All | `6799fa1c9a145095411329020e0157e0b7cb3dde686204add031a89fc0ddfd5c` | All 547 known IDs remained owned with zero semantic difference. |
+| Synthetic ID 28 removal | `c5cde94309d5fec65e45580ab8350eb76dc38b35ff4ea62561b88365493bbe74` | Removing ID 28 from both lists made only that tested cosmetic unowned; R.E.P.O. loaded successfully. |
+
+A separate natural single acquisition from the clean state changed only
+`cosmeticHistory.value: [] -> [27]` and `cosmeticUnlocks.value: [] -> [27]`.
+`cosmeticTokens` remained unchanged. No hash was supplied for that natural capture, so none is
+invented here.
+
+### Confirmed
+
+- MetaSave decryptability and the two-list ownership representation.
+- The currently observed known catalog is the exact set `0..546`.
+- Individual unlock appends a missing known ID to both lists without duplicates.
+- Unlock All composes the individual rule and preserves existing order and unknown/future IDs.
+- Removing an unreferenced known ID from both lists made the tested ID 28 unowned.
+
+The removal result is behavior-confirmed, but a separate post-removal game-generated rewrite was
+not captured. Removal is therefore blocked when an ID is equipped, preset-referenced, or those
+references cannot be verified.
+
+### Unknown / unsupported
+
+- Cosmetic names; RepoDitor uses truthful `Cosmetic #<id>` labels.
+- `cosmeticTokens` semantics and all token mutation.
+- Equipment, preset, and color mutation.
+- Removal semantics for equipped or preset-referenced cosmetics.
+- Catalog IDs added by future game versions. Existing unknown IDs are preserved and shown
+  read-only; gaps are never inferred.
+
+Future Phase 10K.4 research may look for a trustworthy local game-owned ID-to-name catalog. It
+must not copy a third-party hardcoded list or bundle extracted game artwork.
 
 ## Advanced save discovery
 

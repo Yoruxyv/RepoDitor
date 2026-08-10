@@ -18,7 +18,7 @@ RepoDitor is an unofficial Electron editor for encrypted R.E.P.O. `.es3` run
 saves. It keeps save parsing, validation, backups, and writes inside a bundled
 Python backend instead of exposing raw save data to the interface.
 
-<sub>Overview · Players · Upgrades · Run · Maps · Evidence-backed item tools</sub>
+<sub>Overview · Players · Upgrades · Run · Items · Cosmetics · Maps</sub>
 
 [Download the latest release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
@@ -41,6 +41,7 @@ Python backend instead of exposing raw save data to the interface.
 | **Run** | Edit supported run values through validated typed fields |
 | **Maps** | Discover locally installed maps without modifying game runtime behavior |
 | **Advanced Items** | Inspect item charge state and safely refill recorded charge to the full/default state |
+| **Cosmetics** | Manage evidence-backed MetaSave ownership for the known catalog while preserving unknown IDs |
 
 Core safety behavior:
 
@@ -191,6 +192,9 @@ RepoDitor/
 - Advanced Items supports only **Refill to Full** for an exact item instance with a recorded charge.
   Numeric charge editing, battery-upgrade, purchased-item, add/delete/duplicate, and generic
   numeric-dictionary writes remain disabled until controlled evidence proves safe mutation rules.
+- Cosmetics supports ownership only: individual unlock, evidence-guarded Mark as Locked, and
+  Unlock All for the observed `0..546` catalog. Names, tokens, equipment, presets, colors, and
+  unknown/future IDs remain unavailable for mutation.
 - Maps are discovery-only; RepoDitor does not inject code or force map selection.
 - Steam avatar enrichment is optional, fail-soft, and never written into a save.
 - RepoDitor currently targets Windows x64 and is not code-signed.

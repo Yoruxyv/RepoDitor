@@ -8,6 +8,8 @@ export interface IpcChannelMap {
   upgradesList: "upgrades:list";
   runGet: "run:get";
   advancedGet: "advanced:get";
+  cosmeticsGet: "cosmetics:get";
+  cosmeticsWrite: "cosmetics:write";
   mapsList: "maps:list";
 }
 
@@ -176,6 +178,71 @@ export interface AdvancedSaveDto {
   unlinkedChargeEntryCount: number;
 }
 
+export interface CosmeticCapabilitiesDto {
+  canReadCosmetics: boolean;
+  canUnlockCosmetic: boolean;
+  canUnlockAll: boolean;
+  canRemoveOwnership: boolean;
+}
+
+export interface CosmeticDto {
+  id: number;
+  displayName: string;
+  owned: boolean;
+  known: boolean;
+  removalBlockedReason: string | null;
+}
+
+export interface CosmeticsViewDto {
+  fingerprint: string;
+  knownCatalogCount: number;
+  knownOwnedCount: number;
+  knownLockedCount: number;
+  savedPresetCount: number;
+  unknownOwnedIds: number[];
+  capabilities: CosmeticCapabilitiesDto;
+  cosmetics: CosmeticDto[];
+}
+
+export interface CosmeticOwnershipChange {
+  feature: "cosmetics";
+  entity: string;
+  field: "owned";
+  after: boolean;
+}
+
+export interface CosmeticUnlockAllChange {
+  feature: "cosmetics";
+  entity: "known";
+  field: "unlockAll";
+  after: true;
+}
+
+export interface CosmeticLockAllChange {
+  feature: "cosmetics";
+  entity: "known";
+  field: "lockAll";
+  after: false;
+}
+
+export interface CosmeticClearAllPresetsChange {
+  feature: "cosmetics";
+  entity: "presets";
+  field: "clearAll";
+  after: true;
+}
+
+export type CosmeticChange =
+  | CosmeticOwnershipChange
+  | CosmeticUnlockAllChange
+  | CosmeticLockAllChange
+  | CosmeticClearAllPresetsChange;
+
+export interface CosmeticsWriteResult {
+  backupPath: string;
+  cosmetics: CosmeticsViewDto;
+}
+
 export interface InstalledMapDto {
   internalName: string;
   displayName: string;
@@ -207,6 +274,7 @@ export type DesktopOperationErrorCode =
   | "invalid_response"
   | "invalid_request"
   | "save_missing"
+  | "meta_missing"
   | "save_corrupt"
   | "save_decrypt_failed"
   | "save_unsupported"
@@ -292,6 +360,17 @@ export interface RepoDitorApi {
       saveId: string,
     ) => Promise<
       DesktopOperationResult<AdvancedSaveDto>
+    >;
+  };
+  cosmetics: {
+    get: () => Promise<
+      DesktopOperationResult<CosmeticsViewDto>
+    >;
+    write: (
+      fingerprint: string,
+      changes: CosmeticChange[],
+    ) => Promise<
+      DesktopOperationResult<CosmeticsWriteResult>
     >;
   };
   maps: {

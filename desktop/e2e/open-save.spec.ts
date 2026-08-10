@@ -10,6 +10,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "..");
 const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
+const metaFixturePath = path.join(desktopRoot, "e2e", "fixtures", "meta-save.json");
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const packagedExecutable = process.env.REPODITOR_E2E_EXECUTABLE
   ? path.resolve(desktopRoot, process.env.REPODITOR_E2E_EXECUTABLE)
@@ -27,7 +28,7 @@ function getPythonExecutable(): string {
   return executable;
 }
 
-async function createFixture(home: string): Promise<string> {
+async function createFixture(home: string): Promise<{ savePath: string; metaPath: string }> {
   const savePath = path.join(
     home,
     "AppData",
@@ -39,6 +40,7 @@ async function createFixture(home: string): Promise<string> {
     `${saveId}.es3`,
   );
   await mkdir(path.dirname(savePath), { recursive: true });
+  const metaPath = path.join(home, "AppData", "LocalLow", "semiwork", "Repo", "MetaSave.es3");
   execFileSync(
     getPythonExecutable(),
     [
@@ -53,7 +55,21 @@ async function createFixture(home: string): Promise<string> {
       stdio: "inherit",
     },
   );
-  return savePath;
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-c",
+      "import json,sys; from pathlib import Path; from repo_save_editor.core.crypto import encrypt_save; Path(sys.argv[2]).write_bytes(encrypt_save(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))))",
+      metaFixturePath,
+      metaPath,
+    ],
+    {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
+      stdio: "inherit",
+    },
+  );
+  return { savePath, metaPath };
 }
 
 async function createGameFixture(home: string): Promise<string> {
@@ -87,6 +103,23 @@ function replaceFixtureCurrency(savePath: string, currency: number): void {
       "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save,encrypt_save; from repo_save_editor.services.run import set_run_stat; p=Path(sys.argv[1]); d=decrypt_save(p.read_bytes()); set_run_stat(d,'currency',int(sys.argv[2])); p.write_bytes(encrypt_save(d))",
       savePath,
       String(currency),
+    ],
+    {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
+      stdio: "inherit",
+    },
+  );
+}
+
+function replaceMetaTokens(metaPath: string, token: number): void {
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-c",
+      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save,encrypt_save; p=Path(sys.argv[1]); d=decrypt_save(p.read_bytes()); d['cosmeticTokens']['value']=[int(sys.argv[2])]; p.write_bytes(encrypt_save(d))",
+      metaPath,
+      String(token),
     ],
     {
       cwd: repoRoot,
@@ -141,9 +174,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
   let application: ElectronApplication | undefined;
 
   try {
-    const savePath = await createFixture(home);
+    const { savePath, metaPath } = await createFixture(home);
     const gameRoot = await createGameFixture(home);
     const sourceBefore = await readFile(savePath);
+    const metaBefore = await readFile(metaPath);
     const applicationEnvironment = {
       ...process.env,
       APPDATA: path.join(home, "AppData", "Roaming"),
@@ -158,12 +192,12 @@ test("safely writes changes with backup and stale-save protection", async () => 
       packagedExecutable
         ? {
             executablePath: packagedExecutable,
-            args: [`--user-data-dir=${path.join(home, "electron-profile")}`],
+            args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
             cwd: path.dirname(packagedExecutable),
             env: applicationEnvironment,
           }
         : {
-            args: [".", `--user-data-dir=${path.join(home, "electron-profile")}`],
+            args: [".", "--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
             cwd: desktopRoot,
             env: {
               ...applicationEnvironment,
@@ -202,6 +236,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
+    await page.bringToFront();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
@@ -220,6 +255,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
       upgrades: Object.keys(window.repoditor.upgrades),
       run: Object.keys(window.repoditor.run),
       advanced: Object.keys(window.repoditor.advanced),
+      cosmetics: Object.keys(window.repoditor.cosmetics).sort((left, right) =>
+        left.localeCompare(right),
+      ),
       maps: Object.keys(window.repoditor.maps),
       requireType: typeof window.require,
       saves: Object.keys(window.repoditor.saves).sort((left, right) =>
@@ -232,10 +270,16 @@ test("safely writes changes with backup and stale-save protection", async () => 
       upgrades: ["list"],
       run: ["get"],
       advanced: ["get"],
+      cosmetics: ["get", "write"],
       maps: ["list"],
       requireType: "undefined",
       saves: ["list", "open", "write"],
     });
+
+    await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
+    await expect(page.getByText("MetaSave.es3")).toBeVisible();
+    await page.getByRole("button", { name: "Run Saves" }).click();
 
     const openStarted = performance.now();
     await page.getByRole("button", { name: /Open workspace/ }).click();
@@ -245,6 +289,36 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Save opened safely")).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
 
+    await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
+    await expect(page.getByText("Known catalog")).toBeVisible();
+    await expect(page.getByText("Saved presets")).toBeVisible();
+    await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
+    await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
+    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
+    expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
+    await page.getByRole("button", { name: "Run Saves" }).click();
+    await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
+    await page.getByRole("button", { name: "Revert all" }).click();
+    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
+    await page.getByRole("button", { name: "Revert all" }).click();
+    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    await expect(page.getByTestId("cosmetics-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
+    const metaBackups = (await readdir(path.dirname(metaPath)))
+      .filter((name) => name.startsWith(`${path.basename(metaPath)}.bak-`));
+    expect(metaBackups).toHaveLength(1);
+    expect((await readFile(path.join(path.dirname(metaPath), metaBackups[0]!))).equals(metaBefore))
+      .toBe(true);
+    expect((await readFile(metaPath)).equals(metaBefore)).toBe(false);
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
+
+    await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     await expect(page.getByText(
@@ -260,7 +334,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await hammer.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" })
       .click();
     await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
     await page.getByRole("tab", { name: "Overview" }).focus();
@@ -282,7 +356,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(health).toHaveValue("100");
     await expect(page.getByRole("button", { name: "Heal to Full" })).toBeDisabled();
     await expect(page.getByTestId("pending-health-edit")).toContainText("0 → 100");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("2 pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("2 pending changes");
 
     await page.getByRole("tab", { name: "Overview" }).click();
     await page.getByRole("tab", { name: "Players" }).click();
@@ -310,9 +384,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Beta · Strength")).toBeVisible();
     await expect(page.getByText("Run · Currency")).toBeVisible();
     await expect(page.getByText("Melee Inflatable Hammer #1 · Stored charge")).toBeVisible();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("4 pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("4 pending changes");
     await page.getByRole("button", { name: "Revert all" }).click();
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     await page.getByRole("tab", { name: "Players" }).click();
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("0");
@@ -328,9 +402,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
-    await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
     const saveReadyMs = performance.now() - saveStarted;
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
       .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
     expect(backups).toHaveLength(1);
@@ -359,7 +433,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const refilledHammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer #1" });
     await expect(refilledHammer.getByText("Full / Default")).toBeVisible();
     await expect(page.getByRole("button", { name: /Refill .* to full/ })).toHaveCount(0);
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("No pending changes");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
       { width: 1600, height: 900 },
@@ -386,6 +460,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
         .toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
+      await page.getByRole("button", { name: "Cosmetics" }).click();
+      await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
+      expect((await layout(page)).hasHorizontalOverflow).toBe(false);
+      await page.getByRole("button", { name: "Run Saves" }).click();
       await page.getByRole("tab", { name: "Maps" }).click();
       await expect(page.getByText("McJannek Station")).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
@@ -403,13 +481,29 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const minimum = await layout(page);
     expect(minimum.context!.top).toBeGreaterThan(minimum.panel!.bottom);
 
+    await page.getByRole("button", { name: "Cosmetics" }).click();
+    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
+    replaceMetaTokens(metaPath, 8);
+    const externalMetaBytes = await readFile(metaPath);
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    await expect(page.getByRole("alert")).toContainText("changed after it was opened");
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
+    expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
+    expect(
+      (await readdir(path.dirname(metaPath))).filter((name) =>
+        name.startsWith(`${path.basename(metaPath)}.bak-`),
+      ),
+    ).toHaveLength(1);
+    await page.getByRole("button", { name: "Revert all" }).click();
+
+    await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Run" }).click();
     await page.getByRole("spinbutton", { name: "Currency" }).fill("30");
     replaceFixtureCurrency(savePath, 777);
     const externalBytes = await readFile(savePath);
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByRole("alert")).toContainText("changed after it was opened");
-    await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
     expect(
       (await readdir(path.dirname(savePath))).filter((name) =>

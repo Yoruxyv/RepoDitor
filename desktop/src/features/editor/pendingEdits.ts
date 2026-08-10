@@ -1,5 +1,6 @@
 import type {
   AdvancedRefillChange,
+  CosmeticChange,
   PlayerHealthChange,
   RunResumeChange,
   RunStatChange,
@@ -29,17 +30,60 @@ export interface AdvancedRefillEdit extends AdvancedRefillChange {
   subject: string;
 }
 
-export type PendingEdit =
+export type CosmeticOwnershipEdit = Extract<CosmeticChange, { field: "owned" }> & {
+  before: boolean;
+  label: "Ownership";
+  subject: string;
+};
+
+export type CosmeticUnlockAllEdit = Extract<CosmeticChange, { field: "unlockAll" }> & {
+  before: number;
+  label: "Known ownership";
+  subject: "Cosmetics";
+};
+
+export type CosmeticLockAllEdit = Extract<CosmeticChange, { field: "lockAll" }> & {
+  before: number;
+  label: "Known ownership";
+  subject: "Cosmetics";
+};
+
+export type CosmeticClearAllPresetsEdit = Extract<CosmeticChange, { field: "clearAll" }> & {
+  before: number;
+  label: "Saved presets";
+  subject: "Cosmetics";
+};
+
+export type CosmeticPendingEdit =
+  | CosmeticOwnershipEdit
+  | CosmeticUnlockAllEdit
+  | CosmeticLockAllEdit
+  | CosmeticClearAllPresetsEdit;
+
+export type RunSavePendingEdit =
   | PlayerHealthEdit
   | UpgradeValueEdit
   | RunStatEdit
   | AdvancedRefillEdit;
 
-export function toSaveChange(edit: PendingEdit): SaveChange {
+export type PendingEdit =
+  | RunSavePendingEdit
+  | CosmeticPendingEdit;
+
+export function toSaveChange(edit: RunSavePendingEdit): SaveChange {
   return {
     feature: edit.feature,
     entity: edit.entity,
     field: edit.field,
     after: edit.after,
   } as SaveChange;
+}
+
+export function toCosmeticChange(edit: CosmeticPendingEdit): CosmeticChange {
+  return {
+    feature: edit.feature,
+    entity: edit.entity,
+    field: edit.field,
+    after: edit.after,
+  } as CosmeticChange;
 }

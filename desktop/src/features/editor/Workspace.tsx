@@ -19,7 +19,10 @@ import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView } from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
-import { toSaveChange, type PendingEdit } from "@/features/editor/pendingEdits";
+import {
+  toSaveChange,
+  type RunSavePendingEdit,
+} from "@/features/editor/pendingEdits";
 
 const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
@@ -30,7 +33,7 @@ interface WorkspaceProps {
   readonly saveError: string | null;
   readonly backupPath: string | null;
   readonly onClose: () => void;
-  readonly onSave: (changes: SaveChange[]) => Promise<void>;
+  readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
 }
 
 export function Workspace({
@@ -48,12 +51,13 @@ export function Workspace({
   const run = useRunState(session.id);
   const advanced = useAdvanced(session.id);
   const maps = useMaps();
-  const pendingEdits: PendingEdit[] = [
+  const runSavePendingEdits: RunSavePendingEdit[] = [
     ...players.pendingEdits,
     ...upgrades.pendingEdits,
     ...run.pendingEdits,
     ...advanced.pendingEdits,
   ];
+  const pendingEdits: RunSavePendingEdit[] = runSavePendingEdits;
 
   function revertAll(): void {
     players.revertAll();
@@ -61,6 +65,12 @@ export function Workspace({
     run.revertAll();
     advanced.revertAll();
     setEditVersion((current) => current + 1);
+  }
+
+  async function saveAll(): Promise<void> {
+    if (runSavePendingEdits.length > 0) {
+      await onSave(runSavePendingEdits.map(toSaveChange));
+    }
   }
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
@@ -215,7 +225,7 @@ export function Workspace({
         error={saveError}
         saving={saving}
         onRevert={revertAll}
-        onSave={() => void onSave(pendingEdits.map(toSaveChange))}
+        onSave={() => void saveAll()}
       />
     </section>
   );

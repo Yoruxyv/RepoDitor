@@ -5,6 +5,9 @@ import {
 
 import {
   type AdvancedSaveDto,
+  type CosmeticChange,
+  type CosmeticsViewDto,
+  type CosmeticsWriteResult,
   type DesktopOperationResult,
   type EnvironmentDiscovery,
   type InstalledMapsDto,
@@ -32,6 +35,8 @@ const IPC_CHANNELS: IpcChannelMap = {
   upgradesList: "upgrades:list",
   runGet: "run:get",
   advancedGet: "advanced:get",
+  cosmeticsGet: "cosmetics:get",
+  cosmeticsWrite: "cosmetics:write",
   mapsList: "maps:list",
 };
 
@@ -110,6 +115,22 @@ const repoditorApi: RepoDitorApi = {
         saveId,
       ) as Promise<
         DesktopOperationResult<AdvancedSaveDto>
+      >,
+  },
+  cosmetics: {
+    get: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.cosmeticsGet,
+      ) as Promise<
+        DesktopOperationResult<CosmeticsViewDto>
+      >,
+    write: (fingerprint, changes: CosmeticChange[]) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.cosmeticsWrite,
+        fingerprint,
+        changes,
+      ) as Promise<
+        DesktopOperationResult<CosmeticsWriteResult>
       >,
   },
   maps: {

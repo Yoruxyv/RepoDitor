@@ -41,3 +41,10 @@ variables, secrets, role scope, and verification flow.
 Packaging first removes only the disposable `release/` directory. If a packaged RepoDitor process still holds the output open, packaging stops with an instruction to close it; the build never kills processes. The unpacked application is then checked for the executable, ASAR, bundled Python sidecar, RepoDitor MIT license, and Teko OFL license.
 
 Advanced Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other advanced mutation controls remain unavailable.
+
+Cosmetics is a global workspace backed by `MetaSave.es3`; it does not require a selected Run
+save. It uses separate `cosmetics:get` and `cosmetics:write` IPC calls, its own pending/save
+lifecycle, fingerprint, and exact-byte backup. Entering Cosmetics reloads MetaSave when safe,
+and manual/focus refresh never discards pending Cosmetics edits. Bulk ownership actions and
+**Clear All Presets** are supported for the observed catalog while token editing, equipping,
+and arbitrary preset editing remain unavailable.

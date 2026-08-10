@@ -7,11 +7,26 @@ interface PendingChangesBarProps {
   readonly backupPath: string | null;
   readonly onRevert: () => void;
   readonly onSave: () => void;
+  readonly testIdPrefix?: string;
 }
 
 function changeCount(count: number): string {
   if (count === 0) return "No pending changes";
   return `${count} pending change${count === 1 ? "" : "s"}`;
+}
+
+function displayValue(edit: PendingEdit, value: PendingEdit["before"] | PendingEdit["after"]): string {
+  if (edit.feature === "advanced" && value === true) return "Full / Default";
+  if (edit.feature === "cosmetics" && edit.field === "unlockAll" && value === true) {
+    return "All known";
+  }
+  if (edit.feature === "cosmetics" && edit.field === "clearAll" && value === true) {
+    return "0";
+  }
+  if (edit.feature === "cosmetics" && typeof value === "boolean") {
+    return value ? "Owned" : "Locked";
+  }
+  return String(value);
 }
 
 export function PendingChangesBar({
@@ -21,14 +36,15 @@ export function PendingChangesBar({
   backupPath,
   onRevert,
   onSave,
+  testIdPrefix = "workspace",
 }: PendingChangesBarProps) {
   return (
     <footer
       className="mt-10 grid gap-5 border-t border-line pt-5 text-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
-      data-testid="workspace-action-bar"
+      data-testid={`${testIdPrefix}-action-bar`}
     >
       <div className="min-w-0">
-        <p className="font-semibold text-ink" data-testid="pending-edit-count">
+        <p className="font-semibold text-ink" data-testid={`${testIdPrefix}-pending-edit-count`}>
           {changeCount(edits.length)}
         </p>
         {edits.length > 0 ? (
@@ -42,7 +58,7 @@ export function PendingChangesBar({
                   {edit.subject} · {edit.label}
                 </span>
                 <span className="break-all font-mono text-xs text-ink">
-                  {edit.before} → {edit.feature === "advanced" ? "Full / Default" : edit.after}
+                  {displayValue(edit, edit.before)} → {displayValue(edit, edit.after)}
                 </span>
               </li>
             ))}
