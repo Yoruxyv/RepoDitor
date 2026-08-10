@@ -14,6 +14,17 @@ function changeCount(count: number): string {
   return `${count} pending change${count === 1 ? "" : "s"}`;
 }
 
+function displayValue(edit: PendingEdit, value: PendingEdit["before"] | PendingEdit["after"]): string {
+  if (edit.feature === "advanced" && value === true) return "Full / Default";
+  if (edit.feature === "cosmetics" && edit.field === "unlockAll" && value === true) {
+    return "All known";
+  }
+  if (edit.feature === "cosmetics" && typeof value === "boolean") {
+    return value ? "Owned" : "Locked";
+  }
+  return String(value);
+}
+
 export function PendingChangesBar({
   edits,
   saving,
@@ -42,7 +53,7 @@ export function PendingChangesBar({
                   {edit.subject} · {edit.label}
                 </span>
                 <span className="break-all font-mono text-xs text-ink">
-                  {edit.before} → {edit.feature === "advanced" ? "Full / Default" : edit.after}
+                  {displayValue(edit, edit.before)} → {displayValue(edit, edit.after)}
                 </span>
               </li>
             ))}

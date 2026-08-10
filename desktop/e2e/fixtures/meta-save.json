@@ -1,0 +1,9 @@
+{
+  "colorsEquipped": { "__type": "List", "value": [4] },
+  "colorPresets": { "__type": "List", "value": [[1, 2, 3]] },
+  "cosmeticPresets": { "__type": "List", "value": [] },
+  "cosmeticEquipped": { "__type": "List", "value": [27] },
+  "cosmeticHistory": { "__type": "List", "value": [27, 999] },
+  "cosmeticUnlocks": { "__type": "List", "value": [27, 999] },
+  "cosmeticTokens": { "__type": "List", "value": [7] }
+}

@@ -14,6 +14,8 @@ export type PythonCommand =
   | "upgrades-list"
   | "run-get"
   | "advanced-get"
+  | "cosmetics-get"
+  | "cosmetics-write"
   | "maps-list";
 
 export type PythonClientErrorCode =

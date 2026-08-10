@@ -35,9 +35,9 @@ export function useSaveSession() {
     }
   }
 
-  async function write(changes: SaveChange[]): Promise<void> {
+  async function write(changes: SaveChange[]): Promise<boolean> {
     if (requestInFlight.current || session === null || changes.length === 0) {
-      return;
+      return false;
     }
     requestInFlight.current = true;
     setSaving(true);
@@ -48,11 +48,14 @@ export function useSaveSession() {
       if (result.ok) {
         setLastBackupPath(result.data.backupPath);
         setSession(result.data.session);
+        return true;
       } else {
         setSaveError(result.error.message);
+        return false;
       }
     } catch {
       setSaveError("The desktop save bridge is unavailable. Nothing was written.");
+      return false;
     } finally {
       requestInFlight.current = false;
       setSaving(false);

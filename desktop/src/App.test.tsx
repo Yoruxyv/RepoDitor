@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   AdvancedSaveDto,
+  CosmeticsViewDto,
   EnvironmentDiscovery,
   InstalledMapsDto,
   PlayerDto,
@@ -96,6 +97,35 @@ const advanced: AdvancedSaveDto = {
   runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
   unlinkedChargeEntryCount: 0,
 };
+const cosmetics: CosmeticsViewDto = {
+  fingerprint: "c".repeat(64),
+  knownCatalogCount: 547,
+  knownOwnedCount: 1,
+  knownLockedCount: 546,
+  unknownOwnedIds: [999],
+  capabilities: {
+    canReadCosmetics: true,
+    canUnlockCosmetic: true,
+    canUnlockAll: true,
+    canRemoveOwnership: true,
+  },
+  cosmetics: [
+    ...Array.from({ length: 547 }, (_, id) => ({
+      id,
+      displayName: `Cosmetic #${id}`,
+      owned: id === 27,
+      known: true,
+      removalBlockedReason: id === 27 ? "Removal unavailable while equipped." : null,
+    })),
+    {
+      id: 999,
+      displayName: "Cosmetic #999",
+      owned: true,
+      known: false,
+      removalBlockedReason: "Unknown or future cosmetics are preserved read-only.",
+    },
+  ],
+};
 
 function bridge(
   open: RepoDitorApi["saves"]["open"],
@@ -125,6 +155,31 @@ function bridge(
     upgrades: { list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }) },
     run: { get: vi.fn().mockResolvedValue({ ok: true, data: run }) },
     advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
+    cosmetics: {
+      get: vi.fn().mockResolvedValue({ ok: true, data: cosmetics }),
+      write: vi.fn().mockImplementation((_saveId, _fingerprint, changes) => {
+        const next = structuredClone(cosmetics);
+        for (const change of changes) {
+          if (change.field === "unlockAll") {
+            for (const cosmetic of next.cosmetics) {
+              if (cosmetic.known) cosmetic.owned = true;
+            }
+            next.knownOwnedCount = 547;
+            next.knownLockedCount = 0;
+          } else {
+            const cosmetic = next.cosmetics.find((entry) => String(entry.id) === change.entity);
+            if (cosmetic) cosmetic.owned = change.after;
+          }
+        }
+        return Promise.resolve({
+          ok: true as const,
+          data: {
+            backupPath: "C:\\fixture\\MetaSave.es3.bak-20260808-102100",
+            cosmetics: next,
+          },
+        });
+      }),
+    },
     maps: { list: vi.fn().mockResolvedValue({ ok: true, data: maps }) },
   };
 }
@@ -386,6 +441,53 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert refill" }));
     expect(screen.getByTestId("pending-edit-count").textContent).toBe("2 pending changes");
+  });
+
+  it("keeps cosmetic ownership pending until save and preserves unknown IDs read-only", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    const cosmeticWrite = vi.mocked(window.repoditor.cosmetics.write);
+    const runWrite = vi.mocked(window.repoditor.saves.write);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
+
+    expect(await screen.findByRole("heading", { name: "Cosmetics" })).toBeTruthy();
+    expect(screen.getByText(/Unknown\/future ID/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Mark Cosmetic #27 as Locked" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Unlock Cosmetic #28" }));
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    expect(screen.getByText(/Cosmetic #28.*Ownership/)).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
+    expect(screen.getByRole("button", { name: "Revert Cosmetic #28 ownership" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(cosmeticWrite).toHaveBeenCalledWith(saveId, cosmetics.fingerprint, [
+      { feature: "cosmetics", entity: "28", field: "owned", after: true },
+    ]);
+    expect(runWrite).not.toHaveBeenCalled();
+    expect(await screen.findByText(/MetaSave\.es3\.bak/)).toBeTruthy();
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
+  });
+
+  it("represents Unlock All as one revertible pending action", async () => {
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Cosmetics" }));
+    await user.click(await screen.findByRole("button", { name: "Unlock All" }));
+
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("1 pending change");
+    expect(screen.getByText(/Cosmetics.*Known ownership/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByTestId("pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("summarizes, reverts, and safely submits pending changes", async () => {

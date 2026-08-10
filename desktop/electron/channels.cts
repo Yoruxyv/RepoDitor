@@ -10,5 +10,7 @@ export const IPC_CHANNELS: IpcChannelMap = {
   upgradesList: "upgrades:list",
   runGet: "run:get",
   advancedGet: "advanced:get",
+  cosmeticsGet: "cosmetics:get",
+  cosmeticsWrite: "cosmetics:write",
   mapsList: "maps:list",
 } as const;

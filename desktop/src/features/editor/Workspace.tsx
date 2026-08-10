@@ -8,6 +8,8 @@ import { useState, type KeyboardEvent } from "react";
 import type { SaveChange, SaveSession } from "@electron/contracts";
 import { AdvancedView } from "@/features/advanced/AdvancedView";
 import { useAdvanced } from "@/features/advanced/useAdvanced";
+import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
+import { useCosmetics } from "@/features/cosmetics/useCosmetics";
 import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -19,9 +21,13 @@ import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView } from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
-import { toSaveChange, type PendingEdit } from "@/features/editor/pendingEdits";
+import {
+  toSaveChange,
+  type PendingEdit,
+  type RunSavePendingEdit,
+} from "@/features/editor/pendingEdits";
 
-const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Maps"] as const;
+const SECTIONS = ["Overview", "Players", "Upgrades", "Run", "Items", "Cosmetics", "Maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
@@ -30,7 +36,7 @@ interface WorkspaceProps {
   readonly saveError: string | null;
   readonly backupPath: string | null;
   readonly onClose: () => void;
-  readonly onSave: (changes: SaveChange[]) => Promise<void>;
+  readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
 }
 
 export function Workspace({
@@ -47,12 +53,17 @@ export function Workspace({
   const upgrades = useUpgrades(session.id);
   const run = useRunState(session.id);
   const advanced = useAdvanced(session.id);
+  const cosmetics = useCosmetics(session.id);
   const maps = useMaps();
-  const pendingEdits: PendingEdit[] = [
+  const runSavePendingEdits: RunSavePendingEdit[] = [
     ...players.pendingEdits,
     ...upgrades.pendingEdits,
     ...run.pendingEdits,
     ...advanced.pendingEdits,
+  ];
+  const pendingEdits: PendingEdit[] = [
+    ...runSavePendingEdits,
+    ...cosmetics.pendingEdits,
   ];
 
   function revertAll(): void {
@@ -60,7 +71,15 @@ export function Workspace({
     upgrades.revertAll();
     run.revertAll();
     advanced.revertAll();
+    cosmetics.revertAll();
     setEditVersion((current) => current + 1);
+  }
+
+  async function saveAll(): Promise<void> {
+    if (cosmetics.pendingEdits.length > 0 && !(await cosmetics.save())) return;
+    if (runSavePendingEdits.length > 0) {
+      await onSave(runSavePendingEdits.map(toSaveChange));
+    }
   }
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
@@ -184,6 +203,22 @@ export function Workspace({
               onRevertRefill={advanced.revertRefill}
             />
           ) : null}
+          {activeSection === "Cosmetics" ? (
+            <CosmeticsView
+              cosmetics={cosmetics.cosmetics}
+              error={cosmetics.loadError}
+              knownLockedCount={cosmetics.knownLockedCount}
+              knownOwnedCount={cosmetics.knownOwnedCount}
+              loading={cosmetics.loading}
+              pendingById={cosmetics.pendingById}
+              unlockAllPending={cosmetics.unlockAllPending !== null}
+              view={cosmetics.view}
+              onOwnedChange={cosmetics.setOwned}
+              onRetry={() => void cosmetics.reload()}
+              onRevert={cosmetics.revert}
+              onUnlockAll={cosmetics.unlockAll}
+            />
+          ) : null}
           {activeSection === "Maps" ? (
             <MapsView
               discovery={maps.discovery}
@@ -210,12 +245,12 @@ export function Workspace({
       </div>
 
       <PendingChangesBar
-        backupPath={pendingEdits.length === 0 ? backupPath : null}
+        backupPath={pendingEdits.length === 0 ? (backupPath ?? cosmetics.backupPath) : null}
         edits={pendingEdits}
-        error={saveError}
-        saving={saving}
+        error={saveError ?? cosmetics.writeError}
+        saving={saving || cosmetics.saving}
         onRevert={revertAll}
-        onSave={() => void onSave(pendingEdits.map(toSaveChange))}
+        onSave={() => void saveAll()}
       />
     </section>
   );
