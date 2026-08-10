@@ -1,6 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -92,6 +93,9 @@ async function createGameFixture(home: string): Promise<string> {
     JSON.stringify({ m_KeyDataString: Buffer.from(keyData).toString("base64") }),
     "utf8",
   );
+  if (process.platform === "win32") {
+    await copyFile(process.execPath, path.join(gameRoot, "REPO.exe"));
+  }
   return gameRoot;
 }
 
@@ -172,6 +176,7 @@ async function layout(page: Page) {
 test("safely writes changes with backup and stale-save protection", async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
   let application: ElectronApplication | undefined;
+  let repoProcess: ChildProcess | undefined;
 
   try {
     const { savePath, metaPath } = await createFixture(home);
@@ -249,6 +254,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       environment: Object.keys(window.repoditor.environment).sort((left, right) =>
         left.localeCompare(right),
       ),
+      game: Object.keys(window.repoditor.game),
       players: Object.keys(window.repoditor.players).sort((left, right) =>
         left.localeCompare(right),
       ),
@@ -266,6 +272,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     }));
     expect(boundary).toEqual({
       environment: ["detect"],
+      game: ["status"],
       players: ["avatar", "list"],
       upgrades: ["list"],
       run: ["get"],
@@ -279,6 +286,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Cosmetics" }).click();
     await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
     await expect(page.getByText("MetaSave.es3")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Run Saves" }).click();
 
     const openStarted = performance.now();
@@ -510,10 +518,75 @@ test("safely writes changes with backup and stale-save protection", async () => 
         name.startsWith(`${path.basename(savePath)}.bak-`),
       ),
     ).toHaveLength(1);
+
+    if (process.platform === "win32") {
+      const repoExecutable = path.join(gameRoot, "REPO.exe");
+      repoProcess = spawn(repoExecutable, ["-e", "setInterval(() => {}, 1000)"], {
+        cwd: gameRoot,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
+        .toBeVisible();
+      await expect(page.getByTestId("editor-content")).toHaveAttribute("inert", "");
+
+      const runBeforeBlocked = await readFile(savePath);
+      const runBackupsBefore = (await readdir(path.dirname(savePath))).filter((name) =>
+        name.startsWith(`${path.basename(savePath)}.bak-`),
+      ).length;
+      const runBlocked = await page.evaluate(async ({ id }) => {
+        const opened = await window.repoditor.saves.open(id);
+        if (!opened.ok) return opened;
+        return window.repoditor.saves.write(id, opened.data.fingerprint, [
+          { feature: "run", entity: "run", field: "currency", after: 778 },
+        ]);
+      }, { id: saveId });
+      expect(runBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
+      expect((await readFile(savePath)).equals(runBeforeBlocked)).toBe(true);
+      expect((await readdir(path.dirname(savePath))).filter((name) =>
+        name.startsWith(`${path.basename(savePath)}.bak-`),
+      )).toHaveLength(runBackupsBefore);
+
+      const metaBeforeBlocked = await readFile(metaPath);
+      const metaBackupsBefore = (await readdir(path.dirname(metaPath))).filter((name) =>
+        name.startsWith(`${path.basename(metaPath)}.bak-`),
+      ).length;
+      const cosmeticsBlocked = await page.evaluate(async () => {
+        const opened = await window.repoditor.cosmetics.get();
+        if (!opened.ok) return opened;
+        return window.repoditor.cosmetics.write(opened.data.fingerprint, [
+          { feature: "cosmetics", entity: "known", field: "unlockAll", after: true },
+        ]);
+      });
+      expect(cosmeticsBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
+      expect((await readFile(metaPath)).equals(metaBeforeBlocked)).toBe(true);
+      expect((await readdir(path.dirname(metaPath))).filter((name) =>
+        name.startsWith(`${path.basename(metaPath)}.bak-`),
+      )).toHaveLength(metaBackupsBefore);
+
+      await page.getByRole("button", { name: "Check Again" }).click();
+      await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
+        .toBeVisible();
+
+      repoProcess.kill();
+      await once(repoProcess, "exit");
+      repoProcess = undefined;
+      await page.getByRole("button", { name: "Check Again" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
+    }
+
     console.info(
       `Release timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, save=${saveReadyMs.toFixed(0)}`,
     );
   } finally {
+    if (repoProcess && repoProcess.exitCode === null) {
+      repoProcess.kill();
+      await once(repoProcess, "exit").catch(() => undefined);
+    }
     await application?.close();
     await rm(home, { recursive: true, force: true });
   }

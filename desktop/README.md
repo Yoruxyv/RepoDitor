@@ -44,7 +44,15 @@ Advanced Items exposes only the evidence-backed **Refill to Full** action. It re
 
 Cosmetics is a global workspace backed by `MetaSave.es3`; it does not require a selected Run
 save. It uses separate `cosmetics:get` and `cosmetics:write` IPC calls, its own pending/save
-lifecycle, fingerprint, and exact-byte backup. Entering Cosmetics reloads MetaSave when safe,
-and manual/focus refresh never discards pending Cosmetics edits. Bulk ownership actions and
+lifecycle, fingerprint, and exact-byte backup. Entering Cosmetics reads the current persisted
+MetaSave when there are no pending edits; window focus rechecks game safety instead of pretending
+to synchronize in-memory game state. Bulk ownership actions and
 **Clear All Presets** are supported for the observed catalog while token editing, equipping,
 and arbitrary preset editing remain unavailable.
+
+
+RepoDitor must be used while R.E.P.O. is closed. Startup and window-focus checks query only a
+narrow game-running status derived from the validated installation, and Python verifies that
+status again immediately before both Run-save and MetaSave writes. If status cannot be verified,
+the editor fails closed. Existing fingerprints, backups, staged verification, and atomic
+replacement remain independent safety layers.

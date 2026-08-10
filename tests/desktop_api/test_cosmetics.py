@@ -4,6 +4,11 @@ from pathlib import Path
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
+from repo_save_editor.services.game.processes import GameProcessStatus
+
+
+def _game_closed() -> GameProcessStatus:
+    return GameProcessStatus.NOT_RUNNING
 
 
 def _paths(tmp_path: Path) -> tuple[Path, Path]:
@@ -64,6 +69,7 @@ def test_save_cosmetics_creates_exact_backup_and_reopens_output(tmp_path: Path) 
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "28", "field": "owned", "after": True}],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["ok"] is True
@@ -88,6 +94,7 @@ def test_save_cosmetics_rejects_stale_source_without_backup(tmp_path: Path) -> N
         sha256(opened).hexdigest(),
         [{"feature": "cosmetics", "entity": "28", "field": "owned", "after": True}],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_stale"
@@ -103,6 +110,7 @@ def test_validation_failure_never_modifies_or_backs_up_meta_save(tmp_path: Path)
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "999", "field": "owned", "after": False}],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_validation_failed"
@@ -121,6 +129,7 @@ def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path) -> N
             {"feature": "cosmetics", "entity": "28", "field": "owned", "after": False},
         ],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_validation_failed"
@@ -145,6 +154,7 @@ def test_clear_all_presets_uses_safe_write_and_preserves_unrelated_fields(
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "presets", "field": "clearAll", "after": True}],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["ok"] is True
@@ -174,6 +184,7 @@ def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path) -> None:
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "known", "field": "lockAll", "after": False}],
         save_root,
+        game_status_loader=_game_closed,
     )
 
     assert result["ok"] is True
@@ -190,3 +201,19 @@ def test_missing_or_malformed_meta_save_fails_safely(tmp_path: Path) -> None:
 
     meta_path.write_bytes(encrypt_save({"cosmeticHistory": {"value": []}}))
     assert get_cosmetics(save_root)["error"]["code"] == "save_unsupported"
+
+
+def test_game_running_blocks_cosmetics_write_before_backup_or_source_change(tmp_path: Path) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
+    original = meta_path.read_bytes()
+
+    result = save_cosmetics(
+        sha256(original).hexdigest(),
+        [{"feature": "cosmetics", "entity": "known", "field": "unlockAll", "after": True}],
+        save_root,
+        game_status_loader=lambda: GameProcessStatus.RUNNING,
+    )
+
+    assert result["error"]["code"] == "game_running"
+    assert meta_path.read_bytes() == original
+    assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))

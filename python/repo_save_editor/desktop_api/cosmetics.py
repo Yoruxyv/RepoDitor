@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.types import SaveData
+from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
 from repo_save_editor.services.cosmetics.mutations import (
@@ -17,6 +19,7 @@ from repo_save_editor.services.cosmetics.mutations import (
     unlock_cosmetic,
 )
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
+from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
@@ -143,9 +146,12 @@ def save_cosmetics(
     expected_fingerprint: str,
     changes: object,
     root: Path | None = None,
+    *,
+    game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
     """Validate and safely persist typed MetaSave ownership changes."""
     try:
+        require_game_closed(game_status_loader)
         path, data, source, repository = _load_meta_save(root)
         if (
             not isinstance(expected_fingerprint, str)
@@ -164,6 +170,8 @@ def save_cosmetics(
                 "cosmetics": _serialize(data, written),
             },
         }
+    except GameSafetyError as exc:
+        return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
     except (ValueError, TypeError) as exc:

@@ -2,9 +2,14 @@ from copy import deepcopy
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import open_save, save_changes
+from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
+
+
+def _game_closed() -> GameProcessStatus:
+    return GameProcessStatus.NOT_RUNNING
 
 
 def _save_path(root: Path) -> Path:
@@ -67,6 +72,7 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
             },
         ],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["ok"] is True
@@ -105,6 +111,7 @@ def test_validation_failure_does_not_create_backup_or_modify_source(tmp_path: Pa
         _fingerprint(tmp_path),
         [{"feature": "players", "entity": "missing", "field": "health", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_validation_failed"
@@ -131,6 +138,7 @@ def test_invalid_refill_does_not_create_backup_or_modify_source(tmp_path: Path, 
             }
         ],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_validation_failed"
@@ -151,6 +159,7 @@ def test_backup_failure_blocks_replacement(tmp_path: Path, sample_save, monkeypa
         _fingerprint(tmp_path),
         [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "backup_failed"
@@ -174,6 +183,7 @@ def test_staging_failure_leaves_original_and_backup_recoverable(
         _fingerprint(tmp_path),
         [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_write_failed"
@@ -198,6 +208,7 @@ def test_replacement_failure_leaves_original_and_backup_recoverable(
         _fingerprint(tmp_path),
         [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_write_failed"
@@ -222,6 +233,7 @@ def test_verification_failure_leaves_original_and_backup_recoverable(
         _fingerprint(tmp_path),
         [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_verification_failed"
@@ -242,8 +254,43 @@ def test_stale_source_is_never_overwritten(tmp_path: Path, sample_save):
         opened_fingerprint,
         [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
         tmp_path,
+        game_status_loader=_game_closed,
     )
 
     assert result["error"]["code"] == "save_stale"
     assert path.read_bytes() == external_bytes
+    assert not list(path.parent.glob("*.bak-*"))
+
+
+def test_game_running_blocks_run_write_before_backup_or_source_change(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
+        tmp_path,
+        game_status_loader=lambda: GameProcessStatus.RUNNING,
+    )
+
+    assert result["error"]["code"] == "game_running"
+    assert path.read_bytes() == original
+    assert not list(path.parent.glob("*.bak-*"))
+
+
+def test_unknown_game_status_blocks_run_write_before_backup(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
+        tmp_path,
+        game_status_loader=lambda: GameProcessStatus.UNKNOWN,
+    )
+
+    assert result["error"]["code"] == "game_status_unknown"
+    assert path.read_bytes() == original
     assert not list(path.parent.glob("*.bak-*"))

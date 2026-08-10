@@ -166,6 +166,12 @@ function bridge(
 ): RepoDitorApi {
   return {
     environment: { detect: vi.fn().mockResolvedValue({ ok: true, data: environment }) },
+    game: {
+      status: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { status: "not_running", running: false },
+      }),
+    },
     saves: {
       list: vi.fn().mockResolvedValue({ ok: true, data: environment.saves }),
       open,
@@ -211,6 +217,52 @@ describe("save workspace transition", () => {
     expect(screen.getByRole("link", { name: "Project source" }).getAttribute("href")).toBe(
       "https://github.com/Yoruxyv/RepoDitor",
     );
+  });
+
+  it("keeps initial game verification silent while the editor remains unavailable", () => {
+    window.repoditor.game.status = vi.fn(() => new Promise<never>(() => undefined));
+
+    render(<App />);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
+    expect(screen.getByTestId("editor-content").getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("blocks the editor while R.E.P.O. is running until Check Again confirms it closed", async () => {
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    gameStatus
+      .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Check Again" }));
+    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Check Again" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false);
+  });
+
+  it("fails closed when game process status is unknown", async () => {
+    window.repoditor.game.status = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { status: "unknown", running: false },
+    });
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "RepoDitor could not verify that R.E.P.O. is closed.",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
   });
 
   it("shows discovery loading while the desktop bridge responds", () => {
@@ -469,68 +521,89 @@ describe("save workspace transition", () => {
     await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
   });
 
-  it("manually refreshes MetaSave and updates the saved preset count", async () => {
-    const first = structuredClone(cosmetics);
-    first.savedPresetCount = 3;
-    const refreshed = structuredClone(cosmetics);
-    refreshed.savedPresetCount = 1;
+  it("does not expose a manual MetaSave Refresh control", async () => {
     const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
-    getCosmetics
-      .mockResolvedValueOnce({ ok: true, data: first })
-      .mockResolvedValueOnce({ ok: true, data: refreshed });
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    const workspace = await screen.findByTestId("cosmetics-workspace");
     await screen.findByRole("heading", { name: "Cosmetics" });
-    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("3");
 
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
-
-    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("1");
+    expect(getCosmetics).toHaveBeenCalledTimes(1);
+    expect(workspace.querySelector('button')).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
   });
 
-  it("does not refresh Cosmetics on application focus while Run Saves is active", async () => {
+  it("rechecks game safety silently on focus without reloading MetaSave", async () => {
     const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    let finishFocusCheck:
+      | ((value: {
+          ok: true;
+          data: { status: "not_running"; running: false };
+        }) => void)
+      | undefined;
+    gameStatus
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFocusCheck = resolve;
+          }),
+      );
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
-    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
-
-    await user.click(screen.getByRole("button", { name: "Run Saves" }));
-    act(() => window.dispatchEvent(new Event("focus")));
-
-    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
-  });
-
-  it("refreshes on application focus only when Cosmetics has no pending edits", async () => {
-    const first = structuredClone(cosmetics);
-    first.savedPresetCount = 3;
-    const refreshed = structuredClone(cosmetics);
-    refreshed.savedPresetCount = 1;
-    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
-    getCosmetics
-      .mockResolvedValueOnce({ ok: true, data: first })
-      .mockResolvedValueOnce({ ok: true, data: refreshed });
-    const user = userEvent.setup();
-    render(<App />);
-
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false));
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
 
     act(() => window.dispatchEvent(new Event("focus")));
 
-    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("1");
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false);
+    expect(getCosmetics).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishFocusCheck?.({ ok: true, data: { status: "not_running", running: false } });
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-content").getAttribute("aria-busy")).toBe("false"),
+    );
   });
 
-  it("does not refresh on focus or re-entry while Cosmetics edits are pending", async () => {
+  it("reloads persisted Cosmetics after a running game closes when there are no pending edits", async () => {
     const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    gameStatus
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } });
     const user = userEvent.setup();
     render(<App />);
 
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Check Again" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+  });
+
+  it("focus safety checks do not discard pending Cosmetics edits", async () => {
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await user.click(await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }));
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
@@ -538,14 +611,12 @@ describe("save workspace transition", () => {
     );
 
     act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Run Saves" }));
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
 
     expect(getCosmetics).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
   });
 
   it("stages Clear All Presets as one revertible edit and saves it separately", async () => {

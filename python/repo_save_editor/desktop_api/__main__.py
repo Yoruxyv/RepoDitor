@@ -8,6 +8,7 @@ import json
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
 from repo_save_editor.desktop_api.discovery.maps import list_maps
+from repo_save_editor.desktop_api.game_status import get_game_status
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.overview import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -27,6 +28,7 @@ def main() -> None:
         "command",
         choices=(
             "environment",
+            "game-status",
             "saves-open",
             "saves-write",
             "players-list",
@@ -46,6 +48,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "environment":
         print(json.dumps(discover_environment()))
+    elif args.command == "game-status":
+        print(json.dumps(get_game_status()))
     elif args.command == "maps-list":
         print(json.dumps(list_maps()))
     elif args.command == "cosmetics-get":

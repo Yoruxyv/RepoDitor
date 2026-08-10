@@ -13,9 +13,7 @@ interface CosmeticsViewProps {
   readonly lockAllPending: boolean;
   readonly clearAllPresetsPending: boolean;
   readonly lockAllBlockedReason: string | null;
-  readonly refreshDisabled: boolean;
   readonly onRetry: () => void;
-  readonly onRefresh: () => void;
   readonly onUnlockAll: () => void;
   readonly onClearAllPresets: () => void;
   readonly onLockAll: () => void;
@@ -32,9 +30,7 @@ export function CosmeticsView({
   lockAllPending,
   clearAllPresetsPending,
   lockAllBlockedReason,
-  refreshDisabled,
   onRetry,
-  onRefresh,
   onUnlockAll,
   onClearAllPresets,
   onLockAll,
@@ -120,15 +116,6 @@ export function CosmeticsView({
         >
           <LockSimpleIcon aria-hidden="true" size={17} />
           {lockAllPending ? "Lock All pending" : "Lock All Cosmetics"}
-        </button>
-        <button
-          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={refreshDisabled}
-          type="button"
-          onClick={onRefresh}
-        >
-          <ArrowClockwiseIcon aria-hidden="true" size={17} />
-          Refresh
         </button>
       </div>
       {lockAllUnavailable ? (

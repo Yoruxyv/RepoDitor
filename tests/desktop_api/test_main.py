@@ -72,3 +72,20 @@ def test_cosmetics_write_cli_uses_fingerprint_and_changes_only(monkeypatch, caps
 
     assert json.loads(capsys.readouterr().out)["ok"] is True
     assert captured == {"fingerprint": "b" * 64, "changes": changes}
+
+
+def test_game_status_cli_returns_narrow_status(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        desktop_main,
+        "get_game_status",
+        lambda: {"ok": True, "status": "not_running", "running": False},
+    )
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", "game-status"])
+
+    desktop_main.main()
+
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": True,
+        "status": "not_running",
+        "running": False,
+    }

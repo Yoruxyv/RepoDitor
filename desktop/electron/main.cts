@@ -8,6 +8,7 @@ import {
 } from "electron";
 
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
+import { registerGameIpc } from "./ipc/game.cjs";
 import { registerCosmeticsIpc } from "./ipc/cosmetics.cjs";
 import { registerEditorIpc } from "./ipc/editor.cjs";
 import { registerPlayerIpc } from "./ipc/players.cjs";
@@ -105,6 +106,7 @@ function createWindow(): void {
 }
 
 registerEnvironmentIpc();
+registerGameIpc();
 registerCosmeticsIpc();
 registerSaveIpc();
 registerPlayerIpc();
