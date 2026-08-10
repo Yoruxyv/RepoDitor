@@ -59,11 +59,15 @@ RepoDitor's supported boundary requires:
 
 ## Known design limitations
 
-- Current Windows installers are unsigned and may trigger a SmartScreen warning.
+- RepoDitor v0.1.0 and current Windows installers are unsigned and may trigger a SmartScreen
+  warning. The SignPath Foundation application is pending; no signing identity is wired yet.
 - RepoDitor has no automatic updater; users install new releases manually.
 - The application edits a game-owned format that may change without notice.
-- Advanced item and purchase data remains read-only because safe mutation rules
-  have not been established.
+- Advanced item and purchase data remains read-only except for the evidence-backed exact-instance
+  **Refill to Full** action. Arbitrary charge values and other item mutations remain unsupported.
+- ES3 saves use game-defined PBKDF2-HMAC-SHA1, 100 iterations, AES-CBC, and PKCS#7 padding.
+  RepoDitor preserves these parameters solely for save compatibility; they are not used to protect
+  RepoDitor credentials, network traffic, or application secrets.
 - A user or process with control of the trusted Windows account can already read
   or replace files accessible to that account.
 
@@ -71,6 +75,7 @@ RepoDitor's supported boundary requires:
 
 Please avoid reports based only on game bugs, cheating or multiplayer policy,
 unproven save-mechanic assumptions, the documented unsigned-installer warning,
+scanner findings that only restate the documented ES3 compatibility parameters,
 dependency scanner output without reproducible impact, attacks requiring control
 of the trusted host, or unauthorized testing against R.E.P.O., Steam, GitHub, or
 other third-party infrastructure.

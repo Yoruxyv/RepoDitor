@@ -15,38 +15,41 @@ class SaveCryptoError(ValueError):
     """Raised when a save cannot be decrypted, decoded, or encoded."""
 
 
-# This is the encryption password used by the save format supported by this
-# editor. Keeping it here makes compatibility behavior explicit and testable.
+# ES3 compatibility contract: these values reproduce the game-owned save
+# container. They are not RepoDitor security choices; changing them would make
+# existing R.E.P.O. saves unreadable.
 ES3_PASSWORD = "Why would you want to cheat?... :o It's no fun. :') :'D"
-IV_SIZE = 16
-PBKDF2_ITERATIONS = 100
-KEY_SIZE = 16
+ES3_COMPAT_IV_SIZE_BYTES = 16
+ES3_COMPAT_PBKDF2_HASH = "sha1"
+ES3_COMPAT_PBKDF2_ITERATIONS = 100
+ES3_COMPAT_KEY_SIZE_BYTES = 16
+ES3_COMPAT_AES_BLOCK_SIZE_BITS = 128
 
 
 def _derive_key(password: bytes, iv: bytes) -> bytes:
     return hashlib.pbkdf2_hmac(
-        "sha1",
+        ES3_COMPAT_PBKDF2_HASH,
         password,
         iv,
-        PBKDF2_ITERATIONS,
-        dklen=KEY_SIZE,
+        ES3_COMPAT_PBKDF2_ITERATIONS,
+        dklen=ES3_COMPAT_KEY_SIZE_BYTES,
     )
 
 
 def decrypt_save(blob: bytes) -> dict[str, Any]:
     """Decrypt an ES3 save and return its JSON object."""
-    if len(blob) <= IV_SIZE:
+    if len(blob) <= ES3_COMPAT_IV_SIZE_BYTES:
         raise SaveCryptoError("The selected file is too small to be a supported save.")
 
-    iv = blob[:IV_SIZE]
-    ciphertext = blob[IV_SIZE:]
+    iv = blob[:ES3_COMPAT_IV_SIZE_BYTES]
+    ciphertext = blob[ES3_COMPAT_IV_SIZE_BYTES:]
     key = _derive_key(ES3_PASSWORD.encode("utf-8"), iv)
 
     try:
         decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
         padded = decryptor.update(ciphertext) + decryptor.finalize()
 
-        unpadder = PKCS7(128).unpadder()
+        unpadder = PKCS7(ES3_COMPAT_AES_BLOCK_SIZE_BITS).unpadder()
         plaintext = unpadder.update(padded) + unpadder.finalize()
 
         decoded = plaintext.decode("utf-8")
@@ -74,10 +77,10 @@ def encrypt_save(data: dict[str, Any]) -> bytes:
     except (TypeError, ValueError) as exc:
         raise SaveCryptoError("The edited save cannot be serialized.") from exc
 
-    iv = os.urandom(IV_SIZE)
+    iv = os.urandom(ES3_COMPAT_IV_SIZE_BYTES)
     key = _derive_key(ES3_PASSWORD.encode("utf-8"), iv)
 
-    padder = PKCS7(128).padder()
+    padder = PKCS7(ES3_COMPAT_AES_BLOCK_SIZE_BITS).padder()
     padded = padder.update(plaintext) + padder.finalize()
 
     encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
