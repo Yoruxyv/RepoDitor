@@ -42,7 +42,16 @@ export type CosmeticUnlockAllEdit = Extract<CosmeticChange, { field: "unlockAll"
   subject: "Cosmetics";
 };
 
-export type CosmeticPendingEdit = CosmeticOwnershipEdit | CosmeticUnlockAllEdit;
+export type CosmeticLockAllEdit = Extract<CosmeticChange, { field: "lockAll" }> & {
+  before: number;
+  label: "Known ownership";
+  subject: "Cosmetics";
+};
+
+export type CosmeticPendingEdit =
+  | CosmeticOwnershipEdit
+  | CosmeticUnlockAllEdit
+  | CosmeticLockAllEdit;
 
 export type RunSavePendingEdit =
   | PlayerHealthEdit

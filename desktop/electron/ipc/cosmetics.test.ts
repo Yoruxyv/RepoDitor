@@ -35,6 +35,7 @@ function view() {
     knownCatalogCount: 547,
     knownOwnedCount: 1,
     knownLockedCount: 546,
+    savedPresetCount: 0,
     unknownOwnedIds: [999],
     capabilities: {
       canReadCosmetics: true,
@@ -97,6 +98,27 @@ describe("cosmetics IPC", () => {
       entity: "known",
       field: "unlockAll",
       after: true,
+    };
+
+    await saveCosmetics(fake, saveId, fingerprint, [change]);
+
+    expect(fake.run).toHaveBeenCalledWith("cosmetics-write", [
+      saveId,
+      fingerprint,
+      JSON.stringify([change]),
+    ]);
+  });
+
+  it("accepts one typed Lock All action", async () => {
+    const fake = client({
+      ok: true,
+      result: { backupPath: "C:\\fixture\\MetaSave.es3.bak-1", cosmetics: view() },
+    });
+    const change = {
+      feature: "cosmetics",
+      entity: "known",
+      field: "lockAll",
+      after: false,
     };
 
     await saveCosmetics(fake, saveId, fingerprint, [change]);

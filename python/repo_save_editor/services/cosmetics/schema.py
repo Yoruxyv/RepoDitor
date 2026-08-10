@@ -30,6 +30,15 @@ def validate_meta_save(data: SaveData) -> None:
     """Validate the ownership structures supported by the cosmetics editor."""
     for key in OWNERSHIP_KEYS:
         _cosmetic_ids(data, key)
+    get_saved_preset_count(data)
+
+
+def get_saved_preset_count(data: SaveData) -> int:
+    """Count populated preset slots without interpreting their contents."""
+    presets = _typed_value(data, "cosmeticPresets")
+    if not isinstance(presets, list):
+        raise SaveSchemaError("'cosmeticPresets.value' is not a list.")
+    return sum(bool(preset) for preset in presets)
 
 
 def get_ownership_lists(data: SaveData) -> tuple[list[int], list[int]]:

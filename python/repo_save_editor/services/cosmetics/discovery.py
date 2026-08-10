@@ -10,6 +10,7 @@ from repo_save_editor.services.cosmetics.models import (
 )
 from repo_save_editor.services.cosmetics.schema import (
     get_ownership_lists,
+    get_saved_preset_count,
     removal_blocked_reason,
 )
 
@@ -53,6 +54,7 @@ def discover_cosmetics(data: SaveData) -> CosmeticsView:
         known_catalog_count=len(KNOWN_COSMETIC_IDS),
         known_owned_count=known_owned_count,
         known_locked_count=len(KNOWN_COSMETIC_IDS) - known_owned_count,
+        saved_preset_count=get_saved_preset_count(data),
         cosmetics=tuple(cosmetics),
         unknown_owned_ids=unknown_owned_ids,
         capabilities=CosmeticCapabilities(),

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@electron/contracts";
 import {
   toCosmeticChange,
-  type CosmeticOwnershipEdit,
+  type CosmeticLockAllEdit,
   type CosmeticPendingEdit,
   type CosmeticUnlockAllEdit,
 } from "@/features/editor/pendingEdits";
@@ -18,8 +18,9 @@ const INITIAL_STATE: State = { view: null, loadError: null, loading: true };
 
 export function useCosmetics(saveId: string) {
   const [state, setState] = useState<State>(INITIAL_STATE);
-  const [pendingById, setPendingById] = useState<Record<string, CosmeticOwnershipEdit>>({});
-  const [unlockAllPending, setUnlockAllPending] = useState<CosmeticUnlockAllEdit | null>(null);
+  const [bulkPending, setBulkPending] = useState<
+    CosmeticUnlockAllEdit | CosmeticLockAllEdit | null
+  >(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,33 +56,9 @@ export function useCosmetics(saveId: string) {
     };
   }, [load]);
 
-  function setOwned(cosmetic: CosmeticDto, owned: boolean): void {
-    if (!cosmetic.known || unlockAllPending !== null || cosmetic.owned === owned) {
-      setPendingById((current) => {
-        const next = { ...current };
-        delete next[String(cosmetic.id)];
-        return next;
-      });
-      return;
-    }
-    setPendingById((current) => ({
-      ...current,
-      [cosmetic.id]: {
-        feature: "cosmetics",
-        entity: String(cosmetic.id),
-        field: "owned",
-        after: owned,
-        before: cosmetic.owned,
-        label: "Ownership",
-        subject: cosmetic.displayName,
-      },
-    }));
-  }
-
   function unlockAll(): void {
     if (!state.view || state.view.knownLockedCount === 0) return;
-    setPendingById({});
-    setUnlockAllPending({
+    setBulkPending({
       feature: "cosmetics",
       entity: "known",
       field: "unlockAll",
@@ -92,34 +69,31 @@ export function useCosmetics(saveId: string) {
     });
   }
 
-  function revert(cosmeticId: number): void {
-    setPendingById((current) => {
-      const next = { ...current };
-      delete next[String(cosmeticId)];
-      return next;
+  const lockAllBlockedReason = state.view?.cosmetics.find(
+    (cosmetic) => cosmetic.known && cosmetic.owned && cosmetic.removalBlockedReason,
+  )?.removalBlockedReason ?? null;
+
+  function lockAll(): void {
+    if (!state.view || state.view.knownOwnedCount === 0 || lockAllBlockedReason) return;
+    setBulkPending({
+      feature: "cosmetics",
+      entity: "known",
+      field: "lockAll",
+      after: false,
+      before: state.view.knownOwnedCount,
+      label: "Known ownership",
+      subject: "Cosmetics",
     });
   }
 
   function revertAll(): void {
-    setPendingById({});
-    setUnlockAllPending(null);
+    setBulkPending(null);
   }
 
-  const pendingEdits: CosmeticPendingEdit[] = unlockAllPending
-    ? [unlockAllPending]
-    : Object.values(pendingById);
-
-  const cosmetics = useMemo(
-    () =>
-      state.view?.cosmetics.map((cosmetic) => ({
-        ...cosmetic,
-        owned: unlockAllPending && cosmetic.known
-          ? true
-          : (pendingById[cosmetic.id]?.after ?? cosmetic.owned),
-      })) ?? [],
-    [pendingById, state.view, unlockAllPending],
-  );
-  const knownOwnedCount = cosmetics.filter((cosmetic) => cosmetic.known && cosmetic.owned).length;
+  const pendingEdits: CosmeticPendingEdit[] = bulkPending ? [bulkPending] : [];
+  let knownOwnedCount = state.view?.knownOwnedCount ?? 0;
+  if (bulkPending?.field === "unlockAll") knownOwnedCount = state.view?.knownCatalogCount ?? 0;
+  if (bulkPending?.field === "lockAll") knownOwnedCount = 0;
 
   async function save(): Promise<boolean> {
     if (!state.view || pendingEdits.length === 0 || writeInFlight.current) return false;
@@ -152,18 +126,17 @@ export function useCosmetics(saveId: string) {
 
   return {
     ...state,
-    cosmetics,
     knownOwnedCount,
     knownLockedCount: state.view ? state.view.knownCatalogCount - knownOwnedCount : 0,
-    pendingById,
-    unlockAllPending,
+    unlockAllPending: bulkPending?.field === "unlockAll",
+    lockAllPending: bulkPending?.field === "lockAll",
+    lockAllBlockedReason,
     pendingEdits,
     writeError,
     backupPath,
     saving,
-    setOwned,
     unlockAll,
-    revert,
+    lockAll,
     revertAll,
     save,
     reload: load,

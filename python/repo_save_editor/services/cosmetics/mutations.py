@@ -36,6 +36,20 @@ def unlock_all_cosmetics(data: SaveData) -> bool:
     return changed
 
 
+def lock_all_cosmetics(data: SaveData) -> bool:
+    """Compose proven removals only when every known owned ID is unreferenced."""
+    _history, unlocks = get_ownership_lists(data)
+    owned_ids = [cosmetic_id for cosmetic_id in unlocks if cosmetic_id in KNOWN_COSMETIC_ID_SET]
+    for cosmetic_id in owned_ids:
+        blocked = removal_blocked_reason(data, cosmetic_id)
+        if blocked is not None:
+            raise CosmeticMutationError(blocked)
+    changed = False
+    for cosmetic_id in owned_ids:
+        changed = remove_cosmetic_ownership(data, cosmetic_id) or changed
+    return changed
+
+
 def remove_cosmetic_ownership(data: SaveData, cosmetic_id: int) -> bool:
     """Remove one known, unreferenced ID from both ownership lists."""
     _known_id(cosmetic_id)

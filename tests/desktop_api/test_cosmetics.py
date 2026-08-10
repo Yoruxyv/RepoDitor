@@ -21,7 +21,7 @@ def _meta_save() -> dict[str, object]:
         "cosmeticHistory": {"value": [27, 999]},
         "cosmeticUnlocks": {"value": [27, 999]},
         "cosmeticEquipped": {"value": []},
-        "cosmeticPresets": {"value": []},
+        "cosmeticPresets": {"value": [[] for _ in range(28)]},
         "cosmeticTokens": {"value": [7]},
         "colorsEquipped": {"value": [4]},
         "colorPresets": {"value": [[1, 2, 3]]},
@@ -47,6 +47,7 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path, sample_save
     assert view["fingerprint"] == sha256(original).hexdigest()
     assert view["knownCatalogCount"] == 547
     assert view["knownOwnedCount"] == 1
+    assert view["savedPresetCount"] == 0
     assert view["unknownOwnedIds"] == [999]
     assert view["cosmetics"][27] == {
         "id": 27,
@@ -138,6 +139,24 @@ def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path, samp
     assert result["error"]["code"] == "save_validation_failed"
     assert meta_path.read_bytes() == original
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
+
+
+def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path, sample_save) -> None:
+    save_root, meta_path = _write_fixture(tmp_path, sample_save)
+    original = meta_path.read_bytes()
+
+    result = save_cosmetics(
+        SAVE_ID,
+        sha256(original).hexdigest(),
+        [{"feature": "cosmetics", "entity": "known", "field": "lockAll", "after": False}],
+        save_root,
+    )
+
+    assert result["ok"] is True
+    reopened = decrypt_save(meta_path.read_bytes())
+    assert reopened["cosmeticHistory"]["value"] == [999]
+    assert reopened["cosmeticUnlocks"]["value"] == [999]
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
 
 
 def test_missing_or_malformed_meta_save_fails_safely(tmp_path: Path, sample_save) -> None:

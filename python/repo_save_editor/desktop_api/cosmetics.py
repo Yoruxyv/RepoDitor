@@ -10,6 +10,7 @@ from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
 from repo_save_editor.services.cosmetics.mutations import (
+    lock_all_cosmetics,
     remove_cosmetic_ownership,
     unlock_all_cosmetics,
     unlock_cosmetic,
@@ -65,6 +66,7 @@ def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
         "knownCatalogCount": view.known_catalog_count,
         "knownOwnedCount": view.known_owned_count,
         "knownLockedCount": view.known_locked_count,
+        "savedPresetCount": view.saved_preset_count,
         "unknownOwnedIds": list(view.unknown_owned_ids),
         "capabilities": {
             "canReadCosmetics": view.capabilities.can_read_cosmetics,
@@ -106,10 +108,10 @@ def _apply_changes(data: SaveData, changes: object) -> None:
     if len(changes) > 1 and any(
         isinstance(change, dict)
         and change.get("entity") == "known"
-        and change.get("field") == "unlockAll"
+        and change.get("field") in {"unlockAll", "lockAll"}
         for change in changes
     ):
-        raise ValueError("Unlock All must be submitted as one cosmetic action.")
+        raise ValueError("Bulk cosmetic actions must be submitted alone.")
     seen: set[tuple[str, str]] = set()
     for change in changes:
         if not isinstance(change, dict) or set(change) != {"feature", "entity", "field", "after"}:
@@ -124,6 +126,8 @@ def _apply_changes(data: SaveData, changes: object) -> None:
         seen.add(signature)
         if entity == "known" and field == "unlockAll" and change["after"] is True:
             unlock_all_cosmetics(data)
+        elif entity == "known" and field == "lockAll" and change["after"] is False:
+            lock_all_cosmetics(data)
         elif field == "owned" and isinstance(change["after"], bool):
             cosmetic_id = _cosmetic_id(entity)
             if change["after"]:

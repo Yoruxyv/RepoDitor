@@ -27,6 +27,7 @@ class CosmeticsView:
     known_catalog_count: int
     known_owned_count: int
     known_locked_count: int
+    saved_preset_count: int
     cosmetics: tuple[Cosmetic, ...]
     unknown_owned_ids: tuple[int, ...]
     capabilities: CosmeticCapabilities

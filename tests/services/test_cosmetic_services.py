@@ -6,6 +6,7 @@ from repo_save_editor.core.schema import SaveSchemaError
 from repo_save_editor.services.cosmetics.discovery import KNOWN_COSMETIC_IDS, discover_cosmetics
 from repo_save_editor.services.cosmetics.mutations import (
     CosmeticMutationError,
+    lock_all_cosmetics,
     remove_cosmetic_ownership,
     unlock_all_cosmetics,
     unlock_cosmetic,
@@ -32,7 +33,7 @@ def _meta_save(
 
 
 def test_discovery_projects_known_catalog_and_preserves_unknown_owned_ids() -> None:
-    data = _meta_save(history=[27, 999], unlocks=[27, 999, 999])
+    data = _meta_save(history=[27, 999], unlocks=[27, 999, 999], presets=[{"slots": [27]}])
 
     view = discover_cosmetics(data)
 
@@ -40,10 +41,17 @@ def test_discovery_projects_known_catalog_and_preserves_unknown_owned_ids() -> N
     assert view.known_catalog_count == 547
     assert view.known_owned_count == 1
     assert view.known_locked_count == 546
+    assert view.saved_preset_count == 1
     assert view.unknown_owned_ids == (999,)
     assert view.cosmetics[27].owned is True
     assert view.cosmetics[-1].display_name == "Cosmetic #999"
     assert view.cosmetics[-1].known is False
+
+
+def test_discovery_does_not_count_empty_preset_slots_as_saved_presets() -> None:
+    view = discover_cosmetics(_meta_save(presets=[[] for _ in range(28)]))
+
+    assert view.saved_preset_count == 0
 
 
 @pytest.mark.parametrize(
@@ -92,6 +100,26 @@ def test_unlock_all_composes_missing_ids_without_sorting_or_deleting_unknowns() 
     assert set(unlocks) == {*range(547), 999}
     assert len(history) == len(set(history)) == 548
     assert len(unlocks) == len(set(unlocks)) == 548
+
+
+def test_lock_all_composes_proven_removals_and_preserves_unknown_ids() -> None:
+    data = _meta_save(history=[27, 28, 999], unlocks=[27, 28, 999])
+
+    assert lock_all_cosmetics(data) is True
+    assert lock_all_cosmetics(data) is False
+
+    assert data["cosmeticHistory"]["value"] == [999]
+    assert data["cosmeticUnlocks"]["value"] == [999]
+
+
+def test_lock_all_is_atomic_when_any_owned_cosmetic_is_referenced() -> None:
+    data = _meta_save(history=[27, 28], unlocks=[27, 28], equipped=[28])
+    before = deepcopy(data)
+
+    with pytest.raises(CosmeticMutationError, match="equipped"):
+        lock_all_cosmetics(data)
+
+    assert data == before
 
 
 def test_remove_ownership_removes_only_exact_unreferenced_id() -> None:

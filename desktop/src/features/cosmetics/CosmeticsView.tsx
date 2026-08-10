@@ -1,42 +1,36 @@
-import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@phosphor-icons/react";
 
-import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
-import type { CosmeticOwnershipEdit } from "@/features/editor/pendingEdits";
+import type { CosmeticsViewDto } from "@electron/contracts";
 
 interface CosmeticsViewProps {
   readonly view: CosmeticsViewDto | null;
-  readonly cosmetics: CosmeticDto[];
   readonly knownOwnedCount: number;
   readonly knownLockedCount: number;
   readonly loading: boolean;
   readonly error: string | null;
-  readonly pendingById: Readonly<Record<string, CosmeticOwnershipEdit>>;
   readonly unlockAllPending: boolean;
-  readonly onOwnedChange: (cosmetic: CosmeticDto, owned: boolean) => void;
+  readonly lockAllPending: boolean;
+  readonly lockAllBlockedReason: string | null;
   readonly onRetry: () => void;
-  readonly onRevert: (cosmeticId: number) => void;
   readonly onUnlockAll: () => void;
+  readonly onLockAll: () => void;
 }
 
 export function CosmeticsView({
   view,
-  cosmetics,
   knownOwnedCount,
   knownLockedCount,
   loading,
   error,
-  pendingById,
   unlockAllPending,
-  onOwnedChange,
+  lockAllPending,
+  lockAllBlockedReason,
   onRetry,
-  onRevert,
   onUnlockAll,
+  onLockAll,
 }: CosmeticsViewProps) {
-  const [query, setQuery] = useState("");
-
   if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">Reading MetaSave cosmeticsâ€¦</output>;
+    return <output aria-live="polite" className="text-sm text-secondary">Reading MetaSave cosmetics…</output>;
   }
   if (error) {
     return (
@@ -56,37 +50,25 @@ export function CosmeticsView({
   }
   if (!view) return null;
 
-  const normalizedQuery = query.trim().replace(/^#/, "");
-  const filtered = normalizedQuery
-    ? cosmetics.filter((cosmetic) => String(cosmetic.id).includes(normalizedQuery))
-    : cosmetics;
+  const bulkPending = unlockAllPending || lockAllPending;
+  const lockAllUnavailable = lockAllBlockedReason
+    ? "Lock All is unavailable while an owned cosmetic is equipped or used by a preset."
+    : null;
 
   return (
     <section aria-labelledby="cosmetics-title">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">MetaSave ownership</p>
-      <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-ink" id="cosmetics-title">Cosmetics</h2>
-          <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
-            Manage the evidence-backed ownership catalog. Names and unsupported MetaSave fields are not guessed.
-          </p>
-        </div>
-        <button
-          className="inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || unlockAllPending}
-          type="button"
-          onClick={onUnlockAll}
-        >
-          <SparkleIcon aria-hidden="true" size={17} weight="bold" />
-          {unlockAllPending ? "Unlock All pending" : "Unlock All"}
-        </button>
-      </div>
+      <h2 className="mt-1 text-2xl font-semibold text-ink" id="cosmetics-title">Cosmetics</h2>
+      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
+        Manage the known cosmetic catalog without guessing unavailable names.
+      </p>
 
-      <dl className="mt-7 grid grid-cols-3 gap-3">
+      <dl className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           ["Known catalog", view.knownCatalogCount],
           ["Owned", knownOwnedCount],
           ["Locked", knownLockedCount],
+          ["Saved presets", view.savedPresetCount],
         ].map(([label, value]) => (
           <div className="min-w-0 border-t border-line pt-3" key={label}>
             <dt className="text-xs font-semibold text-secondary">{label}</dt>
@@ -95,75 +77,47 @@ export function CosmeticsView({
         ))}
       </dl>
 
-      <div className="mt-7">
-        <label className="text-xs font-semibold uppercase tracking-widest text-muted" htmlFor="cosmetic-search">
-          Search by cosmetic ID
-        </label>
-        <input
-          className="mt-2 w-full rounded-sm border border-line-strong bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted"
-          id="cosmetic-search"
-          inputMode="numeric"
-          placeholder="Example: 28"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+      <div className="mt-7 flex flex-wrap gap-3" aria-label="Cosmetic bulk actions">
+        <button
+          className="inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || bulkPending}
+          type="button"
+          onClick={onUnlockAll}
+        >
+          <SparkleIcon aria-hidden="true" size={17} weight="bold" />
+          {unlockAllPending ? "Unlock All pending" : "Unlock All Cosmetics"}
+        </button>
+        <button
+          aria-describedby="preset-mutation-note"
+          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled
+          type="button"
+        >
+          <TrashIcon aria-hidden="true" size={17} />
+          Clear All Presets
+        </button>
+        <button
+          aria-describedby={lockAllUnavailable ? "lock-all-note" : undefined}
+          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={
+            !view.capabilities.canRemoveOwnership
+            || knownOwnedCount === 0
+            || bulkPending
+            || lockAllBlockedReason !== null
+          }
+          type="button"
+          onClick={onLockAll}
+        >
+          <LockSimpleIcon aria-hidden="true" size={17} />
+          {lockAllPending ? "Lock All pending" : "Lock All Cosmetics"}
+        </button>
       </div>
-
-      <p className="mt-4 text-xs text-muted" aria-live="polite">Showing {filtered.length} cosmetics</p>
-      <ul className="mt-3 grid max-h-136 gap-2 overflow-y-auto pr-2" aria-label="Cosmetic ownership">
-        {filtered.map((cosmetic) => {
-          const pending = pendingById[cosmetic.id];
-          return (
-            <li className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-sm border border-line bg-surface p-3" key={cosmetic.id}>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{cosmetic.displayName}</p>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-secondary">
-                  {cosmetic.owned ? "Owned" : "Locked"}
-                  {!cosmetic.known ? " Â· Unknown/future ID Â· Read-only" : null}
-                  {pending ? " Â· Pending" : null}
-                </p>
-                {cosmetic.owned && cosmetic.removalBlockedReason ? (
-                  <p className="mt-1 max-w-[50ch] text-xs text-warning">{cosmetic.removalBlockedReason}</p>
-                ) : null}
-              </div>
-              {pending ? (
-                <button
-                  aria-label={`Revert ${cosmetic.displayName} ownership`}
-                  className="shrink-0 rounded-sm border border-line-strong px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
-                  type="button"
-                  onClick={() => onRevert(cosmetic.id)}
-                >
-                  Revert
-                </button>
-              ) : null}
-              {!pending && cosmetic.known && !cosmetic.owned ? (
-                <button
-                  aria-label={`Unlock ${cosmetic.displayName}`}
-                  className="shrink-0 rounded-sm border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:opacity-50"
-                  disabled={!view.capabilities.canUnlockCosmetic || unlockAllPending}
-                  type="button"
-                  onClick={() => onOwnedChange(cosmetic, true)}
-                >
-                  Unlock
-                </button>
-              ) : null}
-              {!pending && cosmetic.known && cosmetic.owned && !cosmetic.removalBlockedReason ? (
-                <button
-                  aria-label={`Mark ${cosmetic.displayName} as Locked`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-line-strong px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent disabled:opacity-50"
-                  disabled={!view.capabilities.canRemoveOwnership || unlockAllPending}
-                  type="button"
-                  onClick={() => onOwnedChange(cosmetic, false)}
-                >
-                  <LockSimpleIcon aria-hidden="true" size={14} />
-                  Mark as Locked
-                </button>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-      {filtered.length === 0 ? <p className="mt-4 text-sm text-secondary">No cosmetic ID matches this search.</p> : null}
+      <p className="mt-3 text-xs text-muted" id="preset-mutation-note">
+        Clearing presets remains unavailable because preset mutation is not evidence-backed.
+      </p>
+      {lockAllUnavailable ? (
+        <p className="mt-2 text-xs text-warning" id="lock-all-note">{lockAllUnavailable}</p>
+      ) : null}
     </section>
   );
 }

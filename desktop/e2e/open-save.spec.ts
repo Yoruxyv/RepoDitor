@@ -285,21 +285,23 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     await page.getByRole("tab", { name: "Cosmetics" }).click();
     await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
-    await expect(page.getByText(/Unknown\/future ID/)).toBeVisible();
-    await expect(page.getByText("Removal unavailable while equipped.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Mark Cosmetic #27 as Locked" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Unlock Cosmetic #28", exact: true }).click();
+    await expect(page.getByText("Known catalog")).toBeVisible();
+    await expect(page.getByText("Saved presets")).toBeVisible();
+    await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
+    await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
+    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
     await page.getByRole("tab", { name: "Overview" }).click();
     await page.getByRole("tab", { name: "Cosmetics" }).click();
-    await expect(page.getByRole("button", { name: "Revert Cosmetic #28 ownership", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Revert Cosmetic #28 ownership", exact: true }).click();
-    await page.getByRole("button", { name: "Unlock All" }).click();
+    await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
+    await page.getByRole("button", { name: "Revert all" }).click();
+    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
     await expect(page.getByTestId("pending-edit-count")).toHaveText("1 pending change");
     await page.getByRole("button", { name: "Revert all" }).click();
-    await page.getByRole("button", { name: "Unlock Cosmetic #28", exact: true }).click();
+    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
     const metaBackups = (await readdir(path.dirname(metaPath)))
@@ -472,7 +474,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect(minimum.context!.top).toBeGreaterThan(minimum.panel!.bottom);
 
     await page.getByRole("tab", { name: "Cosmetics" }).click();
-    await page.getByRole("button", { name: "Unlock Cosmetic #29", exact: true }).click();
+    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
     replaceMetaTokens(metaPath, 8);
     const externalMetaBytes = await readFile(metaPath);
     await page.getByRole("button", { name: "Save Changes" }).click();

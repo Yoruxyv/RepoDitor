@@ -198,6 +198,7 @@ export interface CosmeticsViewDto {
   knownCatalogCount: number;
   knownOwnedCount: number;
   knownLockedCount: number;
+  savedPresetCount: number;
   unknownOwnedIds: number[];
   capabilities: CosmeticCapabilitiesDto;
   cosmetics: CosmeticDto[];
@@ -217,7 +218,17 @@ export interface CosmeticUnlockAllChange {
   after: true;
 }
 
-export type CosmeticChange = CosmeticOwnershipChange | CosmeticUnlockAllChange;
+export interface CosmeticLockAllChange {
+  feature: "cosmetics";
+  entity: "known";
+  field: "lockAll";
+  after: false;
+}
+
+export type CosmeticChange =
+  | CosmeticOwnershipChange
+  | CosmeticUnlockAllChange
+  | CosmeticLockAllChange;
 
 export interface CosmeticsWriteResult {
   backupPath: string;

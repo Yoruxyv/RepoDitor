@@ -115,6 +115,7 @@ function readView(value: unknown): CosmeticsViewDto {
   const knownCatalogCount = readInteger(value.knownCatalogCount, "known catalog count");
   const knownOwnedCount = readInteger(value.knownOwnedCount, "known owned count");
   const knownLockedCount = readInteger(value.knownLockedCount, "known locked count");
+  const savedPresetCount = readInteger(value.savedPresetCount, "saved preset count");
   const cosmetics = value.cosmetics.map(readCosmetic);
   const unknownOwnedIds = value.unknownOwnedIds.map((id) => readInteger(id, "unknown cosmetic ID"));
   const known = cosmetics.filter((cosmetic) => cosmetic.known);
@@ -124,6 +125,7 @@ function readView(value: unknown): CosmeticsViewDto {
     knownCatalogCount !== KNOWN_COSMETIC_COUNT
     || knownOwnedCount < 0
     || knownLockedCount < 0
+    || savedPresetCount < 0
     || knownOwnedCount + knownLockedCount !== KNOWN_COSMETIC_COUNT
     || known.length !== KNOWN_COSMETIC_COUNT
     || knownIds.size !== KNOWN_COSMETIC_COUNT
@@ -139,6 +141,7 @@ function readView(value: unknown): CosmeticsViewDto {
     knownCatalogCount,
     knownOwnedCount,
     knownLockedCount,
+    savedPresetCount,
     unknownOwnedIds,
     capabilities: readCapabilities(value.capabilities),
     cosmetics,
@@ -181,6 +184,9 @@ function readChange(value: unknown): CosmeticChange {
   if (value.entity === "known" && value.field === "unlockAll" && value.after === true) {
     return { feature: "cosmetics", entity: "known", field: "unlockAll", after: true };
   }
+  if (value.entity === "known" && value.field === "lockAll" && value.after === false) {
+    return { feature: "cosmetics", entity: "known", field: "lockAll", after: false };
+  }
   if (typeof value.entity !== "string" || !/^(?:0|[1-9]\d{0,2})$/.test(value.entity)) {
     throw new CosmeticsProtocolError("Invalid cosmetic ID.");
   }
@@ -196,8 +202,11 @@ function readChanges(value: unknown): CosmeticChange[] {
     throw new CosmeticsProtocolError("Invalid cosmetic changes.");
   }
   const changes = value.map(readChange);
-  if (changes.length > 1 && changes.some((change) => change.field === "unlockAll")) {
-    throw new CosmeticsProtocolError("Unlock All must be one cosmetic action.");
+  if (
+    changes.length > 1
+    && changes.some((change) => change.field === "unlockAll" || change.field === "lockAll")
+  ) {
+    throw new CosmeticsProtocolError("Bulk cosmetic actions must be submitted alone.");
   }
   const signatures = new Set(changes.map((change) => `${change.entity}:${change.field}`));
   if (signatures.size !== changes.length) {

@@ -205,17 +205,16 @@ export function Workspace({
           ) : null}
           {activeSection === "Cosmetics" ? (
             <CosmeticsView
-              cosmetics={cosmetics.cosmetics}
               error={cosmetics.loadError}
               knownLockedCount={cosmetics.knownLockedCount}
               knownOwnedCount={cosmetics.knownOwnedCount}
+              lockAllBlockedReason={cosmetics.lockAllBlockedReason}
+              lockAllPending={cosmetics.lockAllPending}
               loading={cosmetics.loading}
-              pendingById={cosmetics.pendingById}
-              unlockAllPending={cosmetics.unlockAllPending !== null}
+              unlockAllPending={cosmetics.unlockAllPending}
               view={cosmetics.view}
-              onOwnedChange={cosmetics.setOwned}
+              onLockAll={cosmetics.lockAll}
               onRetry={() => void cosmetics.reload()}
-              onRevert={cosmetics.revert}
               onUnlockAll={cosmetics.unlockAll}
             />
           ) : null}
