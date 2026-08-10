@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries, get_typed_value
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.services.upgrades import get_player_upgrade
+from repo_save_editor.services.player.upgrades import get_player_upgrade
 
 BASE_PLAYER_HEALTH = 100
 HEALTH_PER_UPGRADE = 20

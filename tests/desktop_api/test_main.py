@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from repo_save_editor.desktop_api.environment import serialize_environment
-from repo_save_editor.services.game_discovery import discover_game_installation
+from repo_save_editor.desktop_api.discovery.environment import serialize_environment
+from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.saves.discovery import discover_saves
 
 

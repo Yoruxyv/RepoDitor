@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import _failure
-from repo_save_editor.services.maps import MapDiscoveryError, discover_installed_maps
+from repo_save_editor.services.game.maps import MapDiscoveryError, discover_installed_maps
 
 
 def list_maps(game_dir: Path | None = None) -> dict[str, object]:

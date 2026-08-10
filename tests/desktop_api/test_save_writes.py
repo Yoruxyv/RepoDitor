@@ -2,7 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import open_save, save_changes
-from repo_save_editor.services.run_state import set_run_stat
+from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
 

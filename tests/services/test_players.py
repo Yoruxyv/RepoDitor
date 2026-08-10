@@ -1,6 +1,6 @@
 import pytest
 
-from repo_save_editor.services.players import (
+from repo_save_editor.services.player.state import (
     get_player_health,
     get_player_max_health,
     get_players,

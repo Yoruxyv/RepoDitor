@@ -1,4 +1,4 @@
-"""Renderer-safe advanced save reads for the desktop process boundary."""
+"""Renderer-safe item-save reads for the desktop process boundary."""
 
 from __future__ import annotations
 

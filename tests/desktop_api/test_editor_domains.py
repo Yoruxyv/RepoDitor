@@ -3,10 +3,10 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-from repo_save_editor.desktop_api.advanced import get_advanced_save
-from repo_save_editor.desktop_api.maps import list_maps
+from repo_save_editor.desktop_api.discovery.maps import list_maps
+from repo_save_editor.desktop_api.items import get_advanced_save
+from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
-from repo_save_editor.desktop_api.upgrades import list_upgrades
 from repo_save_editor.storage.repository import SaveRepository
 
 

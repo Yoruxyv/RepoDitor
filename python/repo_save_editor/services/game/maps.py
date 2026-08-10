@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from repo_save_editor.services.game_discovery import (
+from repo_save_editor.services.game.discovery import (
     discover_game_installation,
     validate_game_installation,
 )

@@ -11,8 +11,12 @@ from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.services.items.mutations import refill_item_to_full
-from repo_save_editor.services.players import get_players, set_player_health
-from repo_save_editor.services.run_state import (
+from repo_save_editor.services.player.state import get_players, set_player_health
+from repo_save_editor.services.player.upgrades import (
+    discover_player_upgrades,
+    set_player_upgrade,
+)
+from repo_save_editor.services.run import (
     get_available_run_stats,
     get_resume_location_label,
     get_run_stat,
@@ -25,7 +29,6 @@ from repo_save_editor.services.saves.discovery import (
     discover_saves,
 )
 from repo_save_editor.services.saves.summaries import get_save_summary
-from repo_save_editor.services.upgrades import discover_player_upgrades, set_player_upgrade
 from repo_save_editor.storage.repository import (
     SaveBackupError,
     SaveRepository,

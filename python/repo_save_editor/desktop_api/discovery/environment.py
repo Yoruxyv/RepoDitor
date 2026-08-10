@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from repo_save_editor.services.game_discovery import (
+from repo_save_editor.services.game.discovery import (
     GameDiscoveryResult,
     discover_game_installation,
 )

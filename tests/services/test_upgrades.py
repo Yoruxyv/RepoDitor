@@ -1,6 +1,6 @@
 import pytest
 
-from repo_save_editor.services.upgrades import (
+from repo_save_editor.services.player.upgrades import (
     discover_player_upgrades,
     get_player_upgrade,
     get_upgrade_label,

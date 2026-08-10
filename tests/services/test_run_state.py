@@ -1,6 +1,6 @@
 import pytest
 
-from repo_save_editor.services.run_state import (
+from repo_save_editor.services.run import (
     ResumeLocation,
     get_display_level,
     get_resume_location_label,
