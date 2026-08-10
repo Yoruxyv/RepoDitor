@@ -6,6 +6,7 @@ from repo_save_editor.core.schema import SaveSchemaError
 from repo_save_editor.services.cosmetics.discovery import KNOWN_COSMETIC_IDS, discover_cosmetics
 from repo_save_editor.services.cosmetics.mutations import (
     CosmeticMutationError,
+    clear_all_presets,
     lock_all_cosmetics,
     remove_cosmetic_ownership,
     unlock_all_cosmetics,
@@ -20,6 +21,7 @@ def _meta_save(
     unlocks: list[int] | None = None,
     equipped: object = None,
     presets: object = None,
+    color_presets: object = None,
 ) -> dict[str, object]:
     return {
         "cosmeticHistory": {"value": list(history or [])},
@@ -28,7 +30,7 @@ def _meta_save(
         "cosmeticPresets": {"value": [] if presets is None else presets},
         "cosmeticTokens": {"value": [99]},
         "colorsEquipped": {"value": [4]},
-        "colorPresets": {"value": [[1, 2, 3]]},
+        "colorPresets": {"value": [[1, 2, 3]] if color_presets is None else color_presets},
     }
 
 
@@ -100,6 +102,49 @@ def test_unlock_all_composes_missing_ids_without_sorting_or_deleting_unknowns() 
     assert set(unlocks) == {*range(547), 999}
     assert len(history) == len(set(history)) == 548
     assert len(unlocks) == len(set(unlocks)) == 548
+
+
+def test_clear_all_presets_preserves_outer_lengths_and_unrelated_meta_save_fields() -> None:
+    data = _meta_save(
+        history=[27, 999],
+        unlocks=[27, 999],
+        equipped=[27],
+        presets=[[27], [], {"slots": [999]}],
+        color_presets=[[1, 2, 3], [4], []],
+    )
+    data["futureField"] = {"value": {"keep": True}}
+    preserved = deepcopy(
+        {
+            key: data[key]
+            for key in (
+                "cosmeticHistory",
+                "cosmeticUnlocks",
+                "cosmeticEquipped",
+                "cosmeticTokens",
+                "colorsEquipped",
+                "futureField",
+            )
+        }
+    )
+    cosmetic_length = len(data["cosmeticPresets"]["value"])
+    color_length = len(data["colorPresets"]["value"])
+
+    assert clear_all_presets(data) is True
+    assert clear_all_presets(data) is False
+
+    assert data["cosmeticPresets"]["value"] == [[], [], []]
+    assert data["colorPresets"]["value"] == [[], [], []]
+    assert len(data["cosmeticPresets"]["value"]) == cosmetic_length
+    assert len(data["colorPresets"]["value"]) == color_length
+    assert {key: data[key] for key in preserved} == preserved
+
+
+def test_clear_all_presets_clears_remaining_color_preset_data() -> None:
+    data = _meta_save(presets=[[], []], color_presets=[[1], [2]])
+
+    assert clear_all_presets(data) is True
+    assert data["cosmeticPresets"]["value"] == [[], []]
+    assert data["colorPresets"]["value"] == [[], []]
 
 
 def test_lock_all_composes_proven_removals_and_preserves_unknown_ids() -> None:

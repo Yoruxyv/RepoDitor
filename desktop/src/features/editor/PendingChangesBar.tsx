@@ -20,6 +20,9 @@ function displayValue(edit: PendingEdit, value: PendingEdit["before"] | PendingE
   if (edit.feature === "cosmetics" && edit.field === "unlockAll" && value === true) {
     return "All known";
   }
+  if (edit.feature === "cosmetics" && edit.field === "clearAll" && value === true) {
+    return "0";
+  }
   if (edit.feature === "cosmetics" && typeof value === "boolean") {
     return value ? "Owned" : "Locked";
   }

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.services.cosmetics.discovery import KNOWN_COSMETIC_ID_SET, KNOWN_COSMETIC_IDS
-from repo_save_editor.services.cosmetics.schema import get_ownership_lists, removal_blocked_reason
+from repo_save_editor.services.cosmetics.schema import (
+    get_ownership_lists,
+    get_preset_lists,
+    removal_blocked_reason,
+)
 
 
 class CosmeticMutationError(ValueError):
@@ -34,6 +38,21 @@ def unlock_all_cosmetics(data: SaveData) -> bool:
     for cosmetic_id in KNOWN_COSMETIC_IDS:
         changed = unlock_cosmetic(data, cosmetic_id) or changed
     return changed
+
+
+def clear_all_presets(data: SaveData) -> bool:
+    """Clear every existing paired preset slot without changing outer lengths."""
+    cosmetic_presets, color_presets = get_preset_lists(data)
+
+    changed = any(bool(slot) for slot in cosmetic_presets) or any(
+        bool(slot) for slot in color_presets
+    )
+    if not changed:
+        return False
+
+    cosmetic_presets[:] = [[] for _ in cosmetic_presets]
+    color_presets[:] = [[] for _ in color_presets]
+    return True
 
 
 def lock_all_cosmetics(data: SaveData) -> bool:

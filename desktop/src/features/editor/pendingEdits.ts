@@ -48,10 +48,17 @@ export type CosmeticLockAllEdit = Extract<CosmeticChange, { field: "lockAll" }> 
   subject: "Cosmetics";
 };
 
+export type CosmeticClearAllPresetsEdit = Extract<CosmeticChange, { field: "clearAll" }> & {
+  before: number;
+  label: "Saved presets";
+  subject: "Cosmetics";
+};
+
 export type CosmeticPendingEdit =
   | CosmeticOwnershipEdit
   | CosmeticUnlockAllEdit
-  | CosmeticLockAllEdit;
+  | CosmeticLockAllEdit
+  | CosmeticClearAllPresetsEdit;
 
 export type RunSavePendingEdit =
   | PlayerHealthEdit

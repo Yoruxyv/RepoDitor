@@ -142,6 +142,10 @@ function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): vo
     setKnownCosmeticsOwned(next, change.field === "unlockAll");
     return;
   }
+  if (change.field === "clearAll") {
+    next.savedPresetCount = 0;
+    return;
+  }
   const cosmetic = next.cosmetics.find((entry) => String(entry.id) === change.entity);
   if (cosmetic) cosmetic.owned = change.after;
 }
@@ -449,6 +453,152 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert refill" }));
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+  });
+
+  it("reloads MetaSave whenever Cosmetics is entered without pending edits", async () => {
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(getCosmetics).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+  });
+
+  it("manually refreshes MetaSave and updates the saved preset count", async () => {
+    const first = structuredClone(cosmetics);
+    first.savedPresetCount = 3;
+    const refreshed = structuredClone(cosmetics);
+    refreshed.savedPresetCount = 1;
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    getCosmetics
+      .mockResolvedValueOnce({ ok: true, data: first })
+      .mockResolvedValueOnce({ ok: true, data: refreshed });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await screen.findByRole("heading", { name: "Cosmetics" });
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("3");
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("1");
+  });
+
+  it("does not refresh Cosmetics on application focus while Run Saves is active", async () => {
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
+  });
+
+  it("refreshes on application focus only when Cosmetics has no pending edits", async () => {
+    const first = structuredClone(cosmetics);
+    first.savedPresetCount = 3;
+    const refreshed = structuredClone(cosmetics);
+    refreshed.savedPresetCount = 1;
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    getCosmetics
+      .mockResolvedValueOnce({ ok: true, data: first })
+      .mockResolvedValueOnce({ ok: true, data: refreshed });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
+
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("1");
+  });
+
+  it("does not refresh on focus or re-entry while Cosmetics edits are pending", async () => {
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await user.click(await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }));
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+
+    expect(getCosmetics).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("stages Clear All Presets as one revertible edit and saves it separately", async () => {
+    const withPresets = structuredClone(cosmetics);
+    withPresets.savedPresetCount = 3;
+    const cleared = structuredClone(withPresets);
+    cleared.savedPresetCount = 0;
+    window.repoditor.cosmetics.get = vi.fn().mockResolvedValue({ ok: true, data: withPresets });
+    const cosmeticWrite = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\MetaSave.es3.bak-20260810-172700",
+        cosmetics: cleared,
+      },
+    });
+    window.repoditor.cosmetics.write = cosmeticWrite;
+    const runWrite = vi.mocked(window.repoditor.saves.write);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await screen.findByRole("heading", { name: "Cosmetics" });
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("3");
+
+    await user.click(screen.getByRole("button", { name: "Clear All Presets" }));
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "1 pending change",
+    );
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("0");
+    expect(screen.getByText(/Cosmetics.*Saved presets/)).toBeTruthy();
+    expect(screen.getByText("3 → 0")).toBeTruthy();
+    expect(cosmeticWrite).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("3");
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clear All Presets" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(cosmeticWrite).toHaveBeenCalledWith(withPresets.fingerprint, [
+      { feature: "cosmetics", entity: "presets", field: "clearAll", after: true },
+    ]);
+    expect(runWrite).not.toHaveBeenCalled();
+    expect(await screen.findByText(/MetaSave\.es3\.bak/)).toBeTruthy();
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    expect(
+      (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("opens Cosmetics without a Run save and keeps Lock All pending until save", async () => {

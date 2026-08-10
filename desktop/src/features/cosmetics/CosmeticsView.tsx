@@ -6,13 +6,18 @@ interface CosmeticsViewProps {
   readonly view: CosmeticsViewDto | null;
   readonly knownOwnedCount: number;
   readonly knownLockedCount: number;
+  readonly savedPresetCount: number;
   readonly loading: boolean;
   readonly error: string | null;
   readonly unlockAllPending: boolean;
   readonly lockAllPending: boolean;
+  readonly clearAllPresetsPending: boolean;
   readonly lockAllBlockedReason: string | null;
+  readonly refreshDisabled: boolean;
   readonly onRetry: () => void;
+  readonly onRefresh: () => void;
   readonly onUnlockAll: () => void;
+  readonly onClearAllPresets: () => void;
   readonly onLockAll: () => void;
 }
 
@@ -20,13 +25,18 @@ export function CosmeticsView({
   view,
   knownOwnedCount,
   knownLockedCount,
+  savedPresetCount,
   loading,
   error,
   unlockAllPending,
   lockAllPending,
+  clearAllPresetsPending,
   lockAllBlockedReason,
+  refreshDisabled,
   onRetry,
+  onRefresh,
   onUnlockAll,
+  onClearAllPresets,
   onLockAll,
 }: CosmeticsViewProps) {
   if (loading) {
@@ -50,7 +60,7 @@ export function CosmeticsView({
   }
   if (!view) return null;
 
-  const bulkPending = unlockAllPending || lockAllPending;
+  const bulkPending = unlockAllPending || lockAllPending || clearAllPresetsPending;
   const lockAllUnavailable = lockAllBlockedReason
     ? "Lock All is unavailable while an owned cosmetic is equipped or used by a preset."
     : null;
@@ -68,7 +78,7 @@ export function CosmeticsView({
           ["Known catalog", view.knownCatalogCount],
           ["Owned", knownOwnedCount],
           ["Locked", knownLockedCount],
-          ["Saved presets", view.savedPresetCount],
+          ["Saved presets", savedPresetCount],
         ].map(([label, value]) => (
           <div className="min-w-0 border-t border-line pt-3" key={label}>
             <dt className="text-xs font-semibold text-secondary">{label}</dt>
@@ -88,13 +98,13 @@ export function CosmeticsView({
           {unlockAllPending ? "Unlock All pending" : "Unlock All Cosmetics"}
         </button>
         <button
-          aria-describedby="preset-mutation-note"
-          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-secondary disabled:cursor-not-allowed disabled:opacity-50"
-          disabled
+          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={view.savedPresetCount === 0 || bulkPending}
           type="button"
+          onClick={onClearAllPresets}
         >
           <TrashIcon aria-hidden="true" size={17} />
-          Clear All Presets
+          {clearAllPresetsPending ? "Clear All Presets pending" : "Clear All Presets"}
         </button>
         <button
           aria-describedby={lockAllUnavailable ? "lock-all-note" : undefined}
@@ -111,10 +121,16 @@ export function CosmeticsView({
           <LockSimpleIcon aria-hidden="true" size={17} />
           {lockAllPending ? "Lock All pending" : "Lock All Cosmetics"}
         </button>
+        <button
+          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={refreshDisabled}
+          type="button"
+          onClick={onRefresh}
+        >
+          <ArrowClockwiseIcon aria-hidden="true" size={17} />
+          Refresh
+        </button>
       </div>
-      <p className="mt-3 text-xs text-muted" id="preset-mutation-note">
-        Clearing presets remains unavailable because preset mutation is not evidence-backed.
-      </p>
       {lockAllUnavailable ? (
         <p className="mt-2 text-xs text-warning" id="lock-all-note">{lockAllUnavailable}</p>
       ) : null}

@@ -186,6 +186,9 @@ function readChange(value: unknown): CosmeticChange {
   if (value.entity === "known" && value.field === "lockAll" && value.after === false) {
     return { feature: "cosmetics", entity: "known", field: "lockAll", after: false };
   }
+  if (value.entity === "presets" && value.field === "clearAll" && value.after === true) {
+    return { feature: "cosmetics", entity: "presets", field: "clearAll", after: true };
+  }
   if (typeof value.entity !== "string" || !/^(?:0|[1-9]\d{0,2})$/.test(value.entity)) {
     throw new CosmeticsProtocolError("Invalid cosmetic ID.");
   }
@@ -203,7 +206,9 @@ function readChanges(value: unknown): CosmeticChange[] {
   const changes = value.map(readChange);
   if (
     changes.length > 1
-    && changes.some((change) => change.field === "unlockAll" || change.field === "lockAll")
+    && changes.some(
+      (change) => change.field === "unlockAll" || change.field === "lockAll" || change.field === "clearAll",
+    )
   ) {
     throw new CosmeticsProtocolError("Bulk cosmetic actions must be submitted alone.");
   }

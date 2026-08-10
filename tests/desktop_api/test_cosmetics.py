@@ -128,6 +128,44 @@ def test_unlock_all_cannot_be_mixed_with_individual_changes(tmp_path: Path) -> N
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
+def test_clear_all_presets_uses_safe_write_and_preserves_unrelated_fields(
+    tmp_path: Path,
+) -> None:
+    save_root, meta_path = _paths(tmp_path)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    data = _meta_save()
+    data["cosmeticPresets"]["value"] = [[27], [], [999]]
+    data["colorPresets"]["value"] = [[1, 2], [3], []]
+    data["futureField"] = {"value": {"keep": True}}
+    meta_path.write_bytes(encrypt_save(data))
+    original = meta_path.read_bytes()
+    before = decrypt_save(original)
+
+    result = save_cosmetics(
+        sha256(original).hexdigest(),
+        [{"feature": "cosmetics", "entity": "presets", "field": "clearAll", "after": True}],
+        save_root,
+    )
+
+    assert result["ok"] is True
+    reopened = decrypt_save(meta_path.read_bytes())
+    assert reopened["cosmeticPresets"]["value"] == [[], [], []]
+    assert reopened["colorPresets"]["value"] == [[], [], []]
+    assert len(reopened["cosmeticPresets"]["value"]) == len(before["cosmeticPresets"]["value"])
+    assert len(reopened["colorPresets"]["value"]) == len(before["colorPresets"]["value"])
+    for key in (
+        "cosmeticHistory",
+        "cosmeticUnlocks",
+        "cosmeticEquipped",
+        "cosmeticTokens",
+        "colorsEquipped",
+        "futureField",
+    ):
+        assert reopened[key] == before[key]
+    assert result["result"]["cosmetics"]["savedPresetCount"] == 0
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+
+
 def test_lock_all_uses_the_existing_safe_write_pipeline(tmp_path: Path) -> None:
     save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()

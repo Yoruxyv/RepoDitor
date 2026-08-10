@@ -225,10 +225,18 @@ export interface CosmeticLockAllChange {
   after: false;
 }
 
+export interface CosmeticClearAllPresetsChange {
+  feature: "cosmetics";
+  entity: "presets";
+  field: "clearAll";
+  after: true;
+}
+
 export type CosmeticChange =
   | CosmeticOwnershipChange
   | CosmeticUnlockAllChange
-  | CosmeticLockAllChange;
+  | CosmeticLockAllChange
+  | CosmeticClearAllPresetsChange;
 
 export interface CosmeticsWriteResult {
   backupPath: string;

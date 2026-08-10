@@ -9,22 +9,27 @@ interface CosmeticsWorkspaceProps {
 }
 
 export function CosmeticsWorkspace({ hidden }: CosmeticsWorkspaceProps) {
-  const cosmetics = useCosmetics();
+  const cosmetics = useCosmetics(!hidden);
 
   return (
     <section aria-label="Cosmetics" data-testid="cosmetics-workspace" hidden={hidden}>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-10">
         <div className="min-w-0">
           <CosmeticsView
+            clearAllPresetsPending={cosmetics.clearAllPresetsPending}
             error={cosmetics.loadError}
             knownLockedCount={cosmetics.knownLockedCount}
             knownOwnedCount={cosmetics.knownOwnedCount}
             lockAllBlockedReason={cosmetics.lockAllBlockedReason}
             lockAllPending={cosmetics.lockAllPending}
             loading={cosmetics.loading}
+            refreshDisabled={cosmetics.refreshDisabled}
+            savedPresetCount={cosmetics.savedPresetCount}
             unlockAllPending={cosmetics.unlockAllPending}
             view={cosmetics.view}
+            onClearAllPresets={cosmetics.clearAllPresets}
             onLockAll={cosmetics.lockAll}
+            onRefresh={() => void cosmetics.reload()}
             onRetry={() => void cosmetics.reload()}
             onUnlockAll={cosmetics.unlockAll}
           />

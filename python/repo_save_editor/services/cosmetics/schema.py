@@ -33,12 +33,21 @@ def validate_meta_save(data: SaveData) -> None:
     get_saved_preset_count(data)
 
 
+def _preset_slots(data: SaveData, key: str) -> list[object]:
+    value = _typed_value(data, key)
+    if not isinstance(value, list):
+        raise SaveSchemaError(f"'{key}.value' is not a list.")
+    return cast(list[object], value)
+
+
 def get_saved_preset_count(data: SaveData) -> int:
     """Count populated preset slots without interpreting their contents."""
-    presets = _typed_value(data, "cosmeticPresets")
-    if not isinstance(presets, list):
-        raise SaveSchemaError("'cosmeticPresets.value' is not a list.")
-    return sum(bool(preset) for preset in presets)
+    return sum(bool(preset) for preset in _preset_slots(data, "cosmeticPresets"))
+
+
+def get_preset_lists(data: SaveData) -> tuple[list[object], list[object]]:
+    """Return the paired mutable cosmetic and color preset slot arrays."""
+    return _preset_slots(data, "cosmeticPresets"), _preset_slots(data, "colorPresets")
 
 
 def get_ownership_lists(data: SaveData) -> tuple[list[int], list[int]]:

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CosmeticsViewDto } from "@electron/contracts";
 import {
   toCosmeticChange,
+  type CosmeticClearAllPresetsEdit,
   type CosmeticLockAllEdit,
   type CosmeticPendingEdit,
   type CosmeticUnlockAllEdit,
@@ -14,20 +15,24 @@ interface State {
   loading: boolean;
 }
 
-const INITIAL_STATE: State = { view: null, loadError: null, loading: true };
+const INITIAL_STATE: State = { view: null, loadError: null, loading: false };
 
-export function useCosmetics() {
+export function useCosmetics(active: boolean) {
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [bulkPending, setBulkPending] = useState<
-    CosmeticUnlockAllEdit | CosmeticLockAllEdit | null
+    CosmeticUnlockAllEdit | CosmeticLockAllEdit | CosmeticClearAllPresetsEdit | null
   >(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const mounted = useRef(false);
+  const wasActive = useRef(false);
   const writeInFlight = useRef(false);
 
   const load = useCallback(async () => {
+    if (mounted.current) {
+      setState((current) => ({ ...current, loadError: null, loading: current.view === null }));
+    }
     try {
       const result = await window.repoditor.cosmetics.get();
       if (mounted.current) {
@@ -50,11 +55,27 @@ export function useCosmetics() {
 
   useEffect(() => {
     mounted.current = true;
-    void load();
     return () => {
       mounted.current = false;
     };
-  }, [load]);
+  }, []);
+
+  const hasPending = bulkPending !== null;
+
+  useEffect(() => {
+    const entered = active && !wasActive.current;
+    wasActive.current = active;
+    if (entered && !hasPending) void load();
+  }, [active, hasPending, load]);
+
+  useEffect(() => {
+    function handleFocus(): void {
+      if (active && !hasPending) void load();
+    }
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [active, hasPending, load]);
 
   function unlockAll(): void {
     if (!state.view || state.view.knownLockedCount === 0) return;
@@ -86,6 +107,19 @@ export function useCosmetics() {
     });
   }
 
+  function clearAllPresets(): void {
+    if (!state.view || state.view.savedPresetCount === 0) return;
+    setBulkPending({
+      feature: "cosmetics",
+      entity: "presets",
+      field: "clearAll",
+      after: true,
+      before: state.view.savedPresetCount,
+      label: "Saved presets",
+      subject: "Cosmetics",
+    });
+  }
+
   function revertAll(): void {
     setBulkPending(null);
   }
@@ -94,6 +128,7 @@ export function useCosmetics() {
   let knownOwnedCount = state.view?.knownOwnedCount ?? 0;
   if (bulkPending?.field === "unlockAll") knownOwnedCount = state.view?.knownCatalogCount ?? 0;
   if (bulkPending?.field === "lockAll") knownOwnedCount = 0;
+  const savedPresetCount = bulkPending?.field === "clearAll" ? 0 : state.view?.savedPresetCount ?? 0;
 
   async function save(): Promise<boolean> {
     if (!state.view || pendingEdits.length === 0 || writeInFlight.current) return false;
@@ -127,15 +162,19 @@ export function useCosmetics() {
     ...state,
     knownOwnedCount,
     knownLockedCount: state.view ? state.view.knownCatalogCount - knownOwnedCount : 0,
+    savedPresetCount,
     unlockAllPending: bulkPending?.field === "unlockAll",
     lockAllPending: bulkPending?.field === "lockAll",
+    clearAllPresetsPending: bulkPending?.field === "clearAll",
     lockAllBlockedReason,
     pendingEdits,
     writeError,
     backupPath,
     saving,
+    refreshDisabled: hasPending,
     unlockAll,
     lockAll,
+    clearAllPresets,
     revertAll,
     save,
     reload: load,

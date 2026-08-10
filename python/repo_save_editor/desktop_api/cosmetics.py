@@ -10,6 +10,7 @@ from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
 from repo_save_editor.services.cosmetics.mutations import (
+    clear_all_presets,
     lock_all_cosmetics,
     remove_cosmetic_ownership,
     unlock_all_cosmetics,
@@ -102,8 +103,10 @@ def _apply_changes(data: SaveData, changes: object) -> None:
         raise ValueError("One to 547 cosmetic changes are required.")
     if len(changes) > 1 and any(
         isinstance(change, dict)
-        and change.get("entity") == "known"
-        and change.get("field") in {"unlockAll", "lockAll"}
+        and (
+            (change.get("entity") == "known" and change.get("field") in {"unlockAll", "lockAll"})
+            or (change.get("entity") == "presets" and change.get("field") == "clearAll")
+        )
         for change in changes
     ):
         raise ValueError("Bulk cosmetic actions must be submitted alone.")
@@ -112,7 +115,7 @@ def _apply_changes(data: SaveData, changes: object) -> None:
         if not isinstance(change, dict) or set(change) != {"feature", "entity", "field", "after"}:
             raise ValueError("A cosmetic change did not match the supported format.")
         if change["feature"] != "cosmetics":
-            raise ValueError("Only cosmetic ownership changes are supported.")
+            raise ValueError("Only supported cosmetic changes are accepted.")
         entity = change["entity"]
         field = change["field"]
         signature = (str(entity), str(field))
@@ -123,6 +126,8 @@ def _apply_changes(data: SaveData, changes: object) -> None:
             unlock_all_cosmetics(data)
         elif entity == "known" and field == "lockAll" and change["after"] is False:
             lock_all_cosmetics(data)
+        elif entity == "presets" and field == "clearAll" and change["after"] is True:
+            clear_all_presets(data)
         elif field == "owned" and isinstance(change["after"], bool):
             cosmetic_id = _cosmetic_id(entity)
             if change["after"]:

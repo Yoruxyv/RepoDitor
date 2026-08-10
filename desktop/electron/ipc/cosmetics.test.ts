@@ -128,6 +128,28 @@ describe("cosmetics IPC", () => {
     ]);
   });
 
+  it("accepts one typed Clear All Presets action", async () => {
+    const updated = view();
+    updated.savedPresetCount = 0;
+    const fake = client({
+      ok: true,
+      result: { backupPath: "C:\\fixture\\MetaSave.es3.bak-1", cosmetics: updated },
+    });
+    const change = {
+      feature: "cosmetics",
+      entity: "presets",
+      field: "clearAll",
+      after: true,
+    };
+
+    await saveCosmetics(fake, fingerprint, [change]);
+
+    expect(fake.run).toHaveBeenCalledWith("cosmetics-write", [
+      fingerprint,
+      JSON.stringify([change]),
+    ]);
+  });
+
   it("rejects unknown IDs, arbitrary fields, duplicates, and malformed output", async () => {
     const fake = client({});
     await expect(getCosmetics(fake)).resolves.toMatchObject({
@@ -143,6 +165,10 @@ describe("cosmetics IPC", () => {
       ],
       [
         { feature: "cosmetics", entity: "known", field: "unlockAll", after: true },
+        { feature: "cosmetics", entity: "28", field: "owned", after: false },
+      ],
+      [
+        { feature: "cosmetics", entity: "presets", field: "clearAll", after: true },
         { feature: "cosmetics", entity: "28", field: "owned", after: false },
       ],
     ]) {
