@@ -73,3 +73,10 @@ def test_avatar_lookup_falls_back_for_expected_remote_failures() -> None:
     assert get_steam_avatar_url(STEAM_ID, fetch_profile=offline) is None
     assert get_steam_avatar_url(STEAM_ID, fetch_profile=lambda *_: b"not xml") is None
     assert get_steam_avatar_url(STEAM_ID, fetch_profile=lambda *_: b"<profile />") is None
+
+
+def test_avatar_lookup_never_breaks_players_for_unexpected_remote_failures() -> None:
+    def unexpected_failure(_url: str, _seconds: float) -> bytes:
+        raise RuntimeError("unexpected remote failure")
+
+    assert get_steam_avatar_url(STEAM_ID, fetch_profile=unexpected_failure) is None

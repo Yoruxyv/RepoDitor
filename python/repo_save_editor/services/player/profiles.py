@@ -61,5 +61,7 @@ def get_steam_avatar_url(
         ):
             return None
         return avatar_url
-    except (ElementTree.ParseError, OSError, TimeoutError, ValueError):
+    # Avatar enrichment is optional: no remote response or parser failure may
+    # terminate the desktop command and prevent the Players view from loading.
+    except Exception:  # noqa: BLE001
         return None
