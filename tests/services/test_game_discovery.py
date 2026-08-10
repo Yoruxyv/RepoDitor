@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.game_discovery import (
+from repo_save_editor.services.game.discovery import (
     CATALOG_RELATIVE_PATH,
     GameDiscoveryIssueCode,
     GameDiscoveryStatus,

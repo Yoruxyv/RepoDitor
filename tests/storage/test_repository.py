@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.run_state import set_run_stat
+from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage.repository import (
     SaveRepository,
     SaveStaleError,

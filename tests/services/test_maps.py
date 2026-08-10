@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.maps import (
+from repo_save_editor.services.game.maps import (
     MapDiscoveryError,
     discover_installed_maps,
     discover_map_families,

@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure, load_discovered_save
-from repo_save_editor.services.players import get_players
-from repo_save_editor.services.upgrades import discover_player_upgrades, get_player_upgrade
+from repo_save_editor.services.player.state import get_players
+from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
 
 
 def list_upgrades(save_id: str, root: Path | None = None) -> dict[str, object]:

@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries, get_typed_value
-from repo_save_editor.core.types import Player, SaveData
-from repo_save_editor.services.upgrades import get_player_upgrade
+from repo_save_editor.core.types import SaveData
+from repo_save_editor.services.player.upgrades import get_player_upgrade
 
 BASE_PLAYER_HEALTH = 100
 HEALTH_PER_UPGRADE = 20
+
+
+@dataclass(frozen=True, slots=True)
+class Player:
+    """A player entry stored in a run save."""
+
+    player_id: str
+    name: str
+
+    @property
+    def display_name(self) -> str:
+        """Return the UI-friendly player label."""
+        return f"{self.name}  [{self.player_id}]"
 
 
 def get_players(data: SaveData) -> list[Player]:

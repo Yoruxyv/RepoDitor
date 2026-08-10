@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure, load_discovered_save
-from repo_save_editor.services.run_state import (
+from repo_save_editor.services.run import (
     RESUME_LOCATION_OPTIONS,
     get_available_run_stats,
     get_resume_location_label,

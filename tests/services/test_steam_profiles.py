@@ -1,4 +1,4 @@
-from repo_save_editor.services.steam_profiles import (
+from repo_save_editor.services.player.profiles import (
     STEAM_AVATAR_HOSTS,
     get_steam_avatar_url,
     is_plausible_steam_id,

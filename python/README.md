@@ -37,9 +37,14 @@ charge, battery-upgrade, purchase, or item lifecycle write rules.
 python/
 ├── README.md
 └── repo_save_editor/
-    ├── core/         # crypto, schema validation, and shared save types
+    ├── core/         # crypto, schema validation, and shared save primitives
     ├── desktop_api/  # JSON command boundary used by Electron
-    ├── services/     # players, upgrades, run state, maps, saves, discovery
+    ├── services/     # domain semantics
+    │   ├── game/     # installation and map discovery
+    │   ├── items/    # item models, validation, discovery, and mutations
+    │   ├── player/   # player state, Steam profiles, and upgrades
+    │   ├── saves/    # save discovery and summaries
+    │   └── run.py    # run stats and resume state
     └── storage/      # repository access, backups, verification, atomic writes
 ```
 
@@ -58,14 +63,14 @@ uv run --with "pytest>=8.3,<9" pytest
 The package remains imported normally:
 
 ```python
-from repo_save_editor.services.players import get_players
+from repo_save_editor.services.player.state import get_players
 ```
 
 Do not import through the directory name:
 
 ```python
 # Wrong
-from python.repo_save_editor.services.players import get_players
+from python.repo_save_editor.services.player.state import get_players
 ```
 
 ## Desktop runtime

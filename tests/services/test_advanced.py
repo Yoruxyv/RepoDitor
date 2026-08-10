@@ -4,11 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.advanced import (
-    AdvancedSaveError,
-    discover_advanced_save,
-    refill_item_to_full,
-)
+from repo_save_editor.services.items.discovery import discover_advanced_save
+from repo_save_editor.services.items.models import AdvancedSaveError
+from repo_save_editor.services.items.mutations import refill_item_to_full
 
 EVIDENCE_PAIR = Path(__file__).parents[1] / "fixtures" / "advanced_charge_pair.json"
 

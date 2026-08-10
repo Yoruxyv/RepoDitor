@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.services.save_discovery import (
+from repo_save_editor.services.saves.discovery import (
     SaveRootStatus,
     discover_saves,
     get_default_save_root,

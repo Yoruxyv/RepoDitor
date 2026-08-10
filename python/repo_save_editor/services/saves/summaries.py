@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from repo_save_editor.core.schema import get_typed_value
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.services.run_state import get_display_level
+from repo_save_editor.services.run import get_display_level
 
 
 @dataclass(frozen=True, slots=True)

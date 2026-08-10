@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from repo_save_editor.desktop_api.players import get_player_avatar, list_players
+from repo_save_editor.desktop_api.player.overview import get_player_avatar, list_players
 from repo_save_editor.storage.repository import SaveRepository
 
 
