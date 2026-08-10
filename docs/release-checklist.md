@@ -9,6 +9,18 @@ prepared to use Microsoft Artifact Signing through electron-builder's Azure sign
 This preparation does not create a certificate or signing identity and contains no credential
 values.
 
+The SignPath Foundation application is currently pending and is not wired into this workflow.
+The checked-in release path still expects the Microsoft Artifact Signing values documented below,
+so official tag builds currently fail closed without those credentials. SignPath approval alone
+will not satisfy that configuration; select and wire the final provider in a later credentialed
+phase.
+
+If an unsigned open-source maintenance release is unavoidable while approval is pending, keep the
+tag-driven workflow fail closed. The smallest explicit exception is a separate, manually
+dispatched unsigned-release workflow that requires a maintainer-provided tag/version confirmation
+and retains every existing quality, package, smoke, installer, and checksum gate except signature
+verification. No such bypass is implemented in this phase.
+
 Local packaging remains intentionally usable without cloud access:
 
 ```powershell
