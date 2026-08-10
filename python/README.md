@@ -37,9 +37,11 @@ charge, battery-upgrade, purchase, or item lifecycle write rules.
 python/
 ├── README.md
 └── repo_save_editor/
-    ├── core/         # crypto, schema validation, and shared save types
+    ├── core/         # crypto, schema validation, and shared save primitives
     ├── desktop_api/  # JSON command boundary used by Electron
-    ├── services/     # players, upgrades, run state, maps, saves, discovery
+    ├── services/     # domain semantics
+    │   ├── items/    # item models, validation, discovery, and mutations
+    │   └── saves/    # save discovery and summaries
     └── storage/      # repository access, backups, verification, atomic writes
 ```
 
