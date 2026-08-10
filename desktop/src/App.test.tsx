@@ -892,9 +892,12 @@ describe("save workspace transition", () => {
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByTestId("workspace")).toBeTruthy();
-    expect(avatar).toHaveBeenCalledWith(saveId, "111");
+    expect(avatar).not.toHaveBeenCalled();
     await user.click(screen.getByRole("tab", { name: "Players" }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
+    await waitFor(() => {
+      expect(avatar).toHaveBeenCalledWith(saveId, "111");
+    });
     await user.clear(health);
     await user.type(health, "95");
     expect(screen.getByTestId("pending-health-edit")).toBeTruthy();
