@@ -24,6 +24,8 @@ const MAX_CHANGES = 512;
 const RUN_STAT_FIELDS = new Set(["level", "currency", "lives", "totalHaul"]);
 const SAVE_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
+  "game_running",
+  "game_status_unknown",
   "save_missing",
   "save_corrupt",
   "save_decrypt_failed",

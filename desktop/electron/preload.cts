@@ -10,6 +10,7 @@ import {
   type CosmeticsWriteResult,
   type DesktopOperationResult,
   type EnvironmentDiscovery,
+  type GameProcessState,
   type InstalledMapsDto,
   type IpcChannelMap,
   type PlayerAvatar,
@@ -27,6 +28,7 @@ import {
 // The literal map type keeps these approved channels aligned with main.
 const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
+  gameStatus: "game:status",
   savesList: "saves:list",
   savesOpen: "saves:open",
   savesWrite: "saves:write",
@@ -47,6 +49,14 @@ const repoditorApi: RepoDitorApi = {
         IPC_CHANNELS.environmentDetect,
       ) as Promise<
         DesktopOperationResult<EnvironmentDiscovery>
+      >,
+  },
+  game: {
+    status: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.gameStatus,
+      ) as Promise<
+        DesktopOperationResult<GameProcessState>
       >,
   },
   saves: {

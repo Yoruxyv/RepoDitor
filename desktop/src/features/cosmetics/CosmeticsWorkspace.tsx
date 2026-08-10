@@ -6,10 +6,11 @@ import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
 
 interface CosmeticsWorkspaceProps {
   readonly hidden: boolean;
+  readonly recoveryGeneration: number;
 }
 
-export function CosmeticsWorkspace({ hidden }: CosmeticsWorkspaceProps) {
-  const cosmetics = useCosmetics(!hidden);
+export function CosmeticsWorkspace({ hidden, recoveryGeneration }: CosmeticsWorkspaceProps) {
+  const cosmetics = useCosmetics(!hidden, recoveryGeneration);
 
   return (
     <section aria-label="Cosmetics" data-testid="cosmetics-workspace" hidden={hidden}>
@@ -23,13 +24,11 @@ export function CosmeticsWorkspace({ hidden }: CosmeticsWorkspaceProps) {
             lockAllBlockedReason={cosmetics.lockAllBlockedReason}
             lockAllPending={cosmetics.lockAllPending}
             loading={cosmetics.loading}
-            refreshDisabled={cosmetics.refreshDisabled}
             savedPresetCount={cosmetics.savedPresetCount}
             unlockAllPending={cosmetics.unlockAllPending}
             view={cosmetics.view}
             onClearAllPresets={cosmetics.clearAllPresets}
             onLockAll={cosmetics.lockAll}
-            onRefresh={() => void cosmetics.reload()}
             onRetry={() => void cosmetics.reload()}
             onUnlockAll={cosmetics.unlockAll}
           />

@@ -7,6 +7,7 @@ const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 
 export type PythonCommand =
   | "environment"
+  | "game-status"
   | "saves-open"
   | "saves-write"
   | "players-list"

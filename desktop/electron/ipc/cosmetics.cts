@@ -23,6 +23,8 @@ const KNOWN_COSMETIC_COUNT = 547;
 const MAX_CHANGES = KNOWN_COSMETIC_COUNT;
 const ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
+  "game_running",
+  "game_status_unknown",
   "save_missing",
   "meta_missing",
   "save_decrypt_failed",

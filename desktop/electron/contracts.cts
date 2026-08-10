@@ -1,5 +1,6 @@
 export interface IpcChannelMap {
   environmentDetect: "environment:detect";
+  gameStatus: "game:status";
   savesList: "saves:list";
   savesOpen: "saves:open";
   savesWrite: "saves:write";
@@ -17,6 +18,13 @@ export type SaveRootStatus =
   | "available"
   | "missing"
   | "unreadable";
+
+export type GameProcessStatus = "running" | "not_running" | "unknown";
+
+export interface GameProcessState {
+  status: GameProcessStatus;
+  running: boolean;
+}
 
 export type GameDiscoveryStatus =
   | "found"
@@ -273,6 +281,8 @@ export type DesktopOperationErrorCode =
   | "malformed_response"
   | "invalid_response"
   | "invalid_request"
+  | "game_running"
+  | "game_status_unknown"
   | "save_missing"
   | "meta_missing"
   | "save_corrupt"
@@ -309,6 +319,11 @@ export interface RepoDitorApi {
   environment: {
     detect: () => Promise<
       DesktopOperationResult<EnvironmentDiscovery>
+    >;
+  };
+  game: {
+    status: () => Promise<
+      DesktopOperationResult<GameProcessState>
     >;
   };
   saves: {

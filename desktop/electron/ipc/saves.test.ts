@@ -191,6 +191,21 @@ describe("saveChanges", () => {
 
     await expect(
       saveChanges(
+        client({
+          ok: false,
+          error: { code: "game_running", message: "Close R.E.P.O. before saving." },
+        }),
+        session.id,
+        session.fingerprint,
+        [{ feature: "run", entity: "run", field: "currency", after: 20 }],
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "game_running", message: "Close R.E.P.O. before saving." },
+    });
+
+    await expect(
+      saveChanges(
         client({ ok: true, result: { backupPath: "", session } }),
         session.id,
         session.fingerprint,

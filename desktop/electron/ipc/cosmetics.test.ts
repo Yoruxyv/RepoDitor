@@ -188,6 +188,20 @@ describe("cosmetics IPC", () => {
 
   it("passes through supported MetaSave failures", async () => {
     await expect(
+      saveCosmetics(
+        client({
+          ok: false,
+          error: { code: "game_running", message: "Close R.E.P.O. before saving." },
+        }),
+        fingerprint,
+        [{ feature: "cosmetics", entity: "known", field: "unlockAll", after: true }],
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "game_running", message: "Close R.E.P.O. before saving." },
+    });
+
+    await expect(
       getCosmetics(
         client({ ok: false, error: { code: "meta_missing", message: "MetaSave missing." } }),
       ),

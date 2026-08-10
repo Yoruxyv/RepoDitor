@@ -17,7 +17,7 @@ interface State {
 
 const INITIAL_STATE: State = { view: null, loadError: null, loading: false };
 
-export function useCosmetics(active: boolean) {
+export function useCosmetics(active: boolean, recoveryGeneration: number) {
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [bulkPending, setBulkPending] = useState<
     CosmeticUnlockAllEdit | CosmeticLockAllEdit | CosmeticClearAllPresetsEdit | null
@@ -27,6 +27,7 @@ export function useCosmetics(active: boolean) {
   const [saving, setSaving] = useState(false);
   const mounted = useRef(false);
   const wasActive = useRef(false);
+  const seenRecoveryGeneration = useRef(recoveryGeneration);
   const writeInFlight = useRef(false);
 
   const load = useCallback(async () => {
@@ -69,13 +70,10 @@ export function useCosmetics(active: boolean) {
   }, [active, hasPending, load]);
 
   useEffect(() => {
-    function handleFocus(): void {
-      if (active && !hasPending) void load();
-    }
-
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [active, hasPending, load]);
+    const recovered = recoveryGeneration !== seenRecoveryGeneration.current;
+    seenRecoveryGeneration.current = recoveryGeneration;
+    if (recovered && active && !hasPending) void load();
+  }, [active, hasPending, load, recoveryGeneration]);
 
   function unlockAll(): void {
     if (!state.view || state.view.knownLockedCount === 0) return;
@@ -171,7 +169,6 @@ export function useCosmetics(active: boolean) {
     writeError,
     backupPath,
     saving,
-    refreshDisabled: hasPending,
     unlockAll,
     lockAll,
     clearAllPresets,

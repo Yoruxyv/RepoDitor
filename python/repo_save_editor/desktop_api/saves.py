@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -10,6 +11,8 @@ from pathlib import Path
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
+from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.items.mutations import refill_item_to_full
 from repo_save_editor.services.player.state import get_players, set_player_health
 from repo_save_editor.services.player.upgrades import (
@@ -170,9 +173,12 @@ def save_changes(
     expected_fingerprint: str,
     changes: object,
     root: Path | None = None,
+    *,
+    game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
     """Validate and atomically persist one typed set of pending changes."""
     try:
+        require_game_closed(game_status_loader)
         save, data, source = load_discovered_save(save_id, root)
         if (
             not isinstance(expected_fingerprint, str)
@@ -205,6 +211,8 @@ def save_changes(
             "backupPath": str(backup),
             "session": _session(updated_save, data, written),
         }
+    except GameSafetyError as exc:
+        return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
     except SaveCryptoError:
