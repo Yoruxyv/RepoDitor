@@ -236,6 +236,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
+    await page.bringToFront();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
@@ -308,7 +309,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("cosmetics-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
     const metaBackups = (await readdir(path.dirname(metaPath)))
       .filter((name) => name.startsWith(`${path.basename(metaPath)}.bak-`));
     expect(metaBackups).toHaveLength(1);
@@ -317,6 +318,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect((await readFile(metaPath)).equals(metaBefore)).toBe(false);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
+    await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     await expect(page.getByText(
@@ -400,7 +402,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
-    await expect(page.getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
     const saveReadyMs = performance.now() - saveStarted;
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
