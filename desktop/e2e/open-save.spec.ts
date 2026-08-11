@@ -544,6 +544,21 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
         .toBeVisible();
       await expect(page.getByTestId("editor-content")).toHaveAttribute("inert", "");
+      const dialogOffset = await page.getByRole("dialog").evaluate((dialog) => {
+        const bounds = dialog.getBoundingClientRect();
+        const overlay = dialog.parentElement?.getBoundingClientRect();
+        if (!overlay) throw new Error("Safety dialog overlay is missing.");
+        return {
+          horizontal: Math.abs(
+            bounds.left + bounds.width / 2 - (overlay.left + overlay.width / 2),
+          ),
+          vertical: Math.abs(
+            bounds.top + bounds.height / 2 - (overlay.top + overlay.height / 2),
+          ),
+        };
+      });
+      expect(dialogOffset.horizontal).toBeLessThanOrEqual(1);
+      expect(dialogOffset.vertical).toBeLessThanOrEqual(1);
 
       const runBeforeBlocked = await readFile(savePath);
       const runBackupsBefore = (await readdir(path.dirname(savePath))).filter((name) =>
