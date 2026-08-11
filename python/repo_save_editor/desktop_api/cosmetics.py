@@ -174,17 +174,26 @@ def save_cosmetics(
         return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
+    except SaveCryptoError:
+        return _failure("save_write_failed", "MetaSave.es3 could not be written safely.")
     except (ValueError, TypeError) as exc:
         return _failure("save_validation_failed", str(exc))
     except SaveBackupError:
         return _failure(
-            "backup_failed", "MetaSave.es3 could not be backed up. Nothing was written."
+            "backup_failed",
+            "MetaSave.es3 could not be backed up. Nothing was written.",
         )
     except SaveStaleError:
-        return _failure("save_stale", "MetaSave.es3 changed while edits were being prepared.")
+        return _failure(
+            "save_stale",
+            "MetaSave.es3 changed while edits were being prepared.",
+        )
     except SaveVerificationError:
-        return _failure("save_verification_failed", "The staged MetaSave could not be verified.")
+        return _failure(
+            "save_verification_failed",
+            "The staged MetaSave could not be verified.",
+        )
     except FileNotFoundError:
         return _failure("meta_missing", "MetaSave.es3 was not found.")
-    except (SaveCryptoError, SaveWriteError, OSError):
+    except (SaveWriteError, OSError):
         return _failure("save_write_failed", "MetaSave.es3 could not be written safely.")
