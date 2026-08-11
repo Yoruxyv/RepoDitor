@@ -31,6 +31,7 @@ const advanced: AdvancedSaveDto = {
       name: "Melee Inflatable Hammer",
       instanceId: "1",
       storedCharge: 99,
+      chargeState: "stored",
     },
   ],
   runValues: [
@@ -66,9 +67,10 @@ describe("AdvancedView", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Items" })).toBeTruthy();
-    const item = screen.getByRole("listitem");
-    expect(within(item).getByText("Melee Inflatable Hammer #1")).toBeTruthy();
-    expect(within(item).getByText("99")).toBeTruthy();
+    const item = screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    expect(screen.getByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
+    expect(within(item).getByText("#1")).toBeTruthy();
+    expect(within(item).getByText("Charge 99")).toBeTruthy();
     expect(screen.getByText(
       "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     )).toBeTruthy();
@@ -79,6 +81,137 @@ describe("AdvancedView", () => {
 
     await user.click(within(item).getByText("Show save key"));
     expect(within(item).getByText("Item Melee Inflatable Hammer/1")).toBeTruthy();
+  });
+
+  it("groups duplicate names and filters by name or visible instance ID", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", storedCharge: 42, chargeState: "stored" },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+
+    const tranqGroup = screen.getByTestId("item-group-Gun Tranq");
+    expect(within(tranqGroup).getByLabelText("2 item instances")).toBeTruthy();
+    expect(within(tranqGroup).getByText("#1")).toBeTruthy();
+    expect(within(tranqGroup).getByText("#2")).toBeTruthy();
+
+    const search = screen.getByRole("searchbox", { name: "Search items" });
+    await user.type(search, "  TRANQ  ");
+    expect(screen.getByText("2 matching items")).toBeTruthy();
+    expect(screen.queryByTestId("item-group-Melee Inflatable Hammer")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear item search" }));
+    expect(document.activeElement).toBe(search);
+    await user.type(search, "#2");
+    expect(screen.getByText("1 matching item")).toBeTruthy();
+    expect(screen.getByTestId("item-instance-Item Gun Tranq/2")).toBeTruthy();
+
+    await user.clear(search);
+    await user.type(search, "missing");
+    expect(screen.getByText("No items match this search.")).toBeTruthy();
+  });
+
+  it("reports pending items hidden by a filter", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+        pendingByItem={{
+          "Item Melee Inflatable Hammer/1": {
+            feature: "advanced",
+            entity: "Item Melee Inflatable Hammer/1",
+            field: "refillToFull",
+            after: true,
+            before: 99,
+            label: "Stored charge",
+            subject: "Melee Inflatable Hammer #1",
+          },
+        }}
+      />,
+    );
+
+    await user.type(screen.getByRole("searchbox", { name: "Search items" }), "cart");
+    expect(screen.getByText(/1 matching item · 1 pending item hidden by filter/)).toBeTruthy();
+  });
+
+  it("renders explicit charge states without guessing or enabling unsupported actions", () => {
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Health Pack Medium/4", name: "Health Pack Medium", instanceId: "4", storedCharge: null, chargeState: "not_applicable" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent)
+      .toContain("Charge 99");
+    expect(screen.getByTestId("item-instance-Item Gun Tranq/2").textContent)
+      .toContain("Full / Default");
+    expect(screen.getByTestId("item-instance-Item Cart Medium/3").textContent)
+      .toContain("Charge not observed");
+    expect(screen.getByTestId("item-instance-Item Health Pack Medium/4").textContent)
+      .not.toContain("Charge");
+    expect(screen.getAllByRole("button", { name: /Refill .* to full/ })).toHaveLength(1);
+  });
+
+  it("targets the exact stored instance inside a duplicate group", async () => {
+    const user = userEvent.setup();
+    const refill = vi.fn();
+    const second = {
+      saveKey: "Item Gun Tranq/2",
+      name: "Gun Tranq",
+      instanceId: "2",
+      storedCharge: 17,
+      chargeState: "stored" as const,
+    };
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            { ...second, saveKey: "Item Gun Tranq/1", instanceId: "1", storedCharge: 42 },
+            second,
+          ],
+        }}
+        error={null}
+        loading={false}
+        onRefillToFull={refill}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Refill Gun Tranq #2 to full" }));
+    expect(refill).toHaveBeenCalledWith(second);
   });
 
   it("distinguishes unsupported and supported-empty item structures", () => {
@@ -126,8 +259,8 @@ describe("AdvancedView", () => {
           ...advanced,
           items: [
             ...advanced.items,
-            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null },
-            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null },
+            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null, chargeState: "unknown" },
           ],
         }}
         error={null}
@@ -153,7 +286,7 @@ describe("AdvancedView", () => {
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
           ],
         }}
         error={null}

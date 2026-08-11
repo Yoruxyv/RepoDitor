@@ -352,15 +352,31 @@ test("safely writes changes with backup and stale-save protection", async () => 
       "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     ))
       .toBeVisible();
-    const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
-    await expect(hammer.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
+    const cartGroup = page.getByTestId("item-group-Cart Medium");
+    await expect(cartGroup.getByLabel("2 item instances")).toBeVisible();
+    await expect(cartGroup.getByText("#1")).toBeVisible();
+    await expect(cartGroup.getByText("#2")).toBeVisible();
+    const healthPack = page.getByTestId("item-instance-Item Health Pack Medium/2");
+    await expect(healthPack.getByText("Charge not observed")).toBeVisible();
+    await expect(healthPack.getByText("Full / Default")).toHaveCount(0);
+    const itemSearch = page.getByRole("searchbox", { name: "Search items" });
+    await itemSearch.fill("  CART MEDIUM  ");
+    await expect(page.getByText("2 matching items")).toBeVisible();
+    await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
+    await page.getByRole("button", { name: "Clear item search" }).click();
+
+    const hammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
       .toHaveAttribute("data-icon-source", "specific");
-    await expect(hammer.getByText("99")).toBeVisible();
+    await expect(hammer.getByText("Charge 99")).toBeVisible();
     await hammer.getByText("Show save key").click();
     await expect(hammer.getByText("Item Melee Inflatable Hammer/1")).toBeVisible();
     await hammer.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" })
       .click();
     await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
+    await itemSearch.fill("cart");
+    await expect(page.getByText(/1 pending item hidden by filter/)).toBeVisible();
+    await page.getByRole("button", { name: "Clear item search" }).click();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     await expect(page.locator("#workspace-tab-pending-4")).toContainText("1 pending change");
     await expect(page.locator("#run-saves-pending")).toContainText("1 pending change");
@@ -459,13 +475,13 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
     await page.getByRole("tab", { name: "Items" }).click();
-    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
+    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
       .toBeVisible();
     await expect(page.getByText(
       "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     ))
       .toBeVisible();
-    const refilledHammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer #1" });
+    const refilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
     await expect(refilledHammer.getByText("Full / Default")).toBeVisible();
     await expect(page.getByRole("button", { name: /Refill .* to full/ })).toHaveCount(0);
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
@@ -492,7 +508,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
       await page.getByRole("tab", { name: "Items" }).click();
-      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
+      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
         .toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("button", { name: "Cosmetics" }).click();

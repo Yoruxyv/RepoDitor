@@ -50,7 +50,7 @@ export function useAdvanced(saveId: string) {
 
   function refillToFull(item: AdvancedItemDto): void {
     const before = item.storedCharge;
-    if (before === null) return;
+    if (item.chargeState !== "stored" || before === null) return;
     setPendingByItem((current) => ({
       ...current,
       [item.saveKey]: {

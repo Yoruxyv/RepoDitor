@@ -94,7 +94,7 @@ const advanced: AdvancedSaveDto = {
     { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
     { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
   ],
-  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99 }],
+  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99, chargeState: "stored" }],
   runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
   unlinkedChargeEntryCount: 0,
 };
@@ -592,7 +592,9 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    expect(await screen.findByText("Melee Inflatable Hammer #1")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
+    expect(screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent)
+      .toContain("#1");
     expect(screen.getByText(
       "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
     )).toBeTruthy();
