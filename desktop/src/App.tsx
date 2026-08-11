@@ -1,6 +1,9 @@
 import { useState } from "react";
 
 import { AppShell } from "@/app/AppShell";
+import { PreferencesProvider } from "@/app/PreferencesProvider";
+import { usePreferences } from "@/app/preferences";
+import { UtilityCluster } from "@/app/UtilityCluster";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
 import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
 import { Workspace } from "@/features/editor/Workspace";
@@ -10,9 +13,10 @@ import { useGameSafety } from "@/features/safety/useGameSafety";
 
 type AppWorkspace = "run-saves" | "cosmetics";
 
-function App() {
+function AppContent() {
   const save = useSaveSession();
   const gameSafety = useGameSafety();
+  const { t } = usePreferences();
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
   const dialogStatus =
     gameSafety.status === "running" || gameSafety.status === "unknown" ? gameSafety.status : null;
@@ -25,31 +29,37 @@ function App() {
         data-testid="editor-content"
         inert={dialogStatus !== null || initialSafetyCheck}
       >
-        <nav className="mb-8 flex gap-2 border-b border-line pb-3" aria-label="RepoDitor workspaces">
-          <button
-            aria-current={activeWorkspace === "run-saves" ? "page" : undefined}
-            className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
-              activeWorkspace === "run-saves"
-                ? "bg-accent text-accent-ink"
-                : "text-secondary hover:bg-surface hover:text-ink"
-            }`}
-            type="button"
-            onClick={() => setActiveWorkspace("run-saves")}
-          >
-            Run Saves
-          </button>
-          <button
-            aria-current={activeWorkspace === "cosmetics" ? "page" : undefined}
-            className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
-              activeWorkspace === "cosmetics"
-                ? "bg-accent text-accent-ink"
-                : "text-secondary hover:bg-surface hover:text-ink"
-            }`}
-            type="button"
-            onClick={() => setActiveWorkspace("cosmetics")}
-          >
-            Cosmetics
-          </button>
+        <nav
+          aria-label={t("app.workspaces")}
+          className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
+        >
+          <div className="flex gap-2">
+            <button
+              aria-current={activeWorkspace === "run-saves" ? "page" : undefined}
+              className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
+                activeWorkspace === "run-saves"
+                  ? "bg-accent text-accent-ink"
+                  : "text-secondary hover:bg-surface hover:text-ink"
+              }`}
+              type="button"
+              onClick={() => setActiveWorkspace("run-saves")}
+            >
+              {t("app.runSaves")}
+            </button>
+            <button
+              aria-current={activeWorkspace === "cosmetics" ? "page" : undefined}
+              className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
+                activeWorkspace === "cosmetics"
+                  ? "bg-accent text-accent-ink"
+                  : "text-secondary hover:bg-surface hover:text-ink"
+              }`}
+              type="button"
+              onClick={() => setActiveWorkspace("cosmetics")}
+            >
+              {t("app.cosmetics")}
+            </button>
+          </div>
+          <UtilityCluster />
         </nav>
 
         <div hidden={activeWorkspace !== "run-saves"}>
@@ -88,6 +98,14 @@ function App() {
         />
       ) : null}
     </AppShell>
+  );
+}
+
+function App() {
+  return (
+    <PreferencesProvider>
+      <AppContent />
+    </PreferencesProvider>
   );
 }
 

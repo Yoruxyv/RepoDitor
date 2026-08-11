@@ -9,6 +9,8 @@ import type {
   DesktopOperationError,
   SaveRootStatus,
 } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type Translate } from "@/app/translations";
 import { PathText } from "./PathText";
 
 interface DiscoveryStateProps {
@@ -21,32 +23,31 @@ interface DiscoveryFailureProps {
   readonly onRetry: () => void;
 }
 
-function getContent(status: SaveRootStatus) {
+function getContent(status: SaveRootStatus, t: Translate) {
   if (status === "missing") {
     return {
       icon: <FolderIcon aria-hidden="true" size={28} weight="regular" />,
-      title: "Standard save folder not found",
-      description:
-        "RepoDitor checked the normal R.E.P.O. save location. The folder may appear after the game creates its first save.",
+      title: t("discovery.state.missingTitle"),
+      description: t("discovery.state.missingDescription"),
     };
   }
   if (status === "unreadable") {
     return {
       icon: <WarningCircleIcon aria-hidden="true" size={28} weight="regular" />,
-      title: "Save folder could not be read",
-      description:
-        "The save location exists, but RepoDitor could not inspect it. Check folder access, then refresh discovery.",
+      title: t("discovery.state.unreadableTitle"),
+      description: t("discovery.state.unreadableDescription"),
     };
   }
   return {
     icon: <FolderOpenIcon aria-hidden="true" size={28} weight="regular" />,
-    title: "No valid saves yet",
-    description: "The save folder is ready, but it does not contain a valid R.E.P.O. save slot yet.",
+    title: t("discovery.state.emptyTitle"),
+    description: t("discovery.state.emptyDescription"),
   };
 }
 
 export function DiscoveryState({ saveRoot, status }: DiscoveryStateProps) {
-  const content = getContent(status);
+  const { t } = usePreferences();
+  const content = getContent(status, t);
 
   return (
     <section className="rounded-sm border border-line bg-surface p-6 sm:p-8">
@@ -56,7 +57,7 @@ export function DiscoveryState({ saveRoot, status }: DiscoveryStateProps) {
         {content.description}
       </p>
       <div className="mt-6 border-t border-line pt-4">
-        <span className="text-xs font-medium text-muted">Path checked</span>
+        <span className="text-xs font-medium text-muted">{t("discovery.pathChecked")}</span>
         <PathText
           className="mt-1 font-mono text-xs/5 text-secondary"
           path={saveRoot}
@@ -67,6 +68,7 @@ export function DiscoveryState({ saveRoot, status }: DiscoveryStateProps) {
 }
 
 export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
+  const { t } = usePreferences();
   return (
     <section className="mx-auto max-w-2xl border-l-2 border-danger bg-surface px-6 py-8 sm:px-8">
       <WarningCircleIcon
@@ -76,10 +78,10 @@ export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
         weight="regular"
       />
       <h1 className="font-display mt-5 text-4xl font-semibold uppercase leading-none text-ink sm:text-5xl">
-        Local discovery is unavailable
+        {t("discovery.failureTitle")}
       </h1>
       <p className="mt-4 max-w-[58ch] text-sm/6 text-secondary">
-        {error.message} RepoDitor has not changed any save files.
+        {t("discovery.failureDescription", { error: t(operationErrorKey(error.code)) })}
       </p>
       <button
         className="mt-7 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition duration-150 hover:bg-accent-strong active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
@@ -87,7 +89,7 @@ export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
         onClick={onRetry}
       >
         <ArrowClockwiseIcon aria-hidden="true" size={17} weight="bold" />
-        Try again
+        {t("action.tryAgain")}
       </button>
     </section>
   );

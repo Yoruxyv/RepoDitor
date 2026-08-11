@@ -1,8 +1,11 @@
+import { usePreferences } from "@/app/preferences";
+
 export function DiscoveryLoading() {
+  const { t } = usePreferences();
   return (
-    <section aria-busy="true" aria-label="Discovering local R.E.P.O. saves">
+    <section aria-busy="true" aria-label={t("discovery.loading")}>
       <span className="sr-only" aria-live="polite">
-        Discovering local R.E.P.O. saves.
+        {t("discovery.loadingLive")}
       </span>
 
       <div className="animate-pulse motion-reduce:animate-none">

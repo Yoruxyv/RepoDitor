@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
 
 interface State {
   advanced: AdvancedSaveDto | null;
-  error: string | null;
+  error: TranslationKey | null;
   loading: boolean;
 }
 
 const INITIAL_STATE: State = { advanced: null, error: null, loading: true };
 
 export function useAdvanced(saveId: string) {
+  const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});
   const mounted = useRef(false);
@@ -23,14 +26,14 @@ export function useAdvanced(saveId: string) {
         setState(
           result.ok
             ? { advanced: result.data, error: null, loading: false }
-            : { advanced: null, error: result.error.message, loading: false },
+            : { advanced: null, error: operationErrorKey(result.error.code), loading: false },
         );
       }
     } catch {
       if (mounted.current) {
         setState({
           advanced: null,
-          error: "The desktop advanced-data bridge is unavailable.",
+          error: "error.service",
           loading: false,
         });
       }
@@ -76,6 +79,7 @@ export function useAdvanced(saveId: string) {
 
   return {
     ...state,
+    error: state.error ? t(state.error) : null,
     pendingByItem,
     pendingEdits: Object.values(pendingByItem),
     refillToFull,

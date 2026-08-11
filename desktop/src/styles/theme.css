@@ -20,6 +20,28 @@
   --theme-focus: #efb873;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --theme-app: #f3f2ed;
+  --theme-surface: #fffdf7;
+  --theme-surface-raised: #eae8e1;
+  --theme-line: #d7d4ca;
+  --theme-line-strong: #b8b3a7;
+  --theme-ink: #1a211e;
+  --theme-secondary: #48564f;
+  --theme-muted: #6d7872;
+  --theme-accent: #a95f16;
+  --theme-accent-strong: #8d4c0e;
+  --theme-accent-muted: rgb(169 95 22 / 0.12);
+  --theme-accent-ink: #fffaf3;
+  --theme-success: #2f713f;
+  --theme-warning: #8f5a12;
+  --theme-warning-muted: rgb(143 90 18 / 0.1);
+  --theme-danger: #a33e34;
+  --theme-focus: #a95f16;
+}
+
 @theme inline {
   --color-app: var(--theme-app);
   --color-surface: var(--theme-surface);

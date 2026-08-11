@@ -1,6 +1,8 @@
 import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 import type { EnvironmentDiscovery } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type Translate } from "@/app/translations";
 import { formatSaveCount } from "@/features/discovery/formatters";
 import { useEnvironmentDiscovery } from "@/features/discovery/useEnvironmentDiscovery";
 import { DiscoveryFailure, DiscoveryState } from "./DiscoveryState";
@@ -9,40 +11,40 @@ import { EnvironmentStatus } from "./EnvironmentStatus";
 import { LatestSave } from "./LatestSave";
 import { RecentSaveList } from "./RecentSaveList";
 
-function getHeadline(environment: EnvironmentDiscovery): string {
+function getHeadline(environment: EnvironmentDiscovery, t: Translate): string {
   if (environment.gameDetected) {
-    return "R.E.P.O. detected";
+    return t("discovery.headline.game");
   }
   if (environment.saveRootDetected && environment.saves.length > 0) {
-    return "Local saves detected";
+    return t("discovery.headline.saves");
   }
   if (environment.saveRootStatus === "missing") {
-    return "Save folder not found";
+    return t("discovery.headline.missing");
   }
   if (environment.saveRootStatus === "unreadable") {
-    return "Save folder unavailable";
+    return t("discovery.headline.unreadable");
   }
-  return "Save folder is ready";
+  return t("discovery.headline.ready");
 }
 
-function getSummary(environment: EnvironmentDiscovery): string {
+function getSummary(environment: EnvironmentDiscovery, t: Translate): string {
   const saveCount = environment.saves.length;
 
   if (environment.gameDetected && saveCount > 0) {
-    return `RepoDitor found the game installation and ${formatSaveCount(saveCount)} on this PC.`;
+    return t("discovery.summary.game", { saves: formatSaveCount(saveCount, t) });
   }
   if (saveCount > 0) {
-    return `RepoDitor found ${formatSaveCount(saveCount)}. The game installation was not detected, but save discovery is ready.`;
+    return t("discovery.summary.saves", { saves: formatSaveCount(saveCount, t) });
   }
   if (environment.saveRootStatus === "available") {
-    return "The standard save folder exists, but it does not contain a valid save slot yet.";
+    return t("discovery.summary.empty");
   }
   if (environment.saveRootStatus === "missing") {
     return environment.gameDetected
-      ? "The game installation is ready. The standard save folder has not been created yet."
-      : "RepoDitor checked the standard save location, but the folder was not detected.";
+      ? t("discovery.summary.missingGame")
+      : t("discovery.summary.missing");
   }
-  return "RepoDitor found the save location but could not read its contents.";
+  return t("discovery.summary.unreadable");
 }
 
 interface DiscoveryHomeProps {
@@ -58,6 +60,7 @@ export function DiscoveryHome({
 }: DiscoveryHomeProps) {
   const { data, error, isInitialLoading, isRefreshing, refresh } =
     useEnvironmentDiscovery();
+  const { t } = usePreferences();
 
   if (isInitialLoading || (data === null && error === null)) {
     return <DiscoveryLoading />;
@@ -78,16 +81,16 @@ export function DiscoveryHome({
       <header className="flex flex-col gap-6 border-b border-line pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            Automatic local discovery
+            {t("discovery.automatic")}
           </p>
           <h1
             className="font-display mt-3 text-5xl font-semibold uppercase leading-[0.9] tracking-tight text-ink sm:text-6xl"
             id="discovery-title"
           >
-            {getHeadline(data)}
+            {getHeadline(data, t)}
           </h1>
           <p className="mt-4 max-w-[62ch] text-sm/6 text-secondary">
-            {getSummary(data)}
+            {getSummary(data, t)}
           </p>
         </div>
 
@@ -103,7 +106,7 @@ export function DiscoveryHome({
             size={17}
             weight="bold"
           />
-          {isRefreshing ? "Refreshing" : "Refresh"}
+          {t(isRefreshing ? "action.refreshing" : "action.refresh")}
         </button>
       </header>
 
@@ -118,7 +121,7 @@ export function DiscoveryHome({
             weight="fill"
           />
           <p>
-            Refresh failed. Showing the last discovery result. {error.message}
+            {t("discovery.refreshFailed", { error: t(operationErrorKey(error.code)) })}
           </p>
         </output>
       )}
@@ -134,7 +137,7 @@ export function DiscoveryHome({
             size={18}
             weight="fill"
           />
-          <p>{openError} No save files were changed.</p>
+          <p>{t("discovery.openFailed", { error: openError })}</p>
         </div>
       )}
 
