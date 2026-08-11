@@ -469,6 +469,12 @@ describe("save workspace transition", () => {
     await user.type(health, "42");
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 42");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
+    expect(document.querySelector("#workspace-tab-pending-1")?.textContent).toContain(
+      "1 pending change",
+    );
+    expect(document.querySelector("#run-saves-pending")?.textContent).toContain(
+      "1 pending change",
+    );
 
     await user.clear(health);
     await user.type(health, "0");
@@ -699,6 +705,9 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "1 pending change",
     );
+    expect(document.querySelector("#cosmetics-pending")?.textContent).toContain(
+      "1 pending change",
+    );
 
     act(() => window.dispatchEvent(new Event("focus")));
     await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(2));
@@ -883,8 +892,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect((screen.getByRole("button", { name: "Save Changes" }) as HTMLButtonElement).disabled)
-      .toBe(true);
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Players" }));
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
@@ -928,7 +936,7 @@ describe("save workspace transition", () => {
         after: true,
       },
     ]);
-    expect(await screen.findByText(/Saved safely\. Backup:/)).toBeTruthy();
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 

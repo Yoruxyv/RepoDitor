@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -16,6 +17,28 @@ const edit: PendingEdit = {
 };
 
 describe("PendingChangesBar", () => {
+  it("keeps exact changes collapsed until Review is requested", async () => {
+    const user = userEvent.setup();
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          backupPath={null}
+          edits={[edit]}
+          error={null}
+          saving={false}
+          onRevert={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </PreferencesProvider>,
+    );
+
+    const changes = document.querySelector('ul[aria-label="Unsaved changes"]')!;
+    expect(changes.hasAttribute("hidden")).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(changes.hasAttribute("hidden")).toBe(false);
+    expect(screen.getByText("12 → 20")).toBeTruthy();
+  });
+
   it("announces pending counts, saving progress, success, and durable errors", () => {
     const { rerender } = render(
       <PreferencesProvider>
@@ -43,7 +66,7 @@ describe("PendingChangesBar", () => {
         />
       </PreferencesProvider>,
     );
-    expect(screen.getByText("Saving…", { selector: "output" }).tagName).toBe("OUTPUT");
+    expect(screen.getByText("Saving safely…", { selector: "output" }).tagName).toBe("OUTPUT");
 
     rerender(
       <PreferencesProvider>

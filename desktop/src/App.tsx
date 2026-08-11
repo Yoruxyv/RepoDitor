@@ -14,6 +14,19 @@ import { useGameSafety } from "@/features/safety/useGameSafety";
 
 type AppWorkspace = "run-saves" | "cosmetics";
 
+function PendingDot({ count, id }: { readonly count: number; readonly id: string }) {
+  const { t } = usePreferences();
+  if (count === 0) return null;
+  return (
+    <>
+      <span aria-hidden="true" className="ml-2 inline-block size-2 rounded-full bg-warning" />
+      <span className="sr-only" id={id}>
+        {" · "}{t(count === 1 ? "pending.one" : "pending.many", { count })}
+      </span>
+    </>
+  );
+}
+
 function AppContent() {
   useUiSound();
   const save = useSaveSession();
@@ -21,6 +34,8 @@ function AppContent() {
   const { t } = usePreferences();
   const editorContent = useRef<HTMLDivElement>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
+  const [runPendingCount, setRunPendingCount] = useState(0);
+  const [cosmeticsPendingCount, setCosmeticsPendingCount] = useState(0);
   const safetyRequired = save.session !== null || activeWorkspace === "cosmetics";
   const dialogStatus =
     safetyRequired && (gameSafety.status === "running" || gameSafety.status === "unknown")
@@ -39,11 +54,13 @@ function AppContent() {
       >
         <nav
           aria-label={t("app.workspaces")}
-          className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
+          className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
         >
           <div className="flex gap-2">
             <button
+              aria-describedby={runPendingCount > 0 ? "run-saves-pending" : undefined}
               aria-current={activeWorkspace === "run-saves" ? "page" : undefined}
+              aria-label={t("app.runSaves")}
               className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                 activeWorkspace === "run-saves"
                   ? "bg-accent text-accent-ink"
@@ -53,9 +70,12 @@ function AppContent() {
               onClick={() => setActiveWorkspace("run-saves")}
             >
               {t("app.runSaves")}
+              <PendingDot count={runPendingCount} id="run-saves-pending" />
             </button>
             <button
+              aria-describedby={cosmeticsPendingCount > 0 ? "cosmetics-pending" : undefined}
               aria-current={activeWorkspace === "cosmetics" ? "page" : undefined}
+              aria-label={t("app.cosmetics")}
               className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                 activeWorkspace === "cosmetics"
                   ? "bg-accent text-accent-ink"
@@ -65,6 +85,7 @@ function AppContent() {
               onClick={() => setActiveWorkspace("cosmetics")}
             >
               {t("app.cosmetics")}
+              <PendingDot count={cosmeticsPendingCount} id="cosmetics-pending" />
             </button>
           </div>
           <UtilityCluster />
@@ -85,6 +106,7 @@ function AppContent() {
               saveError={save.saveError}
               saving={save.saving}
               session={save.session}
+              onPendingCountChange={setRunPendingCount}
               onClose={save.close}
               onSave={save.write}
             />
@@ -94,6 +116,7 @@ function AppContent() {
         <CosmeticsWorkspace
           hidden={activeWorkspace !== "cosmetics"}
           recoveryGeneration={gameSafety.recoveryGeneration}
+          onPendingCountChange={setCosmeticsPendingCount}
         />
       </div>
 

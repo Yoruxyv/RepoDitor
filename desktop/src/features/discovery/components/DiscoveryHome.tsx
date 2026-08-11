@@ -84,7 +84,7 @@ export function DiscoveryHome({
             {t("discovery.automatic")}
           </p>
           <h1
-            className="font-display mt-3 text-5xl font-semibold uppercase leading-[0.9] tracking-tight text-ink sm:text-6xl"
+            className="font-display mt-2 text-4xl font-semibold uppercase leading-none tracking-tight text-ink sm:text-[2.5rem]"
             id="discovery-title"
           >
             {getHeadline(data, t)}

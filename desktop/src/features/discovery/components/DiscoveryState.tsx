@@ -77,7 +77,7 @@ export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
         size={30}
         weight="regular"
       />
-      <h1 className="font-display mt-5 text-4xl font-semibold uppercase leading-none text-ink sm:text-5xl">
+      <h1 className="font-display mt-3 text-4xl font-semibold uppercase leading-none text-ink sm:text-[2.5rem]">
         {t("discovery.failureTitle")}
       </h1>
       <p className="mt-4 max-w-[58ch] text-sm/6 text-secondary">
