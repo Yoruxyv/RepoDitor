@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { AppShell } from "@/app/AppShell";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -19,6 +19,7 @@ function AppContent() {
   const save = useSaveSession();
   const gameSafety = useGameSafety();
   const { t } = usePreferences();
+  const editorContent = useRef<HTMLDivElement>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
   const safetyRequired = save.session !== null || activeWorkspace === "cosmetics";
   const dialogStatus =
@@ -30,9 +31,11 @@ function AppContent() {
   return (
     <AppShell>
       <div
+        ref={editorContent}
         aria-busy={initialSafetyCheck || (safetyRequired && gameSafety.checking)}
         data-testid="editor-content"
         inert={dialogStatus !== null || initialSafetyCheck}
+        tabIndex={-1}
       >
         <nav
           aria-label={t("app.workspaces")}
@@ -98,6 +101,7 @@ function AppContent() {
         <GameSafetyDialog
           status={dialogStatus}
           checking={gameSafety.checking}
+          fallbackFocusRef={editorContent}
           onCheckAgain={() => void gameSafety.check()}
           onExit={() => window.close()}
         />

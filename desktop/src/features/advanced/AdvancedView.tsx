@@ -63,7 +63,7 @@ export function AdvancedView({
         </h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
         <button
-          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onRetry}
         >
@@ -169,7 +169,7 @@ export function AdvancedView({
                       })}
                     </p>
                     <button
-                      className="rounded-sm border border-line-strong px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
+                      className="rounded-sm border border-control px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
                       type="button"
                       onClick={() => onRevertRefill(item.saveKey)}
                     >

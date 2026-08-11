@@ -21,6 +21,23 @@ if (typeof window !== "undefined") {
     pause: { configurable: true, value: () => undefined },
     play: { configurable: true, value: () => Promise.resolve() },
   });
+
+  if (!window.HTMLDialogElement.prototype.showModal) {
+    Object.defineProperties(window.HTMLDialogElement.prototype, {
+      close: {
+        configurable: true,
+        value(this: HTMLDialogElement) {
+          this.open = false;
+        },
+      },
+      showModal: {
+        configurable: true,
+        value(this: HTMLDialogElement) {
+          this.open = true;
+        },
+      },
+    });
+  }
 }
 
 afterEach(cleanup);

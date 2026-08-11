@@ -53,7 +53,7 @@ export function UpgradesView({
       <section aria-labelledby="upgrades-error-title">
         <h2 className="text-xl font-semibold text-ink" id="upgrades-error-title">{t("upgrades.unavailable")}</h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
-        <button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}>
+        <button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}>
           <ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}
         </button>
       </section>
@@ -80,7 +80,7 @@ export function UpgradesView({
           />
           <label className="min-w-0 text-sm font-semibold text-ink">
             <span>{t("upgrades.player")}</span>
-            <select className="mt-1 block min-w-52 max-w-full rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
+            <select className="mt-1 block min-w-52 max-w-full rounded-sm border border-control bg-surface px-3 py-2 text-sm text-ink focus:border-accent" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
               {players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
@@ -111,13 +111,13 @@ export function UpgradesView({
                 </div>
                 <p className="mt-1 truncate font-mono text-[0.68rem] text-muted" title={upgrade.key}>{upgrade.key}</p>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
-                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
+                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
                     const value = event.target.value;
                     setInputs((current) => ({ ...current, [inputKey]: value }));
                     const next = Number(value);
                     if (value.trim() && Number.isSafeInteger(next) && next >= 0) onChange(upgrade, player, next);
                   }} />
-                  {edit ? <button className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
+                  {edit ? <button className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
                     setInputs((current) => { const next = { ...current }; delete next[inputKey]; return next; });
                     onRevert(player.id, upgrade.key);
                   }}>{t("action.revert")}</button> : null}

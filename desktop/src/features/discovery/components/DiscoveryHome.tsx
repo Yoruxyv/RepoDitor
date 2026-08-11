@@ -95,7 +95,7 @@ export function DiscoveryHome({
         </div>
 
         <button
-          className="ui-feedback inline-flex w-fit shrink-0 items-center gap-2 rounded-sm border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          className="ui-feedback inline-flex w-fit shrink-0 items-center gap-2 rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isRefreshing}
           type="button"
           onClick={() => void refresh()}

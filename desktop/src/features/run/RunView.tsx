@@ -21,7 +21,7 @@ export function RunView({ run, loading, error, pendingByField, onStatChange, onR
   const [inputs, setInputs] = useState<Record<string, string>>({});
   if (loading) return <output aria-live="polite" className="text-sm text-secondary">{t("run.loading")}</output>;
   if (error) {
-    return <section aria-labelledby="run-error-title"><h2 className="text-xl font-semibold text-ink" id="run-error-title">{t("run.unavailable")}</h2><p className="mt-2 text-sm text-secondary" role="alert">{error}</p><button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}><ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}</button></section>;
+    return <section aria-labelledby="run-error-title"><h2 className="text-xl font-semibold text-ink" id="run-error-title">{t("run.unavailable")}</h2><p className="mt-2 text-sm text-secondary" role="alert">{error}</p><button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}><ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}</button></section>;
   }
   if (!run) return null;
 
@@ -39,13 +39,13 @@ export function RunView({ run, loading, error, pendingByField, onStatChange, onR
           return <div className="border-t border-line pt-4" key={stat.key}>
             <label className="text-sm font-semibold text-ink" htmlFor={`run-${stat.key}`}>{stat.label}</label>
             <div className="mt-3 flex flex-wrap items-start gap-3">
-              <input aria-describedby={invalid ? `run-${stat.key}-error` : undefined} aria-invalid={invalid ? "true" : undefined} className="w-36 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={`run-${stat.key}`} min={stat.key === "level" ? 1 : undefined} step="1" type="number" value={input} onChange={(event) => {
+              <input aria-describedby={invalid ? `run-${stat.key}-error` : undefined} aria-invalid={invalid ? "true" : undefined} className="w-36 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={`run-${stat.key}`} min={stat.key === "level" ? 1 : undefined} step="1" type="number" value={input} onChange={(event) => {
                 const value = event.target.value;
                 setInputs((current) => ({ ...current, [stat.key]: value }));
                 const next = Number(value);
                 if (value.trim() && Number.isSafeInteger(next) && (stat.key !== "level" || next >= 1)) onStatChange(stat, next);
               }} />
-              {edit ? <button className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
+              {edit ? <button className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
                 setInputs((current) => { const next = { ...current }; delete next[stat.key]; return next; });
                 onRevert(stat.key);
               }}>{t("action.revert")}</button> : null}
@@ -57,10 +57,10 @@ export function RunView({ run, loading, error, pendingByField, onStatChange, onR
         <div className="border-t border-line pt-4 sm:col-span-2">
           <label className="text-sm font-semibold text-ink" htmlFor="run-resume-location">{t("run.resumeLocation")}</label>
           <div className="mt-3 flex flex-wrap items-start gap-3">
-            <select className="min-w-56 rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent" id="run-resume-location" value={String(pendingByField.resumeLocation?.after ?? run.resumeLocation.value)} onChange={(event) => onResumeChange(event.target.value)}>
+            <select className="min-w-56 rounded-sm border border-control bg-surface px-3 py-2 text-sm text-ink focus:border-accent" id="run-resume-location" value={String(pendingByField.resumeLocation?.after ?? run.resumeLocation.value)} onChange={(event) => onResumeChange(event.target.value)}>
               {run.resumeLocation.options.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
-            {pendingByField.resumeLocation ? <button className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => onRevert("resumeLocation")}>{t("action.revert")}</button> : null}
+            {pendingByField.resumeLocation ? <button className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => onRevert("resumeLocation")}>{t("action.revert")}</button> : null}
           </div>
           {pendingByField.resumeLocation ? <p className="mt-2 text-xs font-medium text-accent" data-testid="pending-run-resume">{t("status.pending", { before: pendingByField.resumeLocation.before, after: pendingByField.resumeLocation.after })}</p> : null}
         </div>

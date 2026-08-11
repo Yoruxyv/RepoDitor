@@ -74,9 +74,14 @@ export function PendingChangesBar({
       data-testid={`${testIdPrefix}-action-bar`}
     >
       <div className="min-w-0">
-        <p className="font-semibold text-ink" data-testid={`${testIdPrefix}-pending-edit-count`}>
+        <output
+          aria-atomic="true"
+          aria-live="polite"
+          className="block font-semibold text-ink"
+          data-testid={`${testIdPrefix}-pending-edit-count`}
+        >
           {changeCount(edits.length, t)}
-        </p>
+        </output>
         {edits.length > 0 ? (
           <ul className="mt-3 grid max-h-40 gap-2 overflow-y-auto pr-2" aria-label={t("pending.unsaved")}>
             {edits.map((edit) => (
@@ -94,16 +99,25 @@ export function PendingChangesBar({
             ))}
           </ul>
         ) : null}
+        {saving ? (
+          <output aria-live="polite" className="sr-only">
+            {t("action.saving")}
+          </output>
+        ) : null}
         {error ? <p className="mt-3 text-xs text-danger" role="alert">{error}</p> : null}
         {backupPath ? (
-          <output className="mt-3 block break-all text-xs text-success">
+          <output
+            aria-atomic="true"
+            aria-live="polite"
+            className="mt-3 block break-all text-xs text-success"
+          >
             {t("status.savedSafely")} <span className="font-mono">{backupPath}</span>
           </output>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-3 md:justify-end">
         <button
-          className="ui-feedback rounded-sm border border-line-strong px-4 py-2.5 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback rounded-sm border border-control px-4 py-2.5 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={edits.length === 0 || saving}
           type="button"
           onClick={onRevert}

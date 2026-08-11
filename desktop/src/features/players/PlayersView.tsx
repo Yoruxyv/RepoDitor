@@ -60,7 +60,7 @@ export function PlayersView({
           {error}
         </p>
         <button
-          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onRetry}
         >
@@ -121,7 +121,7 @@ export function PlayersView({
                 className={`min-w-0 rounded-sm border px-4 py-3 text-left transition duration-150 ${
                   selected
                     ? "border-accent bg-accent-muted text-ink"
-                    : "border-line bg-surface text-secondary hover:border-line-strong hover:text-ink"
+                    : "border-control bg-surface text-secondary hover:border-accent hover:text-ink"
                 }`}
                 key={item.id}
                 type="button"
@@ -169,7 +169,7 @@ export function PlayersView({
               <input
                 aria-describedby={healthError ? "player-health-error" : undefined}
                 aria-invalid={healthError ? "true" : undefined}
-                className="w-28 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
+                className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                 id="player-health"
                 inputMode="numeric"
                 min="0"
@@ -186,7 +186,7 @@ export function PlayersView({
               </span>
             </div>
             <button
-              className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-strong disabled:hover:text-secondary"
+              className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
               disabled={isAtFullHealth}
               type="button"
               onClick={() => editHealth(String(player.maxHealth))}
@@ -195,7 +195,7 @@ export function PlayersView({
             </button>
             {pending ? (
               <button
-                className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+                className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
                 type="button"
                 onClick={() => revertHealth(player.id)}
               >
