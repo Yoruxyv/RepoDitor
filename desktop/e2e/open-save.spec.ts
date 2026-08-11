@@ -250,6 +250,13 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("option", { name: "English" }).click();
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
+    const latestSavePath = page.getByTestId("latest-save-path");
+    await expect(latestSavePath).toContainText(path.basename(savePath));
+    await expect(latestSavePath.locator("code")).not.toBeVisible();
+    await latestSavePath.locator("summary").click();
+    await expect(latestSavePath.locator("code")).toHaveText(savePath);
+    await latestSavePath.getByRole("button", { name: "Copy Source" }).click();
+    await expect(latestSavePath.getByText("Path copied")).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
@@ -304,7 +311,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("workspace")).toBeVisible();
     const openReadyMs = performance.now() - openStarted;
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
-    await expect(page.getByText("Save opened safely")).toBeVisible();
+    await expect(page.getByText("Validated locally")).toBeVisible();
+    await expect(page.getByTestId("selected-save-path")).toContainText(path.basename(savePath));
     await expect(page.getByText("Normal")).toBeVisible();
 
     await page.getByRole("button", { name: "Cosmetics" }).click();
@@ -386,6 +394,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     await page.getByRole("tab", { name: "Upgrades" }).click();
     await expect(page.getByTestId("upgrades-avatar-fallback")).toHaveText("B");
+    await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
+    await expect(page.getByTestId("selected-player-identity")).toContainText("222");
     await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength"))
       .toHaveAttribute("data-icon-source", "specific");
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
@@ -401,6 +411,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("McJannek Station")).toBeVisible();
     await expect(page.getByText("Headman Manor")).toBeVisible();
     await expect(page.getByText("Modded Moon")).toBeVisible();
+    await expect(page.getByTestId("map-catalog-path")).toContainText("catalog.json");
+    await expect(page.getByTestId("map-catalog-path").locator("code")).not.toBeVisible();
 
     await page.getByRole("button", { name: "Review" }).click();
     await expect(page.getByText("Beta · Health")).toBeVisible();
@@ -468,7 +480,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await expect(page.getByRole("tab", { name: "Maps" })).toBeVisible();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.getByRole("tab", { name: "Overview" }).click();
-      await expect(page.getByText("Save opened safely")).toBeVisible();
+      await expect(page.getByText("Validated locally")).toBeVisible();
       await expect(page.getByText("Normal")).toBeVisible();
       await page.getByRole("tab", { name: "Players" }).click();
       await expect(page.getByRole("button", { name: /Alpha/ })).toBeVisible();

@@ -36,10 +36,15 @@ export function RunView({ run, loading, error, pendingByField, onStatChange, onR
           const input = inputs[stat.key] ?? String(edit?.after ?? stat.value);
           const parsed = Number(input);
           const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || (stat.key === "level" && parsed < 1);
+          const errorId = `run-${stat.key}-error`;
+          const pendingId = `run-${stat.key}-pending`;
+          const description = [invalid ? errorId : null, edit ? pendingId : null]
+            .filter(Boolean)
+            .join(" ") || undefined;
           return <div className="border-t border-line pt-4" key={stat.key}>
             <label className="text-sm font-semibold text-ink" htmlFor={`run-${stat.key}`}>{stat.label}</label>
             <div className="mt-3 flex flex-wrap items-start gap-3">
-              <input aria-describedby={invalid ? `run-${stat.key}-error` : undefined} aria-invalid={invalid ? "true" : undefined} className="w-36 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={`run-${stat.key}`} min={stat.key === "level" ? 1 : undefined} step="1" type="number" value={input} onChange={(event) => {
+              <input aria-describedby={description} aria-invalid={invalid ? "true" : undefined} className="w-36 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={`run-${stat.key}`} min={stat.key === "level" ? 1 : undefined} step="1" type="number" value={input} onChange={(event) => {
                 const value = event.target.value;
                 setInputs((current) => ({ ...current, [stat.key]: value }));
                 const next = Number(value);
@@ -50,8 +55,8 @@ export function RunView({ run, loading, error, pendingByField, onStatChange, onR
                 onRevert(stat.key);
               }}>{t("action.revert")}</button> : null}
             </div>
-            {invalid ? <p className="mt-2 text-xs text-danger" id={`run-${stat.key}-error`} role="alert">{stat.key === "level" ? t("run.levelError") : t("run.valueError", { label: stat.label })}</p> : null}
-            {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-run-${stat.key}`}>{t("status.pending", { before: edit.before, after: edit.after })}</p> : null}
+            {invalid ? <p className="mt-2 text-xs text-danger" id={errorId} role="alert">{stat.key === "level" ? t("run.levelError") : t("run.valueError", { label: stat.label })}</p> : null}
+            {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-run-${stat.key}`} id={pendingId}>{t("status.pending", { before: edit.before, after: edit.after })}</p> : null}
           </div>;
         })}
         <div className="border-t border-line pt-4 sm:col-span-2">

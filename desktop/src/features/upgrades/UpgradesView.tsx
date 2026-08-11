@@ -5,7 +5,7 @@ import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
-import { PlayerAvatar } from "@/features/players/PlayerAvatar";
+import { SelectedPlayerIdentity } from "@/features/players/SelectedPlayerIdentity";
 import { getUpgradeIcon } from "./upgradeIcons";
 
 interface UpgradesViewProps {
@@ -70,13 +70,12 @@ export function UpgradesView({
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("upgrades.perPlayer")}</p>
           <h2 className="mt-1 text-2xl font-semibold text-ink" id="upgrades-title">{t("nav.upgrades")}</h2>
         </div>
-        <div className="flex min-w-0 items-end gap-3">
-          <PlayerAvatar
+        <div className="flex min-w-0 flex-wrap items-end gap-4">
+          <SelectedPlayerIdentity
             avatarUrl={avatarUrls[player.id]}
-            className="size-11 text-lg"
             fallbackTestId="upgrades-avatar-fallback"
-            name={player.name}
-            onError={() => onRejectAvatar(player.id)}
+            player={player}
+            onRejectAvatar={() => onRejectAvatar(player.id)}
           />
           <label className="min-w-0 text-sm font-semibold text-ink">
             <span>{t("upgrades.player")}</span>
@@ -100,6 +99,10 @@ export function UpgradesView({
             const parsed = Number(input);
             const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0;
             const errorId = `${upgrade.key}-error`;
+            const pendingId = `${upgrade.key}-pending`;
+            const description = [invalid ? errorId : null, edit ? pendingId : null]
+              .filter(Boolean)
+              .join(" ") || undefined;
             return (
               <div className="relative min-h-24 min-w-0 border-t border-line pt-4 pr-24" key={upgrade.key}>
                 <div className="absolute top-4 right-0">
@@ -109,9 +112,12 @@ export function UpgradesView({
                   <label className="min-w-0 text-sm font-semibold text-ink" htmlFor={upgrade.key} title={upgrade.label}>{upgrade.label}</label>
                   {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">{t("status.detected")}</span> : null}
                 </div>
-                <p className="mt-1 truncate font-mono text-[0.68rem] text-muted" title={upgrade.key}>{upgrade.key}</p>
+                <details className="mt-1 text-xs text-muted">
+                  <summary className="cursor-pointer font-semibold text-accent">{t("technical.details")}</summary>
+                  <p className="mt-1 break-all font-mono text-xs/5">{upgrade.key}</p>
+                </details>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
-                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
+                  <input aria-describedby={description} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
                     const value = event.target.value;
                     setInputs((current) => ({ ...current, [inputKey]: value }));
                     const next = Number(value);
@@ -123,7 +129,7 @@ export function UpgradesView({
                   }}>{t("action.revert")}</button> : null}
                 </div>
                 {invalid ? <p className="mt-2 text-xs text-danger" id={errorId} role="alert">{t("upgrades.error")}</p> : null}
-                {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-upgrade-${upgrade.key}`}>{t("status.pending", { before: edit.before, after: edit.after })}</p> : null}
+                {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-upgrade-${upgrade.key}`} id={pendingId}>{t("status.pending", { before: edit.before, after: edit.after })}</p> : null}
               </div>
             );
           })}

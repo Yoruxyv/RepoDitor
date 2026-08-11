@@ -2,6 +2,7 @@ import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { PathDetails } from "@/components/PathDetails";
 import {
   formatDateTime,
   formatFileSize,
@@ -23,13 +24,13 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
         {t("saves.latest")}
       </h2>
 
-      <button
-        className="mt-3 w-full rounded-sm border border-line bg-surface text-left transition duration-150 hover:border-accent active:translate-y-px disabled:cursor-wait disabled:opacity-70"
-        disabled={isDisabled}
-        type="button"
-        onClick={() => onOpen(save.id)}
-      >
-        <div className="border-l-2 border-accent p-5 sm:p-6">
+      <div className="mt-3 rounded-sm border border-line bg-surface">
+        <button
+          className="w-full border-l-2 border-accent p-5 text-left transition duration-150 hover:bg-raised active:translate-y-px disabled:cursor-wait disabled:opacity-70 sm:p-6"
+          disabled={isDisabled}
+          type="button"
+          onClick={() => onOpen(save.id)}
+        >
           <div className="flex items-start gap-4">
             <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-sm bg-accent-muted text-accent">
               <FileIcon aria-hidden="true" size={21} weight="regular" />
@@ -54,14 +55,12 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
               </p>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="border-t border-line px-5 py-3 sm:px-6">
-          <p className="truncate font-mono text-[0.7rem]/5 text-muted" title={save.path}>
-            {save.path}
-          </p>
+          <PathDetails label={t("workspace.source")} testId="latest-save-path" value={save.path} />
         </div>
-      </button>
+      </div>
     </section>
   );
 }

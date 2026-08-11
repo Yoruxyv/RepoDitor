@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
+import { PathDetails } from "@/components/PathDetails";
 import type { PendingEdit } from "@/features/editor/pendingEdits";
 
 interface PendingChangesBarProps {
@@ -135,12 +136,11 @@ export function PendingChangesBar({
                 <output aria-atomic="true" aria-live="polite">
                   {t("status.savedBackupCreated")}
                 </output>
-                <details className="ml-2 inline text-secondary">
-                  <summary className="inline cursor-pointer font-semibold text-accent">
-                    {t("pending.backupDetails")}
-                  </summary>
-                  <span className="mt-1 block break-all font-mono text-muted">{backupPath}</span>
-                </details>
+                <PathDetails
+                  className="ml-2 inline-block text-secondary"
+                  label={t("pending.backupDetails")}
+                  value={backupPath}
+                />
               </div>
             ) : null}
           </div>
