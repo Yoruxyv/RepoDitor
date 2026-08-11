@@ -1,6 +1,7 @@
 import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
 import {
   formatDateTime,
   formatFileSize,
@@ -15,10 +16,11 @@ interface LatestSaveProps {
 }
 
 export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSaveProps) {
+  const { locale, t } = usePreferences();
   return (
     <section aria-labelledby="latest-save-title">
       <h2 className="text-base font-semibold text-ink" id="latest-save-title">
-        Latest save
+        {t("saves.latest")}
       </h2>
 
       <button
@@ -39,16 +41,16 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
                 <span className="inline-flex items-center gap-2">
                   <ClockIcon aria-hidden="true" size={15} weight="regular" />
-                  <span>{formatRelativeTime(save.modifiedAt)}</span>
+                  <span>{formatRelativeTime(save.modifiedAt, locale, t)}</span>
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <HardDriveIcon aria-hidden="true" size={15} weight="regular" />
-                  <span>{formatFileSize(save.sizeBytes)}</span>
+                  <span>{formatFileSize(save.sizeBytes, locale)}</span>
                 </span>
               </div>
-              <p className="mt-2 text-xs text-muted">{formatDateTime(save.modifiedAt)}</p>
+              <p className="mt-2 text-xs text-muted">{formatDateTime(save.modifiedAt, locale)}</p>
               <p className="mt-4 text-sm font-semibold text-accent">
-                {isOpening ? "Opening save" : "Open workspace"}
+                {t(isOpening ? "saves.openingSave" : "saves.openWorkspace")}
               </p>
             </div>
           </div>

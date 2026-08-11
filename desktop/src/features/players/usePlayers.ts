@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
 
 interface PlayersState {
   players: PlayerDto[];
-  error: string | null;
+  error: TranslationKey | null;
   loading: boolean;
 }
 
@@ -16,6 +18,7 @@ const INITIAL_STATE: PlayersState = {
 };
 
 export function usePlayers(saveId: string) {
+  const { t } = usePreferences();
   const [state, setState] = useState<PlayersState>(INITIAL_STATE);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [pendingByPlayer, setPendingByPlayer] = useState<Record<string, PlayerHealthEdit>>({});
@@ -59,12 +62,12 @@ export function usePlayers(saveId: string) {
           setState({ players: result.data, error: null, loading: false });
           setSelectedPlayerId((current) => current ?? result.data[0]?.id ?? null);
         } else {
-          setState({ players: [], error: result.error.message, loading: false });
+          setState({ players: [], error: operationErrorKey(result.error.code), loading: false });
         }
       }
     } catch {
       if (mounted.current) {
-        setState({ players: [], error: "The desktop player bridge is unavailable.", loading: false });
+        setState({ players: [], error: "error.service", loading: false });
       }
     } finally {
       playerRequestInFlight.current = false;
@@ -79,6 +82,12 @@ export function usePlayers(saveId: string) {
       window.clearTimeout(request);
     };
   }, [loadPlayers]);
+
+  useEffect(() => {
+    if (selectedPlayerId && avatarUrls[selectedPlayerId] === undefined) {
+      void loadAvatar(selectedPlayerId);
+    }
+  }, [avatarUrls, loadAvatar, selectedPlayerId]);
 
   function updateHealth(player: PlayerDto, health: number): void {
     setPendingByPlayer((current) => {
@@ -125,6 +134,7 @@ export function usePlayers(saveId: string) {
 
   return {
     ...state,
+    error: state.error ? t(state.error) : null,
     selectedPlayerId,
     setSelectedPlayerId,
     pendingByPlayer,

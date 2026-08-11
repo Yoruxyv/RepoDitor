@@ -2,6 +2,7 @@ import type { IpcChannelMap } from "./contracts.cjs";
 
 export const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
+  projectMetadata: "project:metadata",
   gameStatus: "game:status",
   savesList: "saves:list",
   savesOpen: "saves:open",

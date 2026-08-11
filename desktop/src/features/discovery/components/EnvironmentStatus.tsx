@@ -12,6 +12,8 @@ import type {
   GameDiscoveryStatus,
   SaveRootStatus,
 } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import type { Translate } from "@/app/translations";
 import { formatSaveCount } from "@/features/discovery/formatters";
 import { PathText } from "./PathText";
 
@@ -46,53 +48,55 @@ function StatusIcon({ tone }: { readonly tone: StatusTone }) {
   return <XCircleIcon aria-hidden="true" size={18} weight="fill" />;
 }
 
-function getSaveStatus(status: SaveRootStatus, count: number) {
+function getSaveStatus(status: SaveRootStatus, count: number, t: Translate) {
   if (status === "available") {
     return {
-      status: count === 0 ? "Folder detected" : `${formatSaveCount(count)} found`,
-      detail: count === 0 ? "No valid save slots yet" : "Ready for selection",
+      status: count === 0
+        ? t("environment.folderDetected")
+        : t("environment.savesFound", { saves: formatSaveCount(count, t) }),
+      detail: count === 0 ? t("environment.noSlots") : t("environment.ready"),
       tone: "success" as const,
     };
   }
   if (status === "missing") {
     return {
-      status: "Folder not found",
-      detail: "Checked the standard location",
+      status: t("environment.folderMissing"),
+      detail: t("environment.checkedStandard"),
       tone: "warning" as const,
     };
   }
   return {
-    status: "Folder unavailable",
-    detail: "The location could not be read",
+    status: t("environment.folderUnavailable"),
+    detail: t("environment.couldNotRead"),
     tone: "danger" as const,
   };
 }
 
-function getGameStatus(status: GameDiscoveryStatus) {
+function getGameStatus(status: GameDiscoveryStatus, t: Translate) {
   if (status === "found") {
     return {
-      status: "Detected",
-      detail: "Validated R.E.P.O. installation",
+      status: t("environment.gameDetected"),
+      detail: t("environment.validatedGame"),
       tone: "success" as const,
     };
   }
   if (status === "steam_not_found") {
     return {
-      status: "Steam not detected",
-      detail: "Save discovery still works",
+      status: t("environment.steamMissing"),
+      detail: t("environment.discoveryWorks"),
       tone: "warning" as const,
     };
   }
   if (status === "game_not_found") {
     return {
-      status: "Game not found",
-      detail: "Checked configured Steam libraries",
+      status: t("environment.gameMissing"),
+      detail: t("environment.checkedLibraries"),
       tone: "warning" as const,
     };
   }
   return {
-    status: "Libraries unavailable",
-    detail: "Save discovery still works",
+    status: t("environment.librariesUnavailable"),
+    detail: t("environment.discoveryWorks"),
     tone: "danger" as const,
   };
 }
@@ -129,19 +133,20 @@ function EnvironmentRow({
 }
 
 export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
-  const saveStatus = getSaveStatus(environment.saveRootStatus, environment.saves.length);
-  const gameStatus = getGameStatus(environment.gameStatus);
+  const { t } = usePreferences();
+  const saveStatus = getSaveStatus(environment.saveRootStatus, environment.saves.length, t);
+  const gameStatus = getGameStatus(environment.gameStatus, t);
 
   return (
     <aside className="self-start rounded-sm border border-line bg-surface p-5 sm:p-6">
-      <h2 className="text-base font-semibold text-ink">Local environment</h2>
-      <p className="mt-1 text-xs/5 text-muted">Automatic discovery on this PC</p>
+      <h2 className="text-base font-semibold text-ink">{t("environment.title")}</h2>
+      <p className="mt-1 text-xs/5 text-muted">{t("environment.subtitle")}</p>
 
       <div className="mt-5">
         <EnvironmentRow
           detail={gameStatus.detail}
           icon={<GameControllerIcon aria-hidden="true" size={20} weight="regular" />}
-          label="R.E.P.O. game"
+          label={t("environment.game")}
           path={environment.gameRoot}
           status={gameStatus.status}
           tone={gameStatus.tone}
@@ -149,7 +154,7 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
         <EnvironmentRow
           detail={saveStatus.detail}
           icon={<FolderIcon aria-hidden="true" size={20} weight="regular" />}
-          label="Save folder"
+          label={t("environment.saveFolder")}
           path={environment.saveRoot}
           status={saveStatus.status}
           tone={saveStatus.tone}

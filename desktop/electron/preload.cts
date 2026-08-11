@@ -16,6 +16,7 @@ import {
   type PlayerAvatar,
   type PlayerDto,
   type PlayerUpgradeDto,
+  type ProjectMetadata,
   type RepoDitorApi,
   type RunStateDto,
   type SaveChange,
@@ -28,6 +29,7 @@ import {
 // The literal map type keeps these approved channels aligned with main.
 const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
+  projectMetadata: "project:metadata",
   gameStatus: "game:status",
   savesList: "saves:list",
   savesOpen: "saves:open",
@@ -43,6 +45,14 @@ const IPC_CHANNELS: IpcChannelMap = {
 };
 
 const repoditorApi: RepoDitorApi = {
+  project: {
+    metadata: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.projectMetadata,
+      ) as Promise<
+        DesktopOperationResult<ProjectMetadata>
+      >,
+  },
   environment: {
     detect: () =>
       ipcRenderer.invoke(

@@ -131,6 +131,25 @@ Use one icon family.
 Add component libraries only when they solve a concrete accessibility or
 interaction problem.
 
+## Identity and preferences
+
+The top workspace navigation includes a compact utility cluster:
+
+- the current `Yoruxyv/RepoDitor` GitHub star count, loaded through a fixed,
+  typed Electron IPC endpoint and cached for the Electron session;
+- Dark, Light, and System themes, persisted in renderer storage;
+- English, Japanese, Korean, Chinese, and Indonesian UI languages, also
+  persisted in renderer storage.
+
+GitHub metadata is optional and fail-soft. React never receives an arbitrary
+network-fetch capability. System theme follows the operating-system color
+preference, and both palettes use the shared semantic color tokens.
+
+Localization applies only to RepoDitor-owned interface text. Player names,
+upgrade and item names, map names, resume values, and other strings obtained
+from game/save data remain unchanged. The selected player avatar shown in
+Players is reused in Upgrades without a second profile request.
+
 ## Supported scope
 
 The production workflow includes automatic discovery, save selection, Overview,

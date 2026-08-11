@@ -165,6 +165,7 @@ function bridge(
   }),
 ): RepoDitorApi {
   return {
+    project: { metadata: vi.fn().mockResolvedValue({ ok: true, data: { stars: 42 } }) },
     environment: { detect: vi.fn().mockResolvedValue({ ok: true, data: environment }) },
     game: {
       status: vi.fn().mockResolvedValue({
@@ -204,6 +205,7 @@ function bridge(
 
 describe("save workspace transition", () => {
   beforeEach(() => {
+    localStorage.clear();
     window.repoditor = bridge(vi.fn());
   });
 
@@ -217,6 +219,83 @@ describe("save workspace transition", () => {
     expect(screen.getByRole("link", { name: "Project source" }).getAttribute("href")).toBe(
       "https://github.com/Yoruxyv/RepoDitor",
     );
+  });
+
+  it("renders GitHub stars and keeps the repository link usable when metadata fails", async () => {
+    const metadata = vi.mocked(window.repoditor.project.metadata);
+    const { unmount } = render(<App />);
+
+    expect((await screen.findByTestId("github-stars")).textContent).toBe("42");
+    expect(screen.getByRole("link", { name: /42 GitHub stars/ }).getAttribute("href")).toBe(
+      "https://github.com/Yoruxyv/RepoDitor",
+    );
+    unmount();
+
+    metadata.mockResolvedValue({
+      ok: false,
+      error: { code: "backend_unavailable", message: "GitHub metadata is unavailable." },
+    });
+    render(<App />);
+    expect(await screen.findByRole("link", { name: /star count unavailable/ })).toBeTruthy();
+  });
+
+  it("switches themes and restores the persisted preference", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    expect(document.documentElement.dataset.theme).toBe("light");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), "dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(localStorage.getItem("repoditor.theme")).toBe("dark");
+    unmount();
+
+    render(<App />);
+    expect((screen.getByRole("combobox", { name: "Theme" }) as HTMLSelectElement).value)
+      .toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("tracks operating-system theme changes when System is selected", async () => {
+    let listener: ((event: MediaQueryListEvent) => void) | undefined;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: (_type: string, next: (event: MediaQueryListEvent) => void) => {
+          listener = next;
+        },
+        removeEventListener: vi.fn(),
+      }),
+    });
+    render(<App />);
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    act(() => listener?.({ matches: true } as MediaQueryListEvent));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(localStorage.getItem("repoditor.theme")).toBe("system");
+  });
+
+  it("switches and restores UI language while preserving game-derived strings", async () => {
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+    );
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Language" }), "ja");
+    expect(screen.getByRole("button", { name: "ランセーブ" })).toBeTruthy();
+    expect(localStorage.getItem("repoditor.locale")).toBe("ja");
+    expect(await screen.findByText(environment.saves[0]!.name)).toBeTruthy();
+
+    await user.click((await screen.findByText("ワークスペースを開く")).closest("button")!);
+    await user.click(screen.getByRole("tab", { name: "アップグレード" }));
+    expect(await screen.findByRole("spinbutton", { name: "Alpha の Strength" })).toBeTruthy();
+    expect(screen.getByText("Strength")).toBeTruthy();
+    unmount();
+
+    render(<App />);
+    expect((screen.getByRole("combobox", { name: "言語" }) as HTMLSelectElement).value).toBe("ja");
   });
 
   it("keeps initial game verification silent while the editor remains unavailable", () => {
@@ -339,10 +418,10 @@ describe("save workspace transition", () => {
   });
 
   it.each([
-    ["save_missing" as const, "The selected save no longer exists."],
-    ["save_corrupt" as const, "The selected save is corrupted."],
-    ["save_unsupported" as const, "The selected save format is not supported."],
-  ])("keeps discovery visible and reports %s open failures", async (code, message) => {
+    ["save_missing" as const, "The selected save no longer exists.", "The selected save could not be found."],
+    ["save_corrupt" as const, "The selected save is corrupted.", "The selected save could not be safely read or validated."],
+    ["save_unsupported" as const, "The selected save format is not supported.", "The selected save could not be safely read or validated."],
+  ])("keeps discovery visible and reports %s open failures", async (code, message, localized) => {
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({
         ok: false,
@@ -354,7 +433,7 @@ describe("save workspace transition", () => {
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect((await screen.findByRole("alert")).textContent).toContain(
-      `${message} No save files were changed.`,
+      `${localized} No save files were changed.`,
     );
     expect(screen.queryByTestId("workspace")).toBeNull();
   });
@@ -892,12 +971,11 @@ describe("save workspace transition", () => {
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByTestId("workspace")).toBeTruthy();
-    expect(avatar).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("tab", { name: "Players" }));
-    const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await waitFor(() => {
       expect(avatar).toHaveBeenCalledWith(saveId, "111");
     });
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
     await user.type(health, "95");
     expect(screen.getByTestId("pending-health-edit")).toBeTruthy();
