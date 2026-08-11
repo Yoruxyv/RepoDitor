@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
 
 interface UpgradesState {
   upgrades: PlayerUpgradeDto[];
-  error: string | null;
+  error: TranslationKey | null;
   loading: boolean;
 }
 
@@ -16,6 +18,7 @@ function editKey(playerId: string, upgradeKey: string): string {
 }
 
 export function useUpgrades(saveId: string) {
+  const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(INITIAL_STATE);
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
@@ -27,14 +30,14 @@ export function useUpgrades(saveId: string) {
         setState(
           result.ok
             ? { upgrades: result.data, error: null, loading: false }
-            : { upgrades: [], error: result.error.message, loading: false },
+            : { upgrades: [], error: operationErrorKey(result.error.code), loading: false },
         );
       }
     } catch {
       if (mounted.current) {
         setState({
           upgrades: [],
-          error: "The desktop upgrades bridge is unavailable.",
+          error: "error.service",
           loading: false,
         });
       }
@@ -87,6 +90,7 @@ export function useUpgrades(saveId: string) {
 
   return {
     ...state,
+    error: state.error ? t(state.error) : null,
     pendingByUpgrade,
     pendingEdits: Object.values(pendingByUpgrade),
     update,

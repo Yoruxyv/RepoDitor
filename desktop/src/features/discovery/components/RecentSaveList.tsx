@@ -1,6 +1,7 @@
 import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
 import { formatDateTime, formatFileSize } from "@/features/discovery/formatters";
 
 interface RecentSaveListProps {
@@ -10,20 +11,21 @@ interface RecentSaveListProps {
 }
 
 export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListProps) {
+  const { locale, t } = usePreferences();
   const recentSaves = saves.slice(1, 6);
 
   return (
     <section aria-labelledby="recent-saves-title">
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-base font-semibold text-ink" id="recent-saves-title">
-          Recent saves
+          {t("saves.recent")}
         </h2>
-        <span className="text-xs text-muted">Newest first</span>
+        <span className="text-xs text-muted">{t("saves.newestFirst")}</span>
       </div>
 
       {recentSaves.length === 0 ? (
         <p className="mt-3 border-t border-line py-5 text-sm text-muted">
-          No earlier saves were found in this folder.
+          {t("saves.noEarlier")}
         </p>
       ) : (
         <ol className="mt-3 border-t border-line">
@@ -55,10 +57,12 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
                 <div className="flex items-center gap-4 pl-7 text-xs text-secondary sm:pl-0">
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                     <ClockIcon aria-hidden="true" size={14} weight="regular" />
-                    {formatDateTime(save.modifiedAt)}
+                    {formatDateTime(save.modifiedAt, locale)}
                   </span>
                   <span className="min-w-14 text-right font-mono text-muted">
-                    {openingSaveId === save.id ? "Opening" : formatFileSize(save.sizeBytes)}
+                    {openingSaveId === save.id
+                      ? t("saves.opening")
+                      : formatFileSize(save.sizeBytes, locale)}
                   </span>
                 </div>
               </button>

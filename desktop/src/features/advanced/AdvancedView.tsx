@@ -2,9 +2,12 @@ import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
 import type {
   AdvancedEvidenceStatus,
+  AdvancedDomainKey,
   AdvancedItemDto,
   AdvancedSaveDto,
 } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import type { Translate, TranslationKey } from "@/app/translations";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
 import { getItemIcon } from "./itemIcons";
@@ -19,14 +22,24 @@ interface AdvancedViewProps {
   readonly onRevertRefill: (saveKey: string) => void;
 }
 
-const STATUS_LABELS: Record<AdvancedEvidenceStatus, string> = {
-  confirmed: "Confirmed",
-  partially_confirmed: "Partially confirmed",
-  unknown: "Unknown",
+const STATUS_KEYS: Record<AdvancedEvidenceStatus, TranslationKey> = {
+  confirmed: "status.confirmed",
+  partially_confirmed: "status.partiallyConfirmed",
+  unknown: "status.unknown",
 };
 
-function entryCount(value: number | null): string {
-  return value === null ? "Not observed" : String(value);
+const DOMAIN_KEYS: Record<AdvancedDomainKey, TranslationKey> = {
+  items: "items.domain.items",
+  currentCharge: "items.domain.currentCharge",
+  batteryUpgrades: "items.domain.batteryUpgrades",
+  purchasedUpgrades: "items.domain.purchasedUpgrades",
+  purchasedItems: "items.domain.purchasedItems",
+  purchasedItemsTotal: "items.domain.purchasedItemsTotal",
+  runMetadata: "items.domain.runMetadata",
+};
+
+function entryCount(value: number | null, t: Translate): string {
+  return value === null ? t("status.notObserved") : String(value);
 }
 
 export function AdvancedView({
@@ -38,14 +51,15 @@ export function AdvancedView({
   onRetry,
   onRevertRefill,
 }: AdvancedViewProps) {
+  const { t } = usePreferences();
   if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">Reading advanced save structures…</output>;
+    return <output aria-live="polite" className="text-sm text-secondary">{t("items.loading")}</output>;
   }
   if (error) {
     return (
       <section aria-labelledby="advanced-error-title">
         <h2 className="text-xl font-semibold text-ink" id="advanced-error-title">
-          Items unavailable
+          {t("items.unavailable")}
         </h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
         <button
@@ -54,7 +68,7 @@ export function AdvancedView({
           onClick={onRetry}
         >
           <ArrowClockwiseIcon aria-hidden="true" size={16} />
-          Try again
+          {t("action.tryAgain")}
         </button>
       </section>
     );
@@ -69,31 +83,29 @@ export function AdvancedView({
   return (
     <section aria-labelledby="advanced-title">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
-        Evidence-backed discovery
+        {t("items.discovery")}
       </p>
-      <h2 className="mt-1 text-2xl font-semibold text-ink" id="advanced-title">Items</h2>
+      <h2 className="mt-1 text-2xl font-semibold text-ink" id="advanced-title">{t("nav.items")}</h2>
       <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
-        Structures confirmed from controlled save comparisons. Unknown values remain unavailable
-        instead of being guessed.
+        {t("items.description")}
       </p>
 
       <div className="mt-6 flex items-start gap-2 border-l-2 border-success bg-surface px-4 py-3 text-xs/5 text-secondary">
         <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
         <p>
-          Only the evidence-backed Refill to Full action is writable. All unverified item
-          mutations remain unavailable.
+          {t("items.safety")}
         </p>
       </div>
 
       <dl className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {advanced.domains.map((domain) => (
           <div className="min-w-0 border-t border-line pt-4" key={domain.key}>
-            <dt className="text-xs font-semibold text-secondary">{domain.label}</dt>
+            <dt className="text-xs font-semibold text-secondary">{t(DOMAIN_KEYS[domain.key])}</dt>
             <dd className="mt-1 font-mono text-2xl font-semibold text-ink">
-              {entryCount(domain.entryCount)}
+              {entryCount(domain.entryCount, t)}
             </dd>
             <span className="mt-2 block text-[0.68rem] font-semibold uppercase tracking-widest text-muted">
-              {STATUS_LABELS[domain.status]}
+              {t(STATUS_KEYS[domain.status])}
             </span>
           </div>
         ))}
@@ -103,23 +115,23 @@ export function AdvancedView({
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-              Confirmed structure
+              {t("items.confirmedStructure")}
             </p>
-            <h3 className="mt-1 text-xl font-semibold text-ink">Item instances</h3>
+            <h3 className="mt-1 text-xl font-semibold text-ink">{t("items.instances")}</h3>
           </div>
           <span className="font-mono text-xs text-muted">{advanced.items.length}</span>
         </div>
 
         {!itemsDomain?.capabilities.canRead ? (
           <p className="mt-4 max-w-[58ch] text-sm/6 text-secondary">
-            This save does not contain the confirmed item-instance container.
+            {t("items.missingContainer")}
           </p>
         ) : null}
         {itemsDomain?.capabilities.canRead && advanced.items.length === 0 ? (
-          <p className="mt-4 text-sm text-secondary">This save contains no item instances.</p>
+          <p className="mt-4 text-sm text-secondary">{t("items.empty")}</p>
         ) : null}
         {itemsDomain?.capabilities.canRead && advanced.items.length > 0 ? (
-          <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Item instances">
+          <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label={t("items.instances")}>
             {advanced.items.map((item) => {
               const pending = pendingByItem[item.saveKey];
               const full = item.storedCharge === null || pending !== undefined;
@@ -140,10 +152,10 @@ export function AdvancedView({
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted">
-                        Stored charge
+                        {t("items.storedCharge")}
                       </p>
                       <p className="mt-1 font-mono text-sm font-semibold text-ink">
-                        {full ? "Full / Default" : item.storedCharge}
+                        {full ? t("status.fullDefault") : item.storedCharge}
                       </p>
                     </div>
                   </div>
@@ -151,30 +163,36 @@ export function AdvancedView({
                 {pending ? (
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
                     <p className="font-mono text-xs text-secondary">
-                      Pending: {pending.before} → Full / Default
+                      {t("status.pending", {
+                        before: pending.before,
+                        after: t("status.fullDefault"),
+                      })}
                     </p>
                     <button
                       className="rounded-sm border border-line-strong px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
                       type="button"
                       onClick={() => onRevertRefill(item.saveKey)}
                     >
-                      Revert refill
+                      {t("items.revertRefill")}
                     </button>
                   </div>
                 ) : null}
                 {!pending && item.storedCharge !== null && chargeDomain?.capabilities.canRefillToFull ? (
                   <button
-                    aria-label={`Refill ${item.name} #${item.instanceId} to full`}
+                    aria-label={t("items.refillLabel", {
+                      item: item.name,
+                      instance: item.instanceId,
+                    })}
                     className="mt-4 w-full rounded-sm border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-accent hover:text-accent-ink"
                     type="button"
                     onClick={() => onRefillToFull(item)}
                   >
-                    Refill to Full
+                    {t("items.refill")}
                   </button>
                 ) : null}
                 <details className="mt-4 border-t border-line pt-3">
                   <summary className="w-fit cursor-pointer text-xs font-semibold text-secondary hover:text-accent">
-                    Show save key
+                    {t("items.showKey")}
                   </summary>
                   <code className="mt-2 block break-all text-[0.68rem]/5 text-muted">
                     {item.saveKey}
@@ -188,8 +206,12 @@ export function AdvancedView({
 
         {advanced.unlinkedChargeEntryCount > 0 ? (
           <p className="mt-4 text-xs text-warning">
-            {advanced.unlinkedChargeEntryCount} stored charge entries could not be linked to a
-            confirmed item instance.
+            {t(
+              advanced.unlinkedChargeEntryCount === 1
+                ? "items.unlinked.one"
+                : "items.unlinked.many",
+              { count: advanced.unlinkedChargeEntryCount },
+            )}
           </p>
         ) : null}
       </div>
@@ -197,17 +219,19 @@ export function AdvancedView({
       {advanced.runValues.length > 0 ? (
         <div className="mt-9 border-t border-line pt-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-            Partially confirmed
+            {t("status.partiallyConfirmed")}
           </p>
-          <h3 className="mt-1 text-xl font-semibold text-ink">Additional Run values</h3>
+          <h3 className="mt-1 text-xl font-semibold text-ink">{t("items.additionalRun")}</h3>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2">
             {advanced.runValues.map((value) => (
               <div className="rounded-sm border border-line bg-surface p-4" key={value.saveKey}>
-                <dt className="text-sm font-semibold text-ink">{value.label}</dt>
+                <dt className="text-sm font-semibold text-ink">
+                  {t(`items.run.${value.saveKey}`)}
+                </dt>
                 <dd className="mt-2 font-mono text-xl font-semibold text-ink">{value.value}</dd>
                 <details className="mt-3 border-t border-line pt-3">
                   <summary className="w-fit cursor-pointer text-xs font-semibold text-secondary hover:text-accent">
-                    Show save key
+                    {t("items.showKey")}
                   </summary>
                   <code className="mt-2 block break-all text-[0.68rem]/5 text-muted">
                     {value.saveKey}

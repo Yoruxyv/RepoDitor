@@ -1,5 +1,6 @@
 export interface IpcChannelMap {
   environmentDetect: "environment:detect";
+  projectMetadata: "project:metadata";
   gameStatus: "game:status";
   savesList: "saves:list";
   savesOpen: "saves:open";
@@ -24,6 +25,10 @@ export type GameProcessStatus = "running" | "not_running" | "unknown";
 export interface GameProcessState {
   status: GameProcessStatus;
   running: boolean;
+}
+
+export interface ProjectMetadata {
+  stars: number;
 }
 
 export type GameDiscoveryStatus =
@@ -316,6 +321,11 @@ export type DesktopOperationResult<T> =
   | DesktopOperationFailure;
 
 export interface RepoDitorApi {
+  project: {
+    metadata: () => Promise<
+      DesktopOperationResult<ProjectMetadata>
+    >;
+  };
   environment: {
     detect: () => Promise<
       DesktopOperationResult<EnvironmentDiscovery>

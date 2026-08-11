@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { RunStatEdit } from "@/features/editor/pendingEdits";
 
 interface State {
   run: RunStateDto | null;
-  error: string | null;
+  error: TranslationKey | null;
   loading: boolean;
 }
 
 const INITIAL_STATE: State = { run: null, error: null, loading: true };
 
 export function useRunState(saveId: string) {
+  const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
@@ -23,12 +26,12 @@ export function useRunState(saveId: string) {
         setState(
           result.ok
             ? { run: result.data, error: null, loading: false }
-            : { run: null, error: result.error.message, loading: false },
+            : { run: null, error: operationErrorKey(result.error.code), loading: false },
         );
       }
     } catch {
       if (mounted.current) {
-        setState({ run: null, error: "The desktop run bridge is unavailable.", loading: false });
+        setState({ run: null, error: "error.service", loading: false });
       }
     }
   }, [saveId]);
@@ -93,6 +96,7 @@ export function useRunState(saveId: string) {
 
   return {
     ...state,
+    error: state.error ? t(state.error) : null,
     pendingByField,
     pendingEdits: Object.values(pendingByField),
     updateStat,

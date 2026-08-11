@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CosmeticsViewDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
+import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import {
   toCosmeticChange,
   type CosmeticClearAllPresetsEdit,
@@ -11,18 +13,19 @@ import {
 
 interface State {
   view: CosmeticsViewDto | null;
-  loadError: string | null;
+  loadError: TranslationKey | null;
   loading: boolean;
 }
 
 const INITIAL_STATE: State = { view: null, loadError: null, loading: false };
 
 export function useCosmetics(active: boolean, recoveryGeneration: number) {
+  const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [bulkPending, setBulkPending] = useState<
     CosmeticUnlockAllEdit | CosmeticLockAllEdit | CosmeticClearAllPresetsEdit | null
   >(null);
-  const [writeError, setWriteError] = useState<string | null>(null);
+  const [writeError, setWriteError] = useState<TranslationKey | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const mounted = useRef(false);
@@ -40,14 +43,14 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
         setState(
           result.ok
             ? { view: result.data, loadError: null, loading: false }
-            : { view: null, loadError: result.error.message, loading: false },
+            : { view: null, loadError: operationErrorKey(result.error.code), loading: false },
         );
       }
     } catch {
       if (mounted.current) {
         setState({
           view: null,
-          loadError: "The desktop cosmetics bridge is unavailable.",
+          loadError: "error.service",
           loading: false,
         });
       }
@@ -140,7 +143,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
         pendingEdits.map(toCosmeticChange),
       );
       if (!result.ok) {
-        setWriteError(result.error.message);
+        setWriteError(operationErrorKey(result.error.code));
         return false;
       }
       setState({ view: result.data.cosmetics, loadError: null, loading: false });
@@ -148,7 +151,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
       revertAll();
       return true;
     } catch {
-      setWriteError("The desktop cosmetics bridge is unavailable. Nothing was written.");
+      setWriteError("error.write");
       return false;
     } finally {
       writeInFlight.current = false;
@@ -158,6 +161,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
 
   return {
     ...state,
+    loadError: state.loadError ? t(state.loadError) : null,
     knownOwnedCount,
     knownLockedCount: state.view ? state.view.knownCatalogCount - knownOwnedCount : 0,
     savedPresetCount,
@@ -166,7 +170,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
     clearAllPresetsPending: bulkPending?.field === "clearAll",
     lockAllBlockedReason,
     pendingEdits,
-    writeError,
+    writeError: writeError ? t(writeError) : null,
     backupPath,
     saving,
     unlockAll,
