@@ -1,6 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +13,9 @@ const repoRoot = path.resolve(desktopRoot, "..");
 const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
 const metaFixturePath = path.join(desktopRoot, "e2e", "fixtures", "meta-save.json");
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
+const expectedVersion = JSON.parse(
+  readFileSync(path.join(desktopRoot, "package.json"), "utf8"),
+).version as string;
 const packagedExecutable = process.env.REPODITOR_E2E_EXECUTABLE
   ? path.resolve(desktopRoot, process.env.REPODITOR_E2E_EXECUTABLE)
   : null;
@@ -224,7 +227,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       hasApplicationMenu: Menu.getApplicationMenu() !== null,
       version: app.getVersion(),
     }));
-    expect(chrome.version).toBe("0.1.0");
+    expect(chrome.version).toBe(expectedVersion);
     expect(chrome.hasApplicationMenu).toBe(false);
     await page.bringToFront();
     await page.keyboard.press("Tab");
@@ -236,7 +239,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(appIcon).toHaveJSProperty("complete", true);
     expect(await appIcon.evaluate((image) => (image as HTMLImageElement).naturalWidth))
       .toBeGreaterThan(0);
-    await expect(page.getByLabel("About RepoDitor")).toContainText("RepoDitor v0.1.0");
+    await expect(page.getByLabel("About RepoDitor")).toContainText(`RepoDitor v${expectedVersion}`);
     await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
       "href",
       "https://github.com/Yoruxyv/RepoDitor",
