@@ -8,13 +8,20 @@ Only behavior verified against controlled saves should be promoted into named ed
 - `runStats["save level"] = 1` resumes the run in the Shop/Service Station in the tested game version.
 - Current player HP is stored separately from the Health upgrade progression.
 
-## Pending
+## Current production capability summary
 
-- Dynamic discovery of every `playerUpgrade*` dictionary.
-- Map/level catalog discovery and whether map selection can be changed purely through the save.
+- Player upgrades are discovered dynamically from observed `playerUpgrade*` dictionaries.
+- Maps are discovered from the local installation and remain listing-only; save-based selection
+  is not supported.
+- Items exposes only exact-instance **Refill to Full** under the narrow evidence below.
+- Cosmetics exposes known-catalog ownership totals, guarded bulk unlock/lock, and paired
+  **Clear All Presets**. Unknown/future IDs are preserved.
+
+Still pending research:
+
 - Persistent physical item placement for truck/shop customization.
-- Cosmetic display names and unsupported MetaSave domains such as tokens, equipment, presets,
-  and colors.
+- Cosmetic display names and unsupported MetaSave domains such as tokens, equipment, arbitrary
+  preset creation/editing, and arbitrary colors.
 
 Do not hardcode unverified map or item identifiers into production UI code.
 
@@ -27,7 +34,9 @@ projection; raw MetaSave data never crosses into Electron or React.
 
 Observed top-level MetaSave structures include `colorsEquipped`, `colorPresets`,
 `cosmeticPresets`, `cosmeticEquipped`, `cosmeticHistory`, `cosmeticUnlocks`, and
-`cosmeticTokens`. Only the two ownership lists are writable.
+`cosmeticTokens`. Ownership mutations write only the two ownership lists. Production also
+supports the separately evidence-backed paired **Clear All Presets** operation across
+`cosmeticPresets` and `colorPresets`; it preserves both outer list lengths.
 
 | Evidence | SHA-256 | Result |
 | --- | --- | --- |
@@ -51,6 +60,8 @@ invented here.
 - Individual unlock appends a missing known ID to both lists without duplicates.
 - Unlock All composes the individual rule and preserves existing order and unknown/future IDs.
 - Removing an unreferenced known ID from both lists made the tested ID 28 unowned.
+- Clear All Presets empties every paired cosmetic/color preset slot while preserving the outer
+  list shapes. It does not mutate ownership, tokens, or equipped state.
 
 The removal result is behavior-confirmed, but a separate post-removal game-generated rewrite was
 not captured. Removal is therefore blocked when an ID is equipped, preset-referenced, or those
@@ -58,14 +69,15 @@ references cannot be verified.
 
 ### Unknown / unsupported
 
-- Cosmetic names; RepoDitor uses truthful `Cosmetic #<id>` labels.
+- Cosmetic names; the production bulk UI deliberately avoids inventing per-ID names.
 - `cosmeticTokens` semantics and all token mutation.
-- Equipment, preset, and color mutation.
+- Equipment mutation, arbitrary preset creation/editing, and arbitrary color mutation. Paired
+  **Clear All Presets** is the only supported preset write.
 - Removal semantics for equipped or preset-referenced cosmetics.
 - Catalog IDs added by future game versions. Existing unknown IDs are preserved and shown
   read-only; gaps are never inferred.
 
-Future Phase 10K.4 research may look for a trustworthy local game-owned ID-to-name catalog. It
+Future research may look for a trustworthy local game-owned ID-to-name catalog. It
 must not copy a third-party hardcoded list or bundle extracted game artwork.
 
 ## Advanced save discovery

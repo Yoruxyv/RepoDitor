@@ -1,0 +1,81 @@
+# Contributing to RepoDitor
+
+Thank you for helping improve RepoDitor. Keep changes focused, evidence-backed,
+and safe for users' local saves.
+
+## Before you start
+
+- Search existing issues and pull requests.
+- Use a focused branch and a Conventional Commit title.
+- Read `AGENTS.md` when using an AI coding tool in this repository.
+- Never commit real `.es3` files, backups, credentials, Steam identifiers,
+  usernames, or local paths. Use generated/sanitized fixtures and temporary
+  copies.
+
+## Architecture boundary
+
+RepoDitor intentionally uses this dependency direction:
+
+```text
+React renderer → sandboxed preload → typed Electron IPC → Electron main
+→ Python desktop API → services → core/storage → encrypted save
+```
+
+Python owns game and save semantics. Do not move encryption, raw-save parsing,
+filesystem writes, or game-mechanics calculations into React or Electron.
+Preserve `contextIsolation: true`, `nodeIntegration: false`, renderer sandboxing,
+and narrow preload methods.
+
+## Evidence and save safety
+
+New save mutations require controlled evidence. Record what changed, what did
+not, and what remains causally ambiguous in `docs/reverse-engineering.md`.
+Never infer a general mutation rule from a field name or a third-party editor.
+
+All production writes must retain game-process checks, typed validation, stale
+fingerprints, exact-byte backups, staging, reopen verification, and atomic
+replacement. Tests must never target a real user save.
+
+## Development setup
+
+```powershell
+git clone https://github.com/Yoruxyv/RepoDitor.git
+Set-Location RepoDitor
+uv sync --locked
+
+Set-Location desktop
+npm ci
+```
+
+Run the desktop in development with `npm run dev` from `desktop/`.
+
+## Checks
+
+Run the checks affected by your change. The full baseline is:
+
+```powershell
+uv run ruff check python tests
+uv run ruff format --check python tests
+uv run --with "pytest>=8.3,<9" pytest
+
+Set-Location desktop
+npm run imports:check
+npm run lint
+npm run release:check
+npm run build
+npm run bundle:check
+npm test
+npm run test:e2e
+```
+
+Run packaged E2E and installer verification for packaging/release changes.
+
+## Pull requests
+
+Use `.github/PULL_REQUEST_TEMPLATE.md`. Explain the problem and solution,
+include exact validation results, and complete the save-safety checklist. Add
+sanitized screenshots for visible UI changes. Keep one focused concern per PR
+and call out anything intentionally deferred.
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md),
+not through a public issue.

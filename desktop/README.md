@@ -30,7 +30,7 @@ npm run test:e2e:packaged
 npm run package
 ```
 
-The package command builds the locked PyInstaller sidecar, builds Electron, packages an unpacked application, runs the E2E flow without Vite against that application, and emits a self-contained Windows archive under `release/`.
+The package command builds the locked PyInstaller sidecar, builds Electron, packages an unpacked application, runs the E2E flow without Vite against that application, and emits an assisted NSIS installer under `release/`.
 
 `npm run package` remains the unsigned local developer path. Official GitHub releases use the
 fail-closed `package:dir:signed` and `package:installer:signed` commands with Microsoft Artifact
@@ -40,7 +40,7 @@ variables, secrets, role scope, and verification flow.
 
 Packaging first removes only the disposable `release/` directory. If a packaged RepoDitor process still holds the output open, packaging stops with an instruction to close it; the build never kills processes. The unpacked application is then checked for the executable, ASAR, bundled Python sidecar, RepoDitor MIT license, and Teko OFL license.
 
-Advanced Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other advanced mutation controls remain unavailable.
+Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other item mutation controls remain unavailable.
 
 Cosmetics is a global workspace backed by `MetaSave.es3`; it does not require a selected Run
 save. It uses separate `cosmetics:get` and `cosmetics:write` IPC calls, its own pending/save
@@ -56,3 +56,8 @@ narrow game-running status derived from the validated installation, and Python v
 status again immediately before both Run-save and MetaSave writes. If status cannot be verified,
 the editor fails closed. Existing fingerprints, backups, staged verification, and atomic
 replacement remain independent safety layers.
+
+The renderer supports Dark, Light, and System themes plus English, Japanese, Korean, Chinese,
+and Indonesian RepoDitor-owned UI text. Game-derived strings remain unchanged. The top utility
+cluster obtains the repository star count through a single fixed, typed Electron metadata call;
+the renderer has no generic network API.

@@ -5,7 +5,8 @@ objects can be related to RepoDitor's evidence-backed save names. Extracted pixe
 metadata remain excluded under `local-evidence/game-assets/`; none are part of this repository or
 the desktop package.
 
-This research does not enable Phase 10B mutations or cosmetic editing.
+This historical research did not itself enable item mutations or cosmetic editing. Current
+production capabilities are documented separately below and in `docs/reverse-engineering.md`.
 
 ## Inspected build and tooling
 
@@ -213,13 +214,14 @@ The recommended original-art sequence is:
    items before attempting one bespoke icon for every remaining item;
 4. bespoke replacements for the 19 ambiguous assignments only when product value justifies them.
 
-## Phase boundaries
+## Historical research boundary and current production scope
 
-No advanced item mutation was implemented. The item-definition fields, active catalog, battery
-class, and purchased-item manager are useful identifiers only; they do not prove serialization,
-companion-key invariants, suffix allocation, sparse battery behavior, or safe write validation.
-Phase 10B remains deferred.
+This asset-discovery pass did not establish save-mutation semantics. Later controlled evidence
+supports one narrow item mutation: exact-instance **Refill to Full** removes an existing
+`itemStatBattery` leaf through the normal safe-write pipeline. Numeric charge edits, battery
+upgrades, purchase mutations, and item add/delete/duplicate remain unsupported.
 
-No cosmetic save editing was implemented. A future experiment should compare an evidence-only
-`MetaSave` before and after exactly one unlock, one equip change, and one preset change in separate
-pairs.
+Later controlled MetaSave evidence supports guarded bulk ownership changes and paired
+**Clear All Presets**. Arbitrary cosmetic equipment, token, color, and preset creation/editing
+remain unsupported. None of those later capabilities changes this document's redistribution
+finding: locally discovered R.E.P.O. assets are research references and are not bundled.
