@@ -87,7 +87,15 @@ def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
 
 
 def get_cosmetics(root: Path | None = None) -> dict[str, object]:
-    """Return the typed cosmetic ownership projection for MetaSave.es3."""
+    """Return the typed Cosmetics projection for MetaSave.es3.
+
+    Args:
+        root: Optional Run-save root whose parent contains the isolated MetaSave.
+
+    Returns:
+        A renderer-safe operation result containing known-catalog totals,
+        preservation metadata, capabilities, and the current fingerprint.
+    """
     try:
         _path, data, source, _repository = _load_meta_save(root)
         return {"ok": True, "cosmetics": _serialize(data, source)}
@@ -149,7 +157,21 @@ def save_cosmetics(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
-    """Validate and safely persist typed MetaSave ownership changes."""
+    """Validate and safely persist supported MetaSave changes.
+
+    The operation requires the game to be closed and reuses the shared stale
+    fingerprint, exact-byte backup, staged verification, and atomic-write path.
+
+    Args:
+        expected_fingerprint: SHA-256 captured when MetaSave was read.
+        changes: Typed ownership or paired preset-clearing changes.
+        root: Optional Run-save root used by isolated tests.
+        game_status_loader: Injectable game-process check used by tests.
+
+    Returns:
+        A renderer-safe result containing the updated Cosmetics projection or a
+        stable error payload.
+    """
     try:
         require_game_closed(game_status_loader)
         path, data, source, repository = _load_meta_save(root)

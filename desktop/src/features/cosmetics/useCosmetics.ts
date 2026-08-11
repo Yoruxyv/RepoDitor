@@ -19,6 +19,13 @@ interface State {
 
 const INITIAL_STATE: State = { view: null, loadError: null, loading: false };
 
+/**
+ * Own the independent MetaSave projection, pending bulk edit, and safe write.
+ *
+ * @param active - Whether Cosmetics is the visible top-level workspace.
+ * @param recoveryGeneration - Increments after game-safety recovery to trigger a clean reload.
+ * @returns The projected counts, pending bulk edit, safe-write state, and actions.
+ */
 export function useCosmetics(active: boolean, recoveryGeneration: number) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);

@@ -54,13 +54,16 @@ RepoDitor's supported boundary requires:
 - no arbitrary renderer filesystem, shell, network-fetch, or Python execution API;
 - Python ownership of save semantics, encryption, validation, backup, and writes;
 - fingerprint checks before mutation and staged verification before replacement;
+- a fail-closed validated-game-process check before editing and writes;
 - optional Steam avatar enrichment that fails safely and is never stored in a save;
 - an installer and uninstaller that leave R.E.P.O. saves and RepoDitor backups intact.
 
 ## Known design limitations
 
-- RepoDitor v0.1.0 and current Windows installers are unsigned and may trigger a SmartScreen
-  warning. The SignPath Foundation application is pending; no signing identity is wired yet.
+- The historical v0.1.0 Windows installer was unsigned and may trigger a SmartScreen warning.
+  The current release workflow is prepared for fail-closed Microsoft cloud signing and
+  Authenticode verification, but repository contents cannot prove that the maintainer-owned
+  signing identity and protected GitHub environment values have been configured.
 - RepoDitor has no automatic updater; users install new releases manually.
 - The application edits a game-owned format that may change without notice.
 - Advanced item and purchase data remains read-only except for the evidence-backed exact-instance

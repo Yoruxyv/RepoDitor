@@ -28,6 +28,12 @@ function readMetadata(value: unknown): ProjectMetadata {
   return { stars };
 }
 
+/**
+ * Fetch and validate only the fixed RepoDitor repository metadata contract.
+ *
+ * @param fetcher - Electron network adapter or isolated test double.
+ * @returns A narrow star-count result or stable renderer-safe failure.
+ */
 export async function getProjectMetadata(
   fetcher: ProjectFetcher,
 ): Promise<DesktopOperationResult<ProjectMetadata>> {
@@ -62,6 +68,14 @@ export async function getProjectMetadata(
   }
 }
 
+/**
+ * Create the session-scoped metadata handler used by Electron IPC.
+ *
+ * Successful results are cached for the Electron session; failures may retry.
+ *
+ * @param fetcher - Fixed-endpoint repository metadata loader.
+ * @returns A zero-argument IPC handler with a successful-result cache.
+ */
 export function createProjectMetadataHandler(fetcher: ProjectFetcher) {
   let cached: DesktopOperationResult<ProjectMetadata> | null = null;
   return async (): Promise<DesktopOperationResult<ProjectMetadata>> => {
@@ -73,6 +87,11 @@ export function createProjectMetadataHandler(fetcher: ProjectFetcher) {
   };
 }
 
+/**
+ * Register the single fixed GitHub metadata IPC channel.
+ *
+ * @param fetcher - Optional test double; production uses Electron `net.fetch`.
+ */
 export function registerProjectIpc(
   fetcher?: ProjectFetcher,
 ): void {

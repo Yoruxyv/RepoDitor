@@ -4,6 +4,11 @@ import type { GameProcessStatus } from "@electron/contracts";
 
 export type GameSafetyStatus = GameProcessStatus | null;
 
+/**
+ * Track the fail-closed game-process status and recovery-triggered reloads.
+ *
+ * @returns Current status, check state, recovery generation, and a manual check action.
+ */
 export function useGameSafety() {
   const [status, setStatus] = useState<GameSafetyStatus>(null);
   const [checking, setChecking] = useState(true);

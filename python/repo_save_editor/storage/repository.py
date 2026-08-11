@@ -54,7 +54,22 @@ class EncryptedSaveRepository:
         *,
         expected_source: bytes | None = None,
     ) -> tuple[Path, bytes]:
-        """Back up ``path`` and atomically replace it with edited save data."""
+        """Back up and atomically replace one encrypted save.
+
+        Args:
+            path: Existing save to replace.
+            data: Validated decrypted data to persist.
+            expected_source: Optional exact-byte snapshot used for stale-file checks.
+
+        Returns:
+            The backup path and final encrypted bytes.
+
+        Raises:
+            SaveStaleError: The source differs from the expected snapshot.
+            SaveBackupError: An exact-byte backup cannot be created.
+            SaveVerificationError: Staged output cannot be reopened exactly.
+            SaveWriteError: Staging or atomic replacement fails.
+        """
         self.validator(data)
         source = path.read_bytes()
         if expected_source is not None and source != expected_source:

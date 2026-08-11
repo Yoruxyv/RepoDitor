@@ -17,8 +17,8 @@ renderer:
 - player and health semantics
 - player upgrade discovery and mutation
 - run-state semantics
-- evidence-backed advanced item projections and exact-instance refill-to-full
-- evidence-backed MetaSave cosmetic ownership discovery and mutation
+- evidence-backed item projections and exact-instance refill-to-full
+- evidence-backed MetaSave cosmetic bulk ownership and paired preset clearing
 - installed-map discovery
 - stale-save detection
 - backup creation
@@ -28,7 +28,7 @@ renderer:
 The React renderer never receives raw decrypted save data and does not perform
 filesystem access, encryption, or save-domain calculations.
 
-Python exposes only the confirmed read model plus exact-instance **Refill to Full**, which removes
+Python exposes only the confirmed item read model plus exact-instance **Refill to Full**, which removes
 an existing stored-charge leaf through the normal safe-write pipeline. It does not guess numeric
 charge, battery-upgrade, purchase, or item lifecycle write rules.
 

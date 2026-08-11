@@ -37,7 +37,18 @@ def _derive_key(password: bytes, iv: bytes) -> bytes:
 
 
 def decrypt_save(blob: bytes) -> dict[str, Any]:
-    """Decrypt an ES3 save and return its JSON object."""
+    """Decrypt an ES3 container and decode its JSON object.
+
+    Args:
+        blob: Complete encrypted save bytes, including the compatibility IV.
+
+    Returns:
+        The decrypted object at the save root.
+
+    Raises:
+        SaveCryptoError: The container is too small, cannot be decrypted or decoded,
+            or does not contain a JSON object.
+    """
     if len(blob) <= ES3_COMPAT_IV_SIZE_BYTES:
         raise SaveCryptoError("The selected file is too small to be a supported save.")
 
@@ -67,7 +78,17 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
 
 
 def encrypt_save(data: dict[str, Any]) -> bytes:
-    """Encode and encrypt a save using the supported ES3 container format."""
+    """Encode and encrypt a save using the game-compatible ES3 container.
+
+    Args:
+        data: Validated save data supplied by the caller-owned repository.
+
+    Returns:
+        A new random-IV encrypted container compatible with observed R.E.P.O. saves.
+
+    Raises:
+        SaveCryptoError: The supplied object cannot be serialized.
+    """
     try:
         plaintext = json.dumps(
             data,

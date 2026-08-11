@@ -43,7 +43,17 @@ def get_steam_avatar_url(
     timeout: float = 1.5,
     fetch_profile: Callable[[str, float], bytes] = _fetch_profile,
 ) -> str | None:
-    """Return a safe public avatar URL, or ``None`` for any expected lookup failure."""
+    """Resolve one optional, allowlisted public Steam avatar URL.
+
+    Args:
+        player_id: Save-derived account identifier.
+        timeout: Maximum profile-request duration in seconds.
+        fetch_profile: Injectable bounded profile loader used by tests.
+
+    Returns:
+        An HTTPS Steam avatar URL on an allowlisted host, or ``None`` for an
+        invalid ID, unavailable/private profile, malformed response, or unsafe URL.
+    """
     if not is_plausible_steam_id(player_id):
         return None
 

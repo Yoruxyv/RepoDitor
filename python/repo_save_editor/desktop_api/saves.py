@@ -110,7 +110,16 @@ def _session(save: DiscoveredSave, data: SaveData, source: bytes) -> dict[str, o
 
 
 def open_save(save_id: str, root: Path | None = None) -> dict[str, object]:
-    """Resolve, decrypt, validate, and summarize one discovered save."""
+    """Resolve, decrypt, validate, and summarize one discovered save.
+
+    Args:
+        save_id: Opaque identifier previously returned by save discovery.
+        root: Optional isolated discovery root used by tests.
+
+    Returns:
+        A renderer-safe operation result. Raw decrypted data never crosses this
+        boundary.
+    """
     try:
         save, data, source = load_discovered_save(save_id, root)
         session = _session(save, data, source)
@@ -176,7 +185,22 @@ def save_changes(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
-    """Validate and atomically persist one typed set of pending changes."""
+    """Validate and safely persist one typed set of pending changes.
+
+    The game must be confirmed closed. The source fingerprint is checked before
+    mutation, then the shared repository creates an exact-byte backup, stages and
+    reopens encrypted output, and atomically replaces the source.
+
+    Args:
+        save_id: Opaque identifier previously returned by discovery.
+        expected_fingerprint: SHA-256 captured when the save was opened.
+        changes: Typed pending changes accepted by the desktop boundary.
+        root: Optional isolated discovery root used by tests.
+        game_status_loader: Injectable game-process check used by tests.
+
+    Returns:
+        A renderer-safe success result or stable error payload.
+    """
     try:
         require_game_closed(game_status_loader)
         save, data, source = load_discovered_save(save_id, root)

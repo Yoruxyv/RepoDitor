@@ -1,6 +1,8 @@
-# v0.1.0 release checklist
+# Release checklist
 
-RepoDitor's first public release is v0.1.0. Releases are assisted Windows x64 NSIS installers built from semantic tags that match the version in both `pyproject.toml` and `desktop/package.json`.
+Official releases are assisted Windows x64 NSIS installers built from semantic tags that match
+the version in both `pyproject.toml` and `desktop/package.json`. The current procedure is generic;
+the measured v0.1.0 release-candidate data remains preserved as a historical baseline below.
 
 ## Windows code signing preparation
 
@@ -9,17 +11,10 @@ prepared to use Microsoft Artifact Signing through electron-builder's Azure sign
 This preparation does not create a certificate or signing identity and contains no credential
 values.
 
-The SignPath Foundation application is currently pending and is not wired into this workflow.
-The checked-in release path still expects the Microsoft Artifact Signing values documented below,
-so official tag builds currently fail closed without those credentials. SignPath approval alone
-will not satisfy that configuration; select and wire the final provider in a later credentialed
-phase.
-
-If an unsigned open-source maintenance release is unavoidable while approval is pending, keep the
-tag-driven workflow fail closed. The smallest explicit exception is a separate, manually
-dispatched unsigned-release workflow that requires a maintainer-provided tag/version confirmation
-and retains every existing quality, package, smoke, installer, and checksum gate except signature
-verification. No such bypass is implemented in this phase.
+The checked-in official release path expects the Microsoft Artifact Signing values documented
+below and fails closed without them. Repository contents cannot prove whether the maintainer-owned
+Azure identity and protected GitHub environment values are currently configured. There is no
+checked-in unsigned release bypass.
 
 Local packaging remains intentionally usable without cloud access:
 
@@ -91,7 +86,7 @@ $signature.SignerCertificate |
 - Desktop quality: clean npm install, import normalization, ESLint, release
   version alignment, production build, bundle budget, component tests, and
   Electron contract tests.
-- Windows Electron E2E: isolated discovery, all editor tabs including Advanced Items refill-to-full, pending edits,
+- Windows Electron E2E: isolated discovery, all editor tabs including Items refill-to-full, pending edits,
   revert, safe write, backup, reopen, stale-file rejection, keyboard navigation,
   reduced motion, and 1600x900, 1200x800, and 960x640 layouts.
 - Windows package smoke: Python 3.13 sidecar build, Electron package, required
@@ -105,15 +100,15 @@ The quality gate must pass every job. The tag-driven release workflow reruns
 Python and desktop quality, the packaged smoke test, installer verification,
 and installer checksum generation before publishing.
 
-## Release procedure
+## Current release procedure
 
 1. Set matching versions in `pyproject.toml` and `desktop/package.json`.
 2. Run `npm run release:check` from `desktop/`.
-3. Confirm the RepoDitor icon, product name, v0.1.0 About information,
+3. Confirm the RepoDitor icon, product name, current-version About information,
    signing-status notice, and native-menu removal are current.
 4. Run the complete local quality and package gates from the root README.
 5. Run the installer acceptance gate below on a clean current-user installation.
-6. Push a tag matching the version, for example `v0.1.0`.
+6. Push a semantic tag matching the version, for example `v0.2.0`.
 7. Download the workflow installer, verify its Authenticode publisher/status, and then verify its
    SHA-256 checksum.
 8. Confirm the downloaded installer repeats the accepted install, launch,
@@ -125,7 +120,7 @@ This is a blocking manual release-candidate check. Do not treat the unpacked E2E
 
 1. Confirm RepoDitor is not installed and no stale test installation directory remains. Do not delete or move R.E.P.O. saves.
 2. Record SHA-256 hashes for a disposable save and any sibling `.bak-*` backup that must survive the lifecycle.
-3. Run `RepoDitor-Setup-0.1.0-x64.exe` normally. Confirm the assisted wizard identifies RepoDitor, defaults to current-user installation, shows the destination, and allows Browse to select a custom test path.
+3. Run `RepoDitor-Setup-<version>-x64.exe` normally. Confirm the assisted wizard identifies RepoDitor, defaults to current-user installation, shows the destination, and allows Browse to select a custom test path.
 4. Install to the custom path. Confirm the application files, generated uninstaller, Start Menu shortcut, Installed Apps entry, and RepoDitor icon are present.
 5. Query the actual uninstall registration without assuming a registry hive:
 
@@ -140,15 +135,20 @@ This is a blocking manual release-candidate check. Do not treat the unpacked E2E
    $registration | Select-Object DisplayName, DisplayVersion, InstallLocation, UninstallString
    ```
 
-   Confirm `DisplayName` is `RepoDitor`, `DisplayVersion` is `0.1.0`, and `UninstallString` targets the generated RepoDitor uninstaller.
-6. Launch from the installed application or Start Menu without repository tooling. Confirm the bundled backend, discovery, Overview, Players, Upgrades, Run, Maps, Advanced Items refill-to-full, icon, and v0.1.0 About information.
+   Confirm `DisplayName` is `RepoDitor`, `DisplayVersion` matches the release, and `UninstallString` targets the generated RepoDitor uninstaller.
+6. Launch from the installed application or Start Menu without repository tooling. Confirm the bundled backend, discovery, Overview, Players, Upgrades, Run, Items refill-to-full, Cosmetics, Maps, icon, and current-version About information.
 7. With network access disabled, confirm the app still launches and local save features work; optional Steam avatars may fail softly.
 8. Using only a disposable/generated save, confirm open → edit → pending changes → save → backup → reopen, plus stale-file rejection.
 9. Uninstall through Windows Installed Apps. Confirm the application files, custom installation directory, shortcuts, uninstaller, and uninstall registration are removed.
 10. Recalculate the save and backup hashes. They must match the expected pre-uninstall values; `%USERPROFILE%\AppData\LocalLow\semiwork\Repo` and all other discovered save locations must remain untouched.
 11. Reinstall to the default location, launch successfully, confirm discovery still works, then uninstall again if the workstation must return to a clean state.
 
-## Phase 10E automated installer baseline — 2026-08-09
+## Historical v0.1.0 baseline
+
+The following results are preserved as historical release-candidate evidence. They are not current
+artifact measurements and must not be reused to validate a later version.
+
+### Phase 10E automated installer baseline — 2026-08-09
 
 | Check | Result |
 | --- | --- |
@@ -166,7 +166,7 @@ This is a blocking manual release-candidate check. Do not treat the unpacked E2E
 | Code signing | Not signed; SmartScreen notice remains required |
 | Manual visual acceptance | Still required: assisted wizard pages/Browse control, icon rendering, Start Menu launch, Installed Apps UI, SmartScreen wording, and human-visible uninstall flow |
 
-## Historical ZIP release-candidate baseline — 2026-08-09
+### Historical ZIP release-candidate baseline — 2026-08-09
 
 This baseline predates the NSIS installer and proves only the portable archive and unpacked application behavior. It does not satisfy the installer acceptance gate.
 

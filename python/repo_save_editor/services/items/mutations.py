@@ -13,7 +13,20 @@ from repo_save_editor.services.items.schema import (
 
 
 def refill_item_to_full(data: SaveData, save_key: str) -> bool:
-    """Remove one confirmed item's stored-charge leaf; return False when already full."""
+    """Remove the exact stored-charge leaf for one confirmed item instance.
+
+    Args:
+        data: Validated Run-save data to mutate in memory.
+        save_key: Exact observed item-instance key, including its numeric suffix.
+
+    Returns:
+        ``True`` when a charge leaf was removed, or ``False`` when the instance
+        already used the evidence-backed absent/full-default representation.
+
+    Raises:
+        AdvancedSaveError: The key is malformed or does not identify an item in
+            this save.
+    """
     dictionaries = get_dictionaries(data)
     item_entries = _integer_entries(_container(dictionaries, "item"), "item")
     charge_container = _container(dictionaries, "itemStatBattery")

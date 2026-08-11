@@ -150,10 +150,16 @@ upgrade and item names, map names, resume values, and other strings obtained
 from game/save data remain unchanged. The selected player avatar shown in
 Players is reused in Upgrades without a second profile request.
 
+The language control is a theme-aware custom listbox with compact bundled SVG
+flags and native language names. Keyboard navigation, visible focus, Escape,
+and click-outside dismissal are preserved. Eligible utility and action controls
+use a small transform-based interaction treatment and the bundled low-volume
+click sound; reduced-motion users retain color/border feedback without motion.
+
 ## Supported scope
 
 The production workflow includes automatic discovery, save selection, Overview,
-Players, Upgrades, Run, Advanced Items with exact-instance refill-to-full, Maps, pending edits, safe
-writes, backups, stale-file protection, and packaged Windows operation. Advanced
-other item mutations, arbitrary file browsing, and drag-and-drop remain outside the
-supported narrow desktop boundary.
+Players, Upgrades, Run, Items with exact-instance refill-to-full, Cosmetics bulk ownership and
+paired preset clearing, Maps, pending edits, safe writes, backups, stale-file protection, and
+packaged Windows operation. Other item mutations, arbitrary cosmetic equipment/preset editing,
+arbitrary file browsing, and drag-and-drop remain outside the supported narrow desktop boundary.

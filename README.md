@@ -14,9 +14,9 @@
 
 ### Inspect and safely edit local R.E.P.O. saves from a focused Windows desktop app
 
-RepoDitor is an unofficial Electron editor for encrypted R.E.P.O. `.es3` run
-saves. It keeps save parsing, validation, backups, and writes inside a bundled
-Python backend instead of exposing raw save data to the interface.
+RepoDitor is an unofficial Electron editor for local R.E.P.O. `.es3` data.
+The interface uses narrow typed operations while a bundled Python backend owns
+save parsing, validation, backups, game semantics, and encrypted writes.
 
 <sub>Overview · Players · Upgrades · Run · Items · Cosmetics · Maps</sub>
 
@@ -27,77 +27,153 @@ Python backend instead of exposing raw save data to the interface.
 ---
 
 > [!IMPORTANT]
-> RepoDitor is an unofficial community tool and is not affiliated with semiwork.
-> Back up important saves and close R.E.P.O. before editing. Game updates can
-> change the save format or behavior.
+> Close R.E.P.O. before opening or editing saves. RepoDitor is an unofficial
+> community tool and is not affiliated with semiwork. Back up important data;
+> game updates can change the save format or behavior.
 
-## What RepoDitor provides
+## ✨ Features
 
-| Workspace | Purpose |
+### Run Saves
+
+| Workspace | Current support |
 |---|---|
-| **Overview** | Review the selected save, run summary, and pending changes |
-| **Players** | Edit current health, heal to the Python-calculated maximum, and inspect optional Steam avatars |
-| **Upgrades** | Edit dynamically discovered player upgrades without a hardcoded upgrade catalog |
-| **Run** | Edit supported run values through validated typed fields |
-| **Maps** | Discover locally installed maps without modifying game runtime behavior |
-| **Advanced Items** | Inspect item charge state and safely refill recorded charge to the full/default state |
-| **Cosmetics** | Manage evidence-backed MetaSave ownership for the known catalog while preserving unknown IDs |
+| **Overview** | Review the selected run, its summary, and pending changes |
+| **Players** | Edit current health, heal to the Python-calculated maximum, and show optional Steam avatars |
+| **Upgrades** | Edit upgrades discovered dynamically from the save rather than a hardcoded catalog |
+| **Run** | Edit supported run values through typed, validated fields |
+| **Items** | Inspect item instances and use **Refill to Full** only when an exact stored-charge entry exists |
+| **Maps** | List locally installed maps without injecting code or forcing a map selection |
 
-Core safety behavior:
+### Cosmetics / MetaSave
 
-- edits remain in memory until **Save Changes** is confirmed;
-- the source fingerprint is checked before every write;
-- a timestamped exact-byte backup is created beside the save;
-- output is staged, reopened, and verified before atomic replacement;
-- malformed and unsupported saves are rejected before mutation;
-- automated tests use generated fixtures and temporary copies, never real saves.
+Cosmetics has its own workspace and safe-write lifecycle, independent from a
+selected Run save. It shows the known `0..546` catalog, owned/locked totals, and
+saved-preset count. The current bulk actions are:
 
-## Preview
+- **Unlock All Cosmetics**;
+- **Lock All Cosmetics**, only when no known owned cosmetic is equipped,
+  preset-referenced, or otherwise unsafe to remove;
+- **Clear All Presets**, which clears the paired cosmetic/color preset slots.
 
-![RepoDitor workspace showing a safely opened local save](docs/screenshots/repoditor-workspace.png)
+Unknown and future cosmetic IDs are preserved. Individual per-ID controls,
+cosmetic names, token editing, arbitrary equipment editing, and arbitrary
+preset creation/editing are not supported because their game semantics have
+not been established safely.
 
-## Quick start
+## 🖼️ Preview
+
+The screenshots below use generated test data; no personal save paths, Steam
+identifiers, or real user saves are included.
+
+| Run Saves | Cosmetics |
+|---|---|
+| ![RepoDitor Run Saves workspace with generated test data](docs/screenshots/run-saves-workspace.png) | ![RepoDitor Cosmetics bulk-management workspace](docs/screenshots/cosmetics-workspace.png) |
+
+| Selected player | Appearance and language |
+|---|---|
+| ![Upgrades workspace showing selected-player identity](docs/screenshots/upgrades-player-avatar.png) | ![RepoDitor utility controls and language menu](docs/screenshots/utility-language-menu.png) |
+
+## 🚀 Quick Start
 
 ### Requirements
 
 - Windows x64
 - a local R.E.P.O. installation and save
 
-### 1. Download
+### Install
 
-Open the [latest GitHub Release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
-and download `RepoDitor-Setup-<version>-x64.exe`.
+1. Open the [official GitHub Releases page](https://github.com/Yoruxyv/RepoDitor/releases/latest).
+2. Download `RepoDitor-Setup-<version>-x64.exe` and its `.sha256` file.
+3. Verify the checksum as described below, then run the assisted installer.
 
-### 2. Install
+The installed app includes its Python backend. Python, Node.js, npm, and `uv`
+are not required for normal use.
 
-Run the assisted installer and choose a destination. RepoDitor appears in the
-Start Menu and Windows Installed Apps. Python, Node.js, npm, and `uv` are not
-required to use the installed application.
+RepoDitor discovers `REPO_SAVE_*.es3` files below the current Windows account's
+R.E.P.O. save directory. Files containing `BACKUP` are excluded from automatic
+discovery.
 
-Current builds are unsigned, so Windows SmartScreen may show an unknown-publisher
-warning. Each release includes a `.sha256` file for verifying the installer.
+Updates are manual; RepoDitor installs no updater or background service.
+Uninstall through **Windows Settings → Apps → Installed apps → RepoDitor**.
+Uninstalling does not delete R.E.P.O. saves or RepoDitor-created `.bak-*`
+backups.
 
-### 3. Open a save
+## 🛡️ Save Safety
 
-RepoDitor discovers `REPO_SAVE_*.es3` files below:
+R.E.P.O. can retain save state in memory and write it later. Editing the file
+while the game is running could therefore use stale persisted data or be
+overwritten by a later game save. RepoDitor checks the validated R.E.P.O.
+process at startup, on window focus, and immediately before writes. It blocks
+editing while the game is running and fails closed when process status cannot
+be verified safely.
 
-```text
-%USERPROFILE%\AppData\LocalLow\semiwork\Repo
+That check is additive to the write pipeline:
+
+- edits stay in memory until **Save Changes** is confirmed;
+- the source SHA-256 fingerprint is checked before mutation and again while staging;
+- a timestamped exact-byte backup is created beside the source;
+- Python validates the supported schema and change semantics;
+- encrypted output is staged, reopened, and compared with the intended data;
+- only verified output atomically replaces the source.
+
+These safeguards reduce risk; they are not a guarantee against future game
+format changes or every form of data loss.
+
+## ✅ Verifying a Windows Download
+
+Windows SmartScreen may show **Unknown Publisher** or an unrecognized-app
+warning for an unsigned or low-reputation build. Download only from RepoDitor's
+official GitHub Releases page. The source and build workflows are public, and
+published installers include a SHA-256 checksum file.
+
+In PowerShell, place both files in the same directory and run:
+
+```powershell
+Get-FileHash .\RepoDitor-Setup-<version>-x64.exe -Algorithm SHA256
+Get-Content .\RepoDitor-Setup-<version>-x64.exe.sha256
 ```
 
-Files containing `BACKUP` are excluded from automatic discovery. You can also
-choose a save manually.
+The hexadecimal hashes must match exactly, ignoring letter case. A matching
+checksum confirms the file matches the published artifact; it does not by
+itself establish publisher identity. Historical v0.1.0 installers were
+unsigned. The current release workflow is prepared to require Microsoft cloud
+signing for official tagged builds, but the repository cannot prove whether
+maintainer-owned signing credentials have been configured.
 
-### Updates and uninstall
+## 🔐 Security Model
 
-Updates are manual: download and run a newer installer when published. RepoDitor
-does not install an updater or background service.
+The renderer is sandboxed with `contextIsolation: true` and
+`nodeIntegration: false`. It cannot read arbitrary files, spawn processes,
+decrypt saves, invoke arbitrary IPC, or receive raw decrypted save JSON.
 
-Uninstall through **Windows Settings → Apps → Installed apps → RepoDitor**.
-Uninstalling removes RepoDitor files and shortcuts, but does not delete R.E.P.O.
-saves or RepoDitor-created `.bak-*` backups.
+Steam avatar enrichment is optional and fail-soft. Only plausible Steam IDs
+are queried, returned image URLs are validated against narrow HTTPS hosts, and
+profile data is never written into a save. GitHub stars use one fixed metadata
+endpoint through typed Electron IPC with a successful-result session cache;
+the renderer receives no arbitrary network-fetch API.
 
-## How it works
+See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+
+## 🌐 Languages & Appearance
+
+RepoDitor supports **Dark**, **Light**, and **System** themes. Theme and language
+preferences are stored locally in the renderer, and System follows the Windows
+appearance setting.
+
+The RepoDitor-owned interface is available in:
+
+- English
+- Japanese (日本語)
+- Korean (한국어)
+- Chinese (中文)
+- Indonesian (Bahasa Indonesia)
+
+Game-owned strings—such as player names, item names, map names, and values read
+from saves—remain unchanged. The interface also respects reduced-motion
+preferences; its local interaction sound is decorative and not required to
+understand application state.
+
+## 🧠 How It Works
 
 ```text
 React renderer
@@ -108,15 +184,36 @@ Electron main process
   ↓ structured requests
 Bundled Python desktop API
   ↓
-Services → core/storage → encrypted .es3 file
+Services → core/storage → encrypted .es3 data
 ```
 
-The renderer cannot access the filesystem, spawn processes, decrypt saves, or
-receive raw decrypted save JSON. Electron keeps `contextIsolation: true` and
-`nodeIntegration: false`. See [Architecture](docs/architecture.md) for the full
-boundary and ownership rules.
+Run saves and MetaSave use independent fingerprints, pending changes, backups,
+and save sessions while reusing the same validated encrypted repository.
+Python remains authoritative for game and save semantics.
 
-## Development
+## 🧪 Quality & Testing
+
+Automated tests use generated or sanitized fixtures and temporary copies, never
+real user saves. The repository checks Python formatting/tests, renderer import
+boundaries, lint, TypeScript builds, component/contract tests, Windows Electron
+E2E, package contents, packaged E2E without Vite, and installer structure.
+
+```powershell
+uv run ruff check python tests
+uv run ruff format --check python tests
+uv run --with "pytest>=8.3,<9" pytest
+
+Set-Location desktop
+npm run imports:check
+npm run lint
+npm run release:check
+npm run build
+npm run bundle:check
+npm test
+npm run test:e2e
+```
+
+## 🛠️ Development
 
 Development requires `uv`, Python 3.11 or newer, and Node.js 24.
 
@@ -130,97 +227,58 @@ npm ci
 npm run dev
 ```
 
-The Python desktop protocol can also be exercised directly from the repository
-root:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture, evidence, privacy, and
+pull-request expectations.
 
-```powershell
-uv run python -m repo_save_editor.desktop_api environment
-```
+## 📦 Packaging & Releases
 
-## Quality checks
+From `desktop/`, `npm run package` builds the locked Python sidecar, production
+Electron app, unpacked packaged smoke test, assisted NSIS installer, and local
+artifact verification under `desktop/release/`. This local path is intentionally
+unsigned.
 
-Python:
+Official tagged GitHub releases use separate fail-closed signing commands,
+verify Authenticode signatures before generating SHA-256 files, and publish only
+after the existing package checks. See the
+[release checklist](docs/release-checklist.md) for current requirements and the
+preserved historical v0.1.0 baseline.
 
-```powershell
-uv run ruff check python tests
-uv run ruff format --check python tests
-uv run --with "pytest>=8.3,<9" pytest
-```
+## ⚠️ Limitations
 
-Desktop:
+- RepoDitor targets observed R.E.P.O. encrypted-save structures; game updates
+  may introduce incompatible data.
+- Items supports only exact-instance **Refill to Full** by removing an observed
+  stored-charge leaf. Numeric charge editing, battery-upgrade writes, purchase
+  mutations, and item add/delete/duplicate remain disabled.
+- Cosmetics supports only the bulk operations listed above. Unknown/future IDs
+  are preserved but not editable.
+- Maps is discovery-only; RepoDitor does not inject code or force map selection.
+- Steam avatar enrichment can be unavailable for invalid, private, malformed,
+  unreachable, or unsupported profiles without blocking Players.
+- RepoDitor currently targets Windows x64 and has no automatic updater.
 
-```powershell
-Set-Location desktop
-npm run imports:check
-npm run lint
-npm run release:check
-npm run build
-npm run bundle:check
-npm test
-npm run test:e2e
-```
-
-## Packaging
-
-From `desktop/`, run:
-
-```powershell
-npm run package
-```
-
-This builds the locked Python sidecar, production Electron application, packaged
-smoke test, assisted NSIS installer, and installer verification. Output is placed
-under `desktop/release/`. The complete release gate is documented in the
-[release checklist](docs/release-checklist.md).
-
-## Project structure
-
-```text
-RepoDitor/
-├── desktop/                 Electron, React renderer, packaging, and E2E
-├── python/repo_save_editor/ Python desktop API, services, core, and storage
-├── tests/                   Python tests and generated/sanitized fixtures
-├── docs/                    Architecture, format, research, and release notes
-├── .github/                 CI and community templates
-└── pyproject.toml           Python project and tool configuration
-```
-
-## Important limitations
-
-- RepoDitor targets the observed AES-encrypted ES3 payload used by R.E.P.O. run
-  saves; game updates may introduce incompatible structures.
-- Advanced Items supports only **Refill to Full** for an exact item instance with a recorded charge.
-  Numeric charge editing, battery-upgrade, purchased-item, add/delete/duplicate, and generic
-  numeric-dictionary writes remain disabled until controlled evidence proves safe mutation rules.
-- Cosmetics supports ownership only: individual unlock, evidence-guarded Mark as Locked, and
-  Unlock All for the observed `0..546` catalog. Names, tokens, equipment, presets, colors, and
-  unknown/future IDs remain unavailable for mutation.
-- Maps are discovery-only; RepoDitor does not inject code or force map selection.
-- Steam avatar enrichment is optional, fail-soft, and never written into a save.
-- RepoDitor currently targets Windows x64 and is not code-signed.
-
-## Documentation
+## 📚 Documentation
 
 | Document | Purpose |
 |---|---|
-| [Architecture](docs/architecture.md) | Desktop boundaries and dependency direction |
+| [Architecture](docs/architecture.md) | Desktop boundaries, ownership, and data flow |
+| [Electron UI](docs/ELECTRON_UI.md) | Renderer identity, responsiveness, appearance, and accessibility |
 | [Save format](docs/save-format.md) | Confirmed encrypted-save structure |
-| [Reverse engineering](docs/reverse-engineering.md) | Evidence and unresolved advanced semantics |
-| [Release checklist](docs/release-checklist.md) | Automated and manual v0.1.0 release gates |
-| [Asset research](docs/asset-research.md) | Local asset-discovery findings and restrictions |
+| [Reverse engineering](docs/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics |
+| [Release checklist](docs/release-checklist.md) | Current release gates and historical v0.1.0 baseline |
+| [Asset research](docs/asset-research.md) | Local asset-discovery evidence and redistribution boundary |
+| [Third-party notices](THIRD_PARTY_NOTICES.md) | Bundled asset and dependency attribution |
 
-## Contributing and security
+## 🤝 Contributing
 
 Focused bug reports, feature proposals, documentation improvements, and pull
-requests are welcome. Use the repository templates and never attach real save
-files, backups, personal Steam identifiers, or other private data to a public
-issue.
+requests are welcome. Use the repository templates and never publish real save
+files, backups, Steam identifiers, usernames, or local filesystem paths.
 
-Report suspected vulnerabilities privately through the repository's
-[security advisories](https://github.com/Yoruxyv/RepoDitor/security/advisories/new).
-See [SECURITY.md](SECURITY.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
+[Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
 
-## Maintainer
+## 👤 Maintainer
 
 <table>
   <tr>
@@ -233,8 +291,9 @@ See [SECURITY.md](SECURITY.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
   </tr>
 </table>
 
-## License
+## 📄 License
 
 RepoDitor is released under the [MIT License](LICENSE). R.E.P.O. and related
 names are trademarks or property of their respective owners. RepoDitor is an
-unofficial save-management utility and does not bundle game assets.
+unofficial save-management utility and does not redistribute R.E.P.O. game
+assets.
