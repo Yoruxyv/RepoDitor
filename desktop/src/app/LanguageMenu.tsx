@@ -3,14 +3,32 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import type { Locale } from "@/app/translations";
+import chinaFlag from "@/assets/flags/china.svg?no-inline";
+import indonesiaFlag from "@/assets/flags/indonesia.svg?no-inline";
+import japanFlag from "@/assets/flags/japan.svg?no-inline";
+import southKoreaFlag from "@/assets/flags/south-korea.svg?no-inline";
+import unitedStatesFlag from "@/assets/flags/united-states.svg?no-inline";
 
 const LANGUAGES = [
-  { locale: "en", flag: "🇺🇸", label: "English" },
-  { locale: "ja", flag: "🇯🇵", label: "日本語" },
-  { locale: "ko", flag: "🇰🇷", label: "한국어" },
-  { locale: "zh", flag: "🇨🇳", label: "中文" },
-  { locale: "id", flag: "🇮🇩", label: "Bahasa Indonesia" },
+  { locale: "en", flag: unitedStatesFlag, label: "English" },
+  { locale: "ja", flag: japanFlag, label: "日本語" },
+  { locale: "ko", flag: southKoreaFlag, label: "한국어" },
+  { locale: "zh", flag: chinaFlag, label: "中文" },
+  { locale: "id", flag: indonesiaFlag, label: "Bahasa Indonesia" },
 ] as const satisfies ReadonlyArray<{ locale: Locale; flag: string; label: string }>;
+
+function LanguageFlag({ src }: { readonly src: string }) {
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="h-3 w-4.5 rounded-[1px] border border-line object-cover"
+      height="12"
+      src={src}
+      width="18"
+    />
+  );
+}
 
 export function LanguageMenu() {
   const { locale, setLocale, t } = usePreferences();
@@ -102,7 +120,7 @@ export function LanguageMenu() {
         }}
       >
         <TranslateIcon aria-hidden="true" size={16} />
-        <span aria-hidden="true" className="text-sm leading-none">{selectedLanguage.flag}</span>
+        <LanguageFlag src={selectedLanguage.flag} />
         <span>{selectedLanguage.label}</span>
         <CaretDownIcon
           aria-hidden="true"
@@ -149,9 +167,7 @@ export function LanguageMenu() {
                       size={14}
                       weight="bold"
                     />
-                    <span aria-hidden="true" className="text-sm leading-none">
-                      {language.flag}
-                    </span>
+                    <LanguageFlag src={language.flag} />
                     <span className="whitespace-nowrap">{language.label}</span>
                   </button>
                 </div>

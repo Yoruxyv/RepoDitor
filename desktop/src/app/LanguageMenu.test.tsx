@@ -24,12 +24,15 @@ describe("LanguageMenu", () => {
     const trigger = screen.getByRole("button", { name: "Language: English" });
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(screen.queryByRole("combobox", { name: "Language" })).toBeNull();
+    expect(trigger.querySelector("img")?.getAttribute("src")).toBeTruthy();
     await user.click(trigger);
 
     expect(screen.getByRole("option", { name: "English" }).getAttribute("aria-selected"))
       .toBe("true");
     for (const name of ["English", "日本語", "한국어", "中文", "Bahasa Indonesia"]) {
-      expect(screen.getByRole("option", { name })).toBeTruthy();
+      const option = screen.getByRole("option", { name });
+      expect(option.textContent).toBe(name);
+      expect(option.querySelector("img")?.getAttribute("src")).toBeTruthy();
     }
 
     await user.click(document.body);
