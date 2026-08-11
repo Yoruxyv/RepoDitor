@@ -226,6 +226,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     }));
     expect(chrome.version).toBe("0.1.0");
     expect(chrome.hasApplicationMenu).toBe(false);
+    await page.bringToFront();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Alt");
     expect(await application.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null)).toBe(false);
     await expect(page).toHaveTitle("RepoDitor");
@@ -253,9 +256,6 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
-    await page.bringToFront();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
       (button) => getComputedStyle(button).transitionDuration,
     );
