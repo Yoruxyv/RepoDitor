@@ -1,0 +1,206 @@
+name: Unsigned Release
+
+run-name: Unsigned RepoDitor v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Strict release version without the v prefix (for example 0.1.1)"
+        required: true
+        type: string
+      confirm_unsigned:
+        description: "Type RELEASE UNSIGNED to acknowledge this Windows release is unsigned"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unsigned-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Validate, package, and publish unsigned Windows release
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Validate manual release request
+        shell: pwsh
+        env:
+          CONFIRM_UNSIGNED: ${{ inputs.confirm_unsigned }}
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:CONFIRM_UNSIGNED -cne "RELEASE UNSIGNED") {
+            throw "confirm_unsigned must exactly match RELEASE UNSIGNED."
+          }
+          if ($env:RELEASE_VERSION -cnotmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "version must be strict MAJOR.MINOR.PATCH SemVer without a v prefix."
+          }
+          if ($env:RELEASE_REF -cne "refs/heads/main") {
+            throw "Unsigned releases must be dispatched from the main branch."
+          }
+
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Verify current main commit, version, and tag availability
+        shell: pwsh
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --no-tags origin main
+          $headSha = (git rev-parse HEAD).Trim()
+          $mainSha = (git rev-parse origin/main).Trim()
+          if ($headSha -cne $env:RELEASE_SHA -or $mainSha -cne $env:RELEASE_SHA) {
+            throw "The workflow commit is no longer the current origin/main release commit."
+          }
+
+          $packageVersion = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+          if ($packageVersion -cne $env:RELEASE_VERSION) {
+            throw "Requested version $env:RELEASE_VERSION does not match desktop/package.json version $packageVersion."
+          }
+
+          $tagName = "v$env:RELEASE_VERSION"
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tagName"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not verify remote tag availability for $tagName."
+          }
+          if ($remoteTag) {
+            throw "Remote tag $tagName already exists."
+          }
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Sync locked Python and packaging dependencies
+        run: uv sync --locked --group package
+
+      - name: Python quality and tests
+        run: |
+          uv run ruff check python tests
+          uv run ruff format --check python tests
+          uv run --with "pytest>=8.3,<9" pytest
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Desktop quality, tests, and build
+        working-directory: desktop
+        run: |
+          npm run imports:check
+          npm run lint
+          npm run release:check
+          npm test
+          npm run build
+          npm run bundle:check
+
+      - name: Build and verify unsigned Windows package
+        working-directory: desktop
+        run: npm run package
+
+      - name: Verify exact installer and create checksum
+        working-directory: desktop
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          $expectedName = "RepoDitor-Setup-$env:RELEASE_VERSION-x64.exe"
+          $expectedPath = Join-Path "release" $expectedName
+          $installers = @(Get-ChildItem release -Filter "RepoDitor-Setup-*-x64.exe" -File)
+          if ($installers.Count -ne 1 -or $installers[0].Name -cne $expectedName) {
+            $found = ($installers.Name -join ", ")
+            throw "Expected exactly $expectedName; found: $found"
+          }
+          if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
+            throw "Expected installer is missing: $expectedPath"
+          }
+
+          $hash = (Get-FileHash $expectedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumPath = "$expectedPath.sha256"
+          $checksum = "$hash  $expectedName`n"
+          [IO.File]::WriteAllText(
+            (Join-Path (Get-Location) $checksumPath),
+            $checksum,
+            [Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RepoDitor-v${{ inputs.version }}-windows-unsigned
+          path: |
+            desktop/release/RepoDitor-Setup-${{ inputs.version }}-x64.exe
+            desktop/release/RepoDitor-Setup-${{ inputs.version }}-x64.exe.sha256
+          if-no-files-found: error
+
+      - name: Reconfirm main and publish unsigned release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --no-tags origin main
+          $mainSha = (git rev-parse origin/main).Trim()
+          if ($mainSha -cne $env:RELEASE_SHA) {
+            throw "origin/main advanced during validation; rerun from the new main commit."
+          }
+
+          $tagName = "v$env:RELEASE_VERSION"
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tagName"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not recheck remote tag availability for $tagName."
+          }
+          if ($remoteTag) {
+            throw "Remote tag $tagName was created while this workflow was running."
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a $tagName $env:RELEASE_SHA -m "RepoDitor $tagName"
+          git push origin "refs/tags/$tagName"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to push $tagName. No release was created."
+          }
+
+          $installer = "desktop/release/RepoDitor-Setup-$env:RELEASE_VERSION-x64.exe"
+          $checksum = "$installer.sha256"
+          $notice = @"
+          **Unsigned Windows build**
+
+          This release is currently unsigned while RepoDitor's code-signing approval is pending.
+          Windows SmartScreen may display an Unknown Publisher or unrecognized-app warning.
+          Download RepoDitor only from this GitHub repository and verify the published SHA-256
+          checksum before running the installer.
+          "@
+
+          gh release create $tagName $installer $checksum `
+            --verify-tag `
+            --title "RepoDitor $tagName" `
+            --generate-notes `
+            --notes $notice
+          if ($LASTEXITCODE -ne 0) {
+            gh release delete $tagName --yes 2>$null
+            git push origin --delete $tagName 2>$null
+            throw "Release publication failed. Best-effort release and tag cleanup was attempted."
+          }
