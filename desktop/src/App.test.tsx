@@ -298,18 +298,19 @@ describe("save workspace transition", () => {
     expect((screen.getByRole("combobox", { name: "言語" }) as HTMLSelectElement).value).toBe("ja");
   });
 
-  it("keeps initial game verification silent while the editor remains unavailable", () => {
+  it("keeps discovery usable while the initial game verification is pending", () => {
     window.repoditor.game.status = vi.fn(() => new Promise<never>(() => undefined));
 
     render(<App />);
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
-    expect(screen.getByTestId("editor-content").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false);
+    expect(screen.getByTestId("editor-content").getAttribute("aria-busy")).toBe("false");
   });
 
   it("blocks the editor while R.E.P.O. is running until Check Again confirms it closed", async () => {
     const gameStatus = vi.mocked(window.repoditor.game.status);
+    window.repoditor.saves.open = vi.fn().mockResolvedValue({ ok: true, data: session });
     gameStatus
       .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
       .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
@@ -317,6 +318,9 @@ describe("save workspace transition", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
     expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
 
@@ -329,13 +333,19 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false);
   });
 
-  it("fails closed when game process status is unknown", async () => {
+  it("fails closed on an open workspace when game process status is unknown", async () => {
+    window.repoditor.saves.open = vi.fn().mockResolvedValue({ ok: true, data: session });
     window.repoditor.game.status = vi.fn().mockResolvedValue({
       ok: true,
       data: { status: "unknown", running: false },
     });
+    const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false);
+    await user.click(screen.getByRole("button", { name: /Open workspace/ }));
     expect(
       await screen.findByRole("heading", {
         name: "RepoDitor could not verify that R.E.P.O. is closed.",

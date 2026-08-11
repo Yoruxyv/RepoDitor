@@ -40,7 +40,7 @@ export function GameSafetyDialog({
         aria-describedby={DESCRIPTION_ID}
         aria-labelledby={TITLE_ID}
         aria-modal="true"
-        className="m-0 w-full max-w-xl rounded-md border border-line-strong bg-surface p-6 text-ink shadow-2xl sm:p-8"
+        className="relative m-0 w-full max-w-xl rounded-md border border-line-strong bg-surface p-6 text-ink shadow-2xl sm:p-8"
       >
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-warning">
           {t("safety.label")}

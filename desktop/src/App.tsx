@@ -18,14 +18,17 @@ function AppContent() {
   const gameSafety = useGameSafety();
   const { t } = usePreferences();
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
+  const safetyRequired = save.session !== null || activeWorkspace === "cosmetics";
   const dialogStatus =
-    gameSafety.status === "running" || gameSafety.status === "unknown" ? gameSafety.status : null;
-  const initialSafetyCheck = gameSafety.status === null;
+    safetyRequired && (gameSafety.status === "running" || gameSafety.status === "unknown")
+      ? gameSafety.status
+      : null;
+  const initialSafetyCheck = safetyRequired && gameSafety.status === null;
 
   return (
     <AppShell>
       <div
-        aria-busy={initialSafetyCheck || gameSafety.checking}
+        aria-busy={initialSafetyCheck || (safetyRequired && gameSafety.checking)}
         data-testid="editor-content"
         inert={dialogStatus !== null || initialSafetyCheck}
       >
