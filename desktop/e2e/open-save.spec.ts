@@ -618,7 +618,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
       repoProcess = undefined;
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(page.getByRole("dialog")).toHaveCount(0);
-      await expect(page.getByTestId("editor-content")).toBeFocused();
+      await expect.poll(() => page.getByTestId("editor-content").evaluate((editor) => (
+        editor === document.activeElement || editor.contains(document.activeElement)
+      ))).toBe(true);
       await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     }
 
