@@ -12,6 +12,7 @@ import { registerGameIpc } from "./ipc/game.cjs";
 import { registerCosmeticsIpc } from "./ipc/cosmetics.cjs";
 import { registerEditorIpc } from "./ipc/editor.cjs";
 import { registerPlayerIpc } from "./ipc/players.cjs";
+import { registerProjectIpc } from "./ipc/project.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
 
@@ -110,6 +111,12 @@ registerGameIpc();
 registerCosmeticsIpc();
 registerSaveIpc();
 registerPlayerIpc();
+const e2eStars = Number(process.env.REPODITOR_E2E_PROJECT_STARS);
+registerProjectIpc(
+  Number.isSafeInteger(e2eStars) && e2eStars >= 0
+    ? async () => ({ ok: true, json: async () => ({ stargazers_count: e2eStars }) })
+    : undefined,
+);
 registerEditorIpc();
 
 void app.whenReady().then(() => {
