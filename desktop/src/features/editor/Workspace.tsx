@@ -1,9 +1,8 @@
 import {
   ArrowLeftIcon,
-  FolderOpenIcon,
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 
 import type { SaveChange, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -33,6 +32,7 @@ interface WorkspaceProps {
   readonly saving: boolean;
   readonly saveError: string | null;
   readonly backupPath: string | null;
+  readonly onPendingCountChange: (count: number) => void;
   readonly onClose: () => void;
   readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
 }
@@ -42,6 +42,7 @@ export function Workspace({
   saving,
   saveError,
   backupPath,
+  onPendingCountChange,
   onClose,
   onSave,
 }: WorkspaceProps) {
@@ -60,6 +61,19 @@ export function Workspace({
     ...advanced.pendingEdits,
   ];
   const pendingEdits: RunSavePendingEdit[] = runSavePendingEdits;
+  const pendingBySection: Record<WorkspaceSection, number> = {
+    overview: 0,
+    players: players.pendingEdits.length,
+    upgrades: upgrades.pendingEdits.length,
+    run: run.pendingEdits.length,
+    items: advanced.pendingEdits.length,
+    maps: 0,
+  };
+
+  useEffect(() => {
+    onPendingCountChange(pendingEdits.length);
+    return () => onPendingCountChange(0);
+  }, [onPendingCountChange, pendingEdits.length]);
 
   function revertAll(): void {
     players.revertAll();
@@ -92,16 +106,21 @@ export function Workspace({
   }
 
   return (
-    <section aria-labelledby="workspace-title" data-testid="workspace">
-      <header className="grid gap-5 border-b border-line pb-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+    <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
+      <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">{t("workspace.selectedSave")}</p>
-          <h1 className="font-display mt-3 truncate text-5xl font-semibold uppercase leading-[0.9] tracking-[-0.02em] text-ink sm:text-6xl" id="workspace-title" title={session.name}>
+          <h1 className="font-display mt-1 truncate text-4xl font-semibold uppercase leading-none tracking-[-0.02em] text-ink" id="workspace-title" title={session.name}>
             {session.name}
           </h1>
-          <p className="mt-4 text-sm text-secondary">
-            {t("workspace.opened", { date: formatDateTime(session.modifiedAt, locale) })}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary">
+            <span>{t("workspace.opened", { date: formatDateTime(session.modifiedAt, locale) })}</span>
+            <span className="inline-flex items-center gap-1.5 text-success">
+              <ShieldCheckIcon aria-hidden="true" size={15} />
+              {t("workspace.validatedShort")}
+            </span>
+            <span className="max-w-full truncate font-mono text-muted" title={session.path}>{session.path}</span>
+          </div>
         </div>
         <button
           className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
@@ -117,9 +136,12 @@ export function Workspace({
         <div className="flex min-w-max gap-1 py-2" role="tablist">
           {SECTIONS.map((section, index) => {
             const active = activeSection === section;
+            const pendingCount = pendingBySection[section];
             return (
               <button
                 aria-controls="workspace-panel"
+                aria-describedby={pendingCount > 0 ? `workspace-tab-pending-${index}` : undefined}
+                aria-label={t(`nav.${section}`)}
                 aria-selected={active}
                 className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                   active ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"
@@ -133,13 +155,19 @@ export function Workspace({
                 onKeyDown={(event) => moveTab(event, index)}
               >
                 {t(`nav.${section}`)}
+                {pendingCount > 0 ? (
+                  <>
+                    <span aria-hidden="true" className="ml-2 inline-block size-1.5 rounded-full bg-warning" />
+                    <span className="sr-only" id={`workspace-tab-pending-${index}`}> · {t(pendingCount === 1 ? "pending.one" : "pending.many", { count: pendingCount })}</span>
+                  </>
+                ) : null}
               </button>
             );
           })}
         </div>
       </nav>
 
-      <div className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-10">
+      <div className="pt-6">
         <div className="min-w-0" id="workspace-panel" role="tabpanel" tabIndex={0} aria-labelledby={`workspace-tab-${SECTIONS.indexOf(activeSection)}`}>
           {activeSection === "overview" ? <OverviewView session={session} /> : null}
           {activeSection === "players" ? (
@@ -209,19 +237,6 @@ export function Workspace({
           ) : null}
         </div>
 
-        <aside className="min-w-0 border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0" data-testid="workspace-context" aria-label={t("workspace.context")}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <FolderOpenIcon aria-hidden="true" className="text-accent" size={18} />
-            {t("workspace.source")}
-          </div>
-          <p className="mt-3 break-all font-mono text-[0.7rem]/5 text-muted" title={session.path}>
-            {session.path}
-          </p>
-          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs/5 text-secondary">
-            <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
-            <p>{t("workspace.validated")}</p>
-          </div>
-        </aside>
       </div>
 
       <PendingChangesBar

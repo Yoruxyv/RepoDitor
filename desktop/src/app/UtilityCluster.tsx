@@ -29,7 +29,7 @@ export function UtilityCluster() {
     <div className="flex flex-wrap items-center gap-2" aria-label={t("utility.group")}>
       <a
         aria-label={t("utility.openGithub", { stars: starLabel })}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className="ui-feedback hidden h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent lg:inline-flex"
         href={PROJECT_URL}
         rel="noreferrer"
         target="_blank"

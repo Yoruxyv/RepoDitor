@@ -163,17 +163,10 @@ async function setWindowSize(
 }
 
 async function layout(page: Page) {
-  return page.evaluate(() => {
-    const panel = document.querySelector<HTMLElement>("#workspace-panel")?.getBoundingClientRect();
-    const context = document
-      .querySelector<HTMLElement>("[data-testid='workspace-context']")
-      ?.getBoundingClientRect();
-    return {
-      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      panel: panel && { top: panel.top, bottom: panel.bottom, left: panel.left },
-      context: context && { top: context.top, left: context.left },
-    };
-  });
+  return page.evaluate(() => ({
+    hasHorizontalOverflow:
+      document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  }));
 }
 
 test("safely writes changes with backup and stale-save protection", async () => {
@@ -323,6 +316,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.locator("#cosmetics-pending")).toContainText("1 pending change");
     expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
     await page.getByRole("button", { name: "Run Saves" }).click();
@@ -334,7 +328,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByTestId("cosmetics-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("cosmetics-action-bar").getByText(/Saved safely · Backup created/)).toBeVisible();
     const metaBackups = (await readdir(path.dirname(metaPath)))
       .filter((name) => name.startsWith(`${path.basename(metaPath)}.bak-`));
     expect(metaBackups).toHaveLength(1);
@@ -360,6 +354,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
       .click();
     await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
+    await expect(page.locator("#workspace-tab-pending-4")).toContainText("1 pending change");
+    await expect(page.locator("#run-saves-pending")).toContainText("1 pending change");
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
     await page.getByRole("tab", { name: "Overview" }).focus();
@@ -406,6 +402,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Headman Manor")).toBeVisible();
     await expect(page.getByText("Modded Moon")).toBeVisible();
 
+    await page.getByRole("button", { name: "Review" }).click();
     await expect(page.getByText("Beta · Health")).toBeVisible();
     await expect(page.getByText("Beta · Strength")).toBeVisible();
     await expect(page.getByText("Run · Currency")).toBeVisible();
@@ -428,7 +425,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
-    await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely\. Backup:/)).toBeVisible();
+    await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely · Backup created/)).toBeVisible();
     const saveReadyMs = performance.now() - saveStarted;
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
@@ -493,19 +490,21 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("tab", { name: "Maps" }).click();
       await expect(page.getByText("McJannek Station")).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
-      await page.getByTestId("workspace-action-bar").scrollIntoViewIfNeeded();
-      await expect(page.getByTestId("workspace-action-bar")).toBeVisible();
     }
 
-    await setWindowSize(application, page, 1200, 800);
-    const normal = await layout(page);
-    expect(normal.panel).toBeTruthy();
-    expect(normal.context).toBeTruthy();
-    expect(normal.context!.left).toBeGreaterThan(normal.panel!.left);
-
     await setWindowSize(application, page, 960, 640);
-    const minimum = await layout(page);
-    expect(minimum.context!.top).toBeGreaterThan(minimum.panel!.bottom);
+    await page.getByRole("tab", { name: "Run" }).click();
+    const minimumCurrency = page.getByRole("spinbutton", { name: "Currency" });
+    await minimumCurrency.fill("21");
+    await minimumCurrency.focus();
+    const focusClearOfSurface = await minimumCurrency.evaluate((control) => {
+      const surface = document.querySelector<HTMLElement>("[data-pending-surface-active='true']");
+      if (!surface) return false;
+      return control.getBoundingClientRect().bottom <= surface.getBoundingClientRect().top;
+    });
+    expect(focusClearOfSurface).toBe(true);
+    expect((await layout(page)).hasHorizontalOverflow).toBe(false);
+    await page.getByRole("button", { name: "Revert all" }).click();
 
     await page.getByRole("button", { name: "Cosmetics" }).click();
     await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();

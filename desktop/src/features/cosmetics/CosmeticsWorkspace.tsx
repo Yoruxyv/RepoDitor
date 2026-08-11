@@ -1,4 +1,5 @@
 import { ShieldCheckIcon } from "@phosphor-icons/react";
+import { useEffect } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
@@ -8,15 +9,28 @@ import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
 interface CosmeticsWorkspaceProps {
   readonly hidden: boolean;
   readonly recoveryGeneration: number;
+  readonly onPendingCountChange: (count: number) => void;
 }
 
-export function CosmeticsWorkspace({ hidden, recoveryGeneration }: CosmeticsWorkspaceProps) {
+export function CosmeticsWorkspace({ hidden, recoveryGeneration, onPendingCountChange }: CosmeticsWorkspaceProps) {
   const { t } = usePreferences();
   const cosmetics = useCosmetics(!hidden, recoveryGeneration);
 
+  useEffect(() => {
+    onPendingCountChange(cosmetics.pendingEdits.length);
+    return () => onPendingCountChange(0);
+  }, [cosmetics.pendingEdits.length, onPendingCountChange]);
+
   return (
     <section aria-label={t("app.cosmetics")} data-testid="cosmetics-workspace" hidden={hidden}>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-10">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
+        <span className="font-mono text-ink">MetaSave.es3</span>
+        <span className="inline-flex items-center gap-1.5 text-success">
+          <ShieldCheckIcon aria-hidden="true" size={15} />
+          {t("cosmetics.validatedShort")}
+        </span>
+      </div>
+      <div>
         <div className="min-w-0">
           <CosmeticsView
             clearAllPresetsPending={cosmetics.clearAllPresetsPending}
@@ -36,17 +50,6 @@ export function CosmeticsWorkspace({ hidden, recoveryGeneration }: CosmeticsWork
           />
         </div>
 
-        <aside
-          aria-label={t("cosmetics.context")}
-          className="min-w-0 border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0"
-        >
-          <p className="text-sm font-semibold text-ink">{t("workspace.source")}</p>
-          <p className="mt-3 font-mono text-xs text-muted">MetaSave.es3</p>
-          <div className="mt-6 flex items-start gap-2 border-t border-line pt-5 text-xs/5 text-secondary">
-            <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
-            <p>{t("cosmetics.validated")}</p>
-          </div>
-        </aside>
       </div>
 
       <PendingChangesBar
