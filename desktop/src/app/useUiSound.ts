@@ -2,6 +2,11 @@ import { useEffect } from "react";
 
 import clickSound from "@/assets/sfx/mouse-click.mp3";
 
+/**
+ * Attach one fail-soft, delegated activation sound for eligible UI controls.
+ *
+ * @param enabled - Whether this hook should attach the document activation listener.
+ */
 export function useUiSound(enabled = true): void {
   useEffect(() => {
     if (!enabled) return;

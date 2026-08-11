@@ -26,7 +26,14 @@ class GameSafetyError(RuntimeError):
 def get_game_status(
     status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
-    """Return only the renderer-safe game-running state."""
+    """Return only the renderer-safe game-running state.
+
+    Args:
+        status_loader: Injectable validated-process status loader used by tests.
+
+    Returns:
+        A narrow status payload without installation paths or process details.
+    """
     status = status_loader()
     return {
         "ok": True,
@@ -38,7 +45,14 @@ def get_game_status(
 def require_game_closed(
     status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> None:
-    """Fail closed unless process inspection confirms R.E.P.O. is not running."""
+    """Require validated process inspection to confirm R.E.P.O. is closed.
+
+    Args:
+        status_loader: Injectable validated-process status loader used by tests.
+
+    Raises:
+        GameSafetyError: The game is running or its status cannot be verified.
+    """
     status = status_loader()
     if status is GameProcessStatus.RUNNING:
         raise GameSafetyError("game_running", GAME_RUNNING_MESSAGE)

@@ -16,6 +16,12 @@ export interface Preferences {
 
 export const PreferencesContext = createContext<Preferences | null>(null);
 
+/**
+ * Access renderer-local appearance, locale, and translation preferences.
+ *
+ * @returns The active preferences context.
+ * @throws When called outside `PreferencesProvider`.
+ */
 export function usePreferences(): Preferences {
   const preferences = useContext(PreferencesContext);
   if (!preferences) throw new Error("usePreferences must be used within PreferencesProvider.");

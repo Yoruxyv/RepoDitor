@@ -4,6 +4,11 @@ import type { SaveChange, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 
+/**
+ * Own one Run-save session without exposing decrypted data to the renderer.
+ *
+ * @returns The renderer-safe session, operations, and translated failure state.
+ */
 export function useSaveSession() {
   const { t } = usePreferences();
   const [session, setSession] = useState<SaveSession | null>(null);

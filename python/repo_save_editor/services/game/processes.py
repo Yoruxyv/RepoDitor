@@ -165,7 +165,17 @@ def get_game_process_status(
     discover: Callable[[Path | None], GameDiscoveryResult] = discover_game_installation,
     inspect: Callable[[Path], ProcessInspection] = inspect_windows_processes,
 ) -> GameProcessStatus:
-    """Discover the validated installation, then verify whether its executable is running."""
+    """Verify whether the validated local R.E.P.O. executable is running.
+
+    Args:
+        game_dir: Optional explicit installation root.
+        discover: Injectable trusted-installation discovery function.
+        inspect: Injectable Windows process inspector.
+
+    Returns:
+        ``UNKNOWN`` when installation or process identity cannot be verified,
+        allowing callers to fail closed before editing or writing saves.
+    """
     discovery = discover(game_dir)
     if discovery.installation is None:
         return GameProcessStatus.UNKNOWN
