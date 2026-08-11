@@ -13,6 +13,7 @@ import {
   type ThemePreference,
 } from "@/app/preferences";
 import {
+  isLocale,
   TRANSLATIONS,
   type Locale,
   type TranslationKey,
@@ -35,9 +36,7 @@ function readTheme(): ThemePreference {
 function readLocale(): Locale {
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-    return stored === "en" || stored === "ja" || stored === "ko" || stored === "zh" || stored === "id"
-      ? stored
-      : "en";
+    return isLocale(stored) ? stored : "en";
   } catch {
     return "en";
   }

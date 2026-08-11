@@ -13,8 +13,9 @@ values.
 
 The checked-in official release path expects the Microsoft Artifact Signing values documented
 below and fails closed without them. Repository contents cannot prove whether the maintainer-owned
-Azure identity and protected GitHub environment values are currently configured. There is no
-checked-in unsigned release bypass.
+Azure identity and protected GitHub environment values are currently configured. The maintainer
+is separately awaiting SignPath Foundation approval; SignPath is not integrated into the current
+workflow.
 
 Local packaging remains intentionally usable without cloud access:
 
@@ -28,6 +29,36 @@ and smoke checks. The GitHub release job instead calls `package:dir:signed` and
 `package:installer:signed`. Those commands load `electron-builder.release.cjs`, set
 `forceCodeSigning: true`, and fail before producing an official artifact when any required signing
 input is absent. They are not local development defaults.
+
+### Signed release path
+
+`.github/workflows/release.yml` is the preferred official path once signing is available. It
+retains fail-closed Microsoft Artifact Signing configuration, verifies the packaged application,
+sidecar, and installer signatures, and generates the checksum only after signature validation.
+The temporary unsigned workflow does not change or provide a fallback inside this signed path.
+
+### Explicit unsigned release path
+
+`.github/workflows/release-unsigned.yml` is a temporary manual-only bridge while signing approval
+or credentials are unavailable. From **Actions → Unsigned Release → Run workflow**, select `main`,
+enter the aligned strict version, and type `RELEASE UNSIGNED` exactly.
+
+This path:
+
+- never runs for tags, pushes, pull requests, or releases;
+- verifies the selected commit is still the current `origin/main` commit and refuses existing tags;
+- requires exact unsigned-release confirmation and an aligned package version;
+- retains Python quality, renderer quality, component/contract tests, packaged Electron E2E,
+  package-content checks, installer verification, and lowercase SHA-256 generation;
+- omits only cloud code signing and Authenticode signature verification;
+- uploads the installer/checksum as a workflow artifact and labels the GitHub Release prominently
+  as an unsigned Windows build;
+- creates the annotated `v<version>` tag and stable release only after validation succeeds.
+
+The workflow pushes its tag with the repository `GITHUB_TOKEN`, not a PAT. GitHub suppresses new
+workflow runs for most events created by that token, so the tag push is not expected to recursively
+start the tag-triggered signed workflow. Retire or disable this unsigned path once the chosen
+signing provider is integrated and validated.
 
 The GitHub repository must have a protected environment named `release-signing`. Configure these
 environment variables after the Microsoft resources exist:
@@ -100,7 +131,7 @@ The quality gate must pass every job. The tag-driven release workflow reruns
 Python and desktop quality, the packaged smoke test, installer verification,
 and installer checksum generation before publishing.
 
-## Current release procedure
+## Signed release procedure
 
 1. Update every managed version source and verify alignment from `desktop/`:
 
@@ -121,6 +152,26 @@ and installer checksum generation before publishing.
    SHA-256 checksum.
 7. Confirm the downloaded installer repeats the accepted install, launch,
    uninstall, save-preservation, and reinstall behavior.
+
+## Temporary unsigned v0.1.1 procedure
+
+After the unsigned-workflow change is merged, update and verify local `main` without creating a
+tag:
+
+```powershell
+Set-Location E:\GitHub\RepoDitor
+git switch main
+git pull --ff-only
+Set-Location desktop
+npm run release:check
+Set-Location ..
+git status
+```
+
+The check must report `Release version 0.1.1 is aligned.`, and the working tree must be clean.
+Then open **GitHub → RepoDitor → Actions → Unsigned Release → Run workflow**, select `main`, set
+`version` to `0.1.1`, and set `confirm_unsigned` to `RELEASE UNSIGNED`. Do not create or push the
+tag manually; the validated workflow creates `v0.1.1` at its exact checked-out commit.
 
 ## Installer acceptance gate
 

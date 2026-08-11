@@ -16,10 +16,10 @@ and writes.
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a suspected vulnerability. Use the repository
-Security tab, open **Advisories**, select **Report a vulnerability**, and submit
-the report through
-[GitHub private vulnerability reporting](https://github.com/Yoruxyv/RepoDitor/security/advisories/new).
+Do not open a public issue for a suspected vulnerability.
+
+Use the repository **Security** tab and select **Report a vulnerability** to submit
+the report privately through GitHub's private vulnerability reporting.
 
 Include the affected version or commit, Windows version, affected application
 layer, reproducible steps, expected and observed behavior, realistic impact,
