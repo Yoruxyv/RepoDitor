@@ -212,7 +212,7 @@ describe("save workspace transition", () => {
   it("presents release identity and project attribution", () => {
     render(<App />);
 
-    expect(screen.getAllByText("v0.1.0").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(`v${__APP_VERSION__}`).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("About RepoDitor").textContent).toContain(
       "Unofficial R.E.P.O. save utility",
     );

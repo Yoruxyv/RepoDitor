@@ -102,16 +102,24 @@ and installer checksum generation before publishing.
 
 ## Current release procedure
 
-1. Set matching versions in `pyproject.toml` and `desktop/package.json`.
-2. Run `npm run release:check` from `desktop/`.
-3. Confirm the RepoDitor icon, product name, current-version About information,
+1. Update every managed version source and verify alignment from `desktop/`:
+
+   ```powershell
+   npm run update:version -- 0.1.2
+   npm run release:check
+   ```
+
+   `desktop/package.json` is the primary release version. The updater synchronizes
+   `package-lock.json`, `pyproject.toml`, Python `__version__`, and `uv.lock`. Renderer and E2E
+   tests derive their expected version from package metadata and do not need release-specific edits.
+2. Confirm the RepoDitor icon, product name, current-version About information,
    signing-status notice, and native-menu removal are current.
-4. Run the complete local quality and package gates from the root README.
-5. Run the installer acceptance gate below on a clean current-user installation.
-6. Push a semantic tag matching the version, for example `v0.2.0`.
-7. Download the workflow installer, verify its Authenticode publisher/status, and then verify its
+3. Run the complete local quality and package gates from the root README.
+4. Run the installer acceptance gate below on a clean current-user installation.
+5. Push a semantic tag matching the version, for example `v0.2.0`.
+6. Download the workflow installer, verify its Authenticode publisher/status, and then verify its
    SHA-256 checksum.
-8. Confirm the downloaded installer repeats the accepted install, launch,
+7. Confirm the downloaded installer repeats the accepted install, launch,
    uninstall, save-preservation, and reinstall behavior.
 
 ## Installer acceptance gate
