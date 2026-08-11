@@ -101,6 +101,14 @@ Provide useful states for:
 
 Do not use window.alert() for errors.
 
+The running-game safety block uses a native modal dialog. It moves focus into the safety actions,
+keeps the editor inert, prevents Escape from bypassing the block, and deliberately restores focus
+after a successful recheck. Pending counts, saving progress, verified backup success, and durable
+errors expose explicit status semantics for assistive technology.
+
+Light and dark themes keep normal text at WCAG AA contrast. Interactive control boundaries use a
+dedicated semantic token rather than increasing the contrast of decorative separators.
+
 ## Architecture
 
 React must not implement ES3 encryption/decryption or save mutation logic.

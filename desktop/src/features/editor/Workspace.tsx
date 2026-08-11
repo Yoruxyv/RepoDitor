@@ -104,7 +104,7 @@ export function Workspace({
           </p>
         </div>
         <button
-          className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onClose}
         >

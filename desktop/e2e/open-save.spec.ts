@@ -546,20 +546,29 @@ test("safely writes changes with backup and stale-save protection", async () => 
       });
       await new Promise((resolve) => setTimeout(resolve, 200));
 
+      await page.getByRole("button", { name: "Save Changes" }).focus();
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
         .toBeVisible();
       await expect(page.getByTestId("editor-content")).toHaveAttribute("inert", "");
+      const checkAgain = page.getByRole("button", { name: "Check Again" });
+      const exitRepoDitor = page.getByRole("button", { name: "Exit RepoDitor" });
+      await expect(checkAgain).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await expect(exitRepoDitor).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(checkAgain).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(checkAgain).toBeFocused();
       const dialogOffset = await page.getByRole("dialog").evaluate((dialog) => {
         const bounds = dialog.getBoundingClientRect();
-        const overlay = dialog.parentElement?.getBoundingClientRect();
-        if (!overlay) throw new Error("Safety dialog overlay is missing.");
         return {
           horizontal: Math.abs(
-            bounds.left + bounds.width / 2 - (overlay.left + overlay.width / 2),
+            bounds.left + bounds.width / 2 - document.documentElement.clientWidth / 2,
           ),
           vertical: Math.abs(
-            bounds.top + bounds.height / 2 - (overlay.top + overlay.height / 2),
+            bounds.top + bounds.height / 2 - document.documentElement.clientHeight / 2,
           ),
         };
       });
@@ -600,7 +609,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
         name.startsWith(`${path.basename(metaPath)}.bak-`),
       )).toHaveLength(metaBackupsBefore);
 
-      await page.getByRole("button", { name: "Check Again" }).click();
+      await checkAgain.click();
       await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
         .toBeVisible();
 
@@ -609,6 +618,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       repoProcess = undefined;
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByTestId("editor-content")).toBeFocused();
       await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     }
 

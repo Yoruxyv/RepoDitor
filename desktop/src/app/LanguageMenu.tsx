@@ -106,7 +106,7 @@ export function LanguageMenu() {
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`${t("utility.language")}: ${selectedLanguage.label}`}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-line-strong bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
         type="button"
         onClick={() => (open ? closeMenu(false) : openMenu())}
         onKeyDown={(event) => {
@@ -136,7 +136,7 @@ export function LanguageMenu() {
           {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
           <div
             aria-label={t("utility.language")}
-            className="absolute right-0 z-30 mt-2 min-w-60 overflow-hidden rounded-sm border border-line-strong bg-surface p-1.5 shadow-xl"
+            className="absolute right-0 z-30 mt-2 min-w-60 overflow-hidden rounded-sm border border-control bg-surface p-1.5 shadow-xl"
             id={listboxId}
             role="listbox"
           >

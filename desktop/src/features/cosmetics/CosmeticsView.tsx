@@ -46,7 +46,7 @@ export function CosmeticsView({
         <h2 className="text-xl font-semibold text-ink" id="cosmetics-error-title">{t("cosmetics.unavailable")}</h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
         <button
-          className="ui-feedback mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          className="ui-feedback mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onRetry}
         >
@@ -96,7 +96,7 @@ export function CosmeticsView({
           {t(unlockAllPending ? "cosmetics.unlockPending" : "cosmetics.unlockAll")}
         </button>
         <button
-          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={view.savedPresetCount === 0 || bulkPending}
           type="button"
           onClick={onClearAllPresets}
@@ -105,8 +105,7 @@ export function CosmeticsView({
           {t(clearAllPresetsPending ? "cosmetics.clearPending" : "cosmetics.clearPresets")}
         </button>
         <button
-          aria-describedby={lockAllUnavailable ? "lock-all-note" : undefined}
-          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={
             !view.capabilities.canRemoveOwnership
             || knownOwnedCount === 0
@@ -121,7 +120,13 @@ export function CosmeticsView({
         </button>
       </div>
       {lockAllUnavailable ? (
-        <p className="mt-2 text-xs text-warning" id="lock-all-note">{lockAllUnavailable}</p>
+        <output
+          aria-live="polite"
+          className="mt-2 block text-xs text-warning"
+          data-testid="lock-all-blocked-reason"
+        >
+          {lockAllUnavailable}
+        </output>
       ) : null}
     </section>
   );

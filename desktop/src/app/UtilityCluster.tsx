@@ -29,7 +29,7 @@ export function UtilityCluster() {
     <div className="flex flex-wrap items-center gap-2" aria-label={t("utility.group")}>
       <a
         aria-label={t("utility.openGithub", { stars: starLabel })}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-line-strong bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
         href={PROJECT_URL}
         rel="noreferrer"
         target="_blank"
@@ -40,7 +40,7 @@ export function UtilityCluster() {
           {stars ?? "—"}
         </span>
       </a>
-      <label className="ui-feedback relative inline-flex h-10 items-center rounded-sm border border-line-strong bg-surface text-secondary focus-within:border-accent focus-within:text-accent">
+      <label className="ui-feedback relative inline-flex h-10 items-center rounded-sm border border-control bg-surface text-secondary focus-within:border-accent focus-within:text-accent">
         <CircleHalfIcon aria-hidden="true" className="pointer-events-none absolute left-3" size={16} />
         <span className="sr-only">{t("utility.theme")}</span>
         <select

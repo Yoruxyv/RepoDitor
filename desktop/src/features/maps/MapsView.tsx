@@ -13,7 +13,7 @@ interface MapsViewProps {
 export function MapsView({ discovery, loading, error, onRetry }: MapsViewProps) {
   const { t } = usePreferences();
   if (loading) return <output aria-live="polite" className="text-sm text-secondary">{t("maps.loading")}</output>;
-  if (error) return <section aria-labelledby="maps-error-title"><h2 className="text-xl font-semibold text-ink" id="maps-error-title">{t("maps.unavailable")}</h2><p className="mt-2 text-sm text-secondary" role="alert">{error}</p><button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}><ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}</button></section>;
+  if (error) return <section aria-labelledby="maps-error-title"><h2 className="text-xl font-semibold text-ink" id="maps-error-title">{t("maps.unavailable")}</h2><p className="mt-2 text-sm text-secondary" role="alert">{error}</p><button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}><ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}</button></section>;
   if (!discovery?.available) return <section aria-labelledby="maps-title"><h2 className="text-2xl font-semibold text-ink" id="maps-title">{t("nav.maps")}</h2><p className="mt-3 max-w-[58ch] text-sm/6 text-secondary">{t("maps.noGame")}</p></section>;
 
   return (
