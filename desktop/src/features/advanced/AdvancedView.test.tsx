@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdvancedSaveDto } from "@electron/contracts";
+import { renderWithPreferences } from "@/test/render";
 import { AdvancedView } from "./AdvancedView";
 
 const readOnly = {
@@ -54,7 +55,7 @@ describe("AdvancedView", () => {
   it("renders confirmed items, charge, and the evidence-backed refill action", async () => {
     const user = userEvent.setup();
     const refill = vi.fn();
-    render(
+    renderWithPreferences(
       <AdvancedView
         {...handlers}
         advanced={advanced}
@@ -81,7 +82,7 @@ describe("AdvancedView", () => {
   });
 
   it("distinguishes unsupported and supported-empty item structures", () => {
-    const { rerender } = render(
+    const { rerender } = renderWithPreferences(
       <AdvancedView
         {...handlers}
         advanced={{
@@ -118,7 +119,7 @@ describe("AdvancedView", () => {
   });
 
   it("uses specific, category, and generic item icon fallbacks", () => {
-    render(
+    renderWithPreferences(
       <AdvancedView
         {...handlers}
         advanced={{
@@ -145,7 +146,7 @@ describe("AdvancedView", () => {
   it("shows pending and canonical full states without numeric editing", async () => {
     const user = userEvent.setup();
     const revert = vi.fn();
-    render(
+    renderWithPreferences(
       <AdvancedView
         {...handlers}
         advanced={{
@@ -183,7 +184,7 @@ describe("AdvancedView", () => {
   it("reports bridge errors and retries", async () => {
     const retry = vi.fn();
     const user = userEvent.setup();
-    render(
+    renderWithPreferences(
       <AdvancedView
         {...handlers}
         advanced={null}

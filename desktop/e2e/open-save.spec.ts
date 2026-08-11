@@ -189,6 +189,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       HOME: home,
       LOCALAPPDATA: path.join(home, "AppData", "Local"),
       REPO_GAME_DIR: gameRoot,
+      REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
     delete applicationEnvironment.VITE_DEV_SERVER_URL;
@@ -237,6 +238,14 @@ test("safely writes changes with backup and stale-save protection", async () => 
       "href",
       "https://github.com/Yoruxyv/RepoDitor",
     );
+    await expect(page.getByTestId("github-stars")).toHaveText("321");
+    await expect(page.getByRole("combobox", { name: "Theme" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Language" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.getByRole("combobox", { name: "Language" }).selectOption("id");
+    await expect(page.getByRole("button", { name: "Save Run" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Bahasa" }).selectOption("en");
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -251,6 +260,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       Number.parseFloat(reducedTransition) / (reducedTransition.endsWith("ms") ? 1_000 : 1),
     ).toBeLessThanOrEqual(0.000_01);
     const boundary = await page.evaluate(() => ({
+      project: Object.keys(window.repoditor.project),
       environment: Object.keys(window.repoditor.environment).sort((left, right) =>
         left.localeCompare(right),
       ),
@@ -271,6 +281,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       ),
     }));
     expect(boundary).toEqual({
+      project: ["metadata"],
       environment: ["detect"],
       game: ["status"],
       players: ["avatar", "list"],
@@ -372,6 +383,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
 
     await page.getByRole("tab", { name: "Upgrades" }).click();
+    await expect(page.getByTestId("upgrades-avatar-fallback")).toHaveText("B");
     await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength"))
       .toHaveAttribute("data-icon-source", "specific");
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
@@ -494,7 +506,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceMetaTokens(metaPath, 8);
     const externalMetaBytes = await readFile(metaPath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed after it was opened");
+    await expect(page.getByRole("alert")).toContainText("changed on disk");
     await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
     expect(
@@ -510,7 +522,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceFixtureCurrency(savePath, 777);
     const externalBytes = await readFile(savePath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed after it was opened");
+    await expect(page.getByRole("alert")).toContainText("changed on disk");
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
     expect(
