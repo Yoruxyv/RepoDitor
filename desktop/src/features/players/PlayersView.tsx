@@ -1,8 +1,10 @@
 import { ArrowClockwiseIcon, UserIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
 import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
+import { PlayerAvatar } from "./PlayerAvatar";
 
 interface PlayersViewProps {
   readonly players: PlayerDto[];
@@ -12,23 +14,10 @@ interface PlayersViewProps {
   readonly pendingByPlayer: Record<string, PlayerHealthEdit>;
   readonly avatarUrls: Record<string, string | null>;
   readonly onSelect: (playerId: string) => void;
-  readonly onLoadAvatar: (playerId: string) => void;
   readonly onRejectAvatar: (playerId: string) => void;
   readonly onHealthChange: (player: PlayerDto, health: number) => void;
   readonly onRevertHealth: (playerId: string) => void;
   readonly onRetry: () => void;
-}
-
-function initials(name: string): string {
-  return (
-    name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "?"
-  );
 }
 
 export function PlayersView({
@@ -39,12 +28,12 @@ export function PlayersView({
   pendingByPlayer,
   avatarUrls,
   onSelect,
-  onLoadAvatar,
   onRejectAvatar,
   onHealthChange,
   onRevertHealth,
   onRetry,
 }: PlayersViewProps) {
+  const { t } = usePreferences();
   const player = players.find((item) => item.id === selectedPlayerId) ?? null;
   const pending = player ? pendingByPlayer[player.id] : undefined;
   const health = pending?.after ?? player?.health ?? 0;
@@ -53,25 +42,19 @@ export function PlayersView({
   const parsedHealth = Number(healthInput);
   const healthError =
     healthInput.trim() === "" || !Number.isSafeInteger(parsedHealth) || parsedHealth < 0
-      ? "Health must be a whole number of zero or more."
+      ? t("players.healthError")
       : null;
   const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
 
-  useEffect(() => {
-    if (player && avatarUrls[player.id] === undefined) {
-      onLoadAvatar(player.id);
-    }
-  }, [avatarUrls, onLoadAvatar, player]);
-
   if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">Loading players…</output>;
+    return <output aria-live="polite" className="text-sm text-secondary">{t("players.loading")}</output>;
   }
 
   if (error) {
     return (
       <section aria-labelledby="players-error-title">
         <h2 className="text-xl font-semibold text-ink" id="players-error-title">
-          Players unavailable
+          {t("players.unavailable")}
         </h2>
         <p className="mt-2 text-sm text-secondary" role="alert">
           {error}
@@ -82,7 +65,7 @@ export function PlayersView({
           onClick={onRetry}
         >
           <ArrowClockwiseIcon aria-hidden="true" size={16} />
-          Try again
+          {t("action.tryAgain")}
         </button>
       </section>
     );
@@ -92,9 +75,9 @@ export function PlayersView({
     return (
       <section aria-labelledby="players-empty-title">
         <h2 className="text-xl font-semibold text-ink" id="players-empty-title">
-          No players found
+          {t("players.emptyTitle")}
         </h2>
-        <p className="mt-2 text-sm text-secondary">This save does not contain player records.</p>
+        <p className="mt-2 text-sm text-secondary">{t("players.emptyDescription")}</p>
       </section>
     );
   }
@@ -125,11 +108,11 @@ export function PlayersView({
       <section aria-labelledby="player-list-title">
         <div className="flex items-end justify-between gap-3">
           <h2 className="text-xl font-semibold text-ink" id="player-list-title">
-            Players
+            {t("nav.players")}
           </h2>
           <span className="font-mono text-xs text-muted">{players.length}</span>
         </div>
-        <div className="mt-4 grid gap-2" aria-label="Players">
+        <div className="mt-4 grid gap-2" aria-label={t("nav.players")}>
           {players.map((item) => {
             const selected = item.id === player.id;
             return (
@@ -156,21 +139,16 @@ export function PlayersView({
 
       <section className="min-w-0 border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0" aria-labelledby="player-detail-title">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-sm border border-line-strong bg-accent-muted font-display text-2xl font-semibold text-accent">
-            {avatarUrls[player.id] ? (
-              <img
-                alt=""
-                className="size-full object-cover"
-                src={avatarUrls[player.id] ?? undefined}
-                onError={() => onRejectAvatar(player.id)}
-              />
-            ) : (
-              <span data-testid="avatar-fallback">{initials(player.name)}</span>
-            )}
-          </div>
+          <PlayerAvatar
+            avatarUrl={avatarUrls[player.id]}
+            className="size-16 text-2xl"
+            fallbackTestId="avatar-fallback"
+            name={player.name}
+            onError={() => onRejectAvatar(player.id)}
+          />
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
-              Selected player
+              {t("players.selected")}
             </p>
             <h2 className="mt-1 truncate text-2xl font-semibold text-ink" id="player-detail-title">
               {player.name}
@@ -181,10 +159,10 @@ export function PlayersView({
 
         <div className="mt-7 max-w-sm border-t border-line pt-6">
           <label className="text-sm font-semibold text-ink" htmlFor="player-health">
-            Current health
+            {t("players.currentHealth")}
           </label>
           <p className="mt-1 text-xs/5 text-muted">
-            This creates an in-memory pending edit. It does not write to the save file.
+            {t("players.healthHelper")}
           </p>
           <div className="mt-3 flex flex-wrap items-start gap-3">
             <div className="flex items-center gap-2">
@@ -201,7 +179,7 @@ export function PlayersView({
                 onChange={(event) => editHealth(event.target.value)}
               />
               <span
-                aria-label={`Maximum health ${player.maxHealth}`}
+                aria-label={t("players.maximumHealth", { value: player.maxHealth })}
                 className="font-mono text-sm text-secondary"
               >
                 / {player.maxHealth}
@@ -213,7 +191,7 @@ export function PlayersView({
               type="button"
               onClick={() => editHealth(String(player.maxHealth))}
             >
-              Heal to Full
+              {t("players.healFull")}
             </button>
             {pending ? (
               <button
@@ -221,7 +199,7 @@ export function PlayersView({
                 type="button"
                 onClick={() => revertHealth(player.id)}
               >
-                Revert
+                {t("action.revert")}
               </button>
             ) : null}
           </div>
@@ -232,11 +210,11 @@ export function PlayersView({
           ) : null}
           {pending ? (
             <p className="mt-4 text-xs font-medium text-accent" data-testid="pending-health-edit">
-              Pending: {pending.before} → {pending.after}
+              {t("status.pending", { before: pending.before, after: pending.after })}
             </p>
           ) : (
             <p className="mt-4 flex items-center gap-2 text-xs text-muted">
-              <UserIcon aria-hidden="true" size={15} /> No pending health edit
+              <UserIcon aria-hidden="true" size={15} /> {t("players.noPendingHealth")}
             </p>
           )}
         </div>

@@ -2,8 +2,10 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import { usePreferences } from "@/app/preferences";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
+import { PlayerAvatar } from "@/features/players/PlayerAvatar";
 import { getUpgradeIcon } from "./upgradeIcons";
 
 interface UpgradesViewProps {
@@ -13,7 +15,9 @@ interface UpgradesViewProps {
   readonly loading: boolean;
   readonly error: string | null;
   readonly pendingByUpgrade: Record<string, UpgradeValueEdit>;
+  readonly avatarUrls: Record<string, string | null>;
   readonly onSelectPlayer: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string) => void;
   readonly onChange: (upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void;
   readonly onRevert: (playerId: string, upgradeKey: string) => void;
   readonly onRetry: () => void;
@@ -30,49 +34,61 @@ export function UpgradesView({
   loading,
   error,
   pendingByUpgrade,
+  avatarUrls,
   onSelectPlayer,
+  onRejectAvatar,
   onChange,
   onRevert,
   onRetry,
 }: UpgradesViewProps) {
+  const { t } = usePreferences();
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const player = players.find((item) => item.id === selectedPlayerId) ?? players[0] ?? null;
 
   if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">Loading upgrades…</output>;
+    return <output aria-live="polite" className="text-sm text-secondary">{t("upgrades.loading")}</output>;
   }
   if (error) {
     return (
       <section aria-labelledby="upgrades-error-title">
-        <h2 className="text-xl font-semibold text-ink" id="upgrades-error-title">Upgrades unavailable</h2>
+        <h2 className="text-xl font-semibold text-ink" id="upgrades-error-title">{t("upgrades.unavailable")}</h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
         <button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}>
-          <ArrowClockwiseIcon aria-hidden="true" size={16} /> Try again
+          <ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}
         </button>
       </section>
     );
   }
   if (!player) {
-    return <p className="text-sm text-secondary">No players are available for upgrade editing.</p>;
+    return <p className="text-sm text-secondary">{t("upgrades.noPlayers")}</p>;
   }
 
   return (
     <section aria-labelledby="upgrades-title">
       <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">Per-player values</p>
-          <h2 className="mt-1 text-2xl font-semibold text-ink" id="upgrades-title">Upgrades</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("upgrades.perPlayer")}</p>
+          <h2 className="mt-1 text-2xl font-semibold text-ink" id="upgrades-title">{t("nav.upgrades")}</h2>
         </div>
-        <label className="text-sm font-semibold text-ink">
-          <span>Player</span>
-          <select className="mt-1 block min-w-52 rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
-            {players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </label>
+        <div className="flex min-w-0 items-end gap-3">
+          <PlayerAvatar
+            avatarUrl={avatarUrls[player.id]}
+            className="size-11 text-lg"
+            fallbackTestId="upgrades-avatar-fallback"
+            name={player.name}
+            onError={() => onRejectAvatar(player.id)}
+          />
+          <label className="min-w-0 text-sm font-semibold text-ink">
+            <span>{t("upgrades.player")}</span>
+            <select className="mt-1 block min-w-52 max-w-full rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-accent" value={player.id} onChange={(event) => onSelectPlayer(event.target.value)}>
+              {players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+        </div>
       </div>
 
       {upgrades.length === 0 ? (
-        <p className="mt-6 text-sm text-secondary">This save contains no player upgrades.</p>
+        <p className="mt-6 text-sm text-secondary">{t("upgrades.empty")}</p>
       ) : (
         <div className="mt-6 grid min-w-0 gap-x-8 gap-y-5 xl:grid-cols-2">
           {upgrades.map((upgrade) => {
@@ -91,11 +107,11 @@ export function UpgradesView({
                 </div>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <label className="min-w-0 text-sm font-semibold text-ink" htmlFor={upgrade.key} title={upgrade.label}>{upgrade.label}</label>
-                  {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">Detected</span> : null}
+                  {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">{t("status.detected")}</span> : null}
                 </div>
                 <p className="mt-1 truncate font-mono text-[0.68rem] text-muted" title={upgrade.key}>{upgrade.key}</p>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
-                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={`${upgrade.label} for ${player.name}`} className="w-32 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
+                  <input aria-describedby={invalid ? errorId : undefined} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
                     const value = event.target.value;
                     setInputs((current) => ({ ...current, [inputKey]: value }));
                     const next = Number(value);
@@ -104,10 +120,10 @@ export function UpgradesView({
                   {edit ? <button className="rounded-sm border border-line-strong px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent" type="button" onClick={() => {
                     setInputs((current) => { const next = { ...current }; delete next[inputKey]; return next; });
                     onRevert(player.id, upgrade.key);
-                  }}>Revert</button> : null}
+                  }}>{t("action.revert")}</button> : null}
                 </div>
-                {invalid ? <p className="mt-2 text-xs text-danger" id={errorId} role="alert">Upgrade value must be a whole number of zero or more.</p> : null}
-                {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-upgrade-${upgrade.key}`}>Pending: {edit.before} → {edit.after}</p> : null}
+                {invalid ? <p className="mt-2 text-xs text-danger" id={errorId} role="alert">{t("upgrades.error")}</p> : null}
+                {edit ? <p className="mt-2 text-xs font-medium text-accent" data-testid={`pending-upgrade-${upgrade.key}`}>{t("status.pending", { before: edit.before, after: edit.after })}</p> : null}
               </div>
             );
           })}
