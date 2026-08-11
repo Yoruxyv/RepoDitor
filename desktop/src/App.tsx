@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AppShell } from "@/app/AppShell";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { usePreferences } from "@/app/preferences";
+import { useUiSound } from "@/app/useUiSound";
 import { UtilityCluster } from "@/app/UtilityCluster";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
 import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
@@ -14,6 +15,7 @@ import { useGameSafety } from "@/features/safety/useGameSafety";
 type AppWorkspace = "run-saves" | "cosmetics";
 
 function AppContent() {
+  useUiSound();
   const save = useSaveSession();
   const gameSafety = useGameSafety();
   const { t } = usePreferences();
@@ -39,7 +41,7 @@ function AppContent() {
           <div className="flex gap-2">
             <button
               aria-current={activeWorkspace === "run-saves" ? "page" : undefined}
-              className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
+              className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                 activeWorkspace === "run-saves"
                   ? "bg-accent text-accent-ink"
                   : "text-secondary hover:bg-surface hover:text-ink"
@@ -51,7 +53,7 @@ function AppContent() {
             </button>
             <button
               aria-current={activeWorkspace === "cosmetics" ? "page" : undefined}
-              className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 ${
+              className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                 activeWorkspace === "cosmetics"
                   ? "bg-accent text-accent-ink"
                   : "text-secondary hover:bg-surface hover:text-ink"

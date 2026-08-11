@@ -226,6 +226,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     }));
     expect(chrome.version).toBe("0.1.0");
     expect(chrome.hasApplicationMenu).toBe(false);
+    await page.bringToFront();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Alt");
     expect(await application.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null)).toBe(false);
     await expect(page).toHaveTitle("RepoDitor");
@@ -240,19 +243,19 @@ test("safely writes changes with backup and stale-save protection", async () => 
     );
     await expect(page.getByTestId("github-stars")).toHaveText("321");
     await expect(page.getByRole("combobox", { name: "Theme" })).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Language" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Language: English" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Language" })).toHaveCount(0);
     await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    await page.getByRole("combobox", { name: "Language" }).selectOption("id");
+    await page.getByRole("button", { name: "Language: English" }).click();
+    await page.getByRole("option", { name: "Bahasa Indonesia" }).click();
     await expect(page.getByRole("button", { name: "Save Run" })).toBeVisible();
-    await page.getByRole("combobox", { name: "Bahasa" }).selectOption("en");
+    await page.getByRole("button", { name: "Bahasa: Bahasa Indonesia" }).click();
+    await page.getByRole("option", { name: "English" }).click();
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
-    await page.bringToFront();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
       (button) => getComputedStyle(button).transitionDuration,
     );
