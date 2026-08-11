@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
-import { PlayerAvatar } from "./PlayerAvatar";
+import { SelectedPlayerIdentity } from "./SelectedPlayerIdentity";
 
 interface PlayersViewProps {
   readonly players: PlayerDto[];
@@ -45,6 +45,11 @@ export function PlayersView({
       ? t("players.healthError")
       : null;
   const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
+  const healthDescription = [
+    "player-health-help",
+    healthError ? "player-health-error" : null,
+    pending ? "player-health-pending" : null,
+  ].filter(Boolean).join(" ");
 
   if (loading) {
     return <output aria-live="polite" className="text-sm text-secondary">{t("players.loading")}</output>;
@@ -128,7 +133,7 @@ export function PlayersView({
                 onClick={() => onSelect(item.id)}
               >
                 <span className="block truncate text-sm font-semibold">{item.name}</span>
-                <span className="mt-1 block truncate font-mono text-[0.68rem] text-muted">
+                <span className="mt-1 block truncate font-mono text-xs text-muted">
                   {item.id}
                 </span>
               </button>
@@ -138,36 +143,25 @@ export function PlayersView({
       </section>
 
       <section className="min-w-0 border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0" aria-labelledby="player-detail-title">
-        <div className="flex min-w-0 items-center gap-4">
-          <PlayerAvatar
+        <SelectedPlayerIdentity
             avatarUrl={avatarUrls[player.id]}
-            className="size-16 text-2xl"
             fallbackTestId="avatar-fallback"
-            name={player.name}
-            onError={() => onRejectAvatar(player.id)}
+            headingId="player-detail-title"
+            player={player}
+            onRejectAvatar={() => onRejectAvatar(player.id)}
           />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
-              {t("players.selected")}
-            </p>
-            <h2 className="mt-1 truncate text-2xl font-semibold text-ink" id="player-detail-title">
-              {player.name}
-            </h2>
-            <p className="mt-1 truncate font-mono text-xs text-muted">{player.id}</p>
-          </div>
-        </div>
 
         <div className="mt-7 max-w-sm border-t border-line pt-6">
           <label className="text-sm font-semibold text-ink" htmlFor="player-health">
             {t("players.currentHealth")}
           </label>
-          <p className="mt-1 text-xs/5 text-muted">
+          <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
             {t("players.healthHelper")}
           </p>
           <div className="mt-3 flex flex-wrap items-start gap-3">
             <div className="flex items-center gap-2">
               <input
-                aria-describedby={healthError ? "player-health-error" : undefined}
+                aria-describedby={healthDescription}
                 aria-invalid={healthError ? "true" : undefined}
                 className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                 id="player-health"
@@ -209,7 +203,7 @@ export function PlayersView({
             </p>
           ) : null}
           {pending ? (
-            <p className="mt-4 text-xs font-medium text-accent" data-testid="pending-health-edit">
+            <p className="mt-4 text-xs font-medium text-accent" data-testid="pending-health-edit" id="player-health-pending">
               {t("status.pending", { before: pending.before, after: pending.after })}
             </p>
           ) : (

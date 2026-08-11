@@ -6,6 +6,7 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 
 import type { SaveChange, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { PathDetails } from "@/components/PathDetails";
 import { AdvancedView } from "@/features/advanced/AdvancedView";
 import { useAdvanced } from "@/features/advanced/useAdvanced";
 import { formatDateTime } from "@/features/discovery/formatters";
@@ -114,12 +115,17 @@ export function Workspace({
             {session.name}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary">
-            <span>{t("workspace.opened", { date: formatDateTime(session.modifiedAt, locale) })}</span>
+            <span>{t("workspace.modified", { date: formatDateTime(session.modifiedAt, locale) })}</span>
             <span className="inline-flex items-center gap-1.5 text-success">
               <ShieldCheckIcon aria-hidden="true" size={15} />
               {t("workspace.validatedShort")}
             </span>
-            <span className="max-w-full truncate font-mono text-muted" title={session.path}>{session.path}</span>
+            <PathDetails
+              className="max-w-full"
+              label={t("workspace.source")}
+              testId="selected-save-path"
+              value={session.path}
+            />
           </div>
         </div>
         <button

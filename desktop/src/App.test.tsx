@@ -455,8 +455,10 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(await screen.findByText("Save opened safely")).toBeTruthy();
-    expect(screen.getByText("Last modified")).toBeTruthy();
+    expect(await screen.findByText("Validated locally")).toBeTruthy();
+    expect(screen.getByTestId("selected-save-path").textContent).toContain(
+      "REPO_SAVE_2026_08_08_10_20_30.es3",
+    );
     expect(screen.getByText("Normal")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Players" }));
@@ -465,9 +467,13 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("avatar-fallback").textContent).toBe("B");
 
     const health = screen.getByRole("spinbutton", { name: "Current health" });
+    expect(health.getAttribute("min")).toBe("0");
+    expect(health.getAttribute("step")).toBe("1");
+    expect(health.getAttribute("aria-describedby")).toContain("player-health-help");
     await user.clear(health);
     await user.type(health, "42");
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 42");
+    expect(health.getAttribute("aria-describedby")).toContain("player-health-pending");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
     expect(document.querySelector("#workspace-tab-pending-1")?.textContent).toContain(
       "1 pending change",
@@ -506,6 +512,7 @@ describe("save workspace transition", () => {
     fireEvent.change(health, { target: { value: "-1" } });
 
     expect(screen.getByRole("alert").textContent).toContain("whole number");
+    expect(health.getAttribute("aria-describedby")).toContain("player-health-error");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
@@ -571,12 +578,17 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-upgrade-playerUpgradeStrength").textContent).toContain(
       "0 → 3",
     );
+    expect(strength.getAttribute("aria-describedby")).toContain(
+      "playerUpgradeStrength-pending",
+    );
 
     await user.click(screen.getByRole("tab", { name: "Run" }));
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "20");
     expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
+    expect(currency.getAttribute("min")).toBeNull();
+    expect(currency.getAttribute("aria-describedby")).toContain("run-currency-pending");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
@@ -762,7 +774,7 @@ describe("save workspace transition", () => {
       { feature: "cosmetics", entity: "presets", field: "clearAll", after: true },
     ]);
     expect(runWrite).not.toHaveBeenCalled();
-    expect(await screen.findByText(/MetaSave\.es3\.bak/)).toBeTruthy();
+    expect(await screen.findByText(/Backup details:/)).toBeTruthy();
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
@@ -806,7 +818,7 @@ describe("save workspace transition", () => {
       { feature: "cosmetics", entity: "known", field: "lockAll", after: false },
     ]);
     expect(runWrite).not.toHaveBeenCalled();
-    expect(await screen.findByText(/MetaSave\.es3\.bak/)).toBeTruthy();
+    expect(await screen.findByText(/Backup details:/)).toBeTruthy();
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );

@@ -2,6 +2,7 @@ import { ArrowClockwiseIcon, MapTrifoldIcon } from "@phosphor-icons/react";
 
 import type { InstalledMapsDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { PathDetails } from "@/components/PathDetails";
 
 interface MapsViewProps {
   readonly discovery: InstalledMapsDto | null;
@@ -22,9 +23,16 @@ export function MapsView({ discovery, loading, error, onRetry }: MapsViewProps) 
       <div className="mt-1 flex items-end justify-between gap-4"><h2 className="text-2xl font-semibold text-ink" id="maps-title">{t("nav.maps")}</h2><span className="font-mono text-xs text-muted">{discovery.maps.length}</span></div>
       <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">{t("maps.description")}</p>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {discovery.maps.map((gameMap) => <div className="min-w-0 rounded-sm border border-line bg-surface p-4" key={gameMap.internalName}><div className="flex items-start gap-3"><MapTrifoldIcon aria-hidden="true" className="mt-0.5 shrink-0 text-accent" size={19} /><div className="min-w-0"><h3 className="wrap-break-word text-sm font-semibold text-ink">{gameMap.displayName}</h3>{gameMap.displayName !== gameMap.internalName ? <p className="mt-1 wrap-break-word font-mono text-[0.68rem] text-muted">{gameMap.internalName}</p> : null}</div></div></div>)}
+        {discovery.maps.map((gameMap) => <div className="min-w-0 rounded-sm border border-line bg-surface p-4" key={gameMap.internalName}><div className="flex items-start gap-3"><MapTrifoldIcon aria-hidden="true" className="mt-0.5 shrink-0 text-accent" size={19} /><div className="min-w-0"><h3 className="wrap-break-word text-sm font-semibold text-ink">{gameMap.displayName}</h3>{gameMap.displayName !== gameMap.internalName ? <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-accent">{t("technical.details")}</summary><p className="mt-1 wrap-break-word font-mono text-xs/5 text-muted">{gameMap.internalName}</p></details> : null}</div></div></div>)}
       </div>
-      <p className="mt-6 break-all border-t border-line pt-4 font-mono text-[0.68rem]/5 text-muted" title={discovery.catalogPath ?? undefined}>{discovery.catalogPath}</p>
+      {discovery.catalogPath ? (
+        <PathDetails
+          className="mt-6 border-t border-line pt-4"
+          label={t("maps.catalogSource")}
+          testId="map-catalog-path"
+          value={discovery.catalogPath}
+        />
+      ) : null}
     </section>
   );
 }

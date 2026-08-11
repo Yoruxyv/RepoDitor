@@ -36,6 +36,8 @@ describe("UpgradesView", () => {
     expect(screen.getByTestId("upgrade-icon-futureUpgrade").dataset.iconSource).toBe("fallback");
     expect(screen.getByRole("img", { name: "Alpha avatar" }).getAttribute("src"))
       .toContain("alpha.jpg");
+    expect(screen.getByTestId("selected-player-identity").textContent).toContain("Alpha");
+    expect(screen.getByTestId("selected-player-identity").textContent).toContain("1");
     expect(screen.getByRole("spinbutton", { name: "Health for Alpha" })).toBeTruthy();
     expect(screen.getByRole("spinbutton", { name: "Future upgrade for Alpha" })).toBeTruthy();
   });
@@ -77,5 +79,6 @@ describe("UpgradesView", () => {
       />,
     );
     expect(screen.getByTestId("upgrades-avatar-fallback").textContent).toBe("BU");
+    expect(screen.getByTestId("selected-player-identity").textContent).toContain("Beta User");
   });
 });
