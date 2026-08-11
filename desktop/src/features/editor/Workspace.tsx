@@ -104,7 +104,7 @@ export function Workspace({
           </p>
         </div>
         <button
-          className="inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition duration-150 hover:border-accent hover:text-accent active:translate-y-px"
+          className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onClose}
         >
@@ -121,7 +121,7 @@ export function Workspace({
               <button
                 aria-controls="workspace-panel"
                 aria-selected={active}
-                className={`rounded-sm px-4 py-2.5 text-sm font-semibold transition duration-150 active:translate-y-px ${
+                className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
                   active ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"
                 }`}
                 id={`workspace-tab-${index}`}

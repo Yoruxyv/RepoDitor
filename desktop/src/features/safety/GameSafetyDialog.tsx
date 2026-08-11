@@ -51,7 +51,7 @@ export function GameSafetyDialog({
         <div className="mt-7 flex flex-wrap gap-3">
           <button
             ref={checkButton}
-            className="rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
+            className="ui-feedback rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait disabled:opacity-60"
             disabled={checking}
             type="button"
             onClick={onCheckAgain}
@@ -59,7 +59,7 @@ export function GameSafetyDialog({
             {t(checking ? "safety.checking" : "safety.checkAgain")}
           </button>
           <button
-            className="rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="ui-feedback rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             type="button"
             onClick={onExit}
           >

@@ -84,7 +84,7 @@ export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
         {t("discovery.failureDescription", { error: t(operationErrorKey(error.code)) })}
       </p>
       <button
-        className="mt-7 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition duration-150 hover:bg-accent-strong active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+        className="ui-feedback mt-7 inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         onClick={onRetry}
       >

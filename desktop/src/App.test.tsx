@@ -283,7 +283,8 @@ describe("save workspace transition", () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Language" }), "ja");
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+    await user.click(screen.getByRole("option", { name: "日本語" }));
     expect(screen.getByRole("button", { name: "ランセーブ" })).toBeTruthy();
     expect(localStorage.getItem("repoditor.locale")).toBe("ja");
     expect(await screen.findByText(environment.saves[0]!.name)).toBeTruthy();
@@ -295,7 +296,7 @@ describe("save workspace transition", () => {
     unmount();
 
     render(<App />);
-    expect((screen.getByRole("combobox", { name: "言語" }) as HTMLSelectElement).value).toBe("ja");
+    expect(screen.getByRole("button", { name: "言語: 日本語" })).toBeTruthy();
   });
 
   it("keeps discovery usable while the initial game verification is pending", () => {

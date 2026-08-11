@@ -16,6 +16,11 @@ if (typeof window !== "undefined") {
       dispatchEvent: () => true,
     }),
   });
+
+  Object.defineProperties(window.HTMLMediaElement.prototype, {
+    pause: { configurable: true, value: () => undefined },
+    play: { configurable: true, value: () => Promise.resolve() },
+  });
 }
 
 afterEach(cleanup);

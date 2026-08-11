@@ -46,7 +46,7 @@ export function CosmeticsView({
         <h2 className="text-xl font-semibold text-ink" id="cosmetics-error-title">{t("cosmetics.unavailable")}</h2>
         <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
         <button
-          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          className="ui-feedback mt-5 inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
           onClick={onRetry}
         >
@@ -87,7 +87,7 @@ export function CosmeticsView({
 
       <div className="mt-7 flex flex-wrap gap-3" aria-label={t("cosmetics.actions")}>
         <button
-          className="inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || bulkPending}
           type="button"
           onClick={onUnlockAll}
@@ -96,7 +96,7 @@ export function CosmeticsView({
           {t(unlockAllPending ? "cosmetics.unlockPending" : "cosmetics.unlockAll")}
         </button>
         <button
-          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={view.savedPresetCount === 0 || bulkPending}
           type="button"
           onClick={onClearAllPresets}
@@ -106,7 +106,7 @@ export function CosmeticsView({
         </button>
         <button
           aria-describedby={lockAllUnavailable ? "lock-all-note" : undefined}
-          className="inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-line-strong px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={
             !view.capabilities.canRemoveOwnership
             || knownOwnedCount === 0
