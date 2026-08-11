@@ -6,6 +6,7 @@ import {
   type AdvancedDomainDto,
   type AdvancedDomainKey,
   type AdvancedEvidenceStatus,
+  type AdvancedItemChargeState,
   type AdvancedItemDto,
   type AdvancedRunValueDto,
   type AdvancedSaveDto,
@@ -45,6 +46,12 @@ const ADVANCED_DOMAIN_KEYS = new Set<AdvancedDomainKey>([
 const ADVANCED_STATUSES = new Set<AdvancedEvidenceStatus>([
   "confirmed",
   "partially_confirmed",
+  "unknown",
+]);
+const ADVANCED_ITEM_CHARGE_STATES = new Set<AdvancedItemChargeState>([
+  "stored",
+  "default_full",
+  "not_applicable",
   "unknown",
 ]);
 const ADVANCED_RUN_KEYS = new Set<AdvancedRunValueDto["saveKey"]>([
@@ -256,14 +263,22 @@ function parseAdvancedItem(value: unknown): AdvancedItemDto {
   const saveKey = readString(value.saveKey, "item save key");
   const instanceId = readString(value.instanceId, "item instance ID");
   const storedCharge = readNullableInteger(value.storedCharge, "stored item charge");
-  if (!/^\d+$/.test(instanceId) || !saveKey.startsWith("Item ") || !saveKey.endsWith(`/${instanceId}`)) {
-    throw new EditorProtocolError("Invalid advanced item identity.");
+  const chargeState = readString(value.chargeState, "item charge state");
+  if (
+    !/^\d+$/.test(instanceId)
+    || !saveKey.startsWith("Item ")
+    || !saveKey.endsWith(`/${instanceId}`)
+    || !ADVANCED_ITEM_CHARGE_STATES.has(chargeState as AdvancedItemChargeState)
+    || ((chargeState === "stored") !== (storedCharge !== null))
+  ) {
+    throw new EditorProtocolError("Invalid advanced item.");
   }
   return {
     saveKey,
     name: readString(value.name, "item name"),
     instanceId,
     storedCharge,
+    chargeState: chargeState as AdvancedItemChargeState,
   };
 }
 

@@ -48,6 +48,7 @@ def get_advanced_save(save_id: str, root: Path | None = None) -> dict[str, objec
                     "name": item.name,
                     "instanceId": item.instance_id,
                     "storedCharge": item.stored_charge,
+                    "chargeState": item.charge_state.value,
                 }
                 for item in advanced.items
             ],

@@ -170,11 +170,18 @@ export interface AdvancedDomainDto {
   capabilities: AdvancedCapabilitiesDto;
 }
 
+export type AdvancedItemChargeState =
+  | "stored"
+  | "default_full"
+  | "not_applicable"
+  | "unknown";
+
 export interface AdvancedItemDto {
   saveKey: string;
   name: string;
   instanceId: string;
   storedCharge: number | null;
+  chargeState: AdvancedItemChargeState;
 }
 
 export interface AdvancedRunValueDto {

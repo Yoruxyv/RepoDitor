@@ -10,6 +10,7 @@ from repo_save_editor.services.items.models import (
     AdvancedRunValue,
     AdvancedSaveError,
     AdvancedSaveView,
+    ItemChargeState,
 )
 from repo_save_editor.services.items.schema import (
     ITEM_KEY_PATTERN,
@@ -21,6 +22,22 @@ RUN_VALUE_LABELS = {
     "chargingStationCharge": "Charging station charge",
     "chargingStationChargeTotal": "Charging station charge total",
 }
+
+# Controlled game-generated and synthesized-save evidence confirms absent charge
+# entries as full/default only for these exact normalized item names.
+DEFAULT_FULL_ITEM_NAMES = frozenset({"Gun Tranq", "Melee Inflatable Hammer"})
+
+
+def _charge_state(
+    item_name: str,
+    save_key: str,
+    charge_entries: dict[str, int],
+) -> ItemChargeState:
+    if save_key in charge_entries:
+        return ItemChargeState.STORED
+    if item_name in DEFAULT_FULL_ITEM_NAMES:
+        return ItemChargeState.DEFAULT_FULL
+    return ItemChargeState.UNKNOWN
 
 
 def _capability(
@@ -70,6 +87,7 @@ def discover_advanced_save(data: SaveData) -> AdvancedSaveView:
                 name=item_name,
                 instance_id=match.group("instance_id"),
                 stored_charge=charge_entries.get(save_key),
+                charge_state=_charge_state(item_name, save_key, charge_entries),
             )
         )
     items.sort(

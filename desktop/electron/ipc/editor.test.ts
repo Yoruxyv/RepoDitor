@@ -105,6 +105,7 @@ describe("editor data IPC", () => {
           name: "Melee Inflatable Hammer",
           instanceId: "1",
           storedCharge: 99,
+          chargeState: "stored",
           rawValue: 21,
         },
       ],
@@ -125,7 +126,7 @@ describe("editor data IPC", () => {
     expect(result).toMatchObject({
       ok: true,
       data: {
-        items: [{ storedCharge: 99 }],
+        items: [{ storedCharge: 99, chargeState: "stored" }],
         runValues: [{ saveKey: "chargingStationCharge", value: 10 }],
       },
     });
@@ -144,6 +145,7 @@ describe("editor data IPC", () => {
           name: "Melee Inflatable Hammer",
           instanceId: "1",
           storedCharge: null,
+          chargeState: "default_full",
         },
       ],
       runValues: [],
@@ -151,7 +153,7 @@ describe("editor data IPC", () => {
     };
     await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
       ok: true,
-      data: { items: [{ storedCharge: null }] },
+      data: { items: [{ storedCharge: null, chargeState: "default_full" }] },
     });
 
     const mutable = structuredClone(advanced) as unknown as {
@@ -163,6 +165,15 @@ describe("editor data IPC", () => {
     await expect(
       getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [{}] } }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+
+    for (const item of [
+      { ...advanced.items[0], chargeState: "guessed" },
+      { ...advanced.items[0], chargeState: "stored" },
+    ]) {
+      await expect(
+        getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [item] } }), saveId),
+      ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    }
 
     const wrongDomain = structuredClone(advanced);
     wrongDomain.domains[0]!.capabilities.canRefillToFull = true;
