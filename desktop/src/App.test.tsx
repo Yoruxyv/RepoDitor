@@ -15,6 +15,15 @@ import type {
   SaveSession,
 } from "@electron/contracts";
 import App from "@/App";
+import { TRANSLATIONS, type Locale } from "@/app/translations";
+
+const localeCases: ReadonlyArray<readonly [Locale, string]> = [
+  ["en", "English"],
+  ["ja", "日本語"],
+  ["ko", "한국어"],
+  ["zh", "中文"],
+  ["id", "Bahasa Indonesia"],
+];
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const environment: EnvironmentDiscovery = {
@@ -229,6 +238,8 @@ describe("save workspace transition", () => {
     expect(screen.getByRole("link", { name: /42 GitHub stars/ }).getAttribute("href")).toBe(
       "https://github.com/Yoruxyv/RepoDitor",
     );
+    expect(screen.getByTestId("github-project-link").className).toContain("inline-flex");
+    expect(screen.getByTestId("github-stars").className).toContain("xl:inline");
     unmount();
 
     metadata.mockResolvedValue({
@@ -273,6 +284,19 @@ describe("save workspace transition", () => {
     act(() => listener?.({ matches: true } as MediaQueryListEvent));
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("repoditor.theme")).toBe("system");
+  });
+
+  it.each(localeCases)("renders critical shell controls in the %s locale", async (locale, nativeName) => {
+    localStorage.setItem("repoditor.locale", locale);
+    render(<App />);
+
+    expect(document.documentElement.lang).toBe(locale);
+    expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.runSaves"] })).toBeTruthy();
+    expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.cosmetics"] })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: TRANSLATIONS[locale]["utility.theme"] })).toBeTruthy();
+    expect(screen.getByRole("button", { name: new RegExp(nativeName) })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: TRANSLATIONS[locale]["action.refresh"] }))
+      .toBeTruthy();
   });
 
   it("switches and restores UI language while preserving game-derived strings", async () => {
