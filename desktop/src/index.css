@@ -49,3 +49,38 @@
 #root {
   min-height: 100dvh;
 }
+
+/* RepoDitor main scrollbar */
+html {
+  scrollbar-gutter: stable;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--theme-app);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--theme-line-strong);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-muted);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--theme-accent);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--theme-app);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
