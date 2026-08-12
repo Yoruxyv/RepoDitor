@@ -70,10 +70,6 @@ html:has([data-pending-surface-active="true"]) {
   scroll-padding-bottom: 7rem;
 }
 
-html:has([data-pending-review="true"]) {
-  scroll-padding-bottom: 19rem;
-}
-
 .game-safety-dialog::backdrop {
   background: var(--theme-modal-backdrop);
   backdrop-filter: blur(4px);

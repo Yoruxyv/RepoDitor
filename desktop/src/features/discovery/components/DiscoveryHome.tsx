@@ -144,7 +144,7 @@ export function DiscoveryHome({
       <div className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
         <div className="min-w-0 space-y-8">
           {latestSave === undefined ? (
-            <DiscoveryState saveRoot={data.saveRoot} status={data.saveRootStatus} />
+            <DiscoveryState status={data.saveRootStatus} />
           ) : (
             <>
               <LatestSave

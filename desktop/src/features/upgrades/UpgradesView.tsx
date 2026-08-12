@@ -112,10 +112,6 @@ export function UpgradesView({
                   <label className="min-w-0 text-sm font-semibold text-ink" htmlFor={upgrade.key} title={upgrade.label}>{upgrade.label}</label>
                   {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">{t("status.detected")}</span> : null}
                 </div>
-                <details className="mt-1 text-xs text-muted">
-                  <summary className="cursor-pointer font-semibold text-accent">{t("technical.details")}</summary>
-                  <p className="mt-1 break-all font-mono text-xs/5">{upgrade.key}</p>
-                </details>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
                   <input aria-describedby={description} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {
                     const value = event.target.value;

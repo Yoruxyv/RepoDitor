@@ -2,7 +2,6 @@ import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { PathDetails } from "@/components/PathDetails";
 import { formatDateTime, formatFileSize } from "@/features/discovery/formatters";
 
 interface RecentSaveListProps {
@@ -64,12 +63,6 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
                   </span>
                 </div>
               </button>
-              <PathDetails
-                className="mt-2 pl-7"
-                label={t("workspace.source")}
-                testId={`recent-save-path-${save.id}`}
-                value={save.path}
-              />
             </li>
           ))}
         </ol>
