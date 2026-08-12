@@ -18,7 +18,10 @@ import { RunView } from "@/features/run/RunView";
 import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
-import { OverviewView } from "@/features/editor/OverviewView";
+import {
+  OverviewView,
+  type OverviewDestination,
+} from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
 import {
   toSaveChange,
@@ -106,27 +109,37 @@ export function Workspace({
     document.getElementById(`workspace-tab-${nextIndex}`)?.focus();
   }
 
+  function openSection(section: OverviewDestination): void {
+    setActiveSection(section);
+    requestAnimationFrame(() => {
+      document.getElementById(`workspace-tab-${SECTIONS.indexOf(section)}`)?.focus();
+    });
+  }
+
   return (
     <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
-      <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">{t("workspace.selectedSave")}</p>
           <h1 className="font-display mt-1 truncate text-4xl font-semibold uppercase leading-none tracking-[-0.02em] text-ink" id="workspace-title" title={session.name}>
             {session.name}
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary">
+          <div
+            className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary"
+            data-testid="selected-save-metadata"
+          >
             <span>{t("workspace.modified", { date: formatDateTime(session.modifiedAt, locale) })}</span>
             <span className="inline-flex items-center gap-1.5 text-success">
               <ShieldCheckIcon aria-hidden="true" size={15} />
               {t("workspace.validatedShort")}
             </span>
-            <PathDetails
-              className="max-w-full"
-              label={t("workspace.source")}
-              testId="selected-save-path"
-              value={session.path}
-            />
           </div>
+          <PathDetails
+            className="mt-2 max-w-full"
+            label={t("workspace.source")}
+            testId="selected-save-path"
+            value={session.path}
+          />
         </div>
         <button
           className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
@@ -175,7 +188,9 @@ export function Workspace({
 
       <div className="pt-6">
         <div className="min-w-0" id="workspace-panel" role="tabpanel" tabIndex={0} aria-labelledby={`workspace-tab-${SECTIONS.indexOf(activeSection)}`}>
-          {activeSection === "overview" ? <OverviewView session={session} /> : null}
+          {activeSection === "overview" ? (
+            <OverviewView session={session} onNavigate={openSection} />
+          ) : null}
           {activeSection === "players" ? (
             <PlayersView
               key={`players-${editVersion}`}
@@ -228,6 +243,7 @@ export function Workspace({
               error={advanced.error}
               loading={advanced.loading}
               pendingByItem={advanced.pendingByItem}
+              onRefillAllToFull={advanced.refillAllToFull}
               onRefillToFull={advanced.refillToFull}
               onRetry={() => void advanced.reload()}
               onRevertRefill={advanced.revertRefill}

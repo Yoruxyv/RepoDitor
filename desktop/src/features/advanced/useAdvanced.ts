@@ -13,6 +13,19 @@ interface State {
 
 const INITIAL_STATE: State = { advanced: null, error: null, loading: true };
 
+function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
+  if (item.chargeState !== "stored" || item.storedCharge === null) return null;
+  return {
+    feature: "advanced",
+    entity: item.saveKey,
+    field: "refillToFull",
+    after: true,
+    before: item.storedCharge,
+    label: "Stored charge",
+    subject: item.name,
+  };
+}
+
 export function useAdvanced(saveId: string) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);
@@ -49,20 +62,28 @@ export function useAdvanced(saveId: string) {
   }, [load]);
 
   function refillToFull(item: AdvancedItemDto): void {
-    const before = item.storedCharge;
-    if (item.chargeState !== "stored" || before === null) return;
+    const edit = refillEdit(item);
+    if (!edit) return;
     setPendingByItem((current) => ({
       ...current,
-      [item.saveKey]: {
-        feature: "advanced",
-        entity: item.saveKey,
-        field: "refillToFull",
-        after: true,
-        before,
-        label: "Stored charge",
-        subject: `${item.name} #${item.instanceId}`,
-      },
+      [item.saveKey]: edit,
     }));
+  }
+
+  function refillAllToFull(): void {
+    const canRefill = state.advanced?.domains.some(
+      (domain) => domain.key === "currentCharge" && domain.capabilities.canRefillToFull,
+    );
+    const items = state.advanced?.items;
+    if (!canRefill || !items) return;
+    setPendingByItem((current) => {
+      const next = { ...current };
+      for (const item of items) {
+        const edit = refillEdit(item);
+        if (edit) next[item.saveKey] = edit;
+      }
+      return next;
+    });
   }
 
   function revertRefill(saveKey: string): void {
@@ -82,6 +103,7 @@ export function useAdvanced(saveId: string) {
     error: state.error ? t(state.error) : null,
     pendingByItem,
     pendingEdits: Object.values(pendingByItem),
+    refillAllToFull,
     refillToFull,
     revertRefill,
     revertAll,

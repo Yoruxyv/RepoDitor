@@ -12,6 +12,7 @@ interface ItemGroupsProps {
   readonly canRefillToFull: boolean;
   readonly items: readonly AdvancedItemDto[];
   readonly pendingByItem: Readonly<Record<string, AdvancedRefillEdit>>;
+  readonly onRefillAllToFull: () => void;
   readonly onRefillToFull: (item: AdvancedItemDto) => void;
   readonly onRevertRefill: (saveKey: string) => void;
 }
@@ -20,6 +21,9 @@ interface ItemGroup {
   readonly name: string;
   readonly items: AdvancedItemDto[];
 }
+
+type ItemFilter = "all" | "rechargeable" | "other";
+type ItemSort = "name-asc" | "name-desc" | "quantity-desc";
 
 function groupItems(items: readonly AdvancedItemDto[]): ItemGroup[] {
   const groups = new Map<string, AdvancedItemDto[]>();
@@ -40,7 +44,6 @@ function chargeText(
   if (item.chargeState === "stored") {
     return t("items.chargeValue", { value: String(item.storedCharge) });
   }
-  if (item.chargeState === "unknown") return t("items.chargeUnknown");
   return null;
 }
 
@@ -48,21 +51,24 @@ export function ItemGroups({
   canRefillToFull,
   items,
   pendingByItem,
+  onRefillAllToFull,
   onRefillToFull,
   onRevertRefill,
 }: ItemGroupsProps) {
   const { t } = usePreferences();
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<ItemFilter>("all");
+  const [sort, setSort] = useState<ItemSort>("name-asc");
   const searchInput = useRef<HTMLInputElement>(null);
   const query = search.trim().toLocaleLowerCase();
-  const instanceQuery = query.startsWith("#") ? query.slice(1) : query;
-  const visibleItems = query
-    ? items.filter(
-        (item) =>
-          item.name.toLocaleLowerCase().includes(query)
-          || item.instanceId.toLocaleLowerCase().includes(instanceQuery),
-      )
-    : items;
+  const visibleItems = items.filter((item) => {
+    const matchesSearch = !query || item.name.toLocaleLowerCase().includes(query);
+    const rechargeable = item.chargeState === "stored" || item.chargeState === "default_full";
+    return matchesSearch && (
+      filter === "all"
+      || (filter === "rechargeable" ? rechargeable : !rechargeable)
+    );
+  });
   const visibleKeys = new Set(visibleItems.map((item) => item.saveKey));
   const itemKeys = new Set(items.map((item) => item.saveKey));
   const hiddenPendingCount = Object.keys(pendingByItem).filter(
@@ -71,7 +77,16 @@ export function ItemGroups({
   const hiddenPendingKey = hiddenPendingCount === 1
     ? "items.hiddenPending.one"
     : "items.hiddenPending.many";
-  const groups = groupItems(visibleItems);
+  const groups = groupItems(visibleItems).sort((left, right) => {
+    if (sort === "quantity-desc") {
+      return right.items.length - left.items.length || left.name.localeCompare(right.name);
+    }
+    const order = left.name.localeCompare(right.name);
+    return sort === "name-desc" ? -order : order;
+  });
+  const canRechargeAll = canRefillToFull && items.some(
+    (item) => item.chargeState === "stored" && !pendingByItem[item.saveKey],
+  );
 
   function clearSearch(): void {
     setSearch("");
@@ -80,36 +95,73 @@ export function ItemGroups({
 
   return (
     <>
-      <div className="mt-5 max-w-xl">
-        <label className="text-sm font-semibold text-ink" htmlFor="item-search">
-          {t("items.searchLabel")}
-        </label>
-        <div className="relative mt-2">
-          <MagnifyingGlassIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            size={17}
-          />
-          <input
-            aria-describedby="item-filter-status"
-            className="w-full rounded-sm border border-control bg-surface py-2.5 pr-11 pl-10 text-sm text-ink focus:border-accent"
-            id="item-search"
-            placeholder={t("items.searchPlaceholder")}
-            ref={searchInput}
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          {search ? (
-            <button
-              aria-label={t("items.clearSearch")}
-              className="ui-feedback absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-2 text-muted hover:text-accent"
-              type="button"
-              onClick={clearSearch}
+      <div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-56 flex-[1_1_20rem]">
+            <label className="text-sm font-semibold text-ink" htmlFor="item-search">
+              {t("items.searchLabel")}
+            </label>
+            <div className="relative mt-2">
+              <MagnifyingGlassIcon
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+                size={17}
+              />
+              <input
+                aria-describedby="item-filter-status"
+                className="w-full rounded-sm border border-control bg-surface py-2.5 pr-11 pl-10 text-sm text-ink focus:border-accent"
+                id="item-search"
+                placeholder={t("items.searchPlaceholder")}
+                ref={searchInput}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search ? (
+                <button
+                  aria-label={t("items.clearSearch")}
+                  className="ui-feedback absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-2 text-muted hover:text-accent"
+                  type="button"
+                  onClick={clearSearch}
+                >
+                  <XIcon aria-hidden="true" size={15} weight="bold" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <label className="w-44 text-sm font-semibold text-ink">
+            <span>{t("items.filterLabel")}</span>
+            <select
+              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as ItemFilter)}
             >
-              <XIcon aria-hidden="true" size={15} weight="bold" />
-            </button>
-          ) : null}
+              <option value="all">{t("items.filterAll")}</option>
+              <option value="rechargeable">{t("items.filterRechargeable")}</option>
+              <option value="other">{t("items.filterOther")}</option>
+            </select>
+          </label>
+          <label className="w-44 text-sm font-semibold text-ink">
+            <span>{t("items.sortLabel")}</span>
+            <select
+              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as ItemSort)}
+            >
+              <option value="name-asc">{t("items.sortNameAsc")}</option>
+              <option value="name-desc">{t("items.sortNameDesc")}</option>
+              <option value="quantity-desc">{t("items.sortQuantity")}</option>
+            </select>
+          </label>
+          <button
+            className="ui-feedback whitespace-nowrap rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"
+            data-testid="recharge-all-tools"
+            disabled={!canRechargeAll}
+            type="button"
+            onClick={onRefillAllToFull}
+          >
+            {t("items.rechargeAll")}
+          </button>
         </div>
         <p aria-live="polite" className="mt-2 text-xs text-muted" id="item-filter-status">
           {t(
@@ -130,6 +182,12 @@ export function ItemGroups({
         <ul className="mt-5 space-y-4" aria-label={t("items.instances")}>
           {groups.map((group) => {
             const itemIcon = getItemIcon(group.name);
+            const chargeRows = group.items
+              .map((item) => {
+                const pending = pendingByItem[item.saveKey];
+                return { item, pending, status: chargeText(item, pending, t) };
+              })
+              .filter((row) => row.status !== null);
             return (
               <li
                 className="min-w-0 border-y border-line bg-surface"
@@ -153,38 +211,20 @@ export function ItemGroups({
                     ×{group.items.length}
                   </span>
                 </header>
-                <ul className="divide-y divide-line border-t border-line">
-                  {group.items.map((item) => {
-                    const pending = pendingByItem[item.saveKey];
-                    const status = chargeText(item, pending, t);
+                {chargeRows.length > 0 ? (
+                  <ul className="divide-y divide-line border-t border-line">
+                  {chargeRows.map(({ item, pending, status }) => {
                     return (
                       <li
                         className="min-w-0 px-4 py-3"
                         data-testid={`item-instance-${item.saveKey}`}
                         key={item.saveKey}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-mono text-sm font-semibold text-ink">
-                              #{item.instanceId}
-                            </p>
-                            <details className="mt-1">
-                              <summary className="w-fit cursor-pointer text-xs font-semibold text-secondary hover:text-accent">
-                                {t("items.showKey")}
-                              </summary>
-                              <code className="mt-1 block break-all text-xs/5 text-muted">
-                                {item.saveKey}
-                              </code>
-                            </details>
-                          </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="font-mono text-sm font-semibold text-ink">
+                            {status}
+                          </p>
                           <div className="flex flex-wrap items-center justify-end gap-2">
-                            {status ? (
-                              <p
-                                className={`font-mono text-sm font-semibold ${item.chargeState === "unknown" ? "text-muted" : "text-ink"}`}
-                              >
-                                {status}
-                              </p>
-                            ) : null}
                             {pending ? (
                               <button
                                 className="ui-feedback rounded-sm border border-control px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
@@ -222,7 +262,8 @@ export function ItemGroups({
                       </li>
                     );
                   })}
-                </ul>
+                  </ul>
+                ) : null}
               </li>
             );
           })}
