@@ -7,6 +7,7 @@ import {
   type AdvancedDomainKey,
   type AdvancedEvidenceStatus,
   type AdvancedItemChargeState,
+  type AdvancedItemRechargeCapability,
   type AdvancedItemDto,
   type AdvancedRunValueDto,
   type AdvancedSaveDto,
@@ -52,6 +53,11 @@ const ADVANCED_ITEM_CHARGE_STATES = new Set<AdvancedItemChargeState>([
   "stored",
   "default_full",
   "not_applicable",
+  "unknown",
+]);
+const ADVANCED_ITEM_RECHARGE_CAPABILITIES = new Set<AdvancedItemRechargeCapability>([
+  "rechargeable",
+  "not_rechargeable",
   "unknown",
 ]);
 const ADVANCED_RUN_KEYS = new Set<AdvancedRunValueDto["saveKey"]>([
@@ -264,12 +270,29 @@ function parseAdvancedItem(value: unknown): AdvancedItemDto {
   const instanceId = readString(value.instanceId, "item instance ID");
   const storedCharge = readNullableInteger(value.storedCharge, "stored item charge");
   const chargeState = readString(value.chargeState, "item charge state");
+  const rechargeCapability = readString(
+    value.rechargeCapability,
+    "item recharge capability",
+  );
+  const canRefillToFull = readBoolean(
+    value.canRefillToFull,
+    "item refill-to-full eligibility",
+  );
   if (
     !/^\d+$/.test(instanceId)
     || !saveKey.startsWith("Item ")
     || !saveKey.endsWith(`/${instanceId}`)
     || !ADVANCED_ITEM_CHARGE_STATES.has(chargeState as AdvancedItemChargeState)
+    || !ADVANCED_ITEM_RECHARGE_CAPABILITIES.has(
+      rechargeCapability as AdvancedItemRechargeCapability,
+    )
     || ((chargeState === "stored") !== (storedCharge !== null))
+    || (chargeState === "default_full" && rechargeCapability !== "rechargeable")
+    || (chargeState === "not_applicable" && rechargeCapability !== "not_rechargeable")
+    || (
+      canRefillToFull
+      && (chargeState !== "stored" || rechargeCapability !== "rechargeable")
+    )
   ) {
     throw new EditorProtocolError("Invalid advanced item.");
   }
@@ -279,6 +302,8 @@ function parseAdvancedItem(value: unknown): AdvancedItemDto {
     instanceId,
     storedCharge,
     chargeState: chargeState as AdvancedItemChargeState,
+    rechargeCapability: rechargeCapability as AdvancedItemRechargeCapability,
+    canRefillToFull,
   };
 }
 

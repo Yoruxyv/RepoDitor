@@ -77,7 +77,7 @@ async function createFixture(home: string): Promise<{ savePath: string; metaPath
 }
 
 async function createGameFixture(home: string): Promise<string> {
-  const gameRoot = path.join(home, "game");
+  const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "REPO");
   const catalogPath = path.join(
     gameRoot,
     "REPO_Data",
@@ -95,6 +95,11 @@ async function createGameFixture(home: string): Promise<string> {
     catalogPath,
     JSON.stringify({ m_KeyDataString: Buffer.from(keyData).toString("base64") }),
     "utf8",
+  );
+  execFileSync(
+    getPythonExecutable(),
+    [path.join(desktopRoot, "e2e", "helpers", "create-recharge-game-assets.py"), gameRoot],
+    { cwd: repoRoot, stdio: "inherit" },
   );
   if (process.platform === "win32") {
     await copyFile(process.execPath, path.join(gameRoot, "REPO.exe"));
@@ -400,7 +405,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await itemFilter.selectOption("rechargeable");
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toBeVisible();
     await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
-    await itemFilter.selectOption("other");
+    await itemFilter.selectOption("not_rechargeable");
     await expect(page.getByTestId("item-group-Cart Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Health Pack Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);

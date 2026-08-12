@@ -22,7 +22,7 @@ interface ItemGroup {
   readonly items: AdvancedItemDto[];
 }
 
-type ItemFilter = "all" | "rechargeable" | "other";
+type ItemFilter = "all" | "rechargeable" | "not_rechargeable";
 type ItemSort = "name-asc" | "name-desc" | "quantity-desc";
 
 function groupItems(items: readonly AdvancedItemDto[]): ItemGroup[] {
@@ -40,6 +40,7 @@ function chargeText(
   pending: AdvancedRefillEdit | undefined,
   t: Translate,
 ): string | null {
+  if (item.rechargeCapability !== "rechargeable") return null;
   if (pending || item.chargeState === "default_full") return t("status.fullDefault");
   if (item.chargeState === "stored") {
     return t("items.chargeValue", { value: String(item.storedCharge) });
@@ -63,11 +64,9 @@ export function ItemGroups({
   const query = search.trim().toLocaleLowerCase();
   const visibleItems = items.filter((item) => {
     const matchesSearch = !query || item.name.toLocaleLowerCase().includes(query);
-    const rechargeable = item.chargeState === "stored" || item.chargeState === "default_full";
-    return matchesSearch && (
-      filter === "all"
-      || (filter === "rechargeable" ? rechargeable : !rechargeable)
-    );
+    const matchesCapability = filter === "all"
+      || item.rechargeCapability === filter;
+    return matchesSearch && matchesCapability;
   });
   const visibleKeys = new Set(visibleItems.map((item) => item.saveKey));
   const itemKeys = new Set(items.map((item) => item.saveKey));
@@ -85,7 +84,7 @@ export function ItemGroups({
     return sort === "name-desc" ? -order : order;
   });
   const canRechargeAll = canRefillToFull && items.some(
-    (item) => item.chargeState === "stored" && !pendingByItem[item.saveKey],
+    (item) => item.canRefillToFull && !pendingByItem[item.saveKey],
   );
 
   function clearSearch(): void {
@@ -138,7 +137,7 @@ export function ItemGroups({
             >
               <option value="all">{t("items.filterAll")}</option>
               <option value="rechargeable">{t("items.filterRechargeable")}</option>
-              <option value="other">{t("items.filterOther")}</option>
+              <option value="not_rechargeable">{t("items.filterNonRechargeable")}</option>
             </select>
           </label>
           <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
@@ -235,7 +234,7 @@ export function ItemGroups({
                               </button>
                             ) : null}
                             {!pending
-                            && item.chargeState === "stored"
+                            && item.canRefillToFull
                             && canRefillToFull ? (
                               <button
                                 aria-label={t("items.refillLabel", {

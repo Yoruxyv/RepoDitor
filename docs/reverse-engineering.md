@@ -13,7 +13,9 @@ Only behavior verified against controlled saves should be promoted into named ed
 - Player upgrades are discovered dynamically from observed `playerUpgrade*` dictionaries.
 - Maps are discovered from the local installation and remain listing-only; save-based selection
   is not supported.
-- Items exposes only exact-instance **Refill to Full** under the narrow evidence below.
+- Items dynamically distinguishes installed item-type recharge capability from exact-instance save
+  charge state. **Refill to Full** remains the only supported item mutation and is available only
+  when both independent evidence layers confirm it is safe.
 - Cosmetics exposes known-catalog ownership totals, guarded bulk unlock/lock, and paired
   **Clear All Presets**. Unknown/future IDs are preserved.
 
@@ -202,22 +204,59 @@ exact-instance `itemStatBattery` entry selects the canonical full/default state.
 offer only this exact refill operation. This evidence does not establish numeric maximums, editable
 ranges, battery-upgrade behavior, item lifecycle behavior, or purchased-item mutation rules.
 
+### Installed ItemBattery capability proof
+
+A separate read-only installed-game proof established the item-*type* capability layer without
+changing the save mutation rule above. Against Steam build `23363152` / Unity `2022.3.67f2`:
+
+- 60 active decoded `Item` definitions were matched dynamically to 197 installed prefab
+  `GameObject` variants; no proof prefab path ID is part of production.
+- an independent UnityPy oracle found `ItemBattery` on exactly 30 item types; the approved
+  standard-library serialized-file reader found the exact same 30, with exact item and variant
+  presence parity, zero presence conflicts, and zero metadata conflicts; UnityPy remains
+  proof-only and is not a production dependency;
+- 29 item types had normal, consistent `ItemBattery` metadata and are classified `rechargeable`;
+  30 had complete successful absence across every matched variant and are classified
+  `not_rechargeable`; `Item Drone Battery` had the exceptional observed flag and remains
+  `unknown` because the field's gameplay semantics are not proven;
+- missing, corrupt, unsupported, incomplete, or conflicting installed metadata must return
+  `unknown`, never infer a negative capability.
+
+Production derives the mapping from installed metadata at runtime. For a save-observed `Item <name>`
+identity it verifies exactly one same-identity `MonoBehaviour` whose `MonoScript` class is `Item`,
+then inspects every same-identity `GameObject` variant for `ItemBattery`. This identity relationship
+was part of the controlled 60-item proof. Production does not ship the proof manifest, proof path
+IDs, `local-evidence`, UnityPy, TypeTreeGenerator, or a hardcoded rechargeable-name/category list.
+The parser is guarded to the validated Steam build and serialized layout; future or unreadable
+metadata therefore disables recharge claims while leaving normal save reads available.
+
+The production semantic model is intentionally three-part:
+
+1. installed `ItemBattery` metadata determines item-type `rechargeable` / `not_rechargeable` /
+   `unknown`;
+2. `itemStatBattery` determines only the current exact-instance charge state;
+3. the existing exact-leaf removal rule determines whether a particular instance can safely stage
+   **Refill to Full**.
+
 ### Evidence status
 
 | Domain | Status | Exact path and observed shape | Read support | Write support and remaining unknowns |
 | --- | --- | --- | --- | --- |
 | Item instance identity | **CONFIRMED** | `dictionaryOfDictionaries.value["item"]`; 85 baseline string keys mapping to integers. Keys match `Item <name>/<decimal instance ID>`. Duplicate types have distinct suffixes, and gaps exist (for example Medium Health Packs `/2`, `/3`, `/4` without `/1`). | Safe to expose the exact key, friendly name, and instance ID. | None. The stored integer's meaning, ordering significance, allocation rules, and companion-entry requirements are unknown. |
-| Current item charge | **CONFIRMED NARROW MUTATION** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. The synthesized exact-entry removal loaded as a full Tranq and remained absent after a normal game save. Exact item entries remained unchanged. | Python exposes explicit entries as `stored`. Absence is `default_full` only for the evidence-backed normalized names `Gun Tranq` and `Melee Inflatable Hammer`; all other absent entries are `unknown`. No current evidence supports a `not_applicable` classification. Exact-key links are made in Python. | Production may remove an existing exact-instance charge entry as **Refill to Full**. Universal bounds, arbitrary numeric edits, per-use deltas, non-charge item classification, and behavior across every item type remain unproven. |
+| Item-type recharge capability | **CONFIRMED ON VALIDATED INSTALLED BUILD** | Read-only installed `resources.assets` / `globalgamemanagers.assets`; 60 active `Item` definitions mapped to 197 same-identity prefab variants. Independent oracle and stdlib parser agreed on all 30 `ItemBattery`-present types. | Python exposes `rechargeable`, `not_rechargeable`, or `unknown`. Normal consistent `ItemBattery` is rechargeable; complete successful absence across every variant is not rechargeable; exceptional/conflicting/incomplete/unsupported metadata is unknown. | Capability alone never mutates a save. `Item Drone Battery` remains unknown while its exceptional flag semantics are unproven. The guard currently supports Steam build `23363152`, Unity `2022.3.67f2`, serialized-file v22 only. |
+| Current item charge | **CONFIRMED NARROW MUTATION** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. The synthesized exact-entry removal loaded as a full Tranq and remained absent after a normal game save. Exact item entries remained unchanged. | Explicit exact-instance entries are `stored` independently of item-type capability. Absence becomes `default_full` only when installed metadata confirms the type is rechargeable; complete confirmed non-rechargeable absence is `not_applicable`; otherwise absence is `unknown`. | Production may remove an existing exact-instance charge entry as **Refill to Full** only when the independent item-type capability is confirmed rechargeable. Universal numeric bounds, arbitrary numeric edits, per-use deltas, and battery-upgrade mutation remain unproven. |
 | Item battery upgrades | **UNKNOWN** | `dictionaryOfDictionaries.value["itemBatteryUpgrades"]` existed as an empty dictionary in both saves. | Only structural presence and entry count are exposed. | No entry key, type, zero/absence rule, or item relationship is proven. |
 | Purchased item upgrades | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsUpgradesPurchased"]`; 12 string-to-integer entries, unchanged in the A/B pair. Keys are item-type names without instance suffixes. | Only structural status and entry count are exposed. | Purchase action, count semantics, instance/type relationship, and independent mutability are unproven. |
 | Purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries. The broad comparison changed `Item Power Crystal: 10 -> 9`; the controlled Tranq recharge later changed it `9 -> 8` while the Tranq purchase entry remained `1`. | Only structural status and entry count are exposed. | The Power Crystal transition is likely related to recharging, but whether this means inventory, purchased quantity, charging resource, or another state remains unproven. |
 | Total purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchasedTotal"]`; 58 string-to-integer entries, unchanged in the A/B pair. | Only structural status and entry count are exposed. | It is not proven whether this is historical, derived, or independently mutable. |
 | Additional Run charge values | **PARTIALLY CONFIRMED** | The broad comparison observed `chargingStationCharge: 10 -> 9` and `chargingStationChargeTotal: 95 -> 90`; the controlled Tranq recharge observed `9 -> 8` and `82 -> 73`. | Safe to expose the exact observed keys and values read-only. | Their transitions are likely related to recharging, but their units, relationship, bounds, and mutation behavior remain unproven. |
 
-`canRefillToFull` is the only supported advanced mutation capability and applies only to stored
-charge. Broad `canEdit`, `canAdd`, `canDelete`, and `canDuplicate` capabilities remain false across
-every domain. The renderer receives typed projections and the narrow action, never the decrypted
-save or the unverified `item` integer payload.
+`canRefillToFull` is the only supported advanced mutation capability and applies only when the
+exact instance has stored charge **and** installed metadata confirms the item type is rechargeable.
+The Python write boundary rechecks that installed capability before applying any refill edit. Broad
+`canEdit`, `canAdd`, `canDelete`, and `canDuplicate` capabilities remain false across every domain.
+The renderer receives typed projections and the narrow action, never the decrypted save or the
+unverified `item` integer payload.
 
 ### Required next controlled experiments
 

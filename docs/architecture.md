@@ -39,6 +39,32 @@ Runtime selection is centralized in `desktop/electron/python/client.cts`:
 
 The package command builds the sidecar with Python 3.13. The packaged application does not fall back to a system Python installation.
 
+## Installed item recharge capability
+
+Item recharge support keeps three independent facts separate:
+
+1. **Item-type capability** comes from read-only installed-game metadata. A narrow standard-library
+   serialized-file reader validates the currently supported Steam build, Unity version, file format,
+   object bounds, pointers, and component identities. It dynamically verifies an installed
+   `MonoBehaviour` whose `MonoScript` class is `Item`, maps that verified item identity to every
+   same-name installed prefab `GameObject` variant, and inspects those variants for `ItemBattery`.
+2. **Exact-instance charge state** still comes only from the save's `itemStatBattery` evidence. A
+   stored entry remains stored charge; absence is interpreted as full/default only when installed
+   metadata confirms that item type is rechargeable.
+3. **Mutation eligibility** remains the existing exact-instance refill rule. Only a confirmed
+   rechargeable item with a stored charge entry may stage or write `Refill to Full`.
+
+No prefab path IDs, proof manifests, extracted game metadata, UnityPy, or TypeTreeGenerator are
+bundled. The reader is deliberately fixed to the validated `23363152` / Unity `2022.3.67f2` layout.
+Missing assets, a future Steam/Unity/serialized-file version, incomplete pointers, exceptional
+`ItemBattery` metadata, or conflicting prefab variants all degrade the affected capability to
+`unknown`; ordinary save reading remains available. The authoritative Python save-write boundary
+rechecks capability before applying a refill edit.
+
+The measured uncached discovery cost on the validated installation was about 0.8 seconds, so the
+initial production path performs discovery on the relevant Python read/write command rather than
+adding an Electron-main cache and its invalidation surface.
+
 ## Supported production scope
 
 Electron covers the supported production workflow: discovery/select/open, Overview, Players,

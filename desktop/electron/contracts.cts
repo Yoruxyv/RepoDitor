@@ -176,12 +176,19 @@ export type AdvancedItemChargeState =
   | "not_applicable"
   | "unknown";
 
+export type AdvancedItemRechargeCapability =
+  | "rechargeable"
+  | "not_rechargeable"
+  | "unknown";
+
 export interface AdvancedItemDto {
   saveKey: string;
   name: string;
   instanceId: string;
   storedCharge: number | null;
   chargeState: AdvancedItemChargeState;
+  rechargeCapability: AdvancedItemRechargeCapability;
+  canRefillToFull: boolean;
 }
 
 export interface AdvancedRunValueDto {

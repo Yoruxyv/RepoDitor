@@ -10,8 +10,16 @@ class AdvancedSaveError(ValueError):
     """Raised when an observed advanced structure is malformed."""
 
 
+class ItemRechargeCapability(StrEnum):
+    """Installed-game evidence for whether one item type can be recharged."""
+
+    RECHARGEABLE = "rechargeable"
+    NOT_RECHARGEABLE = "not_rechargeable"
+    UNKNOWN = "unknown"
+
+
 class ItemChargeState(StrEnum):
-    """Evidence-backed interpretation of one item's stored-charge entry."""
+    """Evidence-backed interpretation of one item's exact-instance charge state."""
 
     STORED = "stored"
     DEFAULT_FULL = "default_full"
@@ -44,6 +52,8 @@ class AdvancedItem:
     instance_id: str
     stored_charge: int | None
     charge_state: ItemChargeState
+    recharge_capability: ItemRechargeCapability
+    can_refill_to_full: bool
 
 
 @dataclass(frozen=True, slots=True)

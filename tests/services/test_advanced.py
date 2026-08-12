@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from repo_save_editor.services.items.discovery import discover_advanced_save
-from repo_save_editor.services.items.models import AdvancedSaveError, ItemChargeState
+from repo_save_editor.services.items.models import (
+    AdvancedSaveError,
+    ItemChargeState,
+    ItemRechargeCapability,
+)
 from repo_save_editor.services.items.mutations import refill_item_to_full
 
 EVIDENCE_PAIR = Path(__file__).parents[1] / "fixtures" / "advanced_charge_pair.json"
@@ -40,7 +44,14 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     data = _advanced_save(sample_save)
     before = deepcopy(data)
 
-    advanced = discover_advanced_save(data)
+    advanced = discover_advanced_save(
+        data,
+        {
+            "Item Cart Medium": ItemRechargeCapability.NOT_RECHARGEABLE,
+            "Item Health Pack Medium": ItemRechargeCapability.NOT_RECHARGEABLE,
+            "Item Melee Inflatable Hammer": ItemRechargeCapability.RECHARGEABLE,
+        },
+    )
 
     assert data == before
     assert [(item.name, item.instance_id) for item in advanced.items] == [
@@ -53,7 +64,9 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     assert hammer.save_key == "Item Melee Inflatable Hammer/1"
     assert hammer.stored_charge == 99
     assert hammer.charge_state is ItemChargeState.STORED
-    assert all(item.charge_state is ItemChargeState.UNKNOWN for item in advanced.items[:-1])
+    assert all(item.charge_state is ItemChargeState.NOT_APPLICABLE for item in advanced.items[:-1])
+    assert hammer.recharge_capability is ItemRechargeCapability.RECHARGEABLE
+    assert hammer.can_refill_to_full is True
     assert advanced.unlinked_charge_entry_count == 0
     assert [(value.save_key, value.value) for value in advanced.run_values] == [
         ("chargingStationCharge", 10),
@@ -139,8 +152,12 @@ def test_charge_evidence_is_sparse_after_one_hammer_use(sample_save) -> None:
         dictionaries["itemStatBattery"] = projection["itemStatBattery"]
         dictionaries["runStats"].update(projection["runStats"])
 
-    before_item = discover_advanced_save(before).items[0]
-    after_items = discover_advanced_save(after).items
+    capabilities = {
+        "Item Melee Inflatable Hammer": ItemRechargeCapability.RECHARGEABLE,
+        "Item Staff Torque": ItemRechargeCapability.RECHARGEABLE,
+    }
+    before_item = discover_advanced_save(before, capabilities).items[0]
+    after_items = discover_advanced_save(after, capabilities).items
     after_hammer = next(item for item in after_items if item.save_key == before_item.save_key)
 
     assert before_item.save_key == after_hammer.save_key == "Item Melee Inflatable Hammer/1"
@@ -213,22 +230,32 @@ def test_ignores_unknown_containers_and_reports_unlinked_charge(sample_save) -> 
     assert advanced.unlinked_charge_entry_count == 1
 
 
-def test_absent_charge_is_full_only_for_evidence_backed_item_names(sample_save) -> None:
+def test_absent_charge_state_comes_from_installed_item_capability(sample_save) -> None:
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
     dictionaries["item"] = {
         "Item Gun Tranq/1": 15,
         "Item Melee Inflatable Hammer/2": 21,
         "Item Cart Medium/3": 2,
+        "Item Future Tool/4": 7,
     }
     dictionaries["itemStatBattery"] = {}
 
-    states = {
-        item.save_key: item.charge_state for item in discover_advanced_save(sample_save).items
+    capabilities = {
+        "Item Gun Tranq": ItemRechargeCapability.RECHARGEABLE,
+        "Item Melee Inflatable Hammer": ItemRechargeCapability.RECHARGEABLE,
+        "Item Cart Medium": ItemRechargeCapability.NOT_RECHARGEABLE,
+        "Item Future Tool": ItemRechargeCapability.UNKNOWN,
+    }
+    items = {
+        item.save_key: item for item in discover_advanced_save(sample_save, capabilities).items
     }
 
-    assert states == {
-        "Item Cart Medium/3": ItemChargeState.UNKNOWN,
-        "Item Gun Tranq/1": ItemChargeState.DEFAULT_FULL,
-        "Item Melee Inflatable Hammer/2": ItemChargeState.DEFAULT_FULL,
-    }
-    assert ItemChargeState.NOT_APPLICABLE not in states.values()
+    assert items["Item Gun Tranq/1"].charge_state is ItemChargeState.DEFAULT_FULL
+    assert items["Item Melee Inflatable Hammer/2"].charge_state is ItemChargeState.DEFAULT_FULL
+    assert items["Item Cart Medium/3"].charge_state is ItemChargeState.NOT_APPLICABLE
+    assert items["Item Future Tool/4"].charge_state is ItemChargeState.UNKNOWN
+    assert items["Item Gun Tranq/1"].recharge_capability is ItemRechargeCapability.RECHARGEABLE
+    assert (
+        items["Item Cart Medium/3"].recharge_capability is ItemRechargeCapability.NOT_RECHARGEABLE
+    )
+    assert all(item.can_refill_to_full is False for item in items.values())

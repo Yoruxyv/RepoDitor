@@ -3,6 +3,7 @@ from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
+from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
@@ -10,6 +11,10 @@ from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
 
 def _game_closed() -> GameProcessStatus:
     return GameProcessStatus.NOT_RUNNING
+
+
+def _rechargeable(names: tuple[str, ...]) -> dict[str, ItemRechargeCapability]:
+    return dict.fromkeys(names, ItemRechargeCapability.RECHARGEABLE)
 
 
 def _save_path(root: Path) -> Path:
@@ -73,6 +78,7 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
         ],
         tmp_path,
         game_status_loader=_game_closed,
+        recharge_capability_loader=_rechargeable,
     )
 
     assert result["ok"] is True
@@ -139,6 +145,39 @@ def test_invalid_refill_does_not_create_backup_or_modify_source(tmp_path: Path, 
         ],
         tmp_path,
         game_status_loader=_game_closed,
+        recharge_capability_loader=_rechargeable,
+    )
+
+    assert result["error"]["code"] == "save_validation_failed"
+    assert path.read_bytes() == original
+    assert not list(path.parent.glob("*.bak-*"))
+
+
+def test_unverified_refill_capability_blocks_write_before_backup(
+    tmp_path: Path, sample_save
+) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {"Item Gun Tranq/1": 15}
+    dictionaries["itemStatBattery"] = {"Item Gun Tranq/1": 5}
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [
+            {
+                "feature": "advanced",
+                "entity": "Item Gun Tranq/1",
+                "field": "refillToFull",
+                "after": True,
+            }
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=lambda names: dict.fromkeys(
+            names, ItemRechargeCapability.UNKNOWN
+        ),
     )
 
     assert result["error"]["code"] == "save_validation_failed"
