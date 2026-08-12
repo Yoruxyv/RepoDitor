@@ -28,12 +28,16 @@ class CosmeticCapabilities:
 
 @dataclass(frozen=True, slots=True)
 class Cosmetic:
-    """Renderer-safe ownership state for one observed cosmetic identifier."""
+    """Renderer-safe state for one installed or preserved cosmetic identifier."""
 
     cosmetic_id: int
     display_name: str
+    cosmetic_type: int | None
+    rarity: int | None
+    status: int | None
     owned: bool
     known: bool
+    mutation_eligible: bool
     removal_blocked_reason: str | None
 
 
