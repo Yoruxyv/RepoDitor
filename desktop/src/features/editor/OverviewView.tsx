@@ -30,7 +30,7 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
       </h2>
 
       <section aria-labelledby="run-snapshot-title" className="mt-6">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-accent" id="run-snapshot-title">
+        <h3 className="text-lg font-semibold text-ink" id="run-snapshot-title">
           {t("overview.runSnapshot")}
         </h3>
         <dl className="mt-2 grid grid-cols-2 border-y border-line xl:grid-cols-4">
@@ -52,7 +52,7 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
       </section>
 
       <section aria-labelledby="edit-save-title" className="mt-8">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-accent" id="edit-save-title">
+        <h3 className="text-lg font-semibold text-ink" id="edit-save-title">
           {t("overview.editSave")}
         </h3>
         <ul className="mt-2 divide-y divide-line border-y border-line">

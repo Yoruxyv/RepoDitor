@@ -89,4 +89,26 @@ describe("PendingChangesBar", () => {
     expect(screen.queryByText("C:\\fixture\\save.es3.bak")).toBeNull();
     expect(document.querySelector("details")).toBeNull();
   });
+
+  it("keeps long localized status text wrappable above the sticky actions", () => {
+    localStorage.setItem("repoditor.locale", "id");
+    const error = "RepoDitor tidak dapat menyimpan perubahan karena file berubah di disk. ".repeat(4);
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          backupPath={null}
+          edits={[edit]}
+          error={error}
+          saving={false}
+          onRevert={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </PreferencesProvider>,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe(error);
+    expect(alert.className).toContain("wrap-break-word");
+    expect(screen.getByTestId("workspace-action-bar").textContent).toContain("Simpan Perubahan");
+  });
 });

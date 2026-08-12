@@ -129,7 +129,7 @@ export function PendingChangesBar({
               {saving ? t("status.savingSafely") : changeCount(edits.length, t)}
             </output>
             {error ? (
-              <p className="mt-2 text-xs text-danger" role="alert">
+              <p className="mt-2 wrap-break-word text-xs text-danger" role="alert">
                 {error}
               </p>
             ) : null}

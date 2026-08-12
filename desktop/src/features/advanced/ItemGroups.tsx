@@ -97,7 +97,7 @@ export function ItemGroups({
     <>
       <div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-56 flex-[1_1_20rem]">
+          <div className="min-w-56 flex-[2_1_20rem]">
             <label className="text-sm font-semibold text-ink" htmlFor="item-search">
               {t("items.searchLabel")}
             </label>
@@ -129,7 +129,7 @@ export function ItemGroups({
               ) : null}
             </div>
           </div>
-          <label className="w-44 text-sm font-semibold text-ink">
+          <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
             <span>{t("items.filterLabel")}</span>
             <select
               className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
@@ -141,7 +141,7 @@ export function ItemGroups({
               <option value="other">{t("items.filterOther")}</option>
             </select>
           </label>
-          <label className="w-44 text-sm font-semibold text-ink">
+          <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
             <span>{t("items.sortLabel")}</span>
             <select
               className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
@@ -154,7 +154,7 @@ export function ItemGroups({
             </select>
           </label>
           <button
-            className="ui-feedback whitespace-nowrap rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"
+            className="ui-feedback min-h-10 max-w-full rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"
             data-testid="recharge-all-tools"
             disabled={!canRechargeAll}
             type="button"

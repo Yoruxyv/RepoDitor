@@ -60,4 +60,19 @@ describe("LanguageMenu", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "言語: 日本語" }));
   });
+
+  it("supports Home, End, and native-name type-ahead", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: "Bahasa Indonesia" }));
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: "English" }));
+    await user.keyboard("b{Enter}");
+
+    expect(localStorage.getItem("repoditor.locale")).toBe("id");
+    expect(screen.getByRole("button", { name: "Bahasa: Bahasa Indonesia" })).toBeTruthy();
+  });
 });

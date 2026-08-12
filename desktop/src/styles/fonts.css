@@ -13,6 +13,18 @@
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }
 
+:root:lang(ja) {
+  --font-ui: "Yu Gothic UI", Meiryo, "Segoe UI Variable", "Segoe UI", sans-serif;
+}
+
+:root:lang(ko) {
+  --font-ui: "Malgun Gothic", "Segoe UI Variable", "Segoe UI", sans-serif;
+}
+
+:root:lang(zh) {
+  --font-ui: "Microsoft YaHei UI", "Segoe UI Variable", "Segoe UI", sans-serif;
+}
+
 .font-display {
   font-family: var(--font-display);
   font-stretch: condensed;

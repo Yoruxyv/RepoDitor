@@ -46,6 +46,7 @@ describe("UpgradesView", () => {
     expect(screen.queryByText("playerUpgradeHealth")).toBeNull();
     expect(screen.queryByText("futureUpgrade")).toBeNull();
     expect(document.querySelector("details")).toBeNull();
+    expect(screen.getByText("Detected").className).toContain("text-xs");
 
     await user.clear(screen.getByRole("spinbutton", { name: "Health for Alpha" }));
     await user.type(screen.getByRole("spinbutton", { name: "Health for Alpha" }), "3");

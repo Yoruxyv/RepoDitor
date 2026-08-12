@@ -160,9 +160,24 @@ Players is reused in Upgrades without a second profile request.
 
 The language control is a theme-aware custom listbox with compact bundled SVG
 flags and native language names. Keyboard navigation, visible focus, Escape,
-and click-outside dismissal are preserved. Eligible utility and action controls
-use a small transform-based interaction treatment and the bundled low-volume
-click sound; reduced-motion users retain color/border feedback without motion.
+click-outside dismissal are preserved. Eligible utility and action controls use
+color and border feedback plus a one-pixel pressed displacement and the bundled
+low-volume click sound; reduced-motion users retain non-spatial feedback.
+
+## Windows scaling verification
+
+Automated Electron coverage checks 1600×900, 1200×800, and the supported
+960×640 minimum in CSS pixels. CI does not reproduce Windows device scaling,
+so browser zoom is not treated as DPI evidence.
+
+Before a Windows release, run the packaged app at 100%, 125%, and 150% display
+scaling. At each scale, verify the 960×640 minimum window in Dark, Light, and
+System themes; cycle through English, Japanese, Korean, Chinese, and Indonesian;
+and check the workspace tabs, utility controls, player selector, Items controls,
+Cosmetics actions, safety dialog, long error text, and sticky pending actions.
+Text must not clip, controls must wrap without document-level horizontal
+overflow, focused controls must remain visible, and the language menu must stay
+inside the window.
 
 ## Supported scope
 

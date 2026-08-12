@@ -243,23 +243,47 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("combobox", { name: "Language" })).toHaveCount(0);
     await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    await page.getByRole("button", { name: "Language: English" }).click();
-    await page.getByRole("option", { name: "Bahasa Indonesia" }).click();
-    await expect(page.getByRole("button", { name: "Save Run" })).toBeVisible();
-    await page.getByRole("button", { name: "Bahasa: Bahasa Indonesia" }).click();
-    await page.getByRole("option", { name: "English" }).click();
+    await page.getByRole("combobox", { name: "Theme" }).selectOption("system");
+    await expect(page.getByRole("combobox", { name: "Theme" })).toHaveValue("system");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", /dark|light/);
+    await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
+
+    await setWindowSize(application, page, 960, 640);
+    await expect(page.getByTestId("github-project-link")).toBeVisible();
+    await expect(page.getByTestId("github-stars")).not.toBeVisible();
+    for (const check of [
+      { trigger: "Language: English", option: "日本語", run: "ランセーブ", theme: "テーマ", refresh: "更新" },
+      { trigger: "言語: 日本語", option: "한국어", run: "런 세이브", theme: "테마", refresh: "새로 고침" },
+      { trigger: "언어: 한국어", option: "中文", run: "游戏存档", theme: "主题", refresh: "刷新" },
+      { trigger: "语言: 中文", option: "Bahasa Indonesia", run: "Save Run", theme: "Tema", refresh: "Segarkan" },
+      { trigger: "Bahasa: Bahasa Indonesia", option: "English", run: "Run Saves", theme: "Theme", refresh: "Refresh" },
+    ]) {
+      await page.getByRole("button", { name: check.trigger }).click();
+      await page.getByRole("option", { name: check.option }).click();
+      await expect(page.getByRole("button", { name: check.run })).toBeVisible();
+      await expect(page.getByRole("combobox", { name: check.theme })).toBeVisible();
+      await expect(page.getByRole("button", { name: check.refresh })).toBeVisible();
+      expect((await layout(page)).hasHorizontalOverflow).toBe(false);
+    }
+    await setWindowSize(application, page, 1200, 800);
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await expect(page.locator("details")).toHaveCount(0);
     await expect(page.getByText(savePath, { exact: true })).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
-    const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
-      (button) => getComputedStyle(button).transitionDuration,
+    await page.getByRole("button", { name: "Refresh" }).hover();
+    const reducedFeedback = await page.getByRole("button", { name: "Refresh" }).evaluate(
+      (button) => ({
+        transform: getComputedStyle(button).transform,
+        transitionDuration: getComputedStyle(button).transitionDuration,
+      }),
     );
     expect(
-      Number.parseFloat(reducedTransition) / (reducedTransition.endsWith("ms") ? 1_000 : 1),
+      Number.parseFloat(reducedFeedback.transitionDuration)
+        / (reducedFeedback.transitionDuration.endsWith("ms") ? 1_000 : 1),
     ).toBeLessThanOrEqual(0.000_01);
+    expect(reducedFeedback.transform).toBe("none");
     const boundary = await page.evaluate(() => ({
       project: Object.keys(window.repoditor.project),
       environment: Object.keys(window.repoditor.environment).sort((left, right) =>

@@ -63,3 +63,15 @@ for (const selector of [":root", ':root[data-theme="light"]']) {
     }
   });
 }
+
+test("shared interaction feedback has no hover rotation or scale", () => {
+  assert.doesNotMatch(themeCss, /:hover\s*\{[^}]*(?:rotate|scale)/s);
+  assert.match(themeCss, /:active\s*\{[^}]*translate3d\(0, 1px, 0\)/s);
+});
+
+test("reduced motion removes spatial transforms", () => {
+  assert.match(
+    themeCss,
+    /prefers-reduced-motion:\s*reduce[\s\S]*?\.ui-feedback\s*\{[^}]*transform:\s*none\s*!important/s,
+  );
+});

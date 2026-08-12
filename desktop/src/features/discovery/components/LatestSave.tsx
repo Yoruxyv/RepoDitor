@@ -19,7 +19,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
   const { locale, t } = usePreferences();
   return (
     <section aria-labelledby="latest-save-title">
-      <h2 className="text-base font-semibold text-ink" id="latest-save-title">
+      <h2 className="text-lg font-semibold text-ink" id="latest-save-title">
         {t("saves.latest")}
       </h2>
 
@@ -38,7 +38,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
               <p className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.01em] text-ink sm:text-4xl">
                 {save.name}
               </p>
-              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[0.8125rem] text-secondary">
                 <span className="inline-flex items-center gap-2">
                   <ClockIcon aria-hidden="true" size={15} weight="regular" />
                   <span>{formatRelativeTime(save.modifiedAt, locale, t)}</span>

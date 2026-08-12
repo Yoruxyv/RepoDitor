@@ -21,6 +21,8 @@
     background: var(--theme-app);
     color: var(--theme-ink);
     font-family: var(--font-ui);
+    font-size: 0.875rem;
+    line-height: 1.5;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
