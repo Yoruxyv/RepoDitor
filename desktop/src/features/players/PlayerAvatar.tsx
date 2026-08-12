@@ -31,7 +31,7 @@ export function PlayerAvatar({
   const label = t("players.avatar", { player: name });
   return (
     <figure
-      className={`m-0 grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line-strong bg-accent-muted font-display font-semibold text-accent ${className}`}
+      className={`m-0 grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line-strong bg-accent-muted font-semibold text-accent ${className}`}
     >
       {avatarUrl ? (
         <img alt={label} className="size-full object-cover" src={avatarUrl} onError={onError} />

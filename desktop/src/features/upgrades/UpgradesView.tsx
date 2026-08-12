@@ -110,7 +110,7 @@ export function UpgradesView({
                 </div>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <label className="min-w-0 text-sm font-semibold text-ink" htmlFor={upgrade.key} title={upgrade.label}>{upgrade.label}</label>
-                  {!upgrade.known ? <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">{t("status.detected")}</span> : null}
+                  {!upgrade.known ? <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">{t("status.detected")}</span> : null}
                 </div>
                 <div className="mt-3 flex flex-wrap items-start gap-3">
                   <input aria-describedby={description} aria-invalid={invalid ? "true" : undefined} aria-label={t("upgrades.input", { upgrade: upgrade.label, player: player.name })} className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent" id={upgrade.key} min="0" step="1" type="number" value={input} onChange={(event) => {

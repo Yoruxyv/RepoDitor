@@ -17,7 +17,7 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
   return (
     <section aria-labelledby="recent-saves-title">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-base font-semibold text-ink" id="recent-saves-title">
+        <h2 className="text-lg font-semibold text-ink" id="recent-saves-title">
           {t("saves.recent")}
         </h2>
         <span className="text-xs text-muted">{t("saves.newestFirst")}</span>

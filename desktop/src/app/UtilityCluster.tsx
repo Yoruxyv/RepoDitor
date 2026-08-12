@@ -26,17 +26,18 @@ export function UtilityCluster() {
     ? t("utility.githubUnavailable")
     : t("utility.githubStars", { count: stars });
   return (
-    <div className="flex flex-wrap items-center gap-2" aria-label={t("utility.group")}>
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label={t("utility.group")}>
       <a
         aria-label={t("utility.openGithub", { stars: starLabel })}
-        className="ui-feedback hidden h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent lg:inline-flex"
+        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        data-testid="github-project-link"
         href={PROJECT_URL}
         rel="noreferrer"
         target="_blank"
       >
         <GithubLogoIcon aria-hidden="true" size={17} />
-        <StarIcon aria-hidden="true" size={15} />
-        <span className="min-w-4 font-mono text-xs" data-testid="github-stars">
+        <StarIcon aria-hidden="true" className="hidden xl:block" size={15} />
+        <span className="hidden min-w-4 font-mono text-xs xl:inline" data-testid="github-stars">
           {stars ?? "—"}
         </span>
       </a>

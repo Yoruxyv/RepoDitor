@@ -130,7 +130,7 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
 
   return (
     <aside className="self-start rounded-sm border border-line bg-surface p-5 sm:p-6">
-      <h2 className="text-base font-semibold text-ink">{t("environment.title")}</h2>
+      <h2 className="text-lg font-semibold text-ink">{t("environment.title")}</h2>
       <p className="mt-1 text-xs/5 text-muted">{t("environment.subtitle")}</p>
 
       <div className="mt-5">
