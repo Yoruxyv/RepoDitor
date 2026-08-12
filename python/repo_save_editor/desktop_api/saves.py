@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -13,7 +13,12 @@ from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
+from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.mutations import refill_item_to_full
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_recharge_capabilities,
+)
+from repo_save_editor.services.items.schema import ITEM_KEY_PATTERN
 from repo_save_editor.services.player.state import get_players, set_player_health
 from repo_save_editor.services.player.upgrades import (
     discover_player_upgrades,
@@ -41,6 +46,11 @@ from repo_save_editor.storage.repository import (
 )
 
 MAX_CHANGES = 512
+
+RechargeCapabilityLoader = Callable[
+    [tuple[str, ...]],
+    Mapping[str, ItemRechargeCapability],
+]
 
 
 def _failure(code: str, message: str) -> dict[str, object]:
@@ -135,7 +145,34 @@ def _integer(value: object) -> int:
     return value
 
 
-def _apply_changes(data: SaveData, changes: object) -> None:
+def _requested_refill_item_types(changes: object) -> tuple[str, ...]:
+    """Return full item-type identities from syntactically plausible refill edits."""
+    if not isinstance(changes, list):
+        return ()
+    names: dict[str, None] = {}
+    for change in changes:
+        if not isinstance(change, dict):
+            continue
+        if (
+            change.get("feature") != "advanced"
+            or change.get("field") != "refillToFull"
+            or change.get("after") is not True
+        ):
+            continue
+        entity = change.get("entity")
+        if not isinstance(entity, str):
+            continue
+        match = ITEM_KEY_PATTERN.fullmatch(entity)
+        if match is not None:
+            names.setdefault(match.group("name"), None)
+    return tuple(names)
+
+
+def _apply_changes(
+    data: SaveData,
+    changes: object,
+    recharge_capabilities: Mapping[str, ItemRechargeCapability] | None = None,
+) -> None:
     if not isinstance(changes, list) or not changes or len(changes) > MAX_CHANGES:
         raise ValueError("One to 512 pending changes are required.")
 
@@ -170,6 +207,17 @@ def _apply_changes(data: SaveData, changes: object) -> None:
         elif feature == "run" and entity == "run" and field in run_fields:
             set_run_stat_from_display(data, field, _integer(after))
         elif feature == "advanced" and field == "refillToFull" and after is True:
+            match = ITEM_KEY_PATTERN.fullmatch(entity)
+            capability = (
+                ItemRechargeCapability.UNKNOWN
+                if match is None or recharge_capabilities is None
+                else recharge_capabilities.get(
+                    match.group("name"),
+                    ItemRechargeCapability.UNKNOWN,
+                )
+            )
+            if capability is not ItemRechargeCapability.RECHARGEABLE:
+                raise ValueError("Recharge capability could not be verified for the selected item.")
             refill_item_to_full(data, entity)
         else:
             raise ValueError("A pending change is not supported by this save.")
@@ -184,6 +232,9 @@ def save_changes(
     root: Path | None = None,
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
+    recharge_capability_loader: RechargeCapabilityLoader = (
+        discover_installed_recharge_capabilities
+    ),
 ) -> dict[str, object]:
     """Validate and safely persist one typed set of pending changes.
 
@@ -215,7 +266,11 @@ def save_changes(
                 "save_stale",
                 "The save changed after it was opened. Reopen it before saving edits.",
             )
-        _apply_changes(data, changes)
+        refill_item_types = _requested_refill_item_types(changes)
+        recharge_capabilities = (
+            recharge_capability_loader(refill_item_types) if refill_item_types else {}
+        )
+        _apply_changes(data, changes, recharge_capabilities)
         backup, written = SaveRepository(save.path.parent).overwrite(
             save.path,
             data,

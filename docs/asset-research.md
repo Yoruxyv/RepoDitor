@@ -216,10 +216,20 @@ The recommended original-art sequence is:
 
 ## Historical research boundary and current production scope
 
-This asset-discovery pass did not establish save-mutation semantics. Later controlled evidence
-supports one narrow item mutation: exact-instance **Refill to Full** removes an existing
-`itemStatBattery` leaf through the normal safe-write pipeline. Numeric charge edits, battery
-upgrades, purchase mutations, and item add/delete/duplicate remain unsupported.
+This asset-discovery pass did not establish save-mutation semantics. A later independent local
+proof did establish one production-safe *read-only* item capability source: on the validated Steam
+build `23363152` / Unity `2022.3.67f2`, 60 active `Item` definitions mapped to 197 installed
+prefab variants and an independent UnityPy oracle and standard-library parser agreed exactly on
+the 30 item types containing `ItemBattery`. The production parser ships no extracted metadata or
+prefab path IDs and does not depend on UnityPy or TypeTreeGenerator. It dynamically verifies the
+installed `Item` identity and same-name prefab variants, and any unsupported/incomplete/conflicting
+metadata becomes `unknown`. `Item Drone Battery` remains `unknown` because its exceptional observed
+flag semantics are still unproven.
+
+Later controlled save evidence supports one narrow item mutation: exact-instance **Refill to Full**
+removes an existing `itemStatBattery` leaf through the normal safe-write pipeline, but only after
+the installed capability layer confirms that item type as rechargeable. Numeric charge edits,
+battery upgrades, purchase mutations, and item add/delete/duplicate remain unsupported.
 
 Later controlled MetaSave evidence supports guarded bulk ownership changes and paired
 **Clear All Presets**. Arbitrary cosmetic equipment, token, color, and preset creation/editing

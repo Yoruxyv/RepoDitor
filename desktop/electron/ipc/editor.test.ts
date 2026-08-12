@@ -105,7 +105,7 @@ describe("editor data IPC", () => {
           name: "Melee Inflatable Hammer",
           instanceId: "1",
           storedCharge: 99,
-          chargeState: "stored",
+          chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true,
           rawValue: 21,
         },
       ],
@@ -126,7 +126,7 @@ describe("editor data IPC", () => {
     expect(result).toMatchObject({
       ok: true,
       data: {
-        items: [{ storedCharge: 99, chargeState: "stored" }],
+        items: [{ storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true }],
         runValues: [{ saveKey: "chargingStationCharge", value: 10 }],
       },
     });
@@ -145,7 +145,7 @@ describe("editor data IPC", () => {
           name: "Melee Inflatable Hammer",
           instanceId: "1",
           storedCharge: null,
-          chargeState: "default_full",
+          chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false,
         },
       ],
       runValues: [],
@@ -153,7 +153,7 @@ describe("editor data IPC", () => {
     };
     await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
       ok: true,
-      data: { items: [{ storedCharge: null, chargeState: "default_full" }] },
+      data: { items: [{ storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false }] },
     });
 
     const mutable = structuredClone(advanced) as unknown as {
@@ -168,7 +168,7 @@ describe("editor data IPC", () => {
 
     for (const item of [
       { ...advanced.items[0], chargeState: "guessed" },
-      { ...advanced.items[0], chargeState: "stored" },
+      { ...advanced.items[0], chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true },
     ]) {
       await expect(
         getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [item] } }), saveId),

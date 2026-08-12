@@ -103,7 +103,7 @@ const advanced: AdvancedSaveDto = {
     { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
     { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
   ],
-  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99, chargeState: "stored" }],
+  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true }],
   runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
   unlinkedChargeEntryCount: 0,
 };
@@ -659,7 +659,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
   });
 
-  it("stages bulk recharge for stored tools only and keeps it memory-only", async () => {
+  it("stages bulk recharge only for confirmed partial rechargeable tools and keeps it memory-only", async () => {
     const write = vi.fn();
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({ ok: true, data: session }),
@@ -673,9 +673,10 @@ describe("save workspace transition", () => {
         ...advanced,
         items: [
           advanced.items[0]!,
-          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: 17, chargeState: "stored" },
-          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", storedCharge: null, chargeState: "default_full" },
-          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "unknown" },
+          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: 17, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true },
+          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false },
+          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false },
+          { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false },
         ],
       },
     });
@@ -696,6 +697,7 @@ describe("save workspace transition", () => {
     expect(screen.getByText(/Melee Inflatable Hammer.*Charge/)).toBeTruthy();
     expect(screen.getByText(/Gun Tranq.*Charge/)).toBeTruthy();
     expect(screen.queryByText(/Cart Medium.*Charge/)).toBeNull();
+    expect(screen.queryByText(/Future Tool.*Charge/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });

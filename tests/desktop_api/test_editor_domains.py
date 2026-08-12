@@ -7,6 +7,7 @@ from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
+from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.storage.repository import SaveRepository
 
 
@@ -135,7 +136,11 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
     save_path = _write_save(tmp_path, sample_save)
     before = save_path.read_bytes()
 
-    result = get_advanced_save(save_path.parent.name, tmp_path)
+    result = get_advanced_save(
+        save_path.parent.name,
+        tmp_path,
+        capability_loader=lambda names: dict.fromkeys(names, ItemRechargeCapability.RECHARGEABLE),
+    )
 
     assert result["ok"] is True
     advanced = result["advanced"]
@@ -152,6 +157,8 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "instanceId": "1",
             "storedCharge": 99,
             "chargeState": "stored",
+            "rechargeCapability": "rechargeable",
+            "canRefillToFull": True,
         }
     ]
     assert advanced["runValues"] == [

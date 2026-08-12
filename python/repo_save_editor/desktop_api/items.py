@@ -2,18 +2,37 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure, load_discovered_save
-from repo_save_editor.services.items.discovery import discover_advanced_save
-from repo_save_editor.services.items.models import AdvancedSaveError
+from repo_save_editor.services.items.discovery import (
+    discover_advanced_save,
+    discover_item_type_names,
+)
+from repo_save_editor.services.items.models import AdvancedSaveError, ItemRechargeCapability
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_recharge_capabilities,
+)
+
+RechargeCapabilityLoader = Callable[
+    [tuple[str, ...]],
+    Mapping[str, ItemRechargeCapability],
+]
 
 
-def get_advanced_save(save_id: str, root: Path | None = None) -> dict[str, object]:
+def get_advanced_save(
+    save_id: str,
+    root: Path | None = None,
+    *,
+    capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
+) -> dict[str, object]:
     """Return evidence-backed advanced data without exposing the decrypted save."""
     try:
         _, data, _ = load_discovered_save(save_id, root)
-        advanced = discover_advanced_save(data)
+        item_type_names = discover_item_type_names(data)
+        capabilities = capability_loader(item_type_names)
+        advanced = discover_advanced_save(data, capabilities)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
     except AdvancedSaveError:
@@ -49,6 +68,8 @@ def get_advanced_save(save_id: str, root: Path | None = None) -> dict[str, objec
                     "instanceId": item.instance_id,
                     "storedCharge": item.stored_charge,
                     "chargeState": item.charge_state.value,
+                    "rechargeCapability": item.recharge_capability.value,
+                    "canRefillToFull": item.can_refill_to_full,
                 }
                 for item in advanced.items
             ],
