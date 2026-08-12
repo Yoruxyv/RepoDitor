@@ -55,6 +55,12 @@ class ObjectRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ExternalReference:
+    asset_path: str
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
 class GameObjectData:
     name: str
     components: tuple[PPtr, ...]
@@ -305,13 +311,15 @@ class SerializedFileIndex:
         external_count = reader.i32()
         if not 0 <= external_count <= MAX_TYPES:
             raise UnityMetadataError("External file count is outside the supported bound.")
-        externals: list[str] = []
+        external_references: list[ExternalReference] = []
         for _ in range(external_count):
-            reader.cstring()
+            asset_path = reader.cstring()
             reader.skip(16)
             reader.i32()
-            externals.append(reader.cstring())
-        self.externals = tuple(externals)
+            path = reader.cstring()
+            external_references.append(ExternalReference(asset_path, path))
+        self.external_references = tuple(external_references)
+        self.externals = tuple(reference.path for reference in external_references)
 
         ref_type_count = reader.i32()
         if not 0 <= ref_type_count <= MAX_TYPES:
@@ -384,17 +392,49 @@ class SerializedFileIndex:
             endian="<",
         )
 
-    def external_name(self, file_id: int) -> str:
-        if file_id <= 0 or file_id > len(self.externals):
+    def external_names(self, file_id: int) -> tuple[str, ...]:
+        if file_id <= 0 or file_id > len(self.external_references):
             raise UnityMetadataError("A required external PPtr file ID is invalid.")
-        raw = self.externals[file_id - 1].replace("\\", "/")
-        # Unity external paths may be archive:/..., Windows, or simple names.
-        posix_name = PurePosixPath(raw).name
-        windows_name = PureWindowsPath(raw).name
-        return windows_name or posix_name
+        reference = self.external_references[file_id - 1]
+        names: list[str] = []
+        for raw in (reference.path, reference.asset_path):
+            normalized = raw.replace("\\", "/").rstrip("/")
+            posix_name = PurePosixPath(normalized).name
+            windows_name = PureWindowsPath(normalized).name
+            name = windows_name or posix_name
+            if name and name not in names:
+                names.append(name)
+        if not names:
+            raise UnityMetadataError("A required external PPtr has no usable file name.")
+        return tuple(names)
+
+    def external_name(self, file_id: int) -> str:
+        return self.external_names(file_id)[0]
+
+    def read_pptr_vector(
+        self,
+        record: ObjectRecord,
+        absolute: int,
+        *,
+        maximum: int,
+    ) -> tuple[PPtr, ...] | None:
+        record_end = record.byte_start + record.byte_size
+        if maximum <= 0 or absolute % 4 != 0 or absolute + 4 > record_end:
+            return None
+        count = struct.unpack_from("<i", self._data, absolute)[0]
+        if not 0 < count <= maximum:
+            return None
+        size = 4 + count * 12
+        if absolute + size > record_end:
+            return None
+        reader = _Reader(self._data, absolute + 4, absolute + size, endian="<")
+        pointers = tuple(read_pptr(reader) for _ in range(count))
+        if any(pointer.file_id < 0 for pointer in pointers):
+            return None
+        return pointers
 
 
-def _read_pptr(reader: _Reader) -> PPtr:
+def read_pptr(reader: _Reader) -> PPtr:
     return PPtr(reader.i32(), reader.i64())
 
 
@@ -413,7 +453,7 @@ def _read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> 
     if not 0 <= component_count <= MAX_COMPONENTS:
         raise UnityMetadataError("GameObject component count is outside the supported bound.")
     for _ in range(component_count):
-        _read_pptr(reader)
+        read_pptr(reader)
     reader.i32()  # m_Layer
     return reader.aligned_string()
 
@@ -425,7 +465,7 @@ def _parse_game_object(index: SerializedFileIndex, record: ObjectRecord) -> Game
     component_count = reader.i32()
     if not 0 <= component_count <= MAX_COMPONENTS:
         raise UnityMetadataError("GameObject component count is outside the supported bound.")
-    components = tuple(_read_pptr(reader) for _ in range(component_count))
+    components = tuple(read_pptr(reader) for _ in range(component_count))
     if any(pointer.file_id != 0 or pointer.path_id == 0 for pointer in components):
         raise UnityMetadataError("GameObject contains an unsupported or null component pointer.")
     reader.i32()  # m_Layer
@@ -435,24 +475,24 @@ def _parse_game_object(index: SerializedFileIndex, record: ObjectRecord) -> Game
     return GameObjectData(name, components)
 
 
-def _parse_mono_behaviour_prefix(
+def parse_mono_behaviour_prefix(
     index: SerializedFileIndex,
     record: ObjectRecord,
 ) -> MonoBehaviourPrefix:
     if record.class_id != MONO_BEHAVIOUR_CLASS_ID:
         raise UnityMetadataError("Expected a MonoBehaviour component record.")
     reader = index.object_reader(record)
-    game_object = _read_pptr(reader)
+    game_object = read_pptr(reader)
     enabled = reader.u8()
     if enabled not in (0, 1):
         raise UnityMetadataError("MonoBehaviour enabled flag is not boolean-like.")
     reader.align4()
-    script = _read_pptr(reader)
+    script = read_pptr(reader)
     name = reader.aligned_string()
     return MonoBehaviourPrefix(game_object, script, name, reader.pos - record.byte_start)
 
 
-def _parse_mono_script(index: SerializedFileIndex, record: ObjectRecord) -> MonoScriptData:
+def parse_mono_script(index: SerializedFileIndex, record: ObjectRecord) -> MonoScriptData:
     if record.class_id != MONO_SCRIPT_CLASS_ID:
         raise UnityMetadataError("MonoBehaviour script pointer does not resolve to MonoScript.")
     reader = index.object_reader(record)
@@ -520,7 +560,7 @@ def _resolve_mono_scripts(
         script_ids.add(prefix.script.path_id)
     script_records = globals_.find_records(script_ids)
     return {
-        path_id: _parse_mono_script(globals_, record) for path_id, record in script_records.items()
+        path_id: parse_mono_script(globals_, record) for path_id, record in script_records.items()
     }
 
 
@@ -552,7 +592,7 @@ def _classify_variants(
     mono_prefixes: dict[int, MonoBehaviourPrefix] = {}
     for component_id, record in component_records.items():
         if record.class_id == MONO_BEHAVIOUR_CLASS_ID:
-            mono_prefixes[component_id] = _parse_mono_behaviour_prefix(resources, record)
+            mono_prefixes[component_id] = parse_mono_behaviour_prefix(resources, record)
     scripts = _resolve_mono_scripts(resources, globals_, mono_prefixes.values())
 
     variant_results: dict[int, VariantResult] = {}
@@ -640,7 +680,7 @@ def discover_item_recharge_capabilities(
                 identity: [] for identity in by_identity
             }
             for record in resources.iter_records(frozenset({MONO_BEHAVIOUR_CLASS_ID})):
-                prefix = _parse_mono_behaviour_prefix(resources, record)
+                prefix = parse_mono_behaviour_prefix(resources, record)
                 identity = prefix.name.casefold()
                 if identity in candidate_definitions:
                     candidate_definitions[identity].append((record, prefix))
@@ -701,7 +741,16 @@ def discover_item_recharge_capabilities(
 
 
 __all__ = [
+    "MONO_BEHAVIOUR_CLASS_ID",
+    "MONO_SCRIPT_CLASS_ID",
+    "MonoBehaviourPrefix",
+    "MonoScriptData",
+    "ObjectRecord",
+    "PPtr",
     "SerializedFileIndex",
     "UnityMetadataError",
     "discover_item_recharge_capabilities",
+    "parse_mono_behaviour_prefix",
+    "parse_mono_script",
+    "read_pptr",
 ]

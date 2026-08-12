@@ -142,7 +142,7 @@ value from `2100` to `1273`. `save level = 0` and `lives = 3` were unchanged.
 
 **UNKNOWN:** `itemBatteryUpgrades` remained empty, all 12 `itemsUpgradesPurchased` entries and all
 58 `itemsPurchasedTotal` entries remained unchanged, and the meaning of the integer stored in each
-`item` entry remains unproven. This comparison enables no new mutation by itself.
+`item` entry remains unproven. This comparison en ables no new mutation by itself.
 
 ### Phase 10B controlled Tranq Gun charge evidence
 

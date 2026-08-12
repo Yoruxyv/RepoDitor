@@ -1,8 +1,19 @@
-"""Typed renderer-safe cosmetic ownership models."""
+"""Typed cosmetic service models."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class InstalledCosmeticMetadata:
+    """Derived metadata for one installed cosmetic catalog position."""
+
+    cosmetic_id: int
+    asset_name: str
+    cosmetic_type: int
+    rarity: int
+    status: int
 
 
 @dataclass(frozen=True, slots=True)
