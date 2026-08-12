@@ -32,11 +32,15 @@ describe("PendingChangesBar", () => {
       </PreferencesProvider>,
     );
 
-    const changes = document.querySelector('ul[aria-label="Unsaved changes"]')!;
-    expect(changes.hasAttribute("hidden")).toBe(true);
+    const review = screen.getByTestId("workspace-review");
+    expect(review.hasAttribute("hidden")).toBe(true);
     await user.click(screen.getByRole("button", { name: "Review" }));
-    expect(changes.hasAttribute("hidden")).toBe(false);
+    expect(review.hasAttribute("hidden")).toBe(false);
+    expect(review.className).not.toContain("overflow");
+    expect(review.querySelector("ul")?.className).not.toContain("overflow");
     expect(screen.getByText("12 → 20")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(review.hasAttribute("hidden")).toBe(true);
   });
 
   it("announces pending counts, saving progress, success, and durable errors", () => {
@@ -82,5 +86,7 @@ describe("PendingChangesBar", () => {
     );
     expect(screen.getByText("Write failed").getAttribute("role")).toBe("alert");
     expect(screen.getByText(/Saved safely/).closest("output")?.tagName).toBe("OUTPUT");
+    expect(screen.queryByText("C:\\fixture\\save.es3.bak")).toBeNull();
+    expect(document.querySelector("details")).toBeNull();
   });
 });

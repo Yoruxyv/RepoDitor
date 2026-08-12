@@ -2,7 +2,6 @@ import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { PathDetails } from "@/components/PathDetails";
 import {
   formatDateTime,
   formatFileSize,
@@ -24,7 +23,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
         {t("saves.latest")}
       </h2>
 
-      <div className="mt-3 rounded-sm border border-line bg-surface">
+      <div className="mt-3 overflow-hidden rounded-sm border border-line bg-surface">
         <button
           className="w-full border-l-2 border-accent p-5 text-left transition duration-150 hover:bg-raised active:translate-y-px disabled:cursor-wait disabled:opacity-70 sm:p-6"
           disabled={isDisabled}
@@ -57,9 +56,6 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
           </div>
         </button>
 
-        <div className="border-t border-line px-5 py-3 sm:px-6">
-          <PathDetails label={t("workspace.source")} testId="latest-save-path" value={save.path} />
-        </div>
       </div>
     </section>
   );

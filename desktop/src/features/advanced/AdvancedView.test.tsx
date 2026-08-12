@@ -31,6 +31,7 @@ const advanced: AdvancedSaveDto = {
       name: "Melee Inflatable Hammer",
       instanceId: "1",
       storedCharge: 99,
+      chargeState: "stored",
     },
   ],
   runValues: [
@@ -47,6 +48,7 @@ const advanced: AdvancedSaveDto = {
 describe("AdvancedView", () => {
   const handlers = {
     pendingByItem: {},
+    onRefillAllToFull: vi.fn(),
     onRefillToFull: vi.fn(),
     onRetry: vi.fn(),
     onRevertRefill: vi.fn(),
@@ -66,19 +68,221 @@ describe("AdvancedView", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Items" })).toBeTruthy();
-    const item = screen.getByRole("listitem");
-    expect(within(item).getByText("Melee Inflatable Hammer #1")).toBeTruthy();
-    expect(within(item).getByText("99")).toBeTruthy();
+    const item = screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    expect(screen.getByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
+    expect(within(item).getByText("Current charge: 99")).toBeTruthy();
     expect(screen.getByText(
-      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
+      "Recharge appears only for tools RepoDitor can safely refill.",
     )).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByText("#1")).toBeNull();
+    expect(screen.queryByText("Item Melee Inflatable Hammer/1")).toBeNull();
+    expect(document.querySelector("details")).toBeNull();
 
-    await user.click(within(item).getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
+    await user.click(within(item).getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }));
     expect(refill).toHaveBeenCalledWith(advanced.items[0]);
+  });
 
-    await user.click(within(item).getByText("Show save key"));
-    expect(within(item).getByText("Item Melee Inflatable Hammer/1")).toBeTruthy();
+  it("groups duplicate names and filters by game-derived item name", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", storedCharge: 42, chargeState: "stored" },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+
+    const tranqGroup = screen.getByTestId("item-group-Gun Tranq");
+    expect(within(tranqGroup).getByLabelText("2 items")).toBeTruthy();
+    expect(within(tranqGroup).queryByText("#1")).toBeNull();
+    expect(within(tranqGroup).queryByText("#2")).toBeNull();
+
+    const search = screen.getByRole("searchbox", { name: "Search items" });
+    await user.type(search, "  TRANQ  ");
+    expect(screen.getByText("2 matching items")).toBeTruthy();
+    expect(screen.queryByTestId("item-group-Melee Inflatable Hammer")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear item search" }));
+    expect(document.activeElement).toBe(search);
+    await user.type(search, "missing");
+    expect(screen.getByText("No items match this search.")).toBeTruthy();
+  });
+
+  it("reports pending items hidden by a filter", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+        pendingByItem={{
+          "Item Melee Inflatable Hammer/1": {
+            feature: "advanced",
+            entity: "Item Melee Inflatable Hammer/1",
+            field: "refillToFull",
+            after: true,
+            before: 99,
+            label: "Stored charge",
+            subject: "Melee Inflatable Hammer",
+          },
+        }}
+      />,
+    );
+
+    await user.type(screen.getByRole("searchbox", { name: "Search items" }), "cart");
+    expect(screen.getByText(/1 matching item · 1 pending item hidden by filter/)).toBeTruthy();
+  });
+
+  it("filters by recharge availability and sorts groups without exposing instance IDs", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", storedCharge: 42, chargeState: "stored" },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Cart Medium/2", name: "Cart Medium", instanceId: "2", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+
+    const filter = screen.getByRole("combobox", { name: "Filter" });
+    await user.selectOptions(filter, "rechargeable");
+    expect(screen.getByTestId("item-group-Gun Tranq")).toBeTruthy();
+    expect(screen.queryByTestId("item-group-Cart Medium")).toBeNull();
+
+    await user.selectOptions(filter, "other");
+    const cart = screen.getByTestId("item-group-Cart Medium");
+    expect(cart).toBeTruthy();
+    expect(within(cart).queryByRole("list")).toBeNull();
+    expect(screen.queryByTestId("item-group-Gun Tranq")).toBeNull();
+
+    await user.selectOptions(filter, "all");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "quantity-desc");
+    expect(screen.getAllByTestId(/^item-group-/)[0]?.getAttribute("data-testid"))
+      .toBe("item-group-Cart Medium");
+    expect(screen.queryByText(/^#\d+$/)).toBeNull();
+  });
+
+  it("offers one bulk recharge action only while an eligible tool is unstaged", async () => {
+    const user = userEvent.setup();
+    const refillAll = vi.fn();
+    const { unmount } = renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={advanced}
+        error={null}
+        loading={false}
+        onRefillAllToFull={refillAll}
+      />,
+    );
+
+    const bulk = screen.getByRole("button", { name: "Recharge All Tools" });
+    expect((bulk as HTMLButtonElement).disabled).toBe(false);
+    await user.click(bulk);
+    expect(refillAll).toHaveBeenCalledOnce();
+    unmount();
+
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+    expect((screen.getByRole("button", { name: "Recharge All Tools" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+  });
+
+  it("renders explicit charge states without guessing or enabling unsupported actions", () => {
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Health Pack Medium/4", name: "Health Pack Medium", instanceId: "4", storedCharge: null, chargeState: "not_applicable" },
+          ],
+        }}
+        error={null}
+        loading={false}
+      />,
+    );
+
+    expect(screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent)
+      .toContain("Current charge: 99");
+    expect(screen.getByTestId("item-instance-Item Gun Tranq/2").textContent)
+      .toContain("Full");
+    expect(within(screen.getByTestId("item-group-Cart Medium")).queryByText(/Charge|Full/))
+      .toBeNull();
+    expect(within(screen.getByTestId("item-group-Health Pack Medium")).queryByText(/Charge|Full/))
+      .toBeNull();
+    expect(screen.getAllByRole("button", { name: /Recharge .*tool/ })).toHaveLength(1);
+  });
+
+  it("targets the exact stored instance inside a duplicate group", async () => {
+    const user = userEvent.setup();
+    const refill = vi.fn();
+    const second = {
+      saveKey: "Item Gun Tranq/2",
+      name: "Gun Tranq",
+      instanceId: "2",
+      storedCharge: 17,
+      chargeState: "stored" as const,
+    };
+    renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            { ...second, saveKey: "Item Gun Tranq/1", instanceId: "1", storedCharge: 42 },
+            second,
+          ],
+        }}
+        error={null}
+        loading={false}
+        onRefillToFull={refill}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Recharge Gun Tranq, tool 2" }));
+    expect(refill).toHaveBeenCalledWith(second);
   });
 
   it("distinguishes unsupported and supported-empty item structures", () => {
@@ -98,7 +302,7 @@ describe("AdvancedView", () => {
         loading={false}
       />,
     );
-    expect(screen.getByText("This save does not contain the confirmed item-instance container."))
+    expect(screen.getByText("Items are unavailable for this save."))
       .toBeTruthy();
 
     rerender(
@@ -126,8 +330,8 @@ describe("AdvancedView", () => {
           ...advanced,
           items: [
             ...advanced.items,
-            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null },
-            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null },
+            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null, chargeState: "unknown" },
+            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null, chargeState: "unknown" },
           ],
         }}
         error={null}
@@ -153,7 +357,7 @@ describe("AdvancedView", () => {
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full" },
           ],
         }}
         error={null}
@@ -166,17 +370,17 @@ describe("AdvancedView", () => {
             after: true,
             before: 99,
             label: "Stored charge",
-            subject: "Melee Inflatable Hammer #1",
+            subject: "Melee Inflatable Hammer",
           },
         }}
         onRevertRefill={revert}
       />,
     );
 
-    expect(screen.getAllByText("Full / Default")).toHaveLength(2);
-    expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Refill .* to full/ })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Revert refill" }));
+    expect(screen.getAllByText("Full")).toHaveLength(2);
+    expect(screen.getByText("Pending: 99 → Full")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Recharge .*tool/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Revert recharge" }));
     expect(revert).toHaveBeenCalledWith("Item Melee Inflatable Hammer/1");
     expect(screen.queryByRole("spinbutton")).toBeNull();
   });

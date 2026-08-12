@@ -11,10 +11,8 @@ import type {
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/translations";
-import { PathText } from "./PathText";
 
 interface DiscoveryStateProps {
-  readonly saveRoot: string;
   readonly status: SaveRootStatus;
 }
 
@@ -45,7 +43,7 @@ function getContent(status: SaveRootStatus, t: Translate) {
   };
 }
 
-export function DiscoveryState({ saveRoot, status }: DiscoveryStateProps) {
+export function DiscoveryState({ status }: DiscoveryStateProps) {
   const { t } = usePreferences();
   const content = getContent(status, t);
 
@@ -56,13 +54,6 @@ export function DiscoveryState({ saveRoot, status }: DiscoveryStateProps) {
       <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">
         {content.description}
       </p>
-      <div className="mt-6 border-t border-line pt-4">
-        <span className="text-xs font-medium text-muted">{t("discovery.pathChecked")}</span>
-        <PathText
-          className="mt-1 font-mono text-xs/5 text-secondary"
-          path={saveRoot}
-        />
-      </div>
     </section>
   );
 }

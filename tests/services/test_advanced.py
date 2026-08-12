@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from repo_save_editor.services.items.discovery import discover_advanced_save
-from repo_save_editor.services.items.models import AdvancedSaveError
+from repo_save_editor.services.items.models import AdvancedSaveError, ItemChargeState
 from repo_save_editor.services.items.mutations import refill_item_to_full
 
 EVIDENCE_PAIR = Path(__file__).parents[1] / "fixtures" / "advanced_charge_pair.json"
@@ -52,6 +52,8 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     hammer = advanced.items[-1]
     assert hammer.save_key == "Item Melee Inflatable Hammer/1"
     assert hammer.stored_charge == 99
+    assert hammer.charge_state is ItemChargeState.STORED
+    assert all(item.charge_state is ItemChargeState.UNKNOWN for item in advanced.items[:-1])
     assert advanced.unlinked_charge_entry_count == 0
     assert [(value.save_key, value.value) for value in advanced.run_values] == [
         ("chargingStationCharge", 10),
@@ -143,7 +145,9 @@ def test_charge_evidence_is_sparse_after_one_hammer_use(sample_save) -> None:
 
     assert before_item.save_key == after_hammer.save_key == "Item Melee Inflatable Hammer/1"
     assert before_item.stored_charge == 99
+    assert before_item.charge_state is ItemChargeState.STORED
     assert after_hammer.stored_charge is None
+    assert after_hammer.charge_state is ItemChargeState.DEFAULT_FULL
     assert {item.save_key for item in after_items} - {before_item.save_key} == {
         "Item Staff Torque/1"
     }
@@ -205,4 +209,26 @@ def test_ignores_unknown_containers_and_reports_unlinked_charge(sample_save) -> 
     advanced = discover_advanced_save(sample_save)
 
     assert advanced.items[0].stored_charge is None
+    assert advanced.items[0].charge_state is ItemChargeState.UNKNOWN
     assert advanced.unlinked_charge_entry_count == 1
+
+
+def test_absent_charge_is_full_only_for_evidence_backed_item_names(sample_save) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {
+        "Item Gun Tranq/1": 15,
+        "Item Melee Inflatable Hammer/2": 21,
+        "Item Cart Medium/3": 2,
+    }
+    dictionaries["itemStatBattery"] = {}
+
+    states = {
+        item.save_key: item.charge_state for item in discover_advanced_save(sample_save).items
+    }
+
+    assert states == {
+        "Item Cart Medium/3": ItemChargeState.UNKNOWN,
+        "Item Gun Tranq/1": ItemChargeState.DEFAULT_FULL,
+        "Item Melee Inflatable Hammer/2": ItemChargeState.DEFAULT_FULL,
+    }
+    assert ItemChargeState.NOT_APPLICABLE not in states.values()

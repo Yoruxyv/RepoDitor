@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
-import { PathDetails } from "@/components/PathDetails";
 import type { PendingEdit } from "@/features/editor/pendingEdits";
 
 interface PendingChangesBarProps {
@@ -88,10 +87,34 @@ export function PendingChangesBar({
 
   return (
     <>
-      <div aria-hidden="true" className={reviewing ? "h-72" : "h-24"} />
+      {edits.length > 0 ? (
+        <section
+          aria-label={t("pending.unsaved")}
+          className="mt-8 border-y border-line py-5"
+          data-testid={`${testIdPrefix}-review`}
+          hidden={!reviewing}
+          id={`${testIdPrefix}-review`}
+        >
+          <ul className="grid gap-3">
+            {edits.map((edit) => (
+              <li
+                className="grid min-w-0 gap-1 border-l-2 border-accent pl-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-4"
+                key={`${edit.feature}:${edit.entity}:${edit.field}`}
+              >
+                <span className="min-w-0 wrap-break-word text-secondary">
+                  {displaySubject(edit, t)} · {displayLabel(edit, t)}
+                </span>
+                <span className="break-all font-mono text-xs text-ink">
+                  {displayValue(edit, edit.before, t)} → {displayValue(edit, edit.after, t)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <div aria-hidden="true" className="h-24" />
       <footer
         className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-app/95 px-5 py-3 text-sm shadow-[0_-8px_24px_var(--theme-overlay)] backdrop-blur-sm sm:px-8"
-        data-pending-review={reviewing || undefined}
         data-pending-surface-active="true"
         data-testid={`${testIdPrefix}-action-bar`}
       >
@@ -105,48 +128,25 @@ export function PendingChangesBar({
             >
               {saving ? t("status.savingSafely") : changeCount(edits.length, t)}
             </output>
-            {edits.length > 0 ? (
-              <ul
-                aria-label={t("pending.unsaved")}
-                className="mt-3 grid max-h-40 gap-2 overflow-y-auto pr-2"
-                hidden={!reviewing}
-              >
-                {edits.map((edit) => (
-                  <li
-                    className="grid min-w-0 gap-1 border-l-2 border-accent pl-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-4"
-                    key={`${edit.feature}:${edit.entity}:${edit.field}`}
-                  >
-                    <span className="min-w-0 wrap-break-word text-secondary">
-                      {displaySubject(edit, t)} · {displayLabel(edit, t)}
-                    </span>
-                    <span className="break-all font-mono text-xs text-ink">
-                      {displayValue(edit, edit.before, t)} → {displayValue(edit, edit.after, t)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
             {error ? (
               <p className="mt-2 text-xs text-danger" role="alert">
                 {error}
               </p>
             ) : null}
             {backupPath ? (
-              <div className="mt-1 text-xs text-success">
-                <output aria-atomic="true" aria-live="polite">
-                  {t("status.savedBackupCreated")}
-                </output>
-                <PathDetails
-                  className="ml-2 inline-block text-secondary"
-                  label={t("pending.backupDetails")}
-                  value={backupPath}
-                />
-              </div>
+              <output
+                aria-atomic="true"
+                aria-live="polite"
+                className="mt-1 block text-xs text-success"
+              >
+                {t("status.savedBackupCreated")}
+              </output>
             ) : null}
           </div>
           {edits.length > 0 ? (
             <div className="flex flex-wrap gap-2 md:justify-end">
               <button
+                aria-controls={`${testIdPrefix}-review`}
                 aria-expanded={reviewing}
                 className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={saving}

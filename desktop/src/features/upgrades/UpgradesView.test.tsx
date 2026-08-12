@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
@@ -13,7 +14,9 @@ const upgrades: PlayerUpgradeDto[] = [
 ];
 
 describe("UpgradesView", () => {
-  it("shows the selected player's avatar, semantic icons, and numeric controls", () => {
+  it("shows player-facing controls while keeping exact upgrade keys internal", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
     renderWithPreferences(
       <UpgradesView
         avatarUrls={{ "1": "https://avatars.fastly.steamstatic.com/alpha.jpg" }}
@@ -23,7 +26,7 @@ describe("UpgradesView", () => {
         players={[player]}
         selectedPlayerId={player.id}
         upgrades={upgrades}
-        onChange={vi.fn()}
+        onChange={onChange}
         onRejectAvatar={vi.fn()}
         onRetry={vi.fn()}
         onRevert={vi.fn()}
@@ -40,6 +43,13 @@ describe("UpgradesView", () => {
     expect(screen.getByTestId("selected-player-identity").textContent).toContain("1");
     expect(screen.getByRole("spinbutton", { name: "Health for Alpha" })).toBeTruthy();
     expect(screen.getByRole("spinbutton", { name: "Future upgrade for Alpha" })).toBeTruthy();
+    expect(screen.queryByText("playerUpgradeHealth")).toBeNull();
+    expect(screen.queryByText("futureUpgrade")).toBeNull();
+    expect(document.querySelector("details")).toBeNull();
+
+    await user.clear(screen.getByRole("spinbutton", { name: "Health for Alpha" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Health for Alpha" }), "3");
+    expect(onChange).toHaveBeenLastCalledWith(upgrades[0], player, 3);
   });
 
   it("updates the avatar with the selected player and keeps a stable fallback", () => {

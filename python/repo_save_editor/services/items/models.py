@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 
 class AdvancedSaveError(ValueError):
     """Raised when an observed advanced structure is malformed."""
+
+
+class ItemChargeState(StrEnum):
+    """Evidence-backed interpretation of one item's stored-charge entry."""
+
+    STORED = "stored"
+    DEFAULT_FULL = "default_full"
+    NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +43,7 @@ class AdvancedItem:
     name: str
     instance_id: str
     stored_charge: int | None
+    charge_state: ItemChargeState
 
 
 @dataclass(frozen=True, slots=True)

@@ -94,7 +94,7 @@ const advanced: AdvancedSaveDto = {
     { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
     { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
   ],
-  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99 }],
+  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99, chargeState: "stored" }],
   runValues: [{ saveKey: "chargingStationCharge", label: "Charging station charge", value: 10, status: "partially_confirmed" }],
   unlinkedChargeEntryCount: 0,
 };
@@ -454,14 +454,28 @@ describe("save workspace transition", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await screen.findByRole("button", { name: /Open workspace/ });
+    expect(document.querySelectorAll("details")).toHaveLength(0);
+    expect(screen.queryByText(session.path)).toBeNull();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByText("Validated locally")).toBeTruthy();
-    expect(screen.getByTestId("selected-save-path").textContent).toContain(
+    const metadata = screen.getByTestId("selected-save-metadata");
+    const source = screen.getByTestId("selected-save-path");
+    expect(source.textContent).toContain(
       "REPO_SAVE_2026_08_08_10_20_30.es3",
     );
+    expect(document.querySelectorAll("details")).toHaveLength(1);
+    expect((source as HTMLDetailsElement).open).toBe(false);
+    expect(metadata.contains(source)).toBe(false);
+    expect(metadata.nextElementSibling).toBe(source);
+    expect(screen.getByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Edit this save" })).toBeTruthy();
     expect(screen.getByText("Normal")).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(screen.getByRole("button", { name: "Open Players" }));
+    await waitFor(() => expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "Players" }),
+    ));
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
     expect(screen.getByTestId("avatar-fallback").textContent).toBe("B");
@@ -592,16 +606,22 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    expect(await screen.findByText("Melee Inflatable Hammer #1")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
+    expect(screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent)
+      .toContain("Current charge: 99");
+    expect(screen.queryByText("#1")).toBeNull();
     expect(screen.getByText(
-      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
+      "Recharge appears only for tools RepoDitor can safely refill.",
     )).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
+    await user.click(screen.getByRole("button", { name: "Recharge All Tools" }));
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("3 pending changes");
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));
     expect(await screen.findByText("McJannek Station")).toBeTruthy();
     expect(screen.getByText("Modded Moon")).toBeTruthy();
+    expect(screen.queryByText("Arctic")).toBeNull();
+    expect(screen.queryByText(maps.catalogPath!)).toBeNull();
+    expect(document.querySelectorAll("details")).toHaveLength(1);
 
     await user.click(screen.getByRole("tab", { name: "Upgrades" }));
     expect((screen.getByRole("spinbutton", { name: "Strength for Beta" }) as HTMLInputElement).value)
@@ -610,9 +630,50 @@ describe("save workspace transition", () => {
     expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
       .toBe("20");
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    expect(screen.getByText("Pending: 99 → Full / Default")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Revert refill" }));
+    expect(screen.getByText("Pending: 99 → Full")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert recharge" }));
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+  });
+
+  it("stages bulk recharge for stored tools only and keeps it memory-only", async () => {
+    const write = vi.fn();
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    window.repoditor.advanced.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        ...advanced,
+        items: [
+          advanced.items[0]!,
+          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: 17, chargeState: "stored" },
+          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", storedCharge: null, chargeState: "default_full" },
+          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "unknown" },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(await screen.findByRole("button", { name: "Recharge All Tools" }));
+
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getAllByText(/Pending: .* Full/)).toHaveLength(2);
+    expect((screen.getByRole("button", { name: "Recharge All Tools" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect(write).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText(/Melee Inflatable Hammer.*Charge/)).toBeTruthy();
+    expect(screen.getByText(/Gun Tranq.*Charge/)).toBeTruthy();
+    expect(screen.queryByText(/Cart Medium.*Charge/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
   });
 
   it("reloads MetaSave whenever Cosmetics is entered without pending edits", async () => {
@@ -774,7 +835,8 @@ describe("save workspace transition", () => {
       { feature: "cosmetics", entity: "presets", field: "clearAll", after: true },
     ]);
     expect(runWrite).not.toHaveBeenCalled();
-    expect(await screen.findByText(/Backup details:/)).toBeTruthy();
+    expect(await screen.findByText("Saved safely · Backup created")).toBeTruthy();
+    expect(screen.queryByText("C:\\fixture\\MetaSave.es3.bak-20260810-172700")).toBeNull();
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
@@ -818,7 +880,8 @@ describe("save workspace transition", () => {
       { feature: "cosmetics", entity: "known", field: "lockAll", after: false },
     ]);
     expect(runWrite).not.toHaveBeenCalled();
-    expect(await screen.findByText(/Backup details:/)).toBeTruthy();
+    expect(await screen.findByText("Saved safely · Backup created")).toBeTruthy();
+    expect(screen.queryByText("C:\\fixture\\MetaSave.es3.bak-20260808-102100")).toBeNull();
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
@@ -936,7 +999,7 @@ describe("save workspace transition", () => {
     await user.clear(screen.getByRole("spinbutton", { name: "Currency" }));
     await user.type(screen.getByRole("spinbutton", { name: "Currency" }), "20");
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    await user.click(screen.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }));
+    await user.click(screen.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }));
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(write).toHaveBeenCalledWith(session.id, session.fingerprint, [

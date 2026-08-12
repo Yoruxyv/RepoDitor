@@ -15,7 +15,6 @@ import type {
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 import { formatSaveCount } from "@/features/discovery/formatters";
-import { PathText } from "./PathText";
 
 type StatusTone = "success" | "warning" | "danger";
 
@@ -26,7 +25,6 @@ interface EnvironmentStatusProps {
 interface EnvironmentRowProps {
   readonly icon: ReactNode;
   readonly label: string;
-  readonly path: string | null;
   readonly status: string;
   readonly detail: string;
   readonly tone: StatusTone;
@@ -104,7 +102,6 @@ function getGameStatus(status: GameDiscoveryStatus, t: Translate) {
 function EnvironmentRow({
   icon,
   label,
-  path,
   status,
   detail,
   tone,
@@ -122,12 +119,6 @@ function EnvironmentRow({
           <p className="mt-1 text-xs/5 text-muted">{detail}</p>
         </div>
       </div>
-      {path !== null && (
-        <PathText
-          className="mt-3 font-mono text-[0.7rem]/5 text-secondary"
-          path={path}
-        />
-      )}
     </div>
   );
 }
@@ -147,7 +138,6 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
           detail={gameStatus.detail}
           icon={<GameControllerIcon aria-hidden="true" size={20} weight="regular" />}
           label={t("environment.game")}
-          path={environment.gameRoot}
           status={gameStatus.status}
           tone={gameStatus.tone}
         />
@@ -155,7 +145,6 @@ export function EnvironmentStatus({ environment }: EnvironmentStatusProps) {
           detail={saveStatus.detail}
           icon={<FolderIcon aria-hidden="true" size={20} weight="regular" />}
           label={t("environment.saveFolder")}
-          path={environment.saveRoot}
           status={saveStatus.status}
           tone={saveStatus.tone}
         />

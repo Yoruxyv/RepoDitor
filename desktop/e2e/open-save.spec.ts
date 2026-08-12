@@ -250,13 +250,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("option", { name: "English" }).click();
 
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
-    const latestSavePath = page.getByTestId("latest-save-path");
-    await expect(latestSavePath).toContainText(path.basename(savePath));
-    await expect(latestSavePath.locator("code")).not.toBeVisible();
-    await latestSavePath.locator("summary").click();
-    await expect(latestSavePath.locator("code")).toHaveText(savePath);
-    await latestSavePath.getByRole("button", { name: "Copy Source" }).click();
-    await expect(latestSavePath.getByText("Path copied")).toBeVisible();
+    await expect(page.locator("details")).toHaveCount(0);
+    await expect(page.getByText(savePath, { exact: true })).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
     const reducedTransition = await page.getByRole("button", { name: "Refresh" }).evaluate(
@@ -312,7 +307,21 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const openReadyMs = performance.now() - openStarted;
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
     await expect(page.getByText("Validated locally")).toBeVisible();
-    await expect(page.getByTestId("selected-save-path")).toContainText(path.basename(savePath));
+    const selectedMetadata = page.getByTestId("selected-save-metadata");
+    const selectedSavePath = page.getByTestId("selected-save-path");
+    await expect(page.locator("details")).toHaveCount(1);
+    await expect(selectedSavePath).toContainText(path.basename(savePath));
+    await expect(selectedSavePath.locator("code")).not.toBeVisible();
+    const metadataBeforeExpand = await selectedMetadata.boundingBox();
+    await selectedSavePath.locator("summary").click();
+    await expect(selectedSavePath.locator("code")).toHaveText(savePath);
+    const metadataAfterExpand = await selectedMetadata.boundingBox();
+    expect(metadataAfterExpand?.x).toBe(metadataBeforeExpand?.x);
+    expect(metadataAfterExpand?.y).toBe(metadataBeforeExpand?.y);
+    await selectedSavePath.getByRole("button", { name: "Copy Source" }).click();
+    await expect(selectedSavePath.getByText("Path copied")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Edit this save" })).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
 
     await page.getByRole("button", { name: "Cosmetics" }).click();
@@ -349,18 +358,44 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     await expect(page.getByText(
-      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
+      "Recharge appears only for tools RepoDitor can safely refill.",
     ))
       .toBeVisible();
-    const hammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer" });
-    await expect(hammer.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
+    const cartGroup = page.getByTestId("item-group-Cart Medium");
+    await expect(cartGroup.getByLabel("2 items")).toBeVisible();
+    await expect(cartGroup.getByText(/^#\d+$/)).toHaveCount(0);
+    await expect(cartGroup.getByText(/Charge|Full/)).toHaveCount(0);
+    const healthPackGroup = page.getByTestId("item-group-Health Pack Medium");
+    await expect(healthPackGroup.getByText(/Charge|Full/)).toHaveCount(0);
+    const itemSearch = page.getByRole("searchbox", { name: "Search items" });
+    await itemSearch.fill("  CART MEDIUM  ");
+    await expect(page.getByText("2 matching items")).toBeVisible();
+    await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
+    await page.getByRole("button", { name: "Clear item search" }).click();
+    const itemFilter = page.getByRole("combobox", { name: "Filter" });
+    await itemFilter.selectOption("rechargeable");
+    await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toBeVisible();
+    await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
+    await itemFilter.selectOption("other");
+    await expect(page.getByTestId("item-group-Cart Medium")).toBeVisible();
+    await expect(page.getByTestId("item-group-Health Pack Medium")).toBeVisible();
+    await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
+    await itemFilter.selectOption("all");
+    await page.getByRole("combobox", { name: "Sort" }).selectOption("quantity-desc");
+    await expect(page.getByRole("list", { name: "Item instances" }).locator(":scope > li").first())
+      .toHaveAttribute("data-testid", "item-group-Cart Medium");
+
+    const hammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
       .toHaveAttribute("data-icon-source", "specific");
-    await expect(hammer.getByText("99")).toBeVisible();
-    await hammer.getByText("Show save key").click();
-    await expect(hammer.getByText("Item Melee Inflatable Hammer/1")).toBeVisible();
-    await hammer.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" })
-      .click();
-    await expect(hammer.getByText("Pending: 99 → Full / Default")).toBeVisible();
+    await expect(hammer.getByText("Current charge: 99")).toBeVisible();
+    await expect(page.getByText("Item Melee Inflatable Hammer/1", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Recharge All Tools" }).click();
+    await expect(hammer.getByText("Pending: 99 → Full")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Recharge All Tools" })).toBeDisabled();
+    await itemSearch.fill("cart");
+    await expect(page.getByText(/1 pending item hidden by filter/)).toBeVisible();
+    await page.getByRole("button", { name: "Clear item search" }).click();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     await expect(page.locator("#workspace-tab-pending-4")).toContainText("1 pending change");
     await expect(page.locator("#run-saves-pending")).toContainText("1 pending change");
@@ -398,6 +433,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("selected-player-identity")).toContainText("222");
     await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength"))
       .toHaveAttribute("data-icon-source", "specific");
+    await expect(page.getByText("playerUpgradeStrength", { exact: true })).toHaveCount(0);
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
     await strength.fill("3");
     await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toContainText("0 → 3");
@@ -411,14 +447,24 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("McJannek Station")).toBeVisible();
     await expect(page.getByText("Headman Manor")).toBeVisible();
     await expect(page.getByText("Modded Moon")).toBeVisible();
-    await expect(page.getByTestId("map-catalog-path")).toContainText("catalog.json");
-    await expect(page.getByTestId("map-catalog-path").locator("code")).not.toBeVisible();
+    await expect(page.getByText("Arctic", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json"), { exact: true }))
+      .toHaveCount(0);
+    await expect(page.locator("details")).toHaveCount(1);
 
+    await setWindowSize(application, page, 960, 640);
     await page.getByRole("button", { name: "Review" }).click();
+    const review = page.getByTestId("workspace-review");
+    await expect(review).toBeVisible();
+    expect(await review.evaluate((element) => getComputedStyle(element).overflowY))
+      .not.toMatch(/auto|scroll/);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight
+      > document.documentElement.clientHeight)).toBe(true);
+    expect((await layout(page)).hasHorizontalOverflow).toBe(false);
     await expect(page.getByText("Beta · Health")).toBeVisible();
     await expect(page.getByText("Beta · Strength")).toBeVisible();
     await expect(page.getByText("Run · Currency")).toBeVisible();
-    await expect(page.getByText("Melee Inflatable Hammer #1 · Stored charge")).toBeVisible();
+    await expect(page.getByText("Melee Inflatable Hammer · Charge")).toBeVisible();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("4 pending changes");
     await page.getByRole("button", { name: "Revert all" }).click();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
@@ -433,11 +479,12 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
     await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
     await page.getByRole("tab", { name: "Items" }).click();
-    await page.getByRole("button", { name: "Refill Melee Inflatable Hammer #1 to full" }).click();
+    await page.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }).click();
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
     await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely · Backup created/)).toBeVisible();
+    await expect(page.getByText(/\.bak-\d+$/)).toHaveCount(0);
     const saveReadyMs = performance.now() - saveStarted;
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
@@ -459,15 +506,16 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
     await page.getByRole("tab", { name: "Items" }).click();
-    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
+    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
       .toBeVisible();
     await expect(page.getByText(
-      "Only the evidence-backed Refill to Full action is writable. All unverified item mutations remain unavailable.",
+      "Recharge appears only for tools RepoDitor can safely refill.",
     ))
       .toBeVisible();
-    const refilledHammer = page.getByRole("listitem").filter({ hasText: "Melee Inflatable Hammer #1" });
-    await expect(refilledHammer.getByText("Full / Default")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Refill .* to full/ })).toHaveCount(0);
+    const refilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    await expect(refilledHammer.getByText("Full")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Recharge .*tool/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Recharge All Tools" })).toBeDisabled();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
@@ -492,7 +540,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
       await page.getByRole("tab", { name: "Items" }).click();
-      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer #1", exact: true }))
+      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
         .toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("button", { name: "Cosmetics" }).click();

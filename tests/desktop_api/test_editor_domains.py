@@ -151,6 +151,7 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "name": "Melee Inflatable Hammer",
             "instanceId": "1",
             "storedCharge": 99,
+            "chargeState": "stored",
         }
     ]
     assert advanced["runValues"] == [
