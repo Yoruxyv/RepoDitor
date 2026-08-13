@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { RunStatEdit } from "@/features/editor/pendingEdits";
 
 interface RunViewProps {
@@ -16,17 +17,41 @@ interface RunViewProps {
   readonly onRetry: () => void;
 }
 
+function RunSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion label={label} testId="run-skeleton">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="mt-2 h-8 w-20" />
+      <Skeleton className="mt-3 h-4 w-full max-w-lg" />
+      <Skeleton className="mt-2 h-4 w-2/3 max-w-md" />
+
+      <div className="mt-7 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {[0, 1, 2, 3].map((stat) => (
+          <div className="border-t border-line pt-4" data-skeleton-kind="run-stat" key={stat}>
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="mt-3 h-10 w-36" />
+          </div>
+        ))}
+        <div className="border-t border-line pt-4 sm:col-span-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="mt-3 h-10 w-56 max-w-full" />
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 export function RunView({ run, loading, error, pendingByField, onStatChange, onResumeChange, onRevert, onRetry }: RunViewProps) {
   const { t } = usePreferences();
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  if (loading) return <output aria-live="polite" className="text-sm text-secondary">{t("run.loading")}</output>;
+  if (loading && !run) return <RunSkeleton label={t("run.loading")} />;
   if (error) {
     return <section aria-labelledby="run-error-title"><h2 className="text-xl font-semibold text-ink" id="run-error-title">{t("run.unavailable")}</h2><p className="mt-2 text-sm text-secondary" role="alert">{error}</p><button className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent" type="button" onClick={onRetry}><ArrowClockwiseIcon aria-hidden="true" size={16} /> {t("action.tryAgain")}</button></section>;
   }
   if (!run) return null;
 
   return (
-    <section aria-labelledby="run-title">
+    <section aria-busy={loading} aria-labelledby="run-title">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("run.expedition")}</p>
       <h2 className="mt-1 text-2xl font-semibold text-ink" id="run-title">{t("nav.run")}</h2>
       <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">{t("run.description")}</p>

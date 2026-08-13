@@ -5,6 +5,7 @@ import type {
   AdvancedSaveDto,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
 import { ItemGroups } from "./ItemGroups";
 
@@ -19,6 +20,55 @@ interface AdvancedViewProps {
   readonly onRevertRefill: (saveKey: string) => void;
 }
 
+function AdvancedSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion label={label} testId="items-skeleton">
+      <Skeleton className="h-8 w-24" />
+      <Skeleton className="mt-3 h-4 w-full max-w-xl" />
+      <Skeleton className="mt-2 h-4 w-3/4 max-w-lg" />
+      <div className="mt-6 flex gap-3 border-l-2 border-line px-3 py-2">
+        <Skeleton className="size-4 shrink-0" />
+        <Skeleton className="h-4 w-full max-w-lg" />
+      </div>
+
+      <div className="mt-7 border-t border-line pt-6">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-56 flex-[2_1_20rem]">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-2 h-10 w-full" />
+          </div>
+          {[0, 1].map((control) => (
+            <div className="min-w-44 flex-[1_1_11rem]" key={control}>
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="mt-2 h-10 w-full" />
+            </div>
+          ))}
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <Skeleton className="mt-2 h-3 w-28" />
+
+        <div className="mt-5 space-y-4">
+          {[0, 1, 2].map((group) => (
+            <div className="border-y border-line bg-surface" data-skeleton-kind="item-group" key={group}>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="size-14 shrink-0" testId={group === 0 ? "item-thumbnail-skeleton" : undefined} />
+                <Skeleton className="h-5 w-48 max-w-2/3" />
+                <Skeleton className="ml-auto h-4 w-7" />
+              </div>
+              {group === 0 ? (
+                <div className="flex items-center justify-between border-t border-line px-4 py-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-9 w-20" />
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 export function AdvancedView({
   advanced,
   loading,
@@ -30,8 +80,8 @@ export function AdvancedView({
   onRevertRefill,
 }: AdvancedViewProps) {
   const { t } = usePreferences();
-  if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">{t("items.loading")}</output>;
+  if (loading && !advanced) {
+    return <AdvancedSkeleton label={t("items.loading")} />;
   }
   if (error) {
     return (
@@ -59,7 +109,7 @@ export function AdvancedView({
   const chargeDomain = advanced.domains.find((domain) => domain.key === "currentCharge");
 
   return (
-    <section aria-labelledby="advanced-title">
+    <section aria-busy={loading} aria-labelledby="advanced-title">
       <h2 className="text-2xl font-semibold text-ink" id="advanced-title">{t("nav.items")}</h2>
       <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
         {t("items.description")}
