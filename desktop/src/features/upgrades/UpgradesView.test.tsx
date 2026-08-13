@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,30 @@ const upgrades: PlayerUpgradeDto[] = [
 ];
 
 describe("UpgradesView", () => {
+  it("matches the player selector and upgrade-row geometry while loading", () => {
+    renderWithPreferences(
+      <UpgradesView
+        avatarUrls={{}}
+        error={null}
+        loading
+        pendingByUpgrade={{}}
+        players={[]}
+        selectedPlayerId={null}
+        upgrades={[]}
+        onChange={vi.fn()}
+        onRejectAvatar={vi.fn()}
+        onRetry={vi.fn()}
+        onRevert={vi.fn()}
+        onSelectPlayer={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("upgrades-skeleton").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByTestId("upgrade-avatar-skeleton")).toBeTruthy();
+    expect(document.querySelectorAll('[data-skeleton-kind="upgrade-row"]')).toHaveLength(4);
+    expect(screen.queryByText("Loading upgrades…")).toBeNull();
+  });
+
   it("shows player-facing controls while keeping exact upgrade keys internal", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -37,11 +61,15 @@ describe("UpgradesView", () => {
     expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource)
       .toBe("specific");
     expect(screen.getByTestId("upgrade-icon-futureUpgrade").dataset.iconSource).toBe("fallback");
-    expect(screen.getByRole("img", { name: "Alpha avatar" }).getAttribute("src"))
+    const avatar = screen.getByRole("img", { name: "Alpha avatar" });
+    expect(avatar.getAttribute("src"))
       .toContain("alpha.jpg");
+    expect(screen.getByTestId("upgrades-avatar-fallback-loading")).toBeTruthy();
     expect(screen.getByTestId("selected-player-identity").textContent).toContain("Alpha");
-    expect(screen.getByTestId("selected-player-identity").textContent).toContain("1");
     expect(screen.getByRole("spinbutton", { name: "Health for Alpha" })).toBeTruthy();
+    fireEvent.load(avatar);
+    expect(screen.queryByTestId("upgrades-avatar-fallback-loading")).toBeNull();
+    expect(screen.getByTestId("selected-player-identity").textContent).toContain("1");
     expect(screen.getByRole("spinbutton", { name: "Future upgrade for Alpha" })).toBeTruthy();
     expect(screen.queryByText("playerUpgradeHealth")).toBeNull();
     expect(screen.queryByText("futureUpgrade")).toBeNull();

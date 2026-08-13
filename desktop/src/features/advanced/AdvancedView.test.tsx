@@ -54,6 +54,33 @@ describe("AdvancedView", () => {
     onRevertRefill: vi.fn(),
   };
 
+  it("uses an item-group skeleton only while initial item data is unavailable", () => {
+    const { rerender } = renderWithPreferences(
+      <AdvancedView
+        {...handlers}
+        advanced={null}
+        error={null}
+        loading
+      />,
+    );
+
+    expect(screen.getByTestId("items-skeleton").getAttribute("aria-busy")).toBe("true");
+    expect(document.querySelectorAll('[data-skeleton-kind="item-group"]')).toHaveLength(3);
+    expect(screen.getByTestId("item-thumbnail-skeleton")).toBeTruthy();
+    expect(screen.queryByText("Loading items…")).toBeNull();
+
+    rerender(
+      <AdvancedView
+        {...handlers}
+        advanced={advanced}
+        error={null}
+        loading={false}
+      />,
+    );
+    expect(screen.queryByTestId("items-skeleton")).toBeNull();
+    expect(screen.getByTestId("item-group-Melee Inflatable Hammer")).toBeTruthy();
+  });
+
   it("renders confirmed items, charge, and the evidence-backed refill action", async () => {
     const user = userEvent.setup();
     const refill = vi.fn();
