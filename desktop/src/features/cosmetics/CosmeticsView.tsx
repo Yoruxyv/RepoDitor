@@ -22,6 +22,26 @@ interface CosmeticsViewProps {
   readonly onLockAll: () => void;
 }
 
+function CosmeticCardSkeleton({ first }: { readonly first: boolean }) {
+  return (
+    <div className="min-w-0 rounded-sm border border-line bg-surface p-3" data-skeleton-kind="cosmetic-card">
+      <div className="flex min-w-0 items-start gap-3">
+        <Skeleton className="size-12 shrink-0" testId={first ? "cosmetic-thumbnail-skeleton" : undefined} />
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-14" />
+        </div>
+        <Skeleton className="h-3 w-14" />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-14" />
+      </div>
+    </div>
+  );
+}
+
 function CosmeticsSkeleton({ label }: { readonly label: string }) {
   return (
     <SkeletonRegion label={label} testId="cosmetics-skeleton">
@@ -66,23 +86,9 @@ function CosmeticsSkeleton({ label }: { readonly label: string }) {
         </div>
         <Skeleton className="mt-2 h-3 w-28" />
 
-        <div className="mt-4 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+        <div aria-hidden="true" className="mt-4 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((card) => (
-            <div className="border border-line bg-surface p-3" data-skeleton-kind="cosmetic-card" key={card}>
-              <div className="flex items-start gap-3">
-                <Skeleton className="size-12 shrink-0" testId={card === 0 ? "cosmetic-thumbnail-skeleton" : undefined} />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-14" />
-                </div>
-                <Skeleton className="h-3 w-14" />
-              </div>
-              <div className="mt-3 flex gap-3">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-3 w-14" />
-              </div>
-            </div>
+            <CosmeticCardSkeleton first={card === 0} key={card} />
           ))}
         </div>
       </div>

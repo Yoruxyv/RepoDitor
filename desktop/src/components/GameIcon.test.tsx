@@ -10,6 +10,7 @@ describe("GameIcon", () => {
       <GameIcon
         fallback={WrenchIcon}
         fallbackSource="fallback"
+        loading="lazy"
         testId="game-icon"
         token="opaque-token"
         variant="item"
@@ -18,6 +19,7 @@ describe("GameIcon", () => {
 
     const image = screen.getByTestId("game-icon").querySelector("img")!;
     expect(image.getAttribute("src")).toBe("repoditor-icon://local/opaque-token");
+    expect(image.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("local");
     expect(screen.getByTestId("game-icon-loading").getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByTestId("game-icon").getAttribute("aria-busy")).toBe("true");
@@ -45,7 +47,7 @@ describe("GameIcon", () => {
         fallback={WrenchIcon}
         fallbackSource="specific"
         testId="game-icon"
-        token="opaque-token"
+        token="failed-token"
         variant="item"
       />,
     );
@@ -53,5 +55,25 @@ describe("GameIcon", () => {
     fireEvent.error(screen.getByTestId("game-icon").querySelector("img")!);
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("specific");
     expect(screen.queryByTestId("game-icon-loading")).toBeNull();
+  });
+
+  it("remembers a successfully loaded opaque token across component remounts", () => {
+    const icon = (
+      <GameIcon
+        fallback={WrenchIcon}
+        fallbackSource="fallback"
+        loading="lazy"
+        testId="remounted-icon"
+        token="session-loaded-token"
+        variant="cosmetic"
+      />
+    );
+    const first = render(icon);
+    fireEvent.load(screen.getByTestId("remounted-icon").querySelector("img")!);
+    first.unmount();
+
+    render(icon);
+    expect(screen.queryByTestId("remounted-icon-loading")).toBeNull();
+    expect(screen.getByTestId("remounted-icon").getAttribute("aria-busy")).toBe("false");
   });
 });

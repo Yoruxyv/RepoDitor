@@ -419,10 +419,28 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
     const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("loading", "lazy");
+    expect(await cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth)).toBe(0);
+    await cosmeticIcon.scrollIntoViewIfNeeded();
     await expect(cosmeticIcon.locator("img")).toBeVisible();
     await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
       .toBeGreaterThan(0);
     await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
+    await cosmeticIcon.locator("img").evaluate((image) => {
+      image.dataset.loadedBeforeFilter = "true";
+    });
+    await page.getByRole("combobox", { name: "Type" }).selectOption("0");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("combobox", { name: "Type" }).selectOption("all");
+    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("missing cosmetic");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("");
+    await page.getByRole("combobox", { name: "Ownership" }).selectOption("locked");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("combobox", { name: "Ownership" }).selectOption("all");
+    await page.getByRole("combobox", { name: "Sort" }).selectOption("id-desc");
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
+    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
     await expect(page.getByTestId("cosmetic-icon-26")).toHaveAttribute(
       "data-icon-source",
       "fallback",
@@ -435,6 +453,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
     await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
+    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
@@ -570,9 +590,27 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.locator("details")).toHaveCount(1);
 
     await setWindowSize(application, page, 960, 640);
-    await page.getByRole("button", { name: "Review" }).click();
+    const reviewScrollPosition = await page.evaluate(() => window.scrollY);
+    const reviewButton = page.getByRole("button", { name: "Review" });
+    const reviewColors = () => reviewButton.evaluate((button) => ({
+      border: getComputedStyle(button).borderColor,
+      text: getComputedStyle(button).color,
+    }));
+    const restingReviewColors = await reviewColors();
+    await reviewButton.hover();
+    await expect.poll(reviewColors).not.toEqual(restingReviewColors);
+    const hoveredReviewColors = await reviewColors();
+    await reviewButton.click();
+    await page.mouse.move(0, 0);
+    await expect(reviewButton).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(reviewColors).toEqual(hoveredReviewColors);
     const review = page.getByTestId("workspace-review");
     await expect(review).toBeVisible();
+    expect(await page.getByTestId("workspace-action-bar").evaluate(
+      (actionBar, reviewId) => actionBar.contains(document.getElementById(reviewId)),
+      "workspace-review",
+    )).toBe(true);
+    expect(await page.evaluate(() => window.scrollY)).toBe(reviewScrollPosition);
     expect(await review.evaluate((element) => getComputedStyle(element).overflowY))
       .not.toMatch(/auto|scroll/);
     expect(await page.evaluate(() => document.documentElement.scrollHeight

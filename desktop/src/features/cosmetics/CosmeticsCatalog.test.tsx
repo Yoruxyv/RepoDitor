@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -114,10 +114,41 @@ describe("CosmeticsCatalog", () => {
     expect(local.getAttribute("data-icon-source")).toBe("local");
     expect(local.querySelector("img")?.getAttribute("src"))
       .toBe("repoditor-icon://local/cosmetic-token");
+    expect(local.querySelector("img")?.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source"))
       .toBe("fallback");
     expect(screen.getByText("ID 0")).toBeTruthy();
     expect(screen.getByText("ID 1")).toBeTruthy();
+  });
+
+  it("keeps loaded thumbnail nodes mounted across filtering and sorting", async () => {
+    const user = userEvent.setup();
+    renderCatalog(catalogView([
+      { ...installedCosmetic(0, "Hat Cosmetic", { type: 0 }), iconToken: "hat-token" },
+      { ...installedCosmetic(1, "Ears Cosmetic", { type: 17 }), iconToken: "ears-token" },
+    ]));
+
+    const thumbnail = screen.getByTestId("cosmetic-icon-0").querySelector("img");
+    expect(thumbnail).not.toBeNull();
+    fireEvent.load(thumbnail!);
+    expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "17");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "all");
+    expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
+    expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
+
+    const search = screen.getByRole("searchbox", { name: "Search cosmetics" });
+    await user.type(search, "missing cosmetic");
+    await user.clear(search);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Ownership" }), "owned");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Ownership" }), "all");
+    expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
+    expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "id-desc");
+    expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
+    expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
   });
 
   it("searches installed cosmetics by name and canonical numeric ID", async () => {
@@ -192,7 +223,7 @@ describe("CosmeticsCatalog", () => {
 
     await user.selectOptions(typeFilter, "17");
     expect(visibleIds()).toEqual([1]);
-    expect(screen.queryByText("Cosmetic #999")).toBeNull();
+    expect(screen.queryByRole("listitem", { name: "Cosmetic #999, ID 999, Unknown" })).toBeNull();
 
     await user.selectOptions(typeFilter, "all");
     expect(screen.getByText("Cosmetic #999")).toBeTruthy();

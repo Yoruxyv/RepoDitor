@@ -29,16 +29,21 @@ export class LocalIconRegistry {
   readonly #entries = new Map<string, IconRegistration>();
 
   replace(domain: IconDomain, keys: readonly (string | null)[]): Map<string, string> {
+    const uniqueKeys = [...new Set(keys.filter((value): value is string => value !== null))];
+    const currentKeys = new Set(uniqueKeys);
+    for (const key of uniqueKeys) readIconKey(key);
+
+    const existing = new Map<string, string>();
     for (const [token, entry] of this.#entries) {
       if (entry.domain === domain) {
-        this.#entries.delete(token);
+        existing.set(entry.key, token);
+        if (!currentKeys.has(entry.key)) this.#entries.delete(token);
       }
     }
     const tokens = new Map<string, string>();
-    for (const key of new Set(keys.filter((value): value is string => value !== null))) {
-      readIconKey(key);
-      const token = randomUUID();
-      this.#entries.set(token, { domain, key });
+    for (const key of uniqueKeys) {
+      const token = existing.get(key) ?? randomUUID();
+      if (!existing.has(key)) this.#entries.set(token, { domain, key });
       tokens.set(key, token);
     }
     return tokens;
