@@ -114,16 +114,34 @@ function compareRarity(
   right: CosmeticDto,
   direction: "asc" | "desc",
 ): number {
-  const leftUnknown = left.rarity === null;
-  const rightUnknown = right.rarity === null;
-  if (leftUnknown !== rightUnknown) return leftUnknown ? 1 : -1;
-  if (!leftUnknown && !rightUnknown && left.rarity !== right.rarity) {
-    const difference = left.rarity - right.rarity;
+  const leftRarity =
+    left.rarity !== null
+    && left.rarity >= 0
+    && left.rarity < COSMETIC_RARITY_SYMBOLS.length
+      ? left.rarity
+      : null;
+
+  const rightRarity =
+    right.rarity !== null
+    && right.rarity >= 0
+    && right.rarity < COSMETIC_RARITY_SYMBOLS.length
+      ? right.rarity
+      : null;
+
+  if (leftRarity === null && rightRarity !== null) return 1;
+  if (leftRarity !== null && rightRarity === null) return -1;
+
+  if (
+    leftRarity !== null
+    && rightRarity !== null
+    && leftRarity !== rightRarity
+  ) {
+    const difference = leftRarity - rightRarity;
     return direction === "asc" ? difference : -difference;
   }
+
   return compareDisplayName(left, right);
 }
-
 function sortCosmetics(cosmetics: CosmeticDto[], sort: CosmeticSort): CosmeticDto[] {
   return cosmetics.sort((left, right) => {
     switch (sort) {

@@ -226,6 +226,24 @@ describe("CosmeticsCatalog", () => {
     expect(visibleIds()).toEqual([2, 0, 1, 999]);
   });
 
+  it("keeps future unknown rarity values last in both rarity directions", async () => {
+    const user = userEvent.setup();
+
+    renderCatalog(catalogView([
+      installedCosmetic(0, "Common", { rarity: 0 }),
+      installedCosmetic(1, "Ultra", { rarity: 3 }),
+      installedCosmetic(2, "Future", { rarity: 4 }),
+      unknownCosmetic(999),
+    ]));
+
+    const sort = screen.getByRole("combobox", { name: "Sort" });
+
+    await user.selectOptions(sort, "rarity-asc");
+    expect(visibleIds()).toEqual([0, 1, 999, 2]);
+
+    await user.selectOptions(sort, "rarity-desc");
+    expect(visibleIds()).toEqual([1, 0, 999, 2]);
+  });
   it("uses display name then cosmetic ID as deterministic rarity tie-breakers", async () => {
     const user = userEvent.setup();
     renderCatalog(catalogView([
