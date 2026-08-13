@@ -42,6 +42,8 @@ describe("PendingChangesBar", () => {
     expect(review.className).not.toContain("overflow");
     expect(review.querySelector("ul")?.className).toContain("overflow-y-auto");
     expect(reviewButton.getAttribute("aria-expanded")).toBe("true");
+    expect(reviewButton.className).toContain("aria-expanded:border-accent");
+    expect(reviewButton.className).toContain("aria-expanded:text-accent");
     expect(document.activeElement).toBe(reviewButton);
     expect(screen.getByText("12 → 20")).toBeTruthy();
     await user.click(reviewButton);

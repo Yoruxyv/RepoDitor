@@ -591,7 +591,19 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     await setWindowSize(application, page, 960, 640);
     const reviewScrollPosition = await page.evaluate(() => window.scrollY);
-    await page.getByRole("button", { name: "Review" }).click();
+    const reviewButton = page.getByRole("button", { name: "Review" });
+    const reviewColors = () => reviewButton.evaluate((button) => ({
+      border: getComputedStyle(button).borderColor,
+      text: getComputedStyle(button).color,
+    }));
+    const restingReviewColors = await reviewColors();
+    await reviewButton.hover();
+    await expect.poll(reviewColors).not.toEqual(restingReviewColors);
+    const hoveredReviewColors = await reviewColors();
+    await reviewButton.click();
+    await page.mouse.move(0, 0);
+    await expect(reviewButton).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(reviewColors).toEqual(hoveredReviewColors);
     const review = page.getByTestId("workspace-review");
     await expect(review).toBeVisible();
     expect(await page.getByTestId("workspace-action-bar").evaluate(

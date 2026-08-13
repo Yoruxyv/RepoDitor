@@ -149,7 +149,7 @@ export function PendingChangesBar({
                 <button
                   aria-controls={`${testIdPrefix}-review`}
                   aria-expanded={reviewing}
-                  className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent aria-expanded:border-accent aria-expanded:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={saving}
                   type="button"
                   onClick={() => setReviewing((current) => !current)}
