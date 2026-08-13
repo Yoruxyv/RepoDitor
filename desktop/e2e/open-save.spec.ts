@@ -419,6 +419,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
     const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("loading", "lazy");
+    expect(await cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth)).toBe(0);
+    await cosmeticIcon.scrollIntoViewIfNeeded();
     await expect(cosmeticIcon.locator("img")).toBeVisible();
     await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
       .toBeGreaterThan(0);
@@ -570,9 +573,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.locator("details")).toHaveCount(1);
 
     await setWindowSize(application, page, 960, 640);
+    const reviewScrollPosition = await page.evaluate(() => window.scrollY);
     await page.getByRole("button", { name: "Review" }).click();
     const review = page.getByTestId("workspace-review");
     await expect(review).toBeVisible();
+    expect(await page.getByTestId("workspace-action-bar").evaluate(
+      (actionBar, reviewId) => actionBar.contains(document.getElementById(reviewId)),
+      "workspace-review",
+    )).toBe(true);
+    expect(await page.evaluate(() => window.scrollY)).toBe(reviewScrollPosition);
     expect(await review.evaluate((element) => getComputedStyle(element).overflowY))
       .not.toMatch(/auto|scroll/);
     expect(await page.evaluate(() => document.documentElement.scrollHeight

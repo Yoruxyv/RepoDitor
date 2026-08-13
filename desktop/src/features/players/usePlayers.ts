@@ -54,8 +54,7 @@ export function usePlayers(saveId: string) {
         || (previous?.requests ?? 0) >= MAX_AVATAR_REQUESTS
         || previous?.failedAt === null
         || (
-          previous?.failedAt !== null
-          && previous?.failedAt !== undefined
+          previous?.failedAt !== undefined
           && Date.now() - previous.failedAt < AVATAR_RETRY_COOLDOWN_MS
         )
       ) {
@@ -66,7 +65,7 @@ export function usePlayers(saveId: string) {
         requests: (previous?.requests ?? 0) + 1,
         failedAt: null,
       });
-      if (mounted.current && previous?.failedAt !== null && previous?.failedAt !== undefined) {
+      if (mounted.current && previous?.failedAt !== undefined) {
         setAvatarUrls((current) => {
           const next = { ...current };
           delete next[playerId];
