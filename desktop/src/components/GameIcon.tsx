@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
 
 import { FeatureIcon } from "./FeatureIcon";
@@ -13,6 +13,8 @@ interface GameIconProps {
   readonly variant: "item" | "cosmetic";
 }
 
+const loadedIconTokens = new Set<string>();
+
 export function GameIcon({
   fallback,
   fallbackSource,
@@ -21,13 +23,12 @@ export function GameIcon({
   token,
   variant,
 }: GameIconProps) {
-  const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-    setLoaded(false);
-  }, [token]);
+  const [failedToken, setFailedToken] = useState<string | null>(null);
+  const [loadedToken, setLoadedToken] = useState<string | null>(() =>
+    token !== null && loadedIconTokens.has(token) ? token : null);
+  const failed = token !== null && failedToken === token;
+  const loaded = token !== null
+    && (loadedToken === token || loadedIconTokens.has(token));
 
   if (token === null || failed) {
     return (
@@ -56,8 +57,11 @@ export function GameIcon({
         className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
         loading={loading}
         src={`repoditor-icon://local/${encodeURIComponent(token)}`}
-        onError={() => setFailed(true)}
-        onLoad={() => setLoaded(true)}
+        onError={() => setFailedToken(token)}
+        onLoad={() => {
+          loadedIconTokens.add(token);
+          setLoadedToken(token);
+        }}
       />
     </span>
   );

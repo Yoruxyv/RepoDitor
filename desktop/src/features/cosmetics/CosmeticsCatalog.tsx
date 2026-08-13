@@ -173,24 +173,19 @@ function cosmeticTypeOptions(cosmetics: readonly CosmeticDto[]): number[] {
   )].sort((left, right) => left - right);
 }
 
-function visibleCatalogCosmetics(
-  cosmetics: readonly CosmeticDto[],
-  search: string,
+function matchesCatalogFilters(
+  cosmetic: CosmeticDto,
+  query: string,
   ownershipFilter: OwnershipFilter,
   typeFilter: TypeFilter,
-  sort: CosmeticSort,
-): CosmeticDto[] {
-  const query = search.trim().toLocaleLowerCase();
-  const filtered = cosmetics.filter((cosmetic) => {
-    const matchesSearch = !query
-      || cosmetic.displayName.toLocaleLowerCase().includes(query)
-      || String(cosmetic.id).includes(query);
-    const matchesOwnership = ownershipFilter === "all"
-      || cosmetic.state === ownershipFilter;
-    const matchesType = typeFilter === "all" || cosmetic.type === typeFilter;
-    return matchesSearch && matchesOwnership && matchesType;
-  });
-  return sortCosmetics(filtered, sort);
+): boolean {
+  const matchesSearch = !query
+    || cosmetic.displayName.toLocaleLowerCase().includes(query)
+    || String(cosmetic.id).includes(query);
+  const matchesOwnership = ownershipFilter === "all"
+    || cosmetic.state === ownershipFilter;
+  const matchesType = typeFilter === "all" || cosmetic.type === typeFilter;
+  return matchesSearch && matchesOwnership && matchesType;
 }
 
 export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
@@ -201,12 +196,17 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
   const [sort, setSort] = useState<CosmeticSort>("name-asc");
   const searchInput = useRef<HTMLInputElement>(null);
   const typeOptions = cosmeticTypeOptions(view.cosmetics);
-  const visibleCosmetics = visibleCatalogCosmetics(
-    view.cosmetics,
-    search,
-    ownershipFilter,
-    typeFilter,
-    sort,
+  const sortedCosmetics = sortCosmetics([...view.cosmetics], sort);
+  const query = search.trim().toLocaleLowerCase();
+  const visibleCosmeticIds = new Set(
+    sortedCosmetics
+      .filter((cosmetic) => matchesCatalogFilters(
+        cosmetic,
+        query,
+        ownershipFilter,
+        typeFilter,
+      ))
+      .map((cosmetic) => cosmetic.id),
   );
 
   function clearSearch(): void {
@@ -327,79 +327,79 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
 
         <p aria-live="polite" className="mt-2 text-xs text-muted" id="cosmetic-filter-status">
           {t(
-            visibleCosmetics.length === 1
+            visibleCosmeticIds.size === 1
               ? "cosmetics.matches.one"
               : "cosmetics.matches.many",
-            { count: visibleCosmetics.length },
+            { count: visibleCosmeticIds.size },
           )}
         </p>
       </div>
 
-      {visibleCosmetics.length === 0 ? (
+      {visibleCosmeticIds.size === 0 ? (
         <p className="mt-4 border-y border-line py-8 text-sm text-secondary">
           {t("cosmetics.noMatches")}
         </p>
-      ) : (
-        <ul
-          aria-label={t("cosmetics.catalogList")}
-          className="mt-4 grid max-h-128 gap-2 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3"
-        >
-          {visibleCosmetics.map((cosmetic) => {
-            const stateLabel = cosmeticStateLabel(cosmetic, t);
-            return (
-              <li
-                aria-label={t("cosmetics.itemLabel", {
-                  id: cosmetic.id,
-                  name: cosmetic.displayName,
-                  state: stateLabel,
-                })}
-                className="min-w-0 rounded-sm border border-line bg-surface p-3"
-                data-cosmetic-id={cosmetic.id}
-                key={cosmetic.id}
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  <GameIcon
-                    fallback={TShirtIcon}
-                    fallbackSource="fallback"
-                    loading="lazy"
-                    testId={`cosmetic-icon-${cosmetic.id}`}
-                    token={cosmetic.iconToken}
-                    variant="cosmetic"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink" title={cosmetic.displayName}>
-                      {cosmetic.displayName}
-                    </p>
-                    <p className="mt-1 font-mono text-xs text-secondary">
-                      {t("cosmetics.idLabel", { id: cosmetic.id })}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs font-semibold text-secondary">{stateLabel}</span>
+      ) : null}
+      <ul
+        aria-label={t("cosmetics.catalogList")}
+        className="mt-4 grid max-h-128 gap-2 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3"
+      >
+        {sortedCosmetics.map((cosmetic) => {
+          const stateLabel = cosmeticStateLabel(cosmetic, t);
+          return (
+            <li
+              aria-label={t("cosmetics.itemLabel", {
+                id: cosmetic.id,
+                name: cosmetic.displayName,
+                state: stateLabel,
+              })}
+              className="min-w-0 rounded-sm border border-line bg-surface p-3"
+              data-cosmetic-id={cosmetic.id}
+              hidden={!visibleCosmeticIds.has(cosmetic.id)}
+              key={cosmetic.id}
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <GameIcon
+                  fallback={TShirtIcon}
+                  fallbackSource="fallback"
+                  loading="lazy"
+                  testId={`cosmetic-icon-${cosmetic.id}`}
+                  token={cosmetic.iconToken}
+                  variant="cosmetic"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink" title={cosmetic.displayName}>
+                    {cosmetic.displayName}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-secondary">
+                    {t("cosmetics.idLabel", { id: cosmetic.id })}
+                  </p>
                 </div>
+                <span className="shrink-0 text-xs font-semibold text-secondary">{stateLabel}</span>
+              </div>
 
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary">
-                  {cosmetic.type === null ? null : (
-                    <span>{cosmeticTypeLabel(cosmetic.type, t)}</span>
-                  )}
-                  {cosmetic.rarity === null ? null : (
-                    <span>{cosmeticRarityLabel(cosmetic.rarity, t)}</span>
-                  )}
-                  {cosmetic.status === null ? null : (
-                    <span>{cosmeticStatusLabel(cosmetic.status, t)}</span>
-                  )}
-                  {!cosmetic.mutationEligible ? (
-                    <span className="font-semibold text-warning">{t("cosmetics.readOnly")}</span>
-                  ) : null}
-                </div>
-
-                {!cosmetic.known ? (
-                  <p className="mt-2 text-xs/5 text-secondary">{t("cosmetics.unknownPreserved")}</p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary">
+                {cosmetic.type === null ? null : (
+                  <span>{cosmeticTypeLabel(cosmetic.type, t)}</span>
+                )}
+                {cosmetic.rarity === null ? null : (
+                  <span>{cosmeticRarityLabel(cosmetic.rarity, t)}</span>
+                )}
+                {cosmetic.status === null ? null : (
+                  <span>{cosmeticStatusLabel(cosmetic.status, t)}</span>
+                )}
+                {!cosmetic.mutationEligible ? (
+                  <span className="font-semibold text-warning">{t("cosmetics.readOnly")}</span>
                 ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              </div>
+
+              {!cosmetic.known ? (
+                <p className="mt-2 text-xs/5 text-secondary">{t("cosmetics.unknownPreserved")}</p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

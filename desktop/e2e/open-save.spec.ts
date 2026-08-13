@@ -426,6 +426,21 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
       .toBeGreaterThan(0);
     await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
+    await cosmeticIcon.locator("img").evaluate((image) => {
+      image.dataset.loadedBeforeFilter = "true";
+    });
+    await page.getByRole("combobox", { name: "Type" }).selectOption("0");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("combobox", { name: "Type" }).selectOption("all");
+    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("missing cosmetic");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("");
+    await page.getByRole("combobox", { name: "Ownership" }).selectOption("locked");
+    await expect(cosmeticIcon).toBeHidden();
+    await page.getByRole("combobox", { name: "Ownership" }).selectOption("all");
+    await page.getByRole("combobox", { name: "Sort" }).selectOption("id-desc");
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
+    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
     await expect(page.getByTestId("cosmetic-icon-26")).toHaveAttribute(
       "data-icon-source",
       "fallback",
@@ -438,6 +453,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
     await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("button", { name: "Cosmetics" }).click();
+    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
+    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
