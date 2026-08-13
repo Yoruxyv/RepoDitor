@@ -171,6 +171,7 @@ export const ko: Record<keyof typeof en, string> = {
   "items.filterAll": "모든 아이템",
   "items.filterRechargeable": "충전 가능한 아이템",
   "items.filterNonRechargeable": "충전 불가능한 아이템",
+  "items.filterUpgrades": "업그레이드",
   "items.sortLabel": "정렬",
   "items.sortNameAsc": "이름 A–Z",
   "items.sortNameDesc": "이름 Z–A",

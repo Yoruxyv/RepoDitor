@@ -85,9 +85,31 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
         "state": "owned",
         "mutationEligible": True,
         "removalBlockedReason": None,
+        "iconKey": None,
     }
     assert "cosmeticTokens" not in view
     assert meta_path.read_bytes() == original
+
+
+def test_get_cosmetics_maps_canonical_id_to_available_object_icon_key(tmp_path: Path) -> None:
+    save_root, _meta_path = _write_fixture(tmp_path)
+    catalog = list(_catalog())
+    catalog[27] = InstalledCosmeticMetadata(
+        cosmetic_id=27,
+        asset_name="Duplicate display name",
+        cosmetic_type=3,
+        rarity=0,
+        status=1,
+        icon_cache_key="cosmetic-object-27.png",
+    )
+
+    result = get_cosmetics(
+        save_root,
+        catalog_loader=lambda: tuple(catalog),
+        icon_availability_loader=lambda domain, keys: frozenset(keys),
+    )
+
+    assert result["cosmetics"]["cosmetics"][27]["iconKey"] == "cosmetic-object-27.png"
 
 
 def test_save_cosmetics_creates_exact_backup_and_reopens_output(tmp_path: Path) -> None:
@@ -315,6 +337,7 @@ def test_get_cosmetics_reports_explicit_degraded_catalog_without_metadata(tmp_pa
         "removalBlockedReason": (
             "Cosmetic ID is absent from the installed catalog and is preserved read-only."
         ),
+        "iconKey": None,
     }
 
 

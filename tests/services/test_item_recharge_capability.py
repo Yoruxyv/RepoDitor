@@ -13,6 +13,7 @@ from repo_save_editor.services.items.unity_serialized import (
     UnityMetadataError,
     _parse_game_object,
     _read_game_object_name,
+    discover_installed_item_metadata,
     discover_item_recharge_capabilities,
 )
 
@@ -188,6 +189,17 @@ def test_dynamic_mapping_classifies_rechargeable_not_rechargeable_and_exceptiona
         "Item Not Rechargeable": ItemRechargeCapability.NOT_RECHARGEABLE,
         "Item Drone Battery": ItemRechargeCapability.UNKNOWN,
     }
+
+
+def test_dynamic_mapping_returns_canonical_prefab_icon_key(tmp_path: Path) -> None:
+    resources, globals_ = _build_assets(tmp_path)
+
+    result = discover_installed_item_metadata(
+        resources, globals_, ("Item Rechargeable", "Item Conflict")
+    )
+
+    assert result["Item Rechargeable"].icon_cache_key == "item rechargeable.png"
+    assert result["Item Conflict"].icon_cache_key == "item conflict.png"
 
 
 def test_dynamic_mapping_retains_all_same_identity_variants_and_conflict_is_unknown(

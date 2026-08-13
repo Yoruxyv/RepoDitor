@@ -14,6 +14,7 @@ class InstalledCosmeticMetadata:
     cosmetic_type: int
     rarity: int
     status: int
+    icon_cache_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

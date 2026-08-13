@@ -26,6 +26,11 @@ import {
   pythonClient,
   type PythonClient,
 } from "../python/client.cjs";
+import {
+  localIconRegistry,
+  readIconKey,
+  type LocalIconRegistry,
+} from "../icons/registry.cjs";
 
 const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
@@ -262,7 +267,11 @@ function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
   };
 }
 
-function parseAdvancedItem(value: unknown): AdvancedItemDto {
+interface ParsedAdvancedItem extends Omit<AdvancedItemDto, "iconToken"> {
+  readonly iconKey: string | null;
+}
+
+function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid advanced item.");
   }
@@ -296,6 +305,12 @@ function parseAdvancedItem(value: unknown): AdvancedItemDto {
   ) {
     throw new EditorProtocolError("Invalid advanced item.");
   }
+  let iconKey: string | null;
+  try {
+    iconKey = readIconKey(value.iconKey);
+  } catch {
+    throw new EditorProtocolError("Invalid advanced item icon.");
+  }
   return {
     saveKey,
     name: readString(value.name, "item name"),
@@ -304,6 +319,7 @@ function parseAdvancedItem(value: unknown): AdvancedItemDto {
     chargeState: chargeState as AdvancedItemChargeState,
     rechargeCapability: rechargeCapability as AdvancedItemRechargeCapability,
     canRefillToFull,
+    iconKey,
   };
 }
 
@@ -327,7 +343,10 @@ function parseAdvancedRunValue(value: unknown): AdvancedRunValueDto {
   };
 }
 
-function parseAdvanced(value: unknown): DesktopOperationResult<AdvancedSaveDto> {
+function parseAdvanced(
+  value: unknown,
+  icons: LocalIconRegistry,
+): DesktopOperationResult<AdvancedSaveDto> {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid advanced response.");
   }
@@ -356,11 +375,16 @@ function parseAdvanced(value: unknown): DesktopOperationResult<AdvancedSaveDto> 
   ) {
     throw new EditorProtocolError("Invalid advanced data.");
   }
+  const parsedItems = value.advanced.items.map(parseAdvancedItem);
+  const tokens = icons.replace("item", parsedItems.map((item) => item.iconKey));
   return {
     ok: true,
     data: {
       domains,
-      items: value.advanced.items.map(parseAdvancedItem),
+      items: parsedItems.map(({ iconKey, ...item }) => ({
+        ...item,
+        iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+      })),
       runValues: value.advanced.runValues.map(parseAdvancedRunValue),
       unlinkedChargeEntryCount,
     },
@@ -474,6 +498,7 @@ export async function getRunState(
 export async function getAdvancedSave(
   client: PythonClient,
   saveId: unknown,
+  icons: LocalIconRegistry = localIconRegistry,
 ): Promise<DesktopOperationResult<AdvancedSaveDto>> {
   if (!validSaveId(saveId)) {
     return {
@@ -482,7 +507,7 @@ export async function getAdvancedSave(
     };
   }
   try {
-    return parseAdvanced(await client.run("advanced-get", [saveId]));
+    return parseAdvanced(await client.run("advanced-get", [saveId]), icons);
   } catch (error) {
     return failure("advanced data", error);
   }

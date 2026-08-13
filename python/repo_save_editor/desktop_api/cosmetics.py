@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from hashlib import sha256
 from pathlib import Path
 
@@ -25,6 +25,7 @@ from repo_save_editor.services.cosmetics.mutations import (
 from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_IDS
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
+from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
@@ -38,6 +39,7 @@ META_SAVE_NAME = "MetaSave.es3"
 MAX_COSMETIC_CHANGES = len(PROVEN_MUTATION_IDS)
 
 CatalogLoader = Callable[[], tuple[InstalledCosmeticMetadata, ...] | None]
+IconAvailabilityLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
 def _meta_path(root: Path | None) -> Path:
@@ -69,8 +71,20 @@ def _serialize(
     data: SaveData,
     source: bytes,
     installed_catalog: tuple[InstalledCosmeticMetadata, ...] | None,
+    icon_availability_loader: IconAvailabilityLoader,
 ) -> dict[str, object]:
     view = discover_cosmetics(data, installed_catalog)
+    icon_keys = {
+        entry.icon_cache_key
+        for entry in installed_catalog or ()
+        if entry.icon_cache_key is not None
+    }
+    available_icons = icon_availability_loader("cosmetic", icon_keys)
+    icon_by_id = {
+        entry.cosmetic_id: entry.icon_cache_key
+        for entry in installed_catalog or ()
+        if entry.icon_cache_key in available_icons
+    }
     return {
         "fingerprint": sha256(source).hexdigest(),
         "catalogAvailable": bool(installed_catalog),
@@ -99,6 +113,7 @@ def _serialize(
                 ),
                 "mutationEligible": cosmetic.mutation_eligible,
                 "removalBlockedReason": cosmetic.removal_blocked_reason,
+                "iconKey": icon_by_id.get(cosmetic.cosmetic_id),
             }
             for cosmetic in view.cosmetics
         ],
@@ -109,6 +124,7 @@ def get_cosmetics(
     root: Path | None = None,
     *,
     catalog_loader: CatalogLoader = discover_installed_cosmetic_catalog,
+    icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
 ) -> dict[str, object]:
     """Return the typed Cosmetics projection for MetaSave.es3.
 
@@ -122,7 +138,10 @@ def get_cosmetics(
     try:
         _path, data, source, _repository = _load_meta_save(root)
         installed_catalog = catalog_loader()
-        return {"ok": True, "cosmetics": _serialize(data, source, installed_catalog)}
+        return {
+            "ok": True,
+            "cosmetics": _serialize(data, source, installed_catalog, icon_availability_loader),
+        }
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
@@ -188,6 +207,7 @@ def save_cosmetics(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     catalog_loader: CatalogLoader = discover_installed_cosmetic_catalog,
+    icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
 ) -> dict[str, object]:
     """Validate and safely persist supported MetaSave changes.
 
@@ -222,7 +242,7 @@ def save_cosmetics(
             "ok": True,
             "result": {
                 "backupPath": str(backup),
-                "cosmetics": _serialize(data, written, installed_catalog),
+                "cosmetics": _serialize(data, written, installed_catalog, icon_availability_loader),
             },
         }
     except GameSafetyError as exc:

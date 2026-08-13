@@ -11,8 +11,10 @@ from repo_save_editor.services.game.discovery import (
     GameInstallation,
     discover_game_installation,
 )
-from repo_save_editor.services.items.models import ItemRechargeCapability
-from repo_save_editor.services.items.unity_serialized import discover_item_recharge_capabilities
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
+from repo_save_editor.services.items.unity_serialized import (
+    discover_installed_item_metadata as discover_installed_item_metadata_from_assets,
+)
 
 STEAM_APP_ID: Final = "3241660"
 VALIDATED_BUILD_ID: Final = "23363152"
@@ -20,14 +22,6 @@ RESOURCES_RELATIVE_PATH: Final = Path("REPO_Data/resources.assets")
 GLOBAL_MANAGERS_RELATIVE_PATH: Final = Path("REPO_Data/globalgamemanagers.assets")
 APP_MANIFEST_NAME: Final = f"appmanifest_{STEAM_APP_ID}.acf"
 BUILD_ID_PATTERN: Final = re.compile(r'"buildid"\s+"(?P<buildid>\d+)"', re.IGNORECASE)
-
-
-def _unknown(item_names: Iterable[str]) -> dict[str, ItemRechargeCapability]:
-    return {
-        name: ItemRechargeCapability.UNKNOWN
-        for name in dict.fromkeys(item_names)
-        if isinstance(name, str) and name
-    }
 
 
 def _manifest_path(installation: GameInstallation) -> Path | None:
@@ -67,16 +61,25 @@ def discover_installed_recharge_capabilities(
     discovery, a different Steam build, missing assets, or any parser/layout
     mismatch returns ``unknown`` rather than affecting save reads.
     """
+    return {
+        name: metadata.recharge_capability
+        for name, metadata in discover_installed_item_metadata(item_names, game_dir).items()
+    }
+
+
+def discover_installed_item_metadata(
+    item_names: Iterable[str],
+    game_dir: Path | None = None,
+) -> dict[str, InstalledItemMetadata]:
+    """Return conservative installed icon and recharge metadata for item types."""
     names = tuple(dict.fromkeys(name for name in item_names if isinstance(name, str) and name))
-    unknown = _unknown(names)
+    unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
     if not names:
         return {}
-
     discovery = discover_game_installation(game_dir)
     installation = discovery.installation
     if installation is None or not _validated_build(installation):
         return unknown
-
     resources_path = installation.root / RESOURCES_RELATIVE_PATH
     global_managers_path = installation.root / GLOBAL_MANAGERS_RELATIVE_PATH
     try:
@@ -84,13 +87,10 @@ def discover_installed_recharge_capabilities(
             return unknown
     except OSError:
         return unknown
-
-    discovered = discover_item_recharge_capabilities(
-        resources_path,
-        global_managers_path,
-        names,
+    discovered = discover_installed_item_metadata_from_assets(
+        resources_path, global_managers_path, names
     )
-    return {name: discovered.get(name, ItemRechargeCapability.UNKNOWN) for name in names}
+    return {name: discovered.get(name, unknown[name]) for name in names}
 
 
-__all__ = ["discover_installed_recharge_capabilities"]
+__all__ = ["discover_installed_item_metadata", "discover_installed_recharge_capabilities"]

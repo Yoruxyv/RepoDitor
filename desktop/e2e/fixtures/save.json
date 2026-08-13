@@ -22,7 +22,9 @@
         "Item Cart Medium/1": 2,
         "Item Cart Medium/2": 2,
         "Item Health Pack Medium/2": 23,
-        "Item Melee Inflatable Hammer/1": 21
+        "Item Melee Inflatable Hammer/1": 21,
+        "Item WalkieTalkieBox/1": 1,
+        "Item Upgrade Player Health/1": 1
       },
       "itemStatBattery": { "Item Melee Inflatable Hammer/1": 99 },
       "itemBatteryUpgrades": {},

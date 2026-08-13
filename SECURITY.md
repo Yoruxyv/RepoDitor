@@ -50,6 +50,8 @@ Useful reports include concrete issues involving:
 RepoDitor's supported boundary requires:
 
 - `contextIsolation: true` and `nodeIntegration: false`;
+- optional local game icons are exposed only through opaque tokens and a read-only,
+  PNG-validating `repoditor-icon:` protocol; cache paths never cross into React;
 - narrow typed preload methods rather than raw `ipcRenderer` access;
 - no arbitrary renderer filesystem, shell, network-fetch, or Python execution API;
 - Python ownership of save semantics, encryption, validation, backup, and writes;

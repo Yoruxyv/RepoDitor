@@ -1,7 +1,9 @@
-import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon, TShirtIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
 import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
+
+import { GameIcon } from "@/components/GameIcon";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 
@@ -355,8 +357,15 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
                 data-cosmetic-id={cosmetic.id}
                 key={cosmetic.id}
               >
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-3">
+                  <GameIcon
+                    fallback={TShirtIcon}
+                    fallbackSource="fallback"
+                    testId={`cosmetic-icon-${cosmetic.id}`}
+                    token={cosmetic.iconToken}
+                    variant="cosmetic"
+                  />
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-ink" title={cosmetic.displayName}>
                       {cosmetic.displayName}
                     </p>

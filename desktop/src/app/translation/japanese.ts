@@ -171,6 +171,7 @@ export const ja: Record<keyof typeof en, string> = {
   "items.filterAll": "すべてのアイテム",
   "items.filterRechargeable": "充電可能なアイテム",
   "items.filterNonRechargeable": "充電不可のアイテム",
+  "items.filterUpgrades": "アップグレード",
   "items.sortLabel": "並び順",
   "items.sortNameAsc": "名前 A–Z",
   "items.sortNameDesc": "名前 Z–A",

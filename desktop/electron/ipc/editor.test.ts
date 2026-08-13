@@ -106,6 +106,7 @@ describe("editor data IPC", () => {
           instanceId: "1",
           storedCharge: 99,
           chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true,
+          iconKey: "item melee inflatable hammer.png",
           rawValue: 21,
         },
       ],
@@ -131,6 +132,8 @@ describe("editor data IPC", () => {
       },
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
+    expect(result.data.items[0]).not.toHaveProperty("iconKey");
+    expect(result.data.items[0].iconToken).toMatch(/^[\da-f-]{36}$/);
     expect(result.data).not.toHaveProperty("rawSave");
     expect(result.data.domains[1].capabilities)
       .toMatchObject({ canEdit: false, canRefillToFull: true });
@@ -146,6 +149,7 @@ describe("editor data IPC", () => {
           instanceId: "1",
           storedCharge: null,
           chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false,
+          iconKey: null,
         },
       ],
       runValues: [],
@@ -164,6 +168,12 @@ describe("editor data IPC", () => {
       .toMatchObject({ ok: false, error: { code: "invalid_response" } });
     await expect(
       getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [{}] } }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({
+        ok: true,
+        advanced: { ...advanced, items: [{ ...advanced.items[0], iconKey: "../secret.png" }] },
+      }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 
     for (const item of [

@@ -189,6 +189,7 @@ export interface AdvancedItemDto {
   chargeState: AdvancedItemChargeState;
   rechargeCapability: AdvancedItemRechargeCapability;
   canRefillToFull: boolean;
+  iconToken: string | null;
 }
 
 export interface AdvancedRunValueDto {
@@ -225,6 +226,7 @@ export interface CosmeticDto {
   state: CosmeticState;
   mutationEligible: boolean;
   removalBlockedReason: string | null;
+  iconToken: string | null;
 }
 
 export interface CosmeticsViewDto {

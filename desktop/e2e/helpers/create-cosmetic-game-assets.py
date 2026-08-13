@@ -34,7 +34,9 @@ def _pptr(file_id: int, path_id: int) -> bytes:
 
 
 def _mono_behaviour_prefix(script_file_id: int, script_path_id: int, name: str = "") -> bytes:
-    return _pptr(0, 0) + b"\x01\0\0\0" + _pptr(script_file_id, script_path_id) + _aligned_string(name)
+    return (
+        _pptr(0, 0) + b"\x01\0\0\0" + _pptr(script_file_id, script_path_id) + _aligned_string(name)
+    )
 
 
 def _mono_script(name: str, class_name: str) -> bytes:
@@ -50,7 +52,9 @@ def _mono_script(name: str, class_name: str) -> bytes:
 
 def _cosmetic_asset(name: str, position: int) -> bytes:
     return (
-        _mono_behaviour_prefix(1, COSMETIC_ASSET_SCRIPT_ID)
+        _mono_behaviour_prefix(
+            1, COSMETIC_ASSET_SCRIPT_ID, name=f"E2E Cosmetic Object {position:02d}"
+        )
         + struct.pack("<i", 1)
         + _aligned_string(name)
         + struct.pack("<ii", position % 4, position % 3)

@@ -171,6 +171,7 @@ export const zh: Record<keyof typeof en, string> = {
   "items.filterAll": "全部物品",
   "items.filterRechargeable": "可充电物品",
   "items.filterNonRechargeable": "不可充电物品",
+  "items.filterUpgrades": "升级物品",
   "items.sortLabel": "排序",
   "items.sortNameAsc": "名称 A–Z",
   "items.sortNameDesc": "名称 Z–A",

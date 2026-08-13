@@ -37,6 +37,7 @@ function installedCosmetic(
     state: owned ? "owned" : "locked",
     mutationEligible,
     removalBlockedReason: mutationEligible ? null : "Outside proven mutation trust",
+    iconToken: null,
   };
 }
 
@@ -52,6 +53,7 @@ function unknownCosmetic(id: number): CosmeticDto {
     state: "unknown",
     mutationEligible: false,
     removalBlockedReason: "Preserved read-only",
+    iconToken: null,
   };
 }
 
@@ -102,6 +104,22 @@ function visibleIds(): number[] {
 }
 
 describe("CosmeticsCatalog", () => {
+  it("shows optional local thumbnails while preserving duplicate IDs and fallback", () => {
+    renderCatalog(catalogView([
+      { ...installedCosmetic(0, "Duplicate Name"), iconToken: "cosmetic-token" },
+      installedCosmetic(1, "Duplicate Name"),
+    ]));
+
+    const local = screen.getByTestId("cosmetic-icon-0");
+    expect(local.getAttribute("data-icon-source")).toBe("local");
+    expect(local.querySelector("img")?.getAttribute("src"))
+      .toBe("repoditor-icon://local/cosmetic-token");
+    expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source"))
+      .toBe("fallback");
+    expect(screen.getByText("ID 0")).toBeTruthy();
+    expect(screen.getByText("ID 1")).toBeTruthy();
+  });
+
   it("searches installed cosmetics by name and canonical numeric ID", async () => {
     const user = userEvent.setup();
     renderCatalog(catalogView([
