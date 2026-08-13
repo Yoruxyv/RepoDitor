@@ -23,7 +23,7 @@ from typing import Final
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 from repo_save_editor.services.icon_cache import normalize_icon_cache_key
-from repo_save_editor.services.items.unity_serialized import (
+from repo_save_editor.services.unity_serialized import (
     MONO_BEHAVIOUR_CLASS_ID,
     MonoBehaviourPrefix,
     ObjectRecord,
