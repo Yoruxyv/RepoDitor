@@ -1,1 +1,1 @@
-"""Core save-format primitives shared by every interface."""
+"""Shared ES3 crypto, schema validation, and decrypted save-data primitives."""

@@ -1,1 +1,1 @@
-"""File-system persistence for local R.E.P.O. saves."""
+"""Encrypted save persistence, exact-byte backup, verification, and atomic replacement."""

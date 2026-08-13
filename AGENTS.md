@@ -73,7 +73,138 @@ Keep boundaries by responsibility:
 - Python services
 - core/storage
 
-## 5. RepoDitor Architecture
+## 5. Package Identity and Folder Cohesion
+
+The repository tree must communicate architecture, not merely store files.
+
+Every meaningful source package or folder should have one clear identity that can be described in one sentence. Files belong where their primary responsibility naturally lives.
+
+Before adding or moving a file, ask:
+
+1. What domain or architectural responsibility owns this file?
+2. Does the destination folder already represent that responsibility?
+3. Would placing it there make the dependency direction clearer?
+4. Is the file actually neutral infrastructure used by multiple domains?
+5. Does this move solve a real ownership problem, or only make the tree look symmetrical?
+
+If the ownership problem cannot be stated clearly, leave the file where it is.
+
+### Folder cohesion
+
+Prefer cohesive folders over arbitrary file-count limits.
+
+File count is a review signal, not a rule:
+
+- 1-7 direct files: normally fine; still check cohesion
+- 8-12 direct files: review whether distinct subdomains are emerging
+- 13-20 direct files: require an explicit cohesion check
+- 20+ direct files: explain why keeping one folder is clearer than splitting it
+
+A folder with 12 closely related files can be healthy. A folder with 6 unrelated files can already be poorly organized.
+
+Do not split a cohesive package merely to satisfy a number.
+
+Avoid catch-all ownership such as:
+
+- `misc`
+- `common`
+- `helpers`
+- `utils`
+- `shared`
+
+unless the directory or module has a specific, narrow, explainable responsibility. Prefer names that state the actual role, such as `protocol`, `fingerprint`, `unity_serialized`, or `icon_registry`.
+
+Do not create folder hell. Prefer shallow structures and avoid one-file nesting chains without a meaningful architectural boundary.
+
+For example, prefer:
+
+```text
+services/unity/
+└── serialized.py
+```
+
+over:
+
+```text
+services/items/parsing/serializers/readers/unity_reader.py
+```
+
+when the deeper hierarchy adds no ownership clarity.
+
+### Neutral infrastructure
+
+Domain-neutral primitives must not be owned by one feature merely because that feature introduced them first.
+
+If Items and Cosmetics both depend on a generic Unity serialized-file reader, the reader belongs in neutral Unity infrastructure rather than under either domain.
+
+At the same time, do not invent broad `common` or `utils` packages. Extract only genuinely shared, cohesive primitives.
+
+### Source-root hygiene
+
+Source-package roots should primarily contain:
+
+- stable package entry points
+- intentionally top-level architecture modules
+- truly cross-cutting primitives
+
+Do not turn package roots into dumping grounds for unrelated feature implementation.
+
+### Python `__init__.py`
+
+Every meaningful production Python package should normally have a concise module docstring explaining its identity and architectural boundary.
+
+Keep it short, usually 1-4 sentences.
+
+Example:
+
+```python
+"""Installed item metadata and item-specific capability discovery.
+
+This package owns evidence-backed R.E.P.O. item interpretation. Generic Unity
+serialized-file parsing belongs to neutral infrastructure.
+"""
+```
+
+`__init__.py` must not become a dumping ground.
+
+Avoid:
+
+- business logic
+- filesystem work
+- hidden initialization side effects
+- wildcard imports
+- importing the whole package tree
+- broad re-export surfaces without a concrete API reason
+
+Use `__all__` only when it intentionally defines a stable package API.
+
+An empty production `__init__.py` should be reviewed:
+
+- if the package has a real architectural identity, add a concise docstring
+- if it exists only for packaging mechanics, keeping it minimal may be correct
+- if the directory has no meaningful identity, reconsider the directory itself
+
+Test packages may remain lighter; do not add ceremonial documentation that provides no value.
+
+### File identity
+
+A file should have one primary reason to change.
+
+Large files are not automatically bad. Small files are not automatically good.
+
+Split or move a file when responsibilities are genuinely independent, not merely because of line count.
+
+Generic names such as `utils.py`, `helpers.ts`, `common.py`, or `types.ts` are acceptable only when the contents are genuinely cohesive and the name does not hide unrelated behavior.
+
+### Package documentation
+
+Add folder-level `README.md` files only for meaningful subsystems that need architectural explanation. Do not create a README in every directory.
+
+When moving package boundaries, keep package docstrings and relevant architecture documentation synchronized.
+
+Preserve zero-cycle architecture. File moves and extractions must not introduce Python or TypeScript import cycles.
+
+## 6. RepoDitor Architecture
 
 Required dependency direction:
 
@@ -117,7 +248,7 @@ nodeIntegration: false
 
 Never expose raw `ipcRenderer`, generic IPC invocation, arbitrary filesystem APIs, arbitrary shell commands, or arbitrary Python execution.
 
-## 6. Existing Domain Behavior
+## 7. Existing Domain Behavior
 
 Reuse existing services for:
 - saves
@@ -133,7 +264,7 @@ Dynamic upgrades remain dynamic.
 
 Maps remain discovery/listing only. Do not add BepInEx, C#, Harmony, runtime injection, or unreliable map forcing.
 
-## 7. Frontend Organization
+## 8. Frontend Organization
 
 Prefer feature-first, shallow structure.
 
@@ -154,7 +285,7 @@ Shared UI belongs in shared components only after genuine reuse exists.
 
 `App.tsx` should compose the application, not implement whole product features.
 
-## 8. Responsive Desktop UI
+## 9. Responsive Desktop UI
 
 RepoDitor is desktop-first, not mobile-first.
 
@@ -167,7 +298,32 @@ Avoid horizontal document overflow, overlapping controls, unreadable paths, and 
 
 Do not add mobile patterns unless the desktop app genuinely needs them.
 
-## 9. Testing
+### Content-aware loading states
+
+Use skeletons for initial content loading when the final layout is known.
+
+A skeleton must represent the geometry of the content that will replace it: thumbnail position, heading, metadata rows, controls, card/row size, and spacing should closely match the real component.
+
+Do not use generic gray bars or generic `Loading...` text when a meaningful structural skeleton is available.
+
+Distinguish content loading from action progress:
+
+- initial content with no usable data yet -> structural skeleton
+- background refresh with valid content -> keep the existing content where practical
+- explicit actions such as saving, applying, or writing a backup -> keep clear action progress text/status
+- empty and error states -> show the real empty/error message, not a skeleton
+
+Optional local images are independent from data loading:
+
+- known icon currently loading -> skeleton only inside the thumbnail box
+- icon unavailable, missing, invalid, or unmapped -> Phosphor fallback immediately
+- never leave a card skeletonized while waiting for an optional icon that may never exist
+
+Skeletons are decorative. Keep them out of the accessibility tree, use `aria-busy` on the meaningful loading region where appropriate, preserve focus, and respect `prefers-reduced-motion`.
+
+Avoid rendering hundreds of animated skeletons for large catalogs. Render only enough representative placeholders to fill the visible layout.
+
+## 10. Testing
 
 Every phase adds tests for its new behavior.
 
@@ -183,7 +339,7 @@ Never perform destructive automated tests against real user save files. Use fixt
 
 Do not claim a test passed unless it was actually run.
 
-## 10. Safe Writes
+## 11. Safe Writes
 
 Renderer changes stay in memory until an explicit save operation.
 
@@ -198,7 +354,7 @@ Before replacing a real save:
 
 Failure must leave the original recoverable.
 
-## 11. Dependencies
+## 12. Dependencies
 
 Before adding any package:
 1. inspect existing dependencies
@@ -206,9 +362,11 @@ Before adding any package:
 3. choose one focused maintained dependency
 4. avoid overlapping libraries
 
-Continue using Phosphor as the icon family.
+Continue using Phosphor as the application UI icon family and as the fallback for game-content thumbnails.
 
-## 12. Frontend Quality, Imports, and Completion Gates
+Validated user-local R.E.P.O. cache icons may replace item/cosmetic content-thumbnail placeholders at runtime. Never bundle, commit, upload, extract into fixtures, or redistribute R.E.P.O. artwork. Missing, invalid, or unavailable local icons must fail soft to the Phosphor fallback.
+
+## 13. Frontend Quality, Imports, and Completion Gates
 
 The desktop renderer must comply with the repository's configured TypeScript, ESLint, React, React Hooks, accessibility, SonarJS, Tailwind CSS, and import-normalization rules.
 
@@ -322,7 +480,7 @@ Electron E2E remains in the Windows integration job.
 
 Bundle-budget checks may remain warning-only until RepoDitor has a measured release budget, but the script itself must execute successfully after build.
 
-## 13. Toolchain and Instruction Freshness
+## 14. Toolchain and Instruction Freshness
 
 Do not assume agent/tool instructions remain correct forever.
 
@@ -350,7 +508,7 @@ For local agent tooling such as Graphify or Ponytail:
 
 If this `AGENTS.md` becomes materially stale because RepoDitor's verified architecture, testing stack, packaging model, or tool workflow changed, update the relevant rule in the same task. Keep it concise and durable; do not turn it into a changelog.
 
-## 14. Workflow
+## 15. Workflow
 
 Before modifying:
 - inspect working-tree state
