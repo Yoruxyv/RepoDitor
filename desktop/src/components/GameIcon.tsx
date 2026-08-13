@@ -7,12 +7,20 @@ import { Skeleton } from "./Skeleton";
 interface GameIconProps {
   readonly fallback: Icon;
   readonly fallbackSource: "category" | "fallback" | "specific";
+  readonly loading?: "eager" | "lazy";
   readonly testId: string;
   readonly token: string | null;
   readonly variant: "item" | "cosmetic";
 }
 
-export function GameIcon({ fallback, fallbackSource, testId, token, variant }: GameIconProps) {
+export function GameIcon({
+  fallback,
+  fallbackSource,
+  loading = "eager",
+  testId,
+  token,
+  variant,
+}: GameIconProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -46,6 +54,7 @@ export function GameIcon({ fallback, fallbackSource, testId, token, variant }: G
       <img
         alt=""
         className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
+        loading={loading}
         src={`repoditor-icon://local/${encodeURIComponent(token)}`}
         onError={() => setFailed(true)}
         onLoad={() => setLoaded(true)}

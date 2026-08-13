@@ -10,6 +10,7 @@ describe("GameIcon", () => {
       <GameIcon
         fallback={WrenchIcon}
         fallbackSource="fallback"
+        loading="lazy"
         testId="game-icon"
         token="opaque-token"
         variant="item"
@@ -18,6 +19,7 @@ describe("GameIcon", () => {
 
     const image = screen.getByTestId("game-icon").querySelector("img")!;
     expect(image.getAttribute("src")).toBe("repoditor-icon://local/opaque-token");
+    expect(image.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("local");
     expect(screen.getByTestId("game-icon-loading").getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByTestId("game-icon").getAttribute("aria-busy")).toBe("true");

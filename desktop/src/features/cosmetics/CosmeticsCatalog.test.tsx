@@ -114,6 +114,7 @@ describe("CosmeticsCatalog", () => {
     expect(local.getAttribute("data-icon-source")).toBe("local");
     expect(local.querySelector("img")?.getAttribute("src"))
       .toBe("repoditor-icon://local/cosmetic-token");
+    expect(local.querySelector("img")?.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source"))
       .toBe("fallback");
     expect(screen.getByText("ID 0")).toBeTruthy();

@@ -361,6 +361,7 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
                   <GameIcon
                     fallback={TShirtIcon}
                     fallbackSource="fallback"
+                    loading="lazy"
                     testId={`cosmetic-icon-${cosmetic.id}`}
                     token={cosmetic.iconToken}
                     variant="cosmetic"
