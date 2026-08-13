@@ -2,6 +2,7 @@ import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@pho
 
 import type { CosmeticsViewDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
 interface CosmeticsViewProps {
@@ -21,6 +22,74 @@ interface CosmeticsViewProps {
   readonly onLockAll: () => void;
 }
 
+function CosmeticsSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion label={label} testId="cosmetics-skeleton">
+      <Skeleton className="h-3 w-36" />
+      <Skeleton className="mt-2 h-8 w-32" />
+      <Skeleton className="mt-3 h-4 w-full max-w-xl" />
+      <Skeleton className="mt-2 h-4 w-2/3 max-w-lg" />
+
+      <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((stat) => (
+          <div className="border-t border-line pt-3" key={stat}>
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-6 w-12" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-7 flex flex-wrap gap-3">
+        <Skeleton className="h-10 w-44" />
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-10 w-40" />
+      </div>
+
+      <div className="mt-8 border-t border-line pt-6">
+        <div className="flex justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <div className="min-w-56 flex-[2_1_20rem]">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-2 h-10 w-full" />
+          </div>
+          {[0, 1, 2].map((filter) => (
+            <div className="min-w-36 flex-[1_1_9rem]" key={filter}>
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="mt-2 h-10 w-full" />
+            </div>
+          ))}
+        </div>
+        <Skeleton className="mt-2 h-3 w-28" />
+
+        <div className="mt-4 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((card) => (
+            <div className="border border-line bg-surface p-3" data-skeleton-kind="cosmetic-card" key={card}>
+              <div className="flex items-start gap-3">
+                <Skeleton className="size-12 shrink-0" testId={card === 0 ? "cosmetic-thumbnail-skeleton" : undefined} />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-14" />
+                </div>
+                <Skeleton className="h-3 w-14" />
+              </div>
+              <div className="mt-3 flex gap-3">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 export function CosmeticsView({
   view,
   knownOwnedCount,
@@ -38,8 +107,8 @@ export function CosmeticsView({
   onLockAll,
 }: CosmeticsViewProps) {
   const { t } = usePreferences();
-  if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">{t("cosmetics.loading")}</output>;
+  if (loading && !view) {
+    return <CosmeticsSkeleton label={t("cosmetics.loading")} />;
   }
   if (error) {
     return (
@@ -65,7 +134,7 @@ export function CosmeticsView({
     : null;
 
   return (
-    <section aria-labelledby="cosmetics-title">
+    <section aria-busy={loading} aria-labelledby="cosmetics-title">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("cosmetics.ownership")}</p>
       <h2 className="mt-1 text-2xl font-semibold text-ink" id="cosmetics-title">{t("app.cosmetics")}</h2>
       <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">

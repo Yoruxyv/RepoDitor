@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
 import { SelectedPlayerIdentity } from "./SelectedPlayerIdentity";
 
@@ -18,6 +19,51 @@ interface PlayersViewProps {
   readonly onHealthChange: (player: PlayerDto, health: number) => void;
   readonly onRevertHealth: (playerId: string) => void;
   readonly onRetry: () => void;
+}
+
+function PlayersSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion
+      className="grid min-w-0 gap-7 md:grid-cols-[15rem_minmax(0,1fr)]"
+      label={label}
+      testId="players-skeleton"
+    >
+      <div>
+        <div className="flex items-end justify-between gap-3">
+          <Skeleton className="h-7 w-24" />
+          <Skeleton className="h-3 w-5" />
+        </div>
+        <div className="mt-4 grid gap-2">
+          {[0, 1, 2].map((row) => (
+            <div className="border border-line bg-surface px-4 py-3" key={row}>
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="mt-2 h-3 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-14 shrink-0" testId="player-avatar-skeleton" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-44 max-w-full" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        </div>
+        <div className="mt-7 max-w-sm border-t border-line pt-6">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="mt-2 h-3 w-52 max-w-full" />
+          <div className="mt-3 flex gap-3">
+            <Skeleton className="h-10 w-28" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+          <Skeleton className="mt-4 h-3 w-40" />
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
 }
 
 export function PlayersView({
@@ -51,8 +97,8 @@ export function PlayersView({
     pending ? "player-health-pending" : null,
   ].filter(Boolean).join(" ");
 
-  if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">{t("players.loading")}</output>;
+  if (loading && players.length === 0) {
+    return <PlayersSkeleton label={t("players.loading")} />;
   }
 
   if (error) {
@@ -109,7 +155,7 @@ export function PlayersView({
   }
 
   return (
-    <div className="grid min-w-0 gap-7 md:grid-cols-[15rem_minmax(0,1fr)]">
+    <div aria-busy={loading} className="grid min-w-0 gap-7 md:grid-cols-[15rem_minmax(0,1fr)]">
       <section aria-labelledby="player-list-title">
         <div className="flex items-end justify-between gap-3">
           <h2 className="text-xl font-semibold text-ink" id="player-list-title">

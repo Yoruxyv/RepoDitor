@@ -64,6 +64,43 @@ const degradedView: CosmeticsViewDto = {
 };
 
 describe("CosmeticsView", () => {
+  it("uses a representative cosmetic-card skeleton only for initial loading", () => {
+    const props = {
+      clearAllPresetsPending: false,
+      error: null,
+      knownLockedCount: 0,
+      knownOwnedCount: 1,
+      lockAllBlockedReason: null,
+      lockAllPending: false,
+      savedPresetCount: 0,
+      unlockAllPending: false,
+      onClearAllPresets: vi.fn(),
+      onLockAll: vi.fn(),
+      onRetry: vi.fn(),
+      onUnlockAll: vi.fn(),
+    };
+    const { rerender } = render(
+      <PreferencesProvider>
+        <CosmeticsView {...props} loading view={null} />
+      </PreferencesProvider>,
+    );
+
+    expect(screen.getByTestId("cosmetics-skeleton").getAttribute("aria-busy")).toBe("true");
+    expect(document.querySelectorAll('[data-skeleton-kind="cosmetic-card"]')).toHaveLength(6);
+    expect(screen.getByTestId("cosmetic-thumbnail-skeleton")).toBeTruthy();
+    expect(screen.queryByText("Reading MetaSave cosmetics…")).toBeNull();
+
+    rerender(
+      <PreferencesProvider>
+        <CosmeticsView {...props} loading view={blockedView} />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByTestId("cosmetics-skeleton")).toBeNull();
+    expect(screen.getByRole("listitem", { name: "Long Sleeve, ID 0, Owned" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Cosmetics" }).getAttribute("aria-busy"))
+      .toBe("true");
+  });
+
   it("keeps ownership bulk controls fail-closed while presets remain independent", () => {
     render(
       <PreferencesProvider>

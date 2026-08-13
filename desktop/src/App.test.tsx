@@ -402,6 +402,10 @@ describe("save workspace transition", () => {
     window.repoditor.environment.detect = vi.fn(() => new Promise<never>(() => undefined));
     render(<App />);
     expect(screen.getByLabelText("Discovering local R.E.P.O. saves")).toBeTruthy();
+    expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByTestId("latest-save-skeleton")).toBeTruthy();
+    expect(screen.getByTestId("recent-save-skeleton")).toBeTruthy();
+    expect(screen.queryByText("Discovering local R.E.P.O. saves.")).toBeNull();
   });
 
   it.each([

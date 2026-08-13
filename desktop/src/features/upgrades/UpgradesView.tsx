@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { FeatureIcon } from "@/components/FeatureIcon";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
 import { SelectedPlayerIdentity } from "@/features/players/SelectedPlayerIdentity";
 import { getUpgradeIcon } from "./upgradeIcons";
@@ -21,6 +22,43 @@ interface UpgradesViewProps {
   readonly onChange: (upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void;
   readonly onRevert: (playerId: string, upgradeKey: string) => void;
   readonly onRetry: () => void;
+}
+
+function UpgradesSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion label={label} testId="upgrades-skeleton">
+      <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-14 shrink-0" testId="upgrade-avatar-skeleton" />
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+          <div className="min-w-52">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="mt-1 h-10 w-full" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-x-8 gap-y-5 xl:grid-cols-2">
+        {[0, 1, 2, 3].map((row) => (
+          <div className="relative min-h-24 border-t border-line pt-4 pr-24" data-skeleton-kind="upgrade-row" key={row}>
+            <Skeleton className="h-4 w-36 max-w-full" />
+            <Skeleton className="absolute top-4 right-0 size-14" />
+            <Skeleton className="mt-3 h-10 w-32" />
+          </div>
+        ))}
+      </div>
+    </SkeletonRegion>
+  );
 }
 
 function key(playerId: string, upgradeKey: string): string {
@@ -45,8 +83,8 @@ export function UpgradesView({
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const player = players.find((item) => item.id === selectedPlayerId) ?? players[0] ?? null;
 
-  if (loading) {
-    return <output aria-live="polite" className="text-sm text-secondary">{t("upgrades.loading")}</output>;
+  if (loading && upgrades.length === 0) {
+    return <UpgradesSkeleton label={t("upgrades.loading")} />;
   }
   if (error) {
     return (
@@ -64,7 +102,7 @@ export function UpgradesView({
   }
 
   return (
-    <section aria-labelledby="upgrades-title">
+    <section aria-busy={loading} aria-labelledby="upgrades-title">
       <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("upgrades.perPlayer")}</p>

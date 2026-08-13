@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { GameIcon } from "./GameIcon";
 
 describe("GameIcon", () => {
-  it("renders a decorative local image for an opaque token", () => {
+  it("skeletonizes only the known thumbnail until its local image loads", () => {
     render(
       <GameIcon
         fallback={WrenchIcon}
@@ -19,6 +19,12 @@ describe("GameIcon", () => {
     const image = screen.getByTestId("game-icon").querySelector("img")!;
     expect(image.getAttribute("src")).toBe("repoditor-icon://local/opaque-token");
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("local");
+    expect(screen.getByTestId("game-icon-loading").getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByTestId("game-icon").getAttribute("aria-busy")).toBe("true");
+
+    fireEvent.load(image);
+    expect(screen.queryByTestId("game-icon-loading")).toBeNull();
+    expect(screen.getByTestId("game-icon").getAttribute("aria-busy")).toBe("false");
   });
 
   it("uses the exact Phosphor fallback when unavailable or loading fails", () => {
@@ -32,6 +38,7 @@ describe("GameIcon", () => {
       />,
     );
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("specific");
+    expect(screen.queryByTestId("game-icon-loading")).toBeNull();
 
     rerender(
       <GameIcon
@@ -42,7 +49,9 @@ describe("GameIcon", () => {
         variant="item"
       />,
     );
+    expect(screen.getByTestId("game-icon-loading")).toBeTruthy();
     fireEvent.error(screen.getByTestId("game-icon").querySelector("img")!);
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("specific");
+    expect(screen.queryByTestId("game-icon-loading")).toBeNull();
   });
 });
