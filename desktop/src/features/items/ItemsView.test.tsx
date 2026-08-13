@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AdvancedSaveDto } from "@electron/contracts";
 import { renderWithPreferences } from "@/test/render";
-import { AdvancedView } from "./AdvancedView";
+import { ItemsView } from "./ItemsView";
 
 const readOnly = {
   canRead: true,
@@ -29,6 +29,7 @@ const advanced: AdvancedSaveDto = {
       saveKey: "Item Melee Inflatable Hammer/1",
       name: "Melee Inflatable Hammer",
       instanceId: "1",
+      isUpgrade: false,
       storedCharge: 99,
       chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null,
     },
@@ -36,7 +37,7 @@ const advanced: AdvancedSaveDto = {
   unlinkedChargeEntryCount: 0,
 };
 
-describe("AdvancedView", () => {
+describe("ItemsView", () => {
   const handlers = {
     pendingByItem: {},
     onRefillAllToFull: vi.fn(),
@@ -47,7 +48,7 @@ describe("AdvancedView", () => {
 
   it("uses an item-group skeleton only while initial item data is unavailable", () => {
     const { rerender } = renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={null}
         error={null}
@@ -61,7 +62,7 @@ describe("AdvancedView", () => {
     expect(screen.queryByText("Loading items…")).toBeNull();
 
     rerender(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={advanced}
         error={null}
@@ -76,7 +77,7 @@ describe("AdvancedView", () => {
     const user = userEvent.setup();
     const refill = vi.fn();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={advanced}
         error={null}
@@ -103,7 +104,7 @@ describe("AdvancedView", () => {
 
   it("shows a local item thumbnail without changing item identity", () => {
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
@@ -124,15 +125,15 @@ describe("AdvancedView", () => {
   it("groups duplicate names and filters by game-derived item name", async () => {
     const user = userEvent.setup();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", storedCharge: 42, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", isUpgrade: false, storedCharge: 42, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -159,13 +160,13 @@ describe("AdvancedView", () => {
   it("reports pending items hidden by a filter", async () => {
     const user = userEvent.setup();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -191,19 +192,19 @@ describe("AdvancedView", () => {
   it("filters by recharge availability and sorts groups without exposing instance IDs", async () => {
     const user = userEvent.setup();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", storedCharge: 42, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/2", name: "Cart Medium", instanceId: "2", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Upgrade Player Health/1", name: "Upgrade Player Health", instanceId: "1", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Tranq/1", name: "Gun Tranq", instanceId: "1", isUpgrade: false, storedCharge: 42, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/2", name: "Cart Medium", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", isUpgrade: false, storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Modded Boost/1", name: "Modded Boost", instanceId: "1", isUpgrade: true, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -225,7 +226,7 @@ describe("AdvancedView", () => {
     expect(screen.queryByTestId("item-group-Gun Tranq")).toBeNull();
 
     await user.selectOptions(filter, "upgrades");
-    expect(screen.getByTestId("item-group-Upgrade Player Health")).toBeTruthy();
+    expect(screen.getByTestId("item-group-Modded Boost")).toBeTruthy();
     expect(screen.queryByTestId("item-group-Cart Medium")).toBeNull();
 
     await user.selectOptions(filter, "all");
@@ -240,7 +241,7 @@ describe("AdvancedView", () => {
     const user = userEvent.setup();
     const refillAll = vi.fn();
     const { unmount } = renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={advanced}
         error={null}
@@ -256,13 +257,13 @@ describe("AdvancedView", () => {
     unmount();
 
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -275,15 +276,15 @@ describe("AdvancedView", () => {
 
   it("renders explicit charge states without guessing or enabling unsupported actions", () => {
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Health Pack Medium/4", name: "Health Pack Medium", instanceId: "4", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Health Pack Medium/4", name: "Health Pack Medium", instanceId: "4", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -309,18 +310,19 @@ describe("AdvancedView", () => {
       saveKey: "Item Gun Tranq/2",
       name: "Gun Tranq",
       instanceId: "2",
+      isUpgrade: false,
       storedCharge: 17,
       chargeState: "stored" as const,
       rechargeCapability: "rechargeable" as const,
       canRefillToFull: true, iconToken: null,
     };
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
-            { ...second, saveKey: "Item Gun Tranq/1", instanceId: "1", storedCharge: 42 },
+            { ...second, saveKey: "Item Gun Tranq/1", instanceId: "1", isUpgrade: false, storedCharge: 42 },
             second,
           ],
         }}
@@ -336,7 +338,7 @@ describe("AdvancedView", () => {
 
   it("distinguishes unsupported and supported-empty item structures", () => {
     const { rerender } = renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
@@ -355,7 +357,7 @@ describe("AdvancedView", () => {
       .toBeTruthy();
 
     rerender(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
@@ -373,14 +375,14 @@ describe("AdvancedView", () => {
 
   it("uses specific, category, and generic item icon fallbacks", () => {
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             ...advanced.items,
-            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
-            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Handgun/2", name: "Gun Handgun", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Future Tool/3", name: "Future Tool", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "unknown", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -400,13 +402,13 @@ describe("AdvancedView", () => {
     const user = userEvent.setup();
     const revert = vi.fn();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={{
           ...advanced,
           items: [
             advanced.items[0]!,
-            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
           ],
         }}
         error={null}
@@ -438,7 +440,7 @@ describe("AdvancedView", () => {
     const retry = vi.fn();
     const user = userEvent.setup();
     renderWithPreferences(
-      <AdvancedView
+      <ItemsView
         {...handlers}
         advanced={null}
         error="Advanced data failed."

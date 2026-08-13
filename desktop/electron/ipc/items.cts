@@ -156,6 +156,7 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
     saveKey,
     name: readString(value.name, "item name"),
     instanceId,
+    isUpgrade: readBoolean(value.isUpgrade, "item upgrade classification"),
     storedCharge,
     chargeState: chargeState as AdvancedItemChargeState,
     rechargeCapability: rechargeCapability as AdvancedItemRechargeCapability,

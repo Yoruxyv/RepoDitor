@@ -30,7 +30,7 @@ function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
   };
 }
 
-export function useAdvanced(saveId: string) {
+export function useItems(saveId: string) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});

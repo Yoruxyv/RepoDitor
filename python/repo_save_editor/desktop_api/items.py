@@ -88,6 +88,7 @@ def get_advanced_save(
                     "saveKey": item.save_key,
                     "name": item.name,
                     "instanceId": item.instance_id,
+                    "isUpgrade": item.is_upgrade,
                     "storedCharge": item.stored_charge,
                     "chargeState": item.charge_state.value,
                     "rechargeCapability": item.recharge_capability.value,

@@ -156,6 +156,7 @@ describe("editor data IPC", () => {
           saveKey: "Item Melee Inflatable Hammer/1",
           name: "Melee Inflatable Hammer",
           instanceId: "1",
+          isUpgrade: false,
           storedCharge: 99,
           chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true,
           iconKey: "item melee inflatable hammer.png",
@@ -190,6 +191,7 @@ describe("editor data IPC", () => {
           saveKey: "Item Melee Inflatable Hammer/1",
           name: "Melee Inflatable Hammer",
           instanceId: "1",
+          isUpgrade: false,
           storedCharge: null,
           chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false,
           iconKey: null,
@@ -215,6 +217,12 @@ describe("editor data IPC", () => {
       getAdvancedSave(client({
         ok: true,
         advanced: { ...advanced, items: [{ ...advanced.items[0], iconKey: "../secret.png" }] },
+      }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({
+        ok: true,
+        advanced: { ...advanced, items: [{ ...advanced.items[0], isUpgrade: "yes" }] },
       }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 

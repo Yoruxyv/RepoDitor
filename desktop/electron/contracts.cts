@@ -184,6 +184,7 @@ export interface AdvancedItemDto {
   saveKey: string;
   name: string;
   instanceId: string;
+  isUpgrade: boolean;
   storedCharge: number | null;
   chargeState: AdvancedItemChargeState;
   rechargeCapability: AdvancedItemRechargeCapability;

@@ -7,8 +7,8 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import type { SaveChange, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { PathDetails } from "@/components/PathDetails";
-import { AdvancedView } from "@/features/advanced/AdvancedView";
-import { useAdvanced } from "@/features/advanced/useAdvanced";
+import { ItemsView } from "@/features/items/ItemsView";
+import { useItems } from "@/features/items/useItems";
 import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -56,13 +56,13 @@ export function Workspace({
   const players = usePlayers(session.id);
   const upgrades = useUpgrades(session.id);
   const run = useRunState(session.id);
-  const advanced = useAdvanced(session.id);
+  const items = useItems(session.id);
   const maps = useMaps();
   const runSavePendingEdits: RunSavePendingEdit[] = [
     ...players.pendingEdits,
     ...upgrades.pendingEdits,
     ...run.pendingEdits,
-    ...advanced.pendingEdits,
+    ...items.pendingEdits,
   ];
   const pendingEdits: RunSavePendingEdit[] = runSavePendingEdits;
   const pendingBySection: Record<WorkspaceSection, number> = {
@@ -70,7 +70,7 @@ export function Workspace({
     players: players.pendingEdits.length,
     upgrades: upgrades.pendingEdits.length,
     run: run.pendingEdits.length,
-    items: advanced.pendingEdits.length,
+    items: items.pendingEdits.length,
     maps: 0,
   };
 
@@ -83,7 +83,7 @@ export function Workspace({
     players.revertAll();
     upgrades.revertAll();
     run.revertAll();
-    advanced.revertAll();
+    items.revertAll();
     setEditVersion((current) => current + 1);
   }
 
@@ -238,15 +238,15 @@ export function Workspace({
             />
           ) : null}
           {activeSection === "items" ? (
-            <AdvancedView
-              advanced={advanced.advanced}
-              error={advanced.error}
-              loading={advanced.loading}
-              pendingByItem={advanced.pendingByItem}
-              onRefillAllToFull={advanced.refillAllToFull}
-              onRefillToFull={advanced.refillToFull}
-              onRetry={() => void advanced.reload()}
-              onRevertRefill={advanced.revertRefill}
+            <ItemsView
+              advanced={items.advanced}
+              error={items.error}
+              loading={items.loading}
+              pendingByItem={items.pendingByItem}
+              onRefillAllToFull={items.refillAllToFull}
+              onRefillToFull={items.refillToFull}
+              onRetry={() => void items.reload()}
+              onRevertRefill={items.revertRefill}
             />
           ) : null}
           {activeSection === "maps" ? (

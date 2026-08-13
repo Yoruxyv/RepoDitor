@@ -153,6 +153,7 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "saveKey": "Item Melee Inflatable Hammer/1",
             "name": "Melee Inflatable Hammer",
             "instanceId": "1",
+            "isUpgrade": False,
             "storedCharge": 99,
             "chargeState": "stored",
             "rechargeCapability": "rechargeable",

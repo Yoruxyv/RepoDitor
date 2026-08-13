@@ -109,6 +109,7 @@ def discover_advanced_save(
                 save_key=save_key,
                 name=item_type_name.removeprefix("Item "),
                 instance_id=match.group("instance_id"),
+                is_upgrade=item_type_name.startswith("Item Upgrade "),
                 stored_charge=charge_entries.get(save_key),
                 charge_state=charge_state,
                 recharge_capability=recharge_capability,

@@ -102,7 +102,7 @@ const advanced: AdvancedSaveDto = {
     { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
     { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
   ],
-  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null }],
+  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", isUpgrade: false, storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null }],
   unlinkedChargeEntryCount: 0,
 };
 const cosmetics: CosmeticsViewDto = {
@@ -694,10 +694,10 @@ describe("save workspace transition", () => {
         ...advanced,
         items: [
           advanced.items[0]!,
-          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", storedCharge: 17, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
-          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
-          { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: 17, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
+          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
+          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
+          { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", isUpgrade: false, storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
         ],
       },
     });

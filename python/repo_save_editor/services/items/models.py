@@ -58,6 +58,7 @@ class AdvancedItem:
     save_key: str
     name: str
     instance_id: str
+    is_upgrade: bool
     stored_charge: int | None
     charge_state: ItemChargeState
     recharge_capability: ItemRechargeCapability

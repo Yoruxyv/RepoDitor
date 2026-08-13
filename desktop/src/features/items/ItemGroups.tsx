@@ -66,7 +66,7 @@ export function ItemGroups({
     const matchesSearch = !query || item.name.toLocaleLowerCase().includes(query);
     const matchesFilter = filter === "all"
       || (filter === "upgrades"
-        ? item.saveKey.startsWith("Item Upgrade ")
+        ? item.isUpgrade
         : item.rechargeCapability === filter);
     return matchesSearch && matchesFilter;
   });

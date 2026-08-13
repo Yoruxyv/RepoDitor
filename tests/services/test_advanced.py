@@ -217,6 +217,20 @@ def test_ignores_unknown_containers_and_reports_unlinked_charge(sample_save) -> 
     assert advanced.unlinked_charge_entry_count == 1
 
 
+def test_classifies_upgrade_items_in_the_python_projection(sample_save) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {
+        "Item Upgrade Player Health/1": 18,
+        "Item Cart Medium/2": 2,
+    }
+    dictionaries["itemStatBattery"] = {}
+
+    items = {item.save_key: item for item in discover_advanced_save(sample_save).items}
+
+    assert items["Item Upgrade Player Health/1"].is_upgrade is True
+    assert items["Item Cart Medium/2"].is_upgrade is False
+
+
 def test_absent_charge_state_comes_from_installed_item_capability(sample_save) -> None:
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
     dictionaries["item"] = {

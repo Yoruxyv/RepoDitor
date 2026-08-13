@@ -9,7 +9,7 @@ import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
 import { ItemGroups } from "./ItemGroups";
 
-interface AdvancedViewProps {
+interface ItemsViewProps {
   readonly advanced: AdvancedSaveDto | null;
   readonly loading: boolean;
   readonly error: string | null;
@@ -69,7 +69,7 @@ function AdvancedSkeleton({ label }: { readonly label: string }) {
   );
 }
 
-export function AdvancedView({
+export function ItemsView({
   advanced,
   loading,
   error,
@@ -78,7 +78,7 @@ export function AdvancedView({
   onRefillToFull,
   onRetry,
   onRevertRefill,
-}: AdvancedViewProps) {
+}: ItemsViewProps) {
   const { t } = usePreferences();
   if (loading && !advanced) {
     return <AdvancedSkeleton label={t("items.loading")} />;
