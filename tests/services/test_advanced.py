@@ -36,7 +36,6 @@ def _advanced_save(sample_save):
             },
         }
     )
-    dictionaries["runStats"].update({"chargingStationCharge": 10, "chargingStationChargeTotal": 95})
     return data
 
 
@@ -68,11 +67,6 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     assert hammer.recharge_capability is ItemRechargeCapability.RECHARGEABLE
     assert hammer.can_refill_to_full is True
     assert advanced.unlinked_charge_entry_count == 0
-    assert [(value.save_key, value.value) for value in advanced.run_values] == [
-        ("chargingStationCharge", 10),
-        ("chargingStationChargeTotal", 95),
-    ]
-
     domains = {domain.key: domain for domain in advanced.domains}
     assert domains["items"].status == "confirmed"
     assert domains["items"].entry_count == 4
@@ -210,13 +204,6 @@ def test_rejects_malformed_observed_structures(sample_save, key, value) -> None:
         discover_advanced_save(sample_save)
 
 
-def test_rejects_malformed_observed_run_value(sample_save) -> None:
-    sample_save["dictionaryOfDictionaries"]["value"]["runStats"]["chargingStationCharge"] = 1.5
-
-    with pytest.raises(AdvancedSaveError):
-        discover_advanced_save(sample_save)
-
-
 def test_ignores_unknown_containers_and_reports_unlinked_charge(sample_save) -> None:
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
     dictionaries["item"] = {"Item Cart Medium/1": 2}
@@ -228,6 +215,20 @@ def test_ignores_unknown_containers_and_reports_unlinked_charge(sample_save) -> 
     assert advanced.items[0].stored_charge is None
     assert advanced.items[0].charge_state is ItemChargeState.UNKNOWN
     assert advanced.unlinked_charge_entry_count == 1
+
+
+def test_classifies_upgrade_items_in_the_python_projection(sample_save) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {
+        "Item Upgrade Player Health/1": 18,
+        "Item Cart Medium/2": 2,
+    }
+    dictionaries["itemStatBattery"] = {}
+
+    items = {item.save_key: item for item in discover_advanced_save(sample_save).items}
+
+    assert items["Item Upgrade Player Health/1"].is_upgrade is True
+    assert items["Item Cart Medium/2"].is_upgrade is False
 
 
 def test_absent_charge_state_comes_from_installed_item_capability(sample_save) -> None:

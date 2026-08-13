@@ -6,8 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvancedDomainDto } from "../contracts.cjs";
 
 const require = createRequire(import.meta.url);
+const { IPC_CHANNELS } = require("../../dist-electron/channels.cjs");
 const { PythonClientError } = require("../../dist-electron/python/client.cjs");
-const { getAdvancedSave, getRunState, listMaps, listUpgrades } = require("../../dist-electron/ipc/editor.cjs");
+const {
+  getAdvancedSave,
+  getRunState,
+  listMaps,
+  listUpgrades,
+  registerEditorIpc,
+} = require("../../dist-electron/ipc/editor.cjs");
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
@@ -29,13 +36,58 @@ const advancedDomains: AdvancedDomainDto[] = [
   { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyCapabilities, canRead: false } },
-  { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 2, capabilities: readOnlyCapabilities },
 ];
 
 describe("editor data IPC", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  it("registers every editor channel explicitly", () => {
+    const registrar = { handle: vi.fn() };
+
+    registerEditorIpc(client({}), registrar);
+
+    expect(registrar.handle.mock.calls.map(([channel]) => channel)).toEqual([
+      IPC_CHANNELS.upgradesList,
+      IPC_CHANNELS.runGet,
+      IPC_CHANNELS.advancedGet,
+      IPC_CHANNELS.mapsList,
+    ]);
+    expect(registrar.handle.mock.calls.every(([, handler]) => typeof handler === "function"))
+      .toBe(true);
+  });
+
+  it("forwards each domain to its exact Python command", async () => {
+    const responses: Record<string, unknown> = {
+      "upgrades-list": { ok: true, upgrades: [] },
+      "run-get": {
+        ok: true,
+        run: { stats: [], resumeLocation: { value: "Normal", options: ["Normal"] } },
+      },
+      "advanced-get": {
+        ok: true,
+        advanced: { domains: advancedDomains, items: [], unlinkedChargeEntryCount: 0 },
+      },
+      "maps-list": { ok: true, available: false, catalogPath: null, maps: [] },
+    };
+    const fake = {
+      run: vi.fn((command: string) => Promise.resolve(responses[command])),
+      dispose: vi.fn(),
+    };
+
+    await listUpgrades(fake, saveId);
+    await getRunState(fake, saveId);
+    await getAdvancedSave(fake, saveId);
+    await listMaps(fake);
+
+    expect(fake.run.mock.calls).toEqual([
+      ["upgrades-list", [saveId]],
+      ["run-get", [saveId]],
+      ["advanced-get", [saveId]],
+      ["maps-list"],
+    ]);
   });
 
   it("rejects invalid save IDs before starting Python", async () => {
@@ -104,18 +156,11 @@ describe("editor data IPC", () => {
           saveKey: "Item Melee Inflatable Hammer/1",
           name: "Melee Inflatable Hammer",
           instanceId: "1",
+          isUpgrade: false,
           storedCharge: 99,
           chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true,
           iconKey: "item melee inflatable hammer.png",
           rawValue: 21,
-        },
-      ],
-      runValues: [
-        {
-          saveKey: "chargingStationCharge",
-          label: "Charging station charge",
-          value: 10,
-          status: "partially_confirmed",
         },
       ],
       unlinkedChargeEntryCount: 0,
@@ -128,7 +173,6 @@ describe("editor data IPC", () => {
       ok: true,
       data: {
         items: [{ storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true }],
-        runValues: [{ saveKey: "chargingStationCharge", value: 10 }],
       },
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
@@ -147,12 +191,12 @@ describe("editor data IPC", () => {
           saveKey: "Item Melee Inflatable Hammer/1",
           name: "Melee Inflatable Hammer",
           instanceId: "1",
+          isUpgrade: false,
           storedCharge: null,
           chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false,
           iconKey: null,
         },
       ],
-      runValues: [],
       unlinkedChargeEntryCount: 0,
     };
     await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
@@ -173,6 +217,12 @@ describe("editor data IPC", () => {
       getAdvancedSave(client({
         ok: true,
         advanced: { ...advanced, items: [{ ...advanced.items[0], iconKey: "../secret.png" }] },
+      }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({
+        ok: true,
+        advanced: { ...advanced, items: [{ ...advanced.items[0], isUpgrade: "yes" }] },
       }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 

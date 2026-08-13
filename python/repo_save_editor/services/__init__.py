@@ -1,1 +1,1 @@
-"""Application services containing interface-independent editor logic."""
+"""Interface-independent R.E.P.O. game and save domain services."""

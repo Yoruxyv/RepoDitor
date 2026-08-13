@@ -9,7 +9,6 @@ from repo_save_editor.core.types import SaveData
 from repo_save_editor.services.items.models import (
     AdvancedCapability,
     AdvancedItem,
-    AdvancedRunValue,
     AdvancedSaveError,
     AdvancedSaveView,
     ItemChargeState,
@@ -20,11 +19,6 @@ from repo_save_editor.services.items.schema import (
     _container,
     _integer_entries,
 )
-
-RUN_VALUE_LABELS = {
-    "chargingStationCharge": "Charging station charge",
-    "chargingStationChargeTotal": "Charging station charge total",
-}
 
 
 def _item_entries(data: SaveData) -> tuple[dict[str, int], dict[object, object] | None]:
@@ -115,6 +109,7 @@ def discover_advanced_save(
                 save_key=save_key,
                 name=item_type_name.removeprefix("Item "),
                 instance_id=match.group("instance_id"),
+                is_upgrade=item_type_name.startswith("Item Upgrade "),
                 stored_charge=charge_entries.get(save_key),
                 charge_state=charge_state,
                 recharge_capability=recharge_capability,
@@ -133,16 +128,6 @@ def discover_advanced_save(
             item.save_key,
         )
     )
-
-    run_stats = dictionaries["runStats"]
-    run_values: list[AdvancedRunValue] = []
-    for save_key, label in RUN_VALUE_LABELS.items():
-        if save_key not in run_stats:
-            continue
-        value = run_stats[save_key]
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise AdvancedSaveError(f"Run value '{save_key}' is not a whole number.")
-        run_values.append(AdvancedRunValue(save_key=save_key, label=label, value=value))
 
     item_keys = set(item_entries)
     return AdvancedSaveView(
@@ -190,15 +175,7 @@ def discover_advanced_save(
                 purchased_total_container,
                 can_read=False,
             ),
-            AdvancedCapability(
-                key="runMetadata",
-                label="Additional Run values",
-                status="partially_confirmed" if run_values else "unknown",
-                entry_count=len(run_values),
-                can_read=bool(run_values),
-            ),
         ),
         items=tuple(items),
-        run_values=tuple(run_values),
         unlinked_charge_entry_count=len(set(charge_entries) - item_keys),
     )

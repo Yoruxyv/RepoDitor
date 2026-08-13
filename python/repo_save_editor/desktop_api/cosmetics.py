@@ -9,7 +9,7 @@ from pathlib import Path
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
-from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
 from repo_save_editor.services.cosmetics.installed_catalog import (
     discover_installed_cosmetic_catalog,

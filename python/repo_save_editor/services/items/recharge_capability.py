@@ -11,10 +11,10 @@ from repo_save_editor.services.game.discovery import (
     GameInstallation,
     discover_game_installation,
 )
-from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
-from repo_save_editor.services.items.unity_serialized import (
+from repo_save_editor.services.items.installed_metadata import (
     discover_installed_item_metadata as discover_installed_item_metadata_from_assets,
 )
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 
 STEAM_APP_ID: Final = "3241660"
 VALIDATED_BUILD_ID: Final = "23363152"

@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
-from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure, load_discovered_save
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
+from repo_save_editor.desktop_api.saves import load_discovered_save
 from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
 from repo_save_editor.services.items.discovery import (
     discover_advanced_save,
@@ -87,6 +88,7 @@ def get_advanced_save(
                     "saveKey": item.save_key,
                     "name": item.name,
                     "instanceId": item.instance_id,
+                    "isUpgrade": item.is_upgrade,
                     "storedCharge": item.stored_charge,
                     "chargeState": item.charge_state.value,
                     "rechargeCapability": item.recharge_capability.value,
@@ -94,15 +96,6 @@ def get_advanced_save(
                     "iconKey": icons_by_type.get(f"Item {item.name}"),
                 }
                 for item in advanced.items
-            ],
-            "runValues": [
-                {
-                    "saveKey": value.save_key,
-                    "label": value.label,
-                    "value": value.value,
-                    "status": "partially_confirmed",
-                }
-                for value in advanced.run_values
             ],
             "unlinkedChargeEntryCount": advanced.unlinked_charge_entry_count,
         },

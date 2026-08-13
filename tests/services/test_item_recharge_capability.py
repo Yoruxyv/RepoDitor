@@ -4,36 +4,30 @@ import struct
 from collections.abc import Iterable
 from pathlib import Path
 
-from repo_save_editor.services.items.models import ItemRechargeCapability
-from repo_save_editor.services.items.recharge_capability import (
-    discover_installed_recharge_capabilities,
+from tests.unity_serialized_fixture import (
+    aligned_string as _aligned_string,
 )
-from repo_save_editor.services.items.unity_serialized import (
-    SerializedFileIndex,
-    UnityMetadataError,
+from tests.unity_serialized_fixture import (
+    mono_script as _mono_script,
+)
+from tests.unity_serialized_fixture import (
+    pptr as _pptr,
+)
+from tests.unity_serialized_fixture import (
+    write_serialized_file as _write_serialized_file,
+)
+
+from repo_save_editor.services.items.installed_metadata import (
     _parse_game_object,
     _read_game_object_name,
     discover_installed_item_metadata,
     discover_item_recharge_capabilities,
 )
-
-_HEADER = struct.Struct(">IIIIB3sIqqq")
-_OBJECT = struct.Struct("<qqIi")
-UNITY_VERSION = "2022.3.67f2"
-
-
-def _align(value: int, boundary: int) -> int:
-    return (value + boundary - 1) & ~(boundary - 1)
-
-
-def _aligned_string(value: str) -> bytes:
-    raw = value.encode("utf-8")
-    data = struct.pack("<i", len(raw)) + raw
-    return data + (b"\0" * ((_align(len(data), 4)) - len(data)))
-
-
-def _pptr(file_id: int, path_id: int) -> bytes:
-    return struct.pack("<iq", file_id, path_id)
+from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_recharge_capabilities,
+)
+from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
 
 
 def _game_object(name: str, components: Iterable[int]) -> bytes:
@@ -59,71 +53,6 @@ def _mono_behaviour(
     if battery_bars is not None:
         data += struct.pack("<iB", battery_bars, exceptional_flag)
     return data
-
-
-def _mono_script(name: str, class_name: str) -> bytes:
-    return (
-        _aligned_string(name)
-        + struct.pack("<i", 0)
-        + (b"\0" * 16)
-        + _aligned_string(class_name)
-        + _aligned_string("")
-        + _aligned_string("Assembly-CSharp")
-    )
-
-
-def _serialized_type(class_id: int) -> bytes:
-    data = struct.pack("<iBh", class_id, 0, -1)
-    if class_id == 114:
-        data += b"\0" * 16
-    return data + (b"\0" * 16)
-
-
-def _write_serialized_file(
-    path: Path,
-    objects: list[tuple[int, int, bytes]],
-    *,
-    externals: tuple[str, ...] = (),
-) -> None:
-    class_ids = tuple(dict.fromkeys(class_id for _path_id, class_id, _payload in objects))
-    type_ids = {class_id: index for index, class_id in enumerate(class_ids)}
-
-    payload = bytearray()
-    records: list[bytes] = []
-    for path_id, class_id, data in objects:
-        aligned_start = _align(len(payload), 8)
-        if aligned_start > len(payload):
-            payload.extend(b"\0" * (aligned_start - len(payload)))
-        relative_start = len(payload)
-        payload.extend(data)
-        records.append(_OBJECT.pack(path_id, relative_start, len(data), type_ids[class_id]))
-
-    metadata = bytearray()
-    metadata.extend(UNITY_VERSION.encode("ascii") + b"\0")
-    metadata.extend(struct.pack("<iB", 19, 0))
-    metadata.extend(struct.pack("<i", len(class_ids)))
-    for class_id in class_ids:
-        metadata.extend(_serialized_type(class_id))
-    metadata.extend(struct.pack("<i", len(objects)))
-    absolute = 48 + len(metadata)
-    if absolute % 4:
-        metadata.extend(b"\0" * (4 - absolute % 4))
-    metadata.extend(b"".join(records))
-    metadata.extend(struct.pack("<i", 0))  # script identifiers
-    metadata.extend(struct.pack("<i", len(externals)))
-    for external in externals:
-        metadata.extend(b"\0")
-        metadata.extend(b"\0" * 16)
-        metadata.extend(struct.pack("<i", 0))
-        metadata.extend(external.encode("utf-8") + b"\0")
-    metadata.extend(struct.pack("<i", 0))  # ref types
-    metadata.extend(b"\0")  # userInformation
-
-    data_offset = _align(48 + len(metadata), 16)
-    file_size = data_offset + len(payload)
-    header = _HEADER.pack(0, 0, 22, 0, 0, b"\0\0\0", len(metadata), file_size, data_offset, 0)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(header + metadata + (b"\0" * (data_offset - 48 - len(metadata))) + payload)
 
 
 def _build_assets(
@@ -168,7 +97,7 @@ def _build_assets(
             (42, 114, _mono_behaviour("", 4, 1002, battery_bars=6)),
             (5, 1, _game_object("Item Conflict", ())),
         ],
-        externals=("globalgamemanagers.assets",),
+        externals=(("", "globalgamemanagers.assets"),),
     )
     return resources, globals_
 
@@ -245,7 +174,7 @@ def test_matched_prefab_still_requires_strict_game_object_validation(
             (1, 1, _game_object("Item Strict", (0,))),
             (11, 114, _mono_behaviour("Item Strict", 1, 1001)),
         ],
-        externals=("globalgamemanagers.assets",),
+        externals=(("", "globalgamemanagers.assets"),),
     )
 
     with SerializedFileIndex(resources) as index:

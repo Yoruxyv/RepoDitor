@@ -58,19 +58,11 @@ class AdvancedItem:
     save_key: str
     name: str
     instance_id: str
+    is_upgrade: bool
     stored_charge: int | None
     charge_state: ItemChargeState
     recharge_capability: ItemRechargeCapability
     can_refill_to_full: bool
-
-
-@dataclass(frozen=True, slots=True)
-class AdvancedRunValue:
-    """One observed, read-only lower-level Run value."""
-
-    save_key: str
-    label: str
-    value: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,5 +71,4 @@ class AdvancedSaveView:
 
     domains: tuple[AdvancedCapability, ...]
     items: tuple[AdvancedItem, ...]
-    run_values: tuple[AdvancedRunValue, ...]
     unlinked_charge_entry_count: int
