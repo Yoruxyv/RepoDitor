@@ -12,6 +12,7 @@ from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.mutations import refill_item_to_full
@@ -51,19 +52,6 @@ RechargeCapabilityLoader = Callable[
     [tuple[str, ...]],
     Mapping[str, ItemRechargeCapability],
 ]
-
-
-def _failure(code: str, message: str) -> dict[str, object]:
-    return {"ok": False, "error": {"code": code, "message": message}}
-
-
-class DesktopSaveError(Exception):
-    """Stable failure at the desktop save boundary."""
-
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
 
 
 def load_discovered_save(

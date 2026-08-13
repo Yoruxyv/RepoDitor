@@ -2,10 +2,131 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 import repo_save_editor.desktop_api.__main__ as desktop_main
 from repo_save_editor.desktop_api.discovery.environment import serialize_environment
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.saves.discovery import discover_saves
+
+
+@pytest.mark.parametrize(
+    ("command", "target", "arguments", "expected_call"),
+    [
+        ("environment", "discover_environment", (), ()),
+        ("game-status", "get_game_status", (), ()),
+        ("maps-list", "list_maps", (), ()),
+        ("icons-roots", "get_icon_roots", (), ()),
+        ("cosmetics-get", "get_cosmetics", (), ()),
+        ("saves-open", "open_save", ("save-id",), ("save-id",)),
+        ("players-list", "list_players", ("save-id",), ("save-id",)),
+        (
+            "players-avatar",
+            "get_player_avatar",
+            ("save-id", "player-id"),
+            ("save-id", "player-id"),
+        ),
+        ("upgrades-list", "list_upgrades", ("save-id",), ("save-id",)),
+        ("run-get", "get_run_state", ("save-id",), ("save-id",)),
+        ("advanced-get", "get_advanced_save", ("save-id",), ("save-id",)),
+    ],
+)
+def test_read_commands_preserve_names_arguments_and_one_json_result(
+    monkeypatch,
+    capsys,
+    command: str,
+    target: str,
+    arguments: tuple[str, ...],
+    expected_call: tuple[str, ...],
+) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def fake(*args: object) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True, "command": command}
+
+    monkeypatch.setattr(desktop_main, target, fake)
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", command, *arguments])
+
+    desktop_main.main()
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {"ok": True, "command": command}
+    assert calls == [expected_call]
+
+
+def test_saves_write_cli_preserves_positional_payload_contract(monkeypatch, capsys) -> None:
+    calls: list[tuple[object, ...]] = []
+    changes = [{"feature": "run", "entity": "run", "field": "level", "after": 4}]
+
+    def fake(*args: object) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["repo_save_editor.desktop_api", "saves-write", "save-id", "f" * 64, json.dumps(changes)],
+    )
+
+    desktop_main.main()
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {"ok": True}
+    assert calls == [("save-id", "f" * 64, changes)]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ("saves-open",),
+        ("players-avatar", "save-id"),
+        ("saves-write", "save-id"),
+        ("cosmetics-write",),
+    ],
+)
+def test_commands_report_missing_required_arguments_as_one_json_result(
+    monkeypatch,
+    capsys,
+    arguments: tuple[str, ...],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", *arguments])
+
+    desktop_main.main()
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0])["error"]["code"] == "invalid_request"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ("saves-write", "save-id", "f" * 64, "not-json"),
+        ("cosmetics-write", "f" * 64, "not-json"),
+    ],
+)
+def test_write_commands_reject_malformed_json_as_one_result(
+    monkeypatch,
+    capsys,
+    arguments: tuple[str, ...],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", *arguments])
+
+    desktop_main.main()
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {
+        "ok": False,
+        "error": {
+            "code": "invalid_request",
+            "message": "The pending changes payload is invalid.",
+        },
+    }
 
 
 def test_environment_serialization_adapts_domain_names(tmp_path: Path) -> None:
