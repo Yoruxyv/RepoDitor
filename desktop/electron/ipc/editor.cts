@@ -9,7 +9,6 @@ import {
   type AdvancedItemChargeState,
   type AdvancedItemRechargeCapability,
   type AdvancedItemDto,
-  type AdvancedRunValueDto,
   type AdvancedSaveDto,
   type DesktopOperationError,
   type DesktopOperationErrorCode,
@@ -47,7 +46,6 @@ const ADVANCED_DOMAIN_KEYS = new Set<AdvancedDomainKey>([
   "purchasedUpgrades",
   "purchasedItems",
   "purchasedItemsTotal",
-  "runMetadata",
 ]);
 const ADVANCED_STATUSES = new Set<AdvancedEvidenceStatus>([
   "confirmed",
@@ -64,10 +62,6 @@ const ADVANCED_ITEM_RECHARGE_CAPABILITIES = new Set<AdvancedItemRechargeCapabili
   "rechargeable",
   "not_rechargeable",
   "unknown",
-]);
-const ADVANCED_RUN_KEYS = new Set<AdvancedRunValueDto["saveKey"]>([
-  "chargingStationCharge",
-  "chargingStationChargeTotal",
 ]);
 const EDITOR_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
@@ -323,26 +317,6 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
   };
 }
 
-function parseAdvancedRunValue(value: unknown): AdvancedRunValueDto {
-  if (!isRecord(value)) {
-    throw new EditorProtocolError("Invalid advanced Run value.");
-  }
-  const saveKey = readString(value.saveKey, "advanced Run key");
-  const status = readString(value.status, "advanced Run evidence status");
-  if (
-    !ADVANCED_RUN_KEYS.has(saveKey as AdvancedRunValueDto["saveKey"])
-    || !ADVANCED_STATUSES.has(status as AdvancedEvidenceStatus)
-  ) {
-    throw new EditorProtocolError("Invalid advanced Run value.");
-  }
-  return {
-    saveKey: saveKey as AdvancedRunValueDto["saveKey"],
-    label: readString(value.label, "advanced Run label"),
-    value: readInteger(value.value, "advanced Run value"),
-    status: status as AdvancedEvidenceStatus,
-  };
-}
-
 function parseAdvanced(
   value: unknown,
   icons: LocalIconRegistry,
@@ -357,7 +331,6 @@ function parseAdvanced(
     !isRecord(value.advanced)
     || !Array.isArray(value.advanced.domains)
     || !Array.isArray(value.advanced.items)
-    || !Array.isArray(value.advanced.runValues)
   ) {
     throw new EditorProtocolError("Invalid advanced data.");
   }
@@ -385,7 +358,6 @@ function parseAdvanced(
         ...item,
         iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
       })),
-      runValues: value.advanced.runValues.map(parseAdvancedRunValue),
       unlinkedChargeEntryCount,
     },
   };

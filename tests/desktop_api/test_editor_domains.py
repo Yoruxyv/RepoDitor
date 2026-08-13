@@ -131,7 +131,6 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "privateUnrelatedData": {"mustNotLeak": 123},
         }
     )
-    dictionaries["runStats"]["chargingStationCharge"] = 10
     source = deepcopy(sample_save)
     save_path = _write_save(tmp_path, sample_save)
     before = save_path.read_bytes()
@@ -147,7 +146,6 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
     assert set(advanced) == {
         "domains",
         "items",
-        "runValues",
         "unlinkedChargeEntryCount",
     }
     assert advanced["items"] == [
@@ -160,14 +158,6 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "rechargeCapability": "rechargeable",
             "canRefillToFull": True,
             "iconKey": None,
-        }
-    ]
-    assert advanced["runValues"] == [
-        {
-            "saveKey": "chargingStationCharge",
-            "label": "Charging station charge",
-            "value": 10,
-            "status": "partially_confirmed",
         }
     ]
     capabilities = {domain["key"]: domain["capabilities"] for domain in advanced["domains"]}

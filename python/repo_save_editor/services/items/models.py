@@ -65,19 +65,9 @@ class AdvancedItem:
 
 
 @dataclass(frozen=True, slots=True)
-class AdvancedRunValue:
-    """One observed, read-only lower-level Run value."""
-
-    save_key: str
-    label: str
-    value: int
-
-
-@dataclass(frozen=True, slots=True)
 class AdvancedSaveView:
     """Renderer-safe projection of evidence-supported advanced structures."""
 
     domains: tuple[AdvancedCapability, ...]
     items: tuple[AdvancedItem, ...]
-    run_values: tuple[AdvancedRunValue, ...]
     unlinked_charge_entry_count: int

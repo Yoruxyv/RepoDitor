@@ -95,15 +95,6 @@ def get_advanced_save(
                 }
                 for item in advanced.items
             ],
-            "runValues": [
-                {
-                    "saveKey": value.save_key,
-                    "label": value.label,
-                    "value": value.value,
-                    "status": "partially_confirmed",
-                }
-                for value in advanced.run_values
-            ],
             "unlinkedChargeEntryCount": advanced.unlinked_charge_entry_count,
         },
     }

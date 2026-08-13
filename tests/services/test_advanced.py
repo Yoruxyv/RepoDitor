@@ -36,7 +36,6 @@ def _advanced_save(sample_save):
             },
         }
     )
-    dictionaries["runStats"].update({"chargingStationCharge": 10, "chargingStationChargeTotal": 95})
     return data
 
 
@@ -68,11 +67,6 @@ def test_discovers_confirmed_items_charge_and_read_only_capabilities(sample_save
     assert hammer.recharge_capability is ItemRechargeCapability.RECHARGEABLE
     assert hammer.can_refill_to_full is True
     assert advanced.unlinked_charge_entry_count == 0
-    assert [(value.save_key, value.value) for value in advanced.run_values] == [
-        ("chargingStationCharge", 10),
-        ("chargingStationChargeTotal", 95),
-    ]
-
     domains = {domain.key: domain for domain in advanced.domains}
     assert domains["items"].status == "confirmed"
     assert domains["items"].entry_count == 4
@@ -205,13 +199,6 @@ def test_distinguishes_missing_from_supported_empty_structures(sample_save) -> N
 )
 def test_rejects_malformed_observed_structures(sample_save, key, value) -> None:
     sample_save["dictionaryOfDictionaries"]["value"][key] = value
-
-    with pytest.raises(AdvancedSaveError):
-        discover_advanced_save(sample_save)
-
-
-def test_rejects_malformed_observed_run_value(sample_save) -> None:
-    sample_save["dictionaryOfDictionaries"]["value"]["runStats"]["chargingStationCharge"] = 1.5
 
     with pytest.raises(AdvancedSaveError):
         discover_advanced_save(sample_save)

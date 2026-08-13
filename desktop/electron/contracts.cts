@@ -150,8 +150,7 @@ export type AdvancedDomainKey =
   | "batteryUpgrades"
   | "purchasedUpgrades"
   | "purchasedItems"
-  | "purchasedItemsTotal"
-  | "runMetadata";
+  | "purchasedItemsTotal";
 
 export interface AdvancedCapabilitiesDto {
   canRead: boolean;
@@ -192,17 +191,9 @@ export interface AdvancedItemDto {
   iconToken: string | null;
 }
 
-export interface AdvancedRunValueDto {
-  saveKey: "chargingStationCharge" | "chargingStationChargeTotal";
-  label: string;
-  value: number;
-  status: AdvancedEvidenceStatus;
-}
-
 export interface AdvancedSaveDto {
   domains: AdvancedDomainDto[];
   items: AdvancedItemDto[];
-  runValues: AdvancedRunValueDto[];
   unlinkedChargeEntryCount: number;
 }
 

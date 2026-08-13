@@ -29,7 +29,6 @@ const advancedDomains: AdvancedDomainDto[] = [
   { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
   { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyCapabilities, canRead: false } },
-  { key: "runMetadata", label: "Additional Run values", status: "partially_confirmed", entryCount: 2, capabilities: readOnlyCapabilities },
 ];
 
 describe("editor data IPC", () => {
@@ -110,14 +109,6 @@ describe("editor data IPC", () => {
           rawValue: 21,
         },
       ],
-      runValues: [
-        {
-          saveKey: "chargingStationCharge",
-          label: "Charging station charge",
-          value: 10,
-          status: "partially_confirmed",
-        },
-      ],
       unlinkedChargeEntryCount: 0,
       rawSave: { secret: true },
     };
@@ -128,7 +119,6 @@ describe("editor data IPC", () => {
       ok: true,
       data: {
         items: [{ storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true }],
-        runValues: [{ saveKey: "chargingStationCharge", value: 10 }],
       },
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
@@ -152,7 +142,6 @@ describe("editor data IPC", () => {
           iconKey: null,
         },
       ],
-      runValues: [],
       unlinkedChargeEntryCount: 0,
     };
     await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
