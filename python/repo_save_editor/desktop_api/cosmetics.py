@@ -73,6 +73,7 @@ def _serialize(
     view = discover_cosmetics(data, installed_catalog)
     return {
         "fingerprint": sha256(source).hexdigest(),
+        "catalogAvailable": bool(installed_catalog),
         "knownCatalogCount": view.known_catalog_count,
         "knownOwnedCount": view.known_owned_count,
         "knownLockedCount": view.known_locked_count,
@@ -93,6 +94,9 @@ def _serialize(
                 "status": cosmetic.status,
                 "owned": cosmetic.owned,
                 "known": cosmetic.known,
+                "state": (
+                    "unknown" if not cosmetic.known else "owned" if cosmetic.owned else "locked"
+                ),
                 "mutationEligible": cosmetic.mutation_eligible,
                 "removalBlockedReason": cosmetic.removal_blocked_reason,
             }

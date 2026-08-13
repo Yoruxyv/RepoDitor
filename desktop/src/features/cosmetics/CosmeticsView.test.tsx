@@ -7,6 +7,7 @@ import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
 
 const blockedView: CosmeticsViewDto = {
   fingerprint: "c".repeat(64),
+  catalogAvailable: true,
   knownCatalogCount: 1,
   knownOwnedCount: 1,
   knownLockedCount: 0,
@@ -19,10 +20,15 @@ const blockedView: CosmeticsViewDto = {
     canRemoveOwnership: true,
   },
   cosmetics: [{
-    id: 1,
-    displayName: "Cosmetic #1",
+    id: 0,
+    displayName: "Long Sleeve",
+    type: 0,
+    rarity: 0,
+    status: 1,
     owned: true,
     known: true,
+    state: "owned",
+    mutationEligible: true,
     removalBlockedReason: "Equipped cosmetic",
   }],
 };

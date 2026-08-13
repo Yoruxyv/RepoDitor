@@ -3,37 +3,70 @@
 import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CosmeticDto } from "../contracts.cjs";
+import type { CosmeticDto, CosmeticsViewDto } from "../contracts.cjs";
 
 const require = createRequire(import.meta.url);
 const { getCosmetics, saveCosmetics } = require("../../dist-electron/ipc/cosmetics.cjs");
 
 const fingerprint = "a".repeat(64);
+const unknownReason = "Cosmetic ID is absent from the installed catalog and is preserved read-only.";
+const futureReason = "Cosmetic ID is outside the proven mutation trust boundary and is preserved read-only.";
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
 }
 
-function view() {
-  const cosmetics: CosmeticDto[] = Array.from({ length: 547 }, (_, id) => ({
+function installedDisplayName(id: number): string {
+  if (id < 2) {
+    return "Duplicate Name";
+  }
+  if (id === 2) {
+    return "Monkey";
+  }
+  return `Installed ${id}`;
+}
+
+function installedCosmetic(id: number, owned = id === 1): CosmeticDto {
+  const mutationEligible = id < 547;
+  return {
+    id,
+    displayName: installedDisplayName(id),
+    type: id % 4,
+    rarity: id % 3,
+    status: 1,
+    owned,
+    known: true,
+    state: owned ? "owned" : "locked",
+    mutationEligible,
+    removalBlockedReason: mutationEligible ? null : futureReason,
+  };
+}
+
+function unknownCosmetic(id: number): CosmeticDto {
+  return {
     id,
     displayName: `Cosmetic #${id}`,
-    owned: id === 27,
-    known: true,
-    removalBlockedReason: null,
-  }));
-  cosmetics.push({
-    id: 999,
-    displayName: "Cosmetic #999",
+    type: null,
+    rarity: null,
+    status: null,
     owned: true,
     known: false,
-    removalBlockedReason: "Unknown or future cosmetics are preserved read-only.",
-  });
+    state: "unknown",
+    mutationEligible: false,
+    removalBlockedReason: unknownReason,
+  };
+}
+
+function view(count = 3): CosmeticsViewDto {
+  const cosmetics = Array.from({ length: count }, (_, id) => installedCosmetic(id));
+  cosmetics.push(unknownCosmetic(999));
+  const knownOwnedCount = cosmetics.filter((cosmetic) => cosmetic.known && cosmetic.owned).length;
   return {
     fingerprint,
-    knownCatalogCount: 547,
-    knownOwnedCount: 1,
-    knownLockedCount: 546,
+    catalogAvailable: true,
+    knownCatalogCount: count,
+    knownOwnedCount,
+    knownLockedCount: count - knownOwnedCount,
     savedPresetCount: 0,
     unknownOwnedIds: [999],
     capabilities: {
@@ -46,13 +79,32 @@ function view() {
   };
 }
 
+function degradedView(): CosmeticsViewDto {
+  return {
+    fingerprint,
+    catalogAvailable: false,
+    knownCatalogCount: 0,
+    knownOwnedCount: 0,
+    knownLockedCount: 0,
+    savedPresetCount: 0,
+    unknownOwnedIds: [27, 999],
+    capabilities: {
+      canReadCosmetics: true,
+      canUnlockCosmetic: false,
+      canUnlockAll: false,
+      canRemoveOwnership: false,
+    },
+    cosmetics: [unknownCosmetic(27), unknownCosmetic(999)],
+  };
+}
+
 describe("cosmetics IPC", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
-  it("parses the narrow catalog projection without raw MetaSave data", async () => {
+  it("round-trips dynamic metadata and preserves duplicate names by integer ID", async () => {
     const response = { ...view(), rawMetaSave: { cosmeticTokens: [7] } };
     const fake = client({ ok: true, cosmetics: response });
     const result = await getCosmetics(fake);
@@ -60,22 +112,89 @@ describe("cosmetics IPC", () => {
     expect(fake.run).toHaveBeenCalledWith("cosmetics-get");
     expect(result).toMatchObject({
       ok: true,
-      data: { knownCatalogCount: 547, unknownOwnedIds: [999] },
+      data: {
+        catalogAvailable: true,
+        knownCatalogCount: 3,
+        knownOwnedCount: 1,
+        knownLockedCount: 2,
+        unknownOwnedIds: [999],
+      },
     });
+    expect(result.data.cosmetics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 0,
+          displayName: "Duplicate Name",
+          type: 0,
+          rarity: 0,
+          status: 1,
+        }),
+        expect.objectContaining({
+          id: 1,
+          displayName: "Duplicate Name",
+          type: 1,
+          rarity: 1,
+          status: 1,
+        }),
+      ]),
+    );
+    const duplicateCosmetics = result.data.cosmetics as CosmeticDto[];
+    const duplicateIds = duplicateCosmetics
+      .filter((cosmetic) => cosmetic.displayName === "Duplicate Name")
+      .map((cosmetic) => cosmetic.id)
+      .sort((left, right) => left - right);
+    expect(duplicateIds).toEqual([0, 1]);
     expect(result.data).not.toHaveProperty("rawMetaSave");
   });
 
-  it("passes only exact known ownership changes to Python", async () => {
+  it("accepts an explicit degraded catalog without fabricating installed metadata", async () => {
+    const result = await getCosmetics(client({ ok: true, cosmetics: degradedView() }));
+
+    expect(result).toEqual({ ok: true, data: degradedView() });
+    expect(result.data.cosmetics[0]).toMatchObject({
+      id: 27,
+      type: null,
+      rarity: null,
+      status: null,
+      state: "unknown",
+      mutationEligible: false,
+    });
+  });
+
+  it("accepts installed future IDs as read-only presentation metadata", async () => {
+    const futureView = view(548);
+    futureView.cosmetics[547]!.displayName = "Future Cosmetic";
+
+    const result = await getCosmetics(client({ ok: true, cosmetics: futureView }));
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        knownCatalogCount: 548,
+        cosmetics: expect.arrayContaining([
+          expect.objectContaining({
+            id: 547,
+            displayName: "Future Cosmetic",
+            mutationEligible: false,
+            state: "locked",
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("passes only canonical proven ownership changes to Python", async () => {
     const updated = view();
     updated.knownOwnedCount = 2;
-    updated.knownLockedCount = 545;
-    updated.cosmetics[28]!.owned = true;
+    updated.knownLockedCount = 1;
+    updated.cosmetics[2]!.owned = true;
+    updated.cosmetics[2]!.state = "owned";
     const fake = client({
       ok: true,
       result: { backupPath: "C:\\fixture\\MetaSave.es3.bak-1", cosmetics: updated },
     });
     const changes = [
-      { feature: "cosmetics", entity: "28", field: "owned", after: true },
+      { feature: "cosmetics", entity: "2", field: "owned", after: true },
     ];
 
     await expect(saveCosmetics(fake, fingerprint, changes)).resolves.toMatchObject({
@@ -150,26 +269,24 @@ describe("cosmetics IPC", () => {
     ]);
   });
 
-  it("rejects unknown IDs, arbitrary fields, duplicates, and malformed output", async () => {
+  it("rejects malformed output and mutation requests outside the proven boundary", async () => {
     const fake = client({});
     await expect(getCosmetics(fake)).resolves.toMatchObject({
       ok: false,
       error: { code: "invalid_response" },
     });
     for (const changes of [
-      [{ feature: "cosmetics", entity: "999", field: "owned", after: true }],
-      [{ feature: "cosmetics", entity: "28", field: "tokens", after: 99 }],
+      [{ feature: "cosmetics", entity: "547", field: "owned", after: true }],
+      [{ feature: "cosmetics", entity: "002", field: "owned", after: true }],
+      [{ feature: "cosmetics", entity: "Duplicate Name", field: "owned", after: true }],
+      [{ feature: "cosmetics", entity: "2", field: "tokens", after: 99 }],
       [
-        { feature: "cosmetics", entity: "28", field: "owned", after: true },
-        { feature: "cosmetics", entity: "28", field: "owned", after: false },
+        { feature: "cosmetics", entity: "2", field: "owned", after: true },
+        { feature: "cosmetics", entity: "2", field: "owned", after: false },
       ],
       [
         { feature: "cosmetics", entity: "known", field: "unlockAll", after: true },
-        { feature: "cosmetics", entity: "28", field: "owned", after: false },
-      ],
-      [
-        { feature: "cosmetics", entity: "presets", field: "clearAll", after: true },
-        { feature: "cosmetics", entity: "28", field: "owned", after: false },
+        { feature: "cosmetics", entity: "2", field: "owned", after: false },
       ],
     ]) {
       await expect(saveCosmetics(fake, fingerprint, changes)).resolves.toMatchObject({
@@ -180,9 +297,20 @@ describe("cosmetics IPC", () => {
     fake.run.mockClear();
     expect(fake.run).not.toHaveBeenCalled();
 
-    const malformed = view();
-    malformed.knownLockedCount = 547;
-    await expect(getCosmetics(client({ ok: true, cosmetics: malformed }))).resolves
+    const wrongAvailability = view();
+    wrongAvailability.catalogAvailable = false;
+    await expect(getCosmetics(client({ ok: true, cosmetics: wrongAvailability }))).resolves
+      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+
+    const fabricatedUnknown = degradedView();
+    fabricatedUnknown.cosmetics[0]!.type = 7;
+    await expect(getCosmetics(client({ ok: true, cosmetics: fabricatedUnknown }))).resolves
+      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+
+    const writableFuture = view(548);
+    writableFuture.cosmetics[547]!.mutationEligible = true;
+    writableFuture.cosmetics[547]!.removalBlockedReason = null;
+    await expect(getCosmetics(client({ ok: true, cosmetics: writableFuture }))).resolves
       .toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 

@@ -19,8 +19,10 @@ import {
 } from "../python/client.cjs";
 
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
-const KNOWN_COSMETIC_COUNT = 547;
-const MAX_CHANGES = KNOWN_COSMETIC_COUNT;
+// Mirrors the independently proven Python mutation trust boundary. This is not a
+// catalog-size assumption: dynamic installed catalogs may be smaller or larger.
+const PROVEN_MUTATION_ID_COUNT = 547;
+const MAX_CHANGES = PROVEN_MUTATION_ID_COUNT;
 const ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
   "game_running",
@@ -64,6 +66,10 @@ function readBoolean(value: unknown, field: string): boolean {
   return value;
 }
 
+function readNullableInteger(value: unknown, field: string): number | null {
+  return value === null ? null : readInteger(value, field);
+}
+
 function readFingerprint(value: unknown): string {
   const fingerprint = readString(value, "MetaSave fingerprint");
   if (!FINGERPRINT_PATTERN.test(fingerprint)) {
@@ -90,19 +96,58 @@ function readCosmetic(value: unknown): CosmeticDto {
   }
   const id = readInteger(value.id, "cosmetic ID");
   const displayName = readString(value.displayName, "cosmetic display name");
+  const type = readNullableInteger(value.type, "cosmetic type");
+  const rarity = readNullableInteger(value.rarity, "cosmetic rarity");
+  const status = readNullableInteger(value.status, "cosmetic status");
   const known = readBoolean(value.known, "known cosmetic flag");
   const owned = readBoolean(value.owned, "cosmetic ownership");
+  const mutationEligible = readBoolean(value.mutationEligible, "cosmetic mutation eligibility");
+  const state = readString(value.state, "cosmetic state");
+  if (state !== "owned" && state !== "locked" && state !== "unknown") {
+    throw new CosmeticsProtocolError("Invalid cosmetic state.");
+  }
   const removalBlockedReason =
     value.removalBlockedReason === null
       ? null
       : readString(value.removalBlockedReason, "cosmetic removal block reason");
-  if (displayName !== `Cosmetic #${id}` || (known && (id < 0 || id >= KNOWN_COSMETIC_COUNT))) {
-    throw new CosmeticsProtocolError("Invalid cosmetic identity.");
+
+  if (known) {
+    if (
+      id < 0
+      || type === null
+      || rarity === null
+      || status === null
+      || state !== (owned ? "owned" : "locked")
+      || mutationEligible !== (id < PROVEN_MUTATION_ID_COUNT)
+      || (!mutationEligible && removalBlockedReason === null)
+    ) {
+      throw new CosmeticsProtocolError("Invalid installed cosmetic projection.");
+    }
+  } else if (
+    !owned
+    || displayName !== `Cosmetic #${id}`
+    || type !== null
+    || rarity !== null
+    || status !== null
+    || state !== "unknown"
+    || mutationEligible
+    || removalBlockedReason === null
+  ) {
+    throw new CosmeticsProtocolError("Invalid unknown cosmetic projection.");
   }
-  if (!known && (!owned || (id >= 0 && id < KNOWN_COSMETIC_COUNT))) {
-    throw new CosmeticsProtocolError("Invalid unknown cosmetic.");
-  }
-  return { id, displayName, owned, known, removalBlockedReason };
+
+  return {
+    id,
+    displayName,
+    type,
+    rarity,
+    status,
+    owned,
+    known,
+    state,
+    mutationEligible,
+    removalBlockedReason,
+  };
 }
 
 function readView(value: unknown): CosmeticsViewDto {
@@ -113,38 +158,51 @@ function readView(value: unknown): CosmeticsViewDto {
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics view.");
   }
+  const catalogAvailable = readBoolean(value.catalogAvailable, "catalog availability");
   const knownCatalogCount = readInteger(value.knownCatalogCount, "known catalog count");
   const knownOwnedCount = readInteger(value.knownOwnedCount, "known owned count");
   const knownLockedCount = readInteger(value.knownLockedCount, "known locked count");
   const savedPresetCount = readInteger(value.savedPresetCount, "saved preset count");
   const cosmetics = value.cosmetics.map(readCosmetic);
   const unknownOwnedIds = value.unknownOwnedIds.map((id) => readInteger(id, "unknown cosmetic ID"));
+  const capabilities = readCapabilities(value.capabilities);
   const known = cosmetics.filter((cosmetic) => cosmetic.known);
-  const knownIds = new Set(known.map((cosmetic) => cosmetic.id));
-  const projectedUnknownIds = cosmetics.filter((cosmetic) => !cosmetic.known).map((cosmetic) => cosmetic.id);
+  const unknown = cosmetics.filter((cosmetic) => !cosmetic.known);
+  const knownIds = known.map((cosmetic) => cosmetic.id);
+  const allIds = new Set(cosmetics.map((cosmetic) => cosmetic.id));
+  const projectedUnknownIds = unknown.map((cosmetic) => cosmetic.id);
+  const mutationAvailable = known.some((cosmetic) => cosmetic.mutationEligible);
+
   if (
-    knownCatalogCount !== KNOWN_COSMETIC_COUNT
+    knownCatalogCount < 0
     || knownOwnedCount < 0
     || knownLockedCount < 0
     || savedPresetCount < 0
-    || knownOwnedCount + knownLockedCount !== KNOWN_COSMETIC_COUNT
-    || known.length !== KNOWN_COSMETIC_COUNT
-    || knownIds.size !== KNOWN_COSMETIC_COUNT
-    || [...knownIds].some((id) => id < 0 || id >= KNOWN_COSMETIC_COUNT)
+    || knownOwnedCount + knownLockedCount !== knownCatalogCount
+    || known.length !== knownCatalogCount
+    || knownIds.some((id, position) => id !== position)
     || known.filter((cosmetic) => cosmetic.owned).length !== knownOwnedCount
+    || known.filter((cosmetic) => !cosmetic.owned).length !== knownLockedCount
+    || allIds.size !== cosmetics.length
     || new Set(unknownOwnedIds).size !== unknownOwnedIds.length
     || projectedUnknownIds.join(",") !== unknownOwnedIds.join(",")
+    || catalogAvailable !== (knownCatalogCount > 0)
+    || !capabilities.canReadCosmetics
+    || capabilities.canUnlockCosmetic !== mutationAvailable
+    || capabilities.canUnlockAll !== mutationAvailable
+    || capabilities.canRemoveOwnership !== mutationAvailable
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics catalog projection.");
   }
   return {
     fingerprint: readFingerprint(value.fingerprint),
+    catalogAvailable,
     knownCatalogCount,
     knownOwnedCount,
     knownLockedCount,
     savedPresetCount,
     unknownOwnedIds,
-    capabilities: readCapabilities(value.capabilities),
+    capabilities,
     cosmetics,
   };
 }
@@ -191,11 +249,17 @@ function readChange(value: unknown): CosmeticChange {
   if (value.entity === "presets" && value.field === "clearAll" && value.after === true) {
     return { feature: "cosmetics", entity: "presets", field: "clearAll", after: true };
   }
-  if (typeof value.entity !== "string" || !/^(?:0|[1-9]\d{0,2})$/.test(value.entity)) {
+  if (typeof value.entity !== "string" || !/^(?:0|[1-9]\d*)$/.test(value.entity)) {
     throw new CosmeticsProtocolError("Invalid cosmetic ID.");
   }
   const id = Number(value.entity);
-  if (id >= KNOWN_COSMETIC_COUNT || value.field !== "owned" || typeof value.after !== "boolean") {
+  if (
+    !Number.isSafeInteger(id)
+    || id < 0
+    || id >= PROVEN_MUTATION_ID_COUNT
+    || value.field !== "owned"
+    || typeof value.after !== "boolean"
+  ) {
     throw new CosmeticsProtocolError("Unsupported cosmetic change.");
   }
   return { feature: "cosmetics", entity: value.entity, field: "owned", after: value.after };

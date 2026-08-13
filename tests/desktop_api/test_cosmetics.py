@@ -69,6 +69,7 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
     assert result["ok"] is True
     view = result["cosmetics"]
     assert view["fingerprint"] == sha256(original).hexdigest()
+    assert view["catalogAvailable"] is True
     assert view["knownCatalogCount"] == 547
     assert view["knownOwnedCount"] == 1
     assert view["savedPresetCount"] == 0
@@ -81,6 +82,7 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
         "status": 1,
         "owned": True,
         "known": True,
+        "state": "owned",
         "mutationEligible": True,
         "removalBlockedReason": None,
     }
@@ -259,21 +261,87 @@ def test_game_running_blocks_cosmetics_write_before_backup_or_source_change(tmp_
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
-def test_get_cosmetics_uses_dynamic_installed_names_and_count(tmp_path: Path) -> None:
+def test_get_cosmetics_round_trips_dynamic_metadata_and_duplicate_names(tmp_path: Path) -> None:
     save_root, _meta_path_value = _write_fixture(tmp_path)
-    catalog = _catalog(names=("Long Sleeve", "Short Sleeve", "Monkey"))
+    catalog = _catalog(names=("Duplicate Name", "Duplicate Name", "Monkey"))
 
     result = get_cosmetics(save_root, catalog_loader=lambda: catalog)
 
     assert result["ok"] is True
     view = result["cosmetics"]
+    assert view["catalogAvailable"] is True
     assert view["knownCatalogCount"] == 3
-    assert [item["displayName"] for item in view["cosmetics"][:3]] == [
-        "Long Sleeve",
-        "Short Sleeve",
-        "Monkey",
+    assert [
+        (item["id"], item["displayName"], item["type"], item["rarity"], item["status"])
+        for item in view["cosmetics"][:3]
+    ] == [
+        (0, "Duplicate Name", 0, 0, 1),
+        (1, "Duplicate Name", 1, 1, 1),
+        (2, "Monkey", 2, 2, 1),
     ]
+    assert view["cosmetics"][0]["state"] == "locked"
+    assert view["cosmetics"][1]["state"] == "locked"
     assert view["unknownOwnedIds"] == [27, 999]
+
+
+def test_get_cosmetics_reports_explicit_degraded_catalog_without_metadata(tmp_path: Path) -> None:
+    save_root, _meta_path_value = _write_fixture(tmp_path)
+
+    result = get_cosmetics(save_root, catalog_loader=lambda: None)
+
+    assert result["ok"] is True
+    view = result["cosmetics"]
+    assert view["catalogAvailable"] is False
+    assert view["knownCatalogCount"] == 0
+    assert view["knownOwnedCount"] == 0
+    assert view["knownLockedCount"] == 0
+    assert view["unknownOwnedIds"] == [27, 999]
+    assert view["capabilities"] == {
+        "canReadCosmetics": True,
+        "canUnlockCosmetic": False,
+        "canUnlockAll": False,
+        "canRemoveOwnership": False,
+    }
+    assert view["cosmetics"][0] == {
+        "id": 27,
+        "displayName": "Cosmetic #27",
+        "type": None,
+        "rarity": None,
+        "status": None,
+        "owned": True,
+        "known": False,
+        "state": "unknown",
+        "mutationEligible": False,
+        "removalBlockedReason": (
+            "Cosmetic ID is absent from the installed catalog and is preserved read-only."
+        ),
+    }
+
+
+def test_empty_catalog_serializes_as_degraded_unknown_read_only(tmp_path: Path) -> None:
+    save_root, _meta_path_value = _write_fixture(tmp_path)
+
+    result = get_cosmetics(save_root, catalog_loader=lambda: ())
+
+    assert result["ok"] is True
+    view = result["cosmetics"]
+    assert view["catalogAvailable"] is False
+    assert view["knownCatalogCount"] == 0
+    assert view["knownOwnedCount"] == 0
+    assert view["knownLockedCount"] == 0
+    assert view["capabilities"] == {
+        "canReadCosmetics": True,
+        "canUnlockCosmetic": False,
+        "canUnlockAll": False,
+        "canRemoveOwnership": False,
+    }
+    assert view["unknownOwnedIds"] == [27, 999]
+    assert [
+        (item["id"], item["state"], item["mutationEligible"]) for item in view["cosmetics"]
+    ] == [
+        (27, "unknown", False),
+        (999, "unknown", False),
+    ]
 
 
 def test_unavailable_catalog_blocks_ownership_write_without_backup(tmp_path: Path) -> None:
@@ -314,6 +382,7 @@ def test_clear_presets_remains_available_when_catalog_is_unavailable(tmp_path: P
     reopened = decrypt_save(meta_path.read_bytes())
     assert reopened["cosmeticPresets"]["value"] == [[], []]
     assert reopened["colorPresets"]["value"] == [[], []]
+    assert result["result"]["cosmetics"]["catalogAvailable"] is False
     assert result["result"]["cosmetics"]["knownCatalogCount"] == 0
 
 

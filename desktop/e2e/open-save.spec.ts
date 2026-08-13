@@ -101,6 +101,15 @@ async function createGameFixture(home: string): Promise<string> {
     [path.join(desktopRoot, "e2e", "helpers", "create-recharge-game-assets.py"), gameRoot],
     { cwd: repoRoot, stdio: "inherit" },
   );
+  execFileSync(
+    getPythonExecutable(),
+    [path.join(desktopRoot, "e2e", "helpers", "create-cosmetic-game-assets.py"), gameRoot],
+    {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
+      stdio: "inherit",
+    },
+  );
   if (process.platform === "win32") {
     await copyFile(process.execPath, path.join(gameRoot, "REPO.exe"));
   }
