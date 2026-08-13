@@ -56,6 +56,7 @@ def _mono_script(name: str, class_name: str) -> bytes:
 def _cosmetic_asset(
     name: str,
     *,
+    object_name: str = "",
     script_file_id: int = 1,
     script_path_id: int = 1002,
     status: int = 2,
@@ -63,7 +64,7 @@ def _cosmetic_asset(
     rarity: int = 4,
 ) -> bytes:
     return (
-        _mono_behaviour_prefix(script_file_id, script_path_id, name="")
+        _mono_behaviour_prefix(script_file_id, script_path_id, name=object_name)
         + struct.pack("<i", status)
         + _aligned_string(name)
         + struct.pack("<ii", cosmetic_type, rarity)
@@ -273,6 +274,26 @@ def test_dynamic_count_and_duplicate_names_preserve_distinct_position_ids(tmp_pa
     assert result is not None
     assert result[0].asset_name == result[1].asset_name
     assert result[0].cosmetic_id != result[1].cosmetic_id
+
+
+def test_cosmetic_cache_identity_uses_object_name_not_duplicate_display_name(
+    tmp_path: Path,
+) -> None:
+    game_root, _level0, target_path, _manifest = _build_install(tmp_path, names=("Same", "Same"))
+    _write_serialized_file(
+        target_path,
+        [
+            (7000, 114, _cosmetic_asset("Same", object_name="Hat Alpha")),
+            (7017, 114, _cosmetic_asset("Same", object_name="Hat Beta(Clone)")),
+        ],
+        externals=(("archive:/CAB/globalgamemanagers.assets", "globalgamemanagers.assets"),),
+    )
+
+    result = discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache")
+
+    assert result is not None
+    assert [entry.asset_name for entry in result] == ["Same", "Same"]
+    assert [entry.icon_cache_key for entry in result] == ["hat alpha.png", "hat beta.png"]
 
 
 @pytest.mark.parametrize(

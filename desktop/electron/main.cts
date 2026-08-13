@@ -15,6 +15,10 @@ import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerProjectIpc } from "./ipc/project.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
+import {
+  registerLocalIconProtocol,
+  registerLocalIconScheme,
+} from "./icons/protocol.cjs";
 
 const developmentRendererUrl =
   process.env.VITE_DEV_SERVER_URL;
@@ -106,6 +110,7 @@ function createWindow(): void {
   void window.loadURL(rendererUrl);
 }
 
+registerLocalIconScheme();
 registerEnvironmentIpc();
 registerGameIpc();
 registerCosmeticsIpc();
@@ -121,6 +126,7 @@ registerEditorIpc();
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  registerLocalIconProtocol();
   createWindow();
 
   app.on("activate", () => {

@@ -30,6 +30,7 @@ const blockedView: CosmeticsViewDto = {
     state: "owned",
     mutationEligible: true,
     removalBlockedReason: "Equipped cosmetic",
+    iconToken: null,
   }],
 };
 
@@ -58,6 +59,7 @@ const degradedView: CosmeticsViewDto = {
     state: "unknown",
     mutationEligible: false,
     removalBlockedReason: "Preserved read-only",
+    iconToken: null,
   }],
 };
 

@@ -17,6 +17,7 @@ export type PythonCommand =
   | "advanced-get"
   | "cosmetics-get"
   | "cosmetics-write"
+  | "icons-roots"
   | "maps-list";
 
 export type PythonClientErrorCode =

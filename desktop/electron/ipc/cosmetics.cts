@@ -17,6 +17,11 @@ import {
   pythonClient,
   type PythonClient,
 } from "../python/client.cjs";
+import {
+  localIconRegistry,
+  readIconKey,
+  type LocalIconRegistry,
+} from "../icons/registry.cjs";
 
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 // Mirrors the independently proven Python mutation trust boundary. This is not a
@@ -90,7 +95,11 @@ function readCapabilities(value: unknown): CosmeticCapabilitiesDto {
   };
 }
 
-function readCosmetic(value: unknown): CosmeticDto {
+interface ParsedCosmetic extends Omit<CosmeticDto, "iconToken"> {
+  readonly iconKey: string | null;
+}
+
+function readCosmetic(value: unknown): ParsedCosmetic {
   if (!isRecord(value)) {
     throw new CosmeticsProtocolError("Invalid cosmetic.");
   }
@@ -110,6 +119,12 @@ function readCosmetic(value: unknown): CosmeticDto {
     value.removalBlockedReason === null
       ? null
       : readString(value.removalBlockedReason, "cosmetic removal block reason");
+  let iconKey: string | null;
+  try {
+    iconKey = readIconKey(value.iconKey);
+  } catch {
+    throw new CosmeticsProtocolError("Invalid cosmetic icon.");
+  }
 
   if (known) {
     if (
@@ -147,10 +162,11 @@ function readCosmetic(value: unknown): CosmeticDto {
     state,
     mutationEligible,
     removalBlockedReason,
+    iconKey,
   };
 }
 
-function readView(value: unknown): CosmeticsViewDto {
+function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
   if (
     !isRecord(value)
     || !Array.isArray(value.cosmetics)
@@ -194,6 +210,7 @@ function readView(value: unknown): CosmeticsViewDto {
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics catalog projection.");
   }
+  const tokens = icons.replace("cosmetic", cosmetics.map((cosmetic) => cosmetic.iconKey));
   return {
     fingerprint: readFingerprint(value.fingerprint),
     catalogAvailable,
@@ -203,7 +220,10 @@ function readView(value: unknown): CosmeticsViewDto {
     savedPresetCount,
     unknownOwnedIds,
     capabilities,
-    cosmetics,
+    cosmetics: cosmetics.map(({ iconKey, ...cosmetic }) => ({
+      ...cosmetic,
+      iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+    })),
   };
 }
 
@@ -224,11 +244,14 @@ function readError(value: Record<string, unknown>): DesktopOperationFailure {
   };
 }
 
-function readGetResponse(value: unknown): DesktopOperationResult<CosmeticsViewDto> {
+function readGetResponse(
+  value: unknown,
+  icons: LocalIconRegistry,
+): DesktopOperationResult<CosmeticsViewDto> {
   if (!isRecord(value)) {
     throw new CosmeticsProtocolError("Invalid cosmetics response.");
   }
-  return value.ok === true ? { ok: true, data: readView(value.cosmetics) } : readError(value);
+  return value.ok === true ? { ok: true, data: readView(value.cosmetics, icons) } : readError(value);
 }
 
 function hasExactChangeKeys(value: Record<string, unknown>): boolean {
@@ -285,7 +308,10 @@ function readChanges(value: unknown): CosmeticChange[] {
   return changes;
 }
 
-function readWriteResponse(value: unknown): DesktopOperationResult<CosmeticsWriteResult> {
+function readWriteResponse(
+  value: unknown,
+  icons: LocalIconRegistry,
+): DesktopOperationResult<CosmeticsWriteResult> {
   if (!isRecord(value)) {
     throw new CosmeticsProtocolError("Invalid cosmetics response.");
   }
@@ -299,7 +325,7 @@ function readWriteResponse(value: unknown): DesktopOperationResult<CosmeticsWrit
     ok: true,
     data: {
       backupPath: readString(value.result.backupPath, "MetaSave backup path"),
-      cosmetics: readView(value.result.cosmetics),
+      cosmetics: readView(value.result.cosmetics, icons),
     },
   };
 }
@@ -331,9 +357,10 @@ function failure(error: unknown): DesktopOperationFailure {
 
 export async function getCosmetics(
   client: PythonClient,
+  icons: LocalIconRegistry = localIconRegistry,
 ): Promise<DesktopOperationResult<CosmeticsViewDto>> {
   try {
-    return readGetResponse(await client.run("cosmetics-get"));
+    return readGetResponse(await client.run("cosmetics-get"), icons);
   } catch (error) {
     return failure(error);
   }
@@ -343,6 +370,7 @@ export async function saveCosmetics(
   client: PythonClient,
   fingerprint: unknown,
   changes: unknown,
+  icons: LocalIconRegistry = localIconRegistry,
 ): Promise<DesktopOperationResult<CosmeticsWriteResult>> {
   let safeFingerprint: string;
   let safeChanges: CosmeticChange[];
@@ -358,6 +386,7 @@ export async function saveCosmetics(
   try {
     return readWriteResponse(
       await client.run("cosmetics-write", [safeFingerprint, JSON.stringify(safeChanges)]),
+      icons,
     );
   } catch (error) {
     return failure(error);

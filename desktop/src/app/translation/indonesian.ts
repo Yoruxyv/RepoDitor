@@ -171,6 +171,7 @@ export const id: Record<keyof typeof en, string> = {
   "items.filterAll": "Semua item",
   "items.filterRechargeable": "Item dapat diisi ulang",
   "items.filterNonRechargeable": "Item tidak dapat diisi ulang",
+  "items.filterUpgrades": "Peningkatan",
   "items.sortLabel": "Urutkan",
   "items.sortNameAsc": "Nama A–Z",
   "items.sortNameDesc": "Nama Z–A",

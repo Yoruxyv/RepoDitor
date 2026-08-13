@@ -169,6 +169,7 @@ export const en = {
   "items.filterAll": "All items",
   "items.filterRechargeable": "Rechargeable items",
   "items.filterNonRechargeable": "Non-rechargeable items",
+  "items.filterUpgrades": "Upgrades",
   "items.sortLabel": "Sort",
   "items.sortNameAsc": "Name A–Z",
   "items.sortNameDesc": "Name Z–A",

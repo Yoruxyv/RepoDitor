@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Final
 
-from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.icon_cache import normalize_icon_cache_key
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 
 SERIALIZED_FILE_VERSION: Final = 22
 UNITY_VERSION: Final = "2022.3.67f2"
@@ -524,10 +525,6 @@ def _item_battery_metadata(
     return battery_bars, exceptional_flag
 
 
-def _unknown_capabilities(item_names: tuple[str, ...]) -> dict[str, ItemRechargeCapability]:
-    return dict.fromkeys(item_names, ItemRechargeCapability.UNKNOWN)
-
-
 def _normalize_item_names(item_names: Iterable[str]) -> tuple[tuple[str, ...], dict[str, str]]:
     names: list[str] = []
     by_identity: dict[str, str] = {}
@@ -568,7 +565,7 @@ def _classify_variants(
     resources: SerializedFileIndex,
     globals_: SerializedFileIndex,
     variants_by_item: dict[str, tuple[ObjectRecord, ...]],
-) -> dict[str, ItemRechargeCapability]:
+) -> dict[str, InstalledItemMetadata]:
     game_objects: dict[int, GameObjectData] = {}
     item_variant_ids: dict[str, tuple[int, ...]] = {}
     for item_name, records in variants_by_item.items():
@@ -627,35 +624,54 @@ def _classify_variants(
         else:
             variant_results[game_object_id] = VariantResult(True, battery_metadata[0])
 
-    results: dict[str, ItemRechargeCapability] = {}
+    results: dict[str, InstalledItemMetadata] = {}
     for item_name, variant_ids in item_variant_ids.items():
         item_variants = [variant_results[path_id] for path_id in variant_ids]
+        icon_keys = {
+            normalize_icon_cache_key(game_objects[path_id].name) for path_id in variant_ids
+        }
+        icon_key = next(iter(icon_keys)) if len(icon_keys) == 1 else None
         presence = {result.has_battery for result in item_variants}
         if None in presence or len(presence) != 1:
-            results[item_name] = ItemRechargeCapability.UNKNOWN
+            capability = ItemRechargeCapability.UNKNOWN
+            results[item_name] = InstalledItemMetadata(capability, icon_key)
             continue
         if not item_variants[0].has_battery:
-            results[item_name] = ItemRechargeCapability.NOT_RECHARGEABLE
+            capability = ItemRechargeCapability.NOT_RECHARGEABLE
+            results[item_name] = InstalledItemMetadata(capability, icon_key)
             continue
         metadata = {result.battery_metadata for result in item_variants}
         exceptional = any(
             result.battery_metadata is None or result.battery_metadata[1] != 0
             for result in item_variants
         )
-        results[item_name] = (
+        capability = (
             ItemRechargeCapability.RECHARGEABLE
             if len(metadata) == 1 and not exceptional
             else ItemRechargeCapability.UNKNOWN
         )
-    return results
+        results[item_name] = InstalledItemMetadata(capability, icon_key)
+    key_counts: dict[str, int] = {}
+    for metadata in results.values():
+        if metadata.icon_cache_key is not None:
+            key_counts[metadata.icon_cache_key] = key_counts.get(metadata.icon_cache_key, 0) + 1
+    return {
+        name: InstalledItemMetadata(
+            metadata.recharge_capability,
+            metadata.icon_cache_key
+            if metadata.icon_cache_key is not None and key_counts[metadata.icon_cache_key] == 1
+            else None,
+        )
+        for name, metadata in results.items()
+    }
 
 
-def discover_item_recharge_capabilities(
+def discover_installed_item_metadata(
     resources_path: Path,
     global_managers_path: Path,
     item_names: Iterable[str],
-) -> dict[str, ItemRechargeCapability]:
-    """Classify requested installed item types from read-only Unity metadata.
+) -> dict[str, InstalledItemMetadata]:
+    """Read optional icon and recharge metadata from installed item prefabs.
 
     The validated build proved that every active ``Item`` definition's built-in
     ``m_Name`` is case-insensitively identical to its persisted ``prefabName``.
@@ -669,7 +685,7 @@ def discover_item_recharge_capabilities(
         return {}
     if not names:
         return {}
-    unknown = _unknown_capabilities(names)
+    unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
 
     try:
         with (
@@ -735,9 +751,23 @@ def discover_item_recharge_capabilities(
                 ready[name] = tuple(records)
 
             classified = _classify_variants(resources, globals_, ready) if ready else {}
-            return {name: classified.get(name, ItemRechargeCapability.UNKNOWN) for name in names}
+            return {name: classified.get(name, unknown[name]) for name in names}
     except (OSError, UnityMetadataError, struct.error, OverflowError, ValueError):
         return unknown
+
+
+def discover_item_recharge_capabilities(
+    resources_path: Path,
+    global_managers_path: Path,
+    item_names: Iterable[str],
+) -> dict[str, ItemRechargeCapability]:
+    """Classify requested installed item types from read-only Unity metadata."""
+    return {
+        name: metadata.recharge_capability
+        for name, metadata in discover_installed_item_metadata(
+            resources_path, global_managers_path, item_names
+        ).items()
+    }
 
 
 __all__ = [
@@ -749,6 +779,7 @@ __all__ = [
     "PPtr",
     "SerializedFileIndex",
     "UnityMetadataError",
+    "discover_installed_item_metadata",
     "discover_item_recharge_capabilities",
     "parse_mono_behaviour_prefix",
     "parse_mono_script",

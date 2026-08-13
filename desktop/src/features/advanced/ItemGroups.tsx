@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { AdvancedItemDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
-import { FeatureIcon } from "@/components/FeatureIcon";
+import { GameIcon } from "@/components/GameIcon";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
 import { getItemIcon } from "./itemIcons";
 
@@ -22,7 +22,7 @@ interface ItemGroup {
   readonly items: AdvancedItemDto[];
 }
 
-type ItemFilter = "all" | "rechargeable" | "not_rechargeable";
+type ItemFilter = "all" | "rechargeable" | "not_rechargeable" | "upgrades";
 type ItemSort = "name-asc" | "name-desc" | "quantity-desc";
 
 function groupItems(items: readonly AdvancedItemDto[]): ItemGroup[] {
@@ -64,9 +64,11 @@ export function ItemGroups({
   const query = search.trim().toLocaleLowerCase();
   const visibleItems = items.filter((item) => {
     const matchesSearch = !query || item.name.toLocaleLowerCase().includes(query);
-    const matchesCapability = filter === "all"
-      || item.rechargeCapability === filter;
-    return matchesSearch && matchesCapability;
+    const matchesFilter = filter === "all"
+      || (filter === "upgrades"
+        ? item.saveKey.startsWith("Item Upgrade ")
+        : item.rechargeCapability === filter);
+    return matchesSearch && matchesFilter;
   });
   const visibleKeys = new Set(visibleItems.map((item) => item.saveKey));
   const itemKeys = new Set(items.map((item) => item.saveKey));
@@ -138,6 +140,7 @@ export function ItemGroups({
               <option value="all">{t("items.filterAll")}</option>
               <option value="rechargeable">{t("items.filterRechargeable")}</option>
               <option value="not_rechargeable">{t("items.filterNonRechargeable")}</option>
+              <option value="upgrades">{t("items.filterUpgrades")}</option>
             </select>
           </label>
           <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
@@ -194,10 +197,11 @@ export function ItemGroups({
                 key={group.name}
               >
                 <header className="flex items-center gap-3 px-4 py-3">
-                  <FeatureIcon
-                    icon={itemIcon.icon}
-                    source={itemIcon.source}
+                  <GameIcon
+                    fallback={itemIcon.icon}
+                    fallbackSource={itemIcon.source}
                     testId={`item-icon-${group.items[0]!.saveKey}`}
+                    token={group.items[0]!.iconToken}
                     variant="item"
                   />
                   <h4 className="min-w-0 flex-1 wrap-break-word text-base font-semibold text-ink">

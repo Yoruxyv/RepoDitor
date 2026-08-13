@@ -7,7 +7,7 @@ from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
-from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.storage.repository import SaveRepository
 
 
@@ -159,6 +159,7 @@ def test_advanced_read_returns_narrow_evidence_backed_dto(tmp_path: Path, sample
             "chargeState": "stored",
             "rechargeCapability": "rechargeable",
             "canRefillToFull": True,
+            "iconKey": None,
         }
     ]
     assert advanced["runValues"] == [
@@ -201,6 +202,29 @@ def test_advanced_read_rejects_malformed_structure(tmp_path: Path, sample_save) 
             "message": "The selected save contains malformed advanced item data.",
         },
     }
+
+
+def test_advanced_read_enriches_only_currently_available_canonical_item_icons(
+    tmp_path: Path, sample_save
+) -> None:
+    sample_save["dictionaryOfDictionaries"]["value"]["item"] = {
+        "Item Melee Inflatable Hammer/1": 21
+    }
+    save_path = _write_save(tmp_path, sample_save)
+
+    result = get_advanced_save(
+        save_path.parent.name,
+        tmp_path,
+        metadata_loader=lambda names: {
+            name: InstalledItemMetadata(
+                ItemRechargeCapability.RECHARGEABLE, "item melee inflatable hammer.png"
+            )
+            for name in names
+        },
+        icon_availability_loader=lambda domain, keys: frozenset(keys),
+    )
+
+    assert result["advanced"]["items"][0]["iconKey"] == "item melee inflatable hammer.png"
 
 
 def test_editor_reads_reuse_stable_missing_save_failure(tmp_path: Path) -> None:

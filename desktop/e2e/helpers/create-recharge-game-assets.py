@@ -138,6 +138,10 @@ def main() -> None:
             (3, 1, _game_object("Item Melee Inflatable Hammer", (31, 32))),
             (31, 114, _mono_behaviour("Item Melee Inflatable Hammer", 3, 1001)),
             (32, 114, _mono_behaviour("", 3, 1002, battery_bars=10)),
+            (4, 1, _game_object("Item WalkieTalkieBox", (41,))),
+            (41, 114, _mono_behaviour("Item WalkieTalkieBox", 4, 1001)),
+            (5, 1, _game_object("Item Upgrade Player Health", (51,))),
+            (51, 114, _mono_behaviour("Item Upgrade Player Health", 5, 1001)),
         ],
         externals=("globalgamemanagers.assets",),
     )

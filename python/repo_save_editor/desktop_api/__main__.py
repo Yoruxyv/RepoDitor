@@ -9,6 +9,7 @@ from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
 from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.game_status import get_game_status
+from repo_save_editor.desktop_api.icons import get_icon_roots
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.overview import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -37,6 +38,7 @@ def main() -> None:
             "run-get",
             "advanced-get",
             "maps-list",
+            "icons-roots",
             "cosmetics-get",
             "cosmetics-write",
         ),
@@ -52,6 +54,8 @@ def main() -> None:
         print(json.dumps(get_game_status()))
     elif args.command == "maps-list":
         print(json.dumps(list_maps()))
+    elif args.command == "icons-roots":
+        print(json.dumps(get_icon_roots()))
     elif args.command == "cosmetics-get":
         print(json.dumps(get_cosmetics()))
     elif args.command == "cosmetics-write":

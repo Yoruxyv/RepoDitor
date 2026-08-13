@@ -5,6 +5,7 @@ import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
 
@@ -116,6 +117,52 @@ async function createGameFixture(home: string): Promise<string> {
   return gameRoot;
 }
 
+function crc32(data: Buffer): number {
+  let crc = 0xffff_ffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb8_8320 : 0);
+    }
+  }
+  return (crc ^ 0xffff_ffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const name = Buffer.from(type, "ascii");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE(crc32(Buffer.concat([name, data])));
+  return Buffer.concat([length, name, data, checksum]);
+}
+
+function syntheticPng(): Buffer {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(Buffer.from([0, 224, 160, 72, 255]))),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+async function createIconFixture(home: string): Promise<string> {
+  const localLow = path.join(home, "AppData", "LocalLow");
+  const iconRoot = path.join(localLow, "semiwork", "Repo", "Cache", "Icons");
+  const items = path.join(iconRoot, "Items");
+  const cosmetics = path.join(iconRoot, "Cosmetics");
+  await mkdir(items, { recursive: true });
+  await mkdir(cosmetics, { recursive: true });
+  await writeFile(path.join(items, "item melee inflatable hammer.png"), syntheticPng());
+  await writeFile(path.join(items, "item walkietalkiebox.png"), syntheticPng());
+  await writeFile(path.join(cosmetics, "e2e cosmetic object 27.png"), syntheticPng());
+  return localLow;
+}
+
 function replaceFixtureCurrency(savePath: string, currency: number): void {
   execFileSync(
     getPythonExecutable(),
@@ -191,6 +238,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
   try {
     const { savePath, metaPath } = await createFixture(home);
     const gameRoot = await createGameFixture(home);
+    const localAppDataLow = await createIconFixture(home);
     const sourceBefore = await readFile(savePath);
     const metaBefore = await readFile(metaPath);
     const applicationEnvironment = {
@@ -199,6 +247,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
       HOME: home,
       LOCALAPPDATA: path.join(home, "AppData", "Local"),
       REPO_GAME_DIR: gameRoot,
+      REPODITOR_E2E: "1",
+      REPODITOR_E2E_LOCAL_APP_DATA_LOW: localAppDataLow,
       REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
@@ -368,6 +418,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Saved presets")).toBeVisible();
     await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
+    const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
+    await expect(cosmeticIcon.locator("img")).toBeVisible();
+    await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
+    await expect(page.getByTestId("cosmetic-icon-26")).toHaveAttribute(
+      "data-icon-source",
+      "fallback",
+    );
     await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
@@ -395,6 +454,23 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
+    const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
+    await expect(hammerIcon.locator("img")).toBeVisible();
+    await expect.poll(() => hammerIcon.locator("img").evaluate((image) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    await expect(page.getByTestId("item-icon-Item Cart Medium/1"))
+      .not.toHaveAttribute("data-icon-source", "local");
+    await expect(page.getByTestId("item-icon-Item WalkieTalkieBox/1"))
+      .not.toHaveAttribute("data-icon-source", "local");
+    const iconBoundary = await page.evaluate(async () => {
+      const [advancedResult, cosmeticsResult] = await Promise.all([
+        window.repoditor.advanced.get("REPO_SAVE_2026_08_08_10_20_30"),
+        window.repoditor.cosmetics.get(),
+      ]);
+      return JSON.stringify({ advancedResult, cosmeticsResult });
+    });
+    expect(iconBoundary).toContain("iconToken");
+    expect(iconBoundary).not.toMatch(/iconKey|AppData|LocalLow|\.png/);
     await expect(page.getByText(
       "Recharge appears only for tools RepoDitor can safely refill.",
     ))
@@ -418,6 +494,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("item-group-Cart Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Health Pack Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
+    await itemFilter.selectOption("upgrades");
+    await expect(page.getByTestId("item-group-Upgrade Player Health")).toBeVisible();
+    await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
     await itemFilter.selectOption("all");
     await page.getByRole("combobox", { name: "Sort" }).selectOption("quantity-desc");
     await expect(page.getByRole("list", { name: "Item instances" }).locator(":scope > li").first())
@@ -425,7 +504,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     const hammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
     await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
-      .toHaveAttribute("data-icon-source", "specific");
+      .toHaveAttribute("data-icon-source", "local");
     await expect(hammer.getByText("Current charge: 99")).toBeVisible();
     await expect(page.getByText("Item Melee Inflatable Hammer/1", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Recharge All Tools" }).click();

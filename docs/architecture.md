@@ -30,6 +30,12 @@ R.E.P.O. .es3 files
 
 Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer sandboxing enabled. Input is validated at both the Electron and Python boundaries. Python verifies the validated R.E.P.O. process is closed before supported writes; startup and focus checks keep the renderer state current, and an unknown process state fails closed.
 
+Optional item and cosmetic thumbnails use the user's game-generated LocalLow cache. Python derives
+canonical cache keys from installed metadata; Electron replaces them with opaque in-memory tokens
+and serves only validated PNGs through the read-only `repoditor-icon:` protocol. The renderer never
+receives cache roots, filenames, or filesystem access. Missing or invalid images keep the existing
+Phosphor fallback and cannot affect save discovery, identity, or mutation eligibility.
+
 ## Python runtime resolution
 
 Runtime selection is centralized in `desktop/electron/python/client.cts`:

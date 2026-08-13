@@ -28,6 +28,14 @@ class ItemChargeState(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class InstalledItemMetadata:
+    """Optional presentation and recharge metadata from one installed item type."""
+
+    recharge_capability: ItemRechargeCapability
+    icon_cache_key: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class AdvancedCapability:
     """Read and mutation support for one advanced save domain."""
 

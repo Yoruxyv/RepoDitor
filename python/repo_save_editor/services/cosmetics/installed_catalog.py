@@ -22,6 +22,7 @@ from typing import Final
 
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
+from repo_save_editor.services.icon_cache import normalize_icon_cache_key
 from repo_save_editor.services.items.unity_serialized import (
     MONO_BEHAVIOUR_CLASS_ID,
     MonoBehaviourPrefix,
@@ -38,8 +39,8 @@ META_MANAGER_CLASS: Final = "MetaManager"
 COSMETIC_ASSET_CLASS: Final = "CosmeticAsset"
 MAX_VECTOR_COUNT: Final = 100_000
 MAX_OPEN_FILES: Final = 128
-CACHE_SCHEMA_VERSION: Final = 1
-PARSER_SCHEMA_VERSION: Final = 1
+CACHE_SCHEMA_VERSION: Final = 2
+PARSER_SCHEMA_VERSION: Final = 2
 CACHE_FILE_NAME: Final = "installed-cosmetics.json"
 APP_MANIFEST_NAME: Final = f"appmanifest_{STEAM_APP_ID}.acf"
 MANIFEST_VALUE_PATTERN: Final = re.compile(
@@ -257,6 +258,7 @@ def _parse_cosmetic_metadata(
             cosmetic_type=cosmetic_type,
             rarity=rarity,
             status=status,
+            icon_cache_key=normalize_icon_cache_key(prefix.name),
         ),
         script_path,
     )
@@ -305,6 +307,24 @@ def _scan_catalog(
             raise InstalledCosmeticCatalogError(
                 "Installed cosmetic IDs are not contiguous positions."
             )
+        key_counts = Counter(
+            entry.icon_cache_key for entry in catalog if entry.icon_cache_key is not None
+        )
+        catalog = [
+            InstalledCosmeticMetadata(
+                cosmetic_id=entry.cosmetic_id,
+                asset_name=entry.asset_name,
+                cosmetic_type=entry.cosmetic_type,
+                rarity=entry.rarity,
+                status=entry.status,
+                icon_cache_key=(
+                    entry.icon_cache_key
+                    if entry.icon_cache_key is not None and key_counts[entry.icon_cache_key] == 1
+                    else None
+                ),
+            )
+            for entry in catalog
+        ]
         return tuple(catalog), tuple(relevant_paths.values())
 
 
@@ -380,6 +400,7 @@ def _catalog_payload(catalog: Iterable[InstalledCosmeticMetadata]) -> list[dict[
             "type": entry.cosmetic_type,
             "rarity": entry.rarity,
             "status": entry.status,
+            "iconCacheKey": entry.icon_cache_key,
         }
         for entry in catalog
     ]
@@ -397,6 +418,7 @@ def _parse_cached_catalog(value: object) -> tuple[InstalledCosmeticMetadata, ...
         cosmetic_type = row.get("type")
         rarity = row.get("rarity")
         status = row.get("status")
+        icon_cache_key = row.get("iconCacheKey")
         if (
             type(cosmetic_id) is not int
             or cosmetic_id != position
@@ -405,6 +427,11 @@ def _parse_cached_catalog(value: object) -> tuple[InstalledCosmeticMetadata, ...
             or type(cosmetic_type) is not int
             or type(rarity) is not int
             or type(status) is not int
+            or (icon_cache_key is not None and not isinstance(icon_cache_key, str))
+            or (
+                isinstance(icon_cache_key, str)
+                and normalize_icon_cache_key(icon_cache_key.removesuffix(".png")) != icon_cache_key
+            )
         ):
             return None
         catalog.append(
@@ -414,8 +441,12 @@ def _parse_cached_catalog(value: object) -> tuple[InstalledCosmeticMetadata, ...
                 cosmetic_type=cosmetic_type,
                 rarity=rarity,
                 status=status,
+                icon_cache_key=icon_cache_key,
             )
         )
+    keys = [entry.icon_cache_key for entry in catalog if entry.icon_cache_key is not None]
+    if len(keys) != len(set(keys)):
+        return None
     return tuple(catalog)
 
 

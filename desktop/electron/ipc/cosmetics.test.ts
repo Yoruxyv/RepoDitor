@@ -26,7 +26,7 @@ function installedDisplayName(id: number): string {
   return `Installed ${id}`;
 }
 
-function installedCosmetic(id: number, owned = id === 1): CosmeticDto {
+function installedCosmetic(id: number, owned = id === 1): CosmeticDto & { iconKey: null } {
   const mutationEligible = id < 547;
   return {
     id,
@@ -39,10 +39,12 @@ function installedCosmetic(id: number, owned = id === 1): CosmeticDto {
     state: owned ? "owned" : "locked",
     mutationEligible,
     removalBlockedReason: mutationEligible ? null : futureReason,
+    iconToken: null,
+    iconKey: null,
   };
 }
 
-function unknownCosmetic(id: number): CosmeticDto {
+function unknownCosmetic(id: number): CosmeticDto & { iconKey: null } {
   return {
     id,
     displayName: `Cosmetic #${id}`,
@@ -54,6 +56,8 @@ function unknownCosmetic(id: number): CosmeticDto {
     state: "unknown",
     mutationEligible: false,
     removalBlockedReason: unknownReason,
+    iconToken: null,
+    iconKey: null,
   };
 }
 
@@ -106,6 +110,7 @@ describe("cosmetics IPC", () => {
 
   it("round-trips dynamic metadata and preserves duplicate names by integer ID", async () => {
     const response = { ...view(), rawMetaSave: { cosmeticTokens: [7] } };
+    Object.assign(response.cosmetics[0], { iconKey: "cosmetic-object.png" });
     const fake = client({ ok: true, cosmetics: response });
     const result = await getCosmetics(fake);
 
@@ -145,12 +150,15 @@ describe("cosmetics IPC", () => {
       .sort((left, right) => left - right);
     expect(duplicateIds).toEqual([0, 1]);
     expect(result.data).not.toHaveProperty("rawMetaSave");
+    expect(result.data.cosmetics[0]).not.toHaveProperty("iconKey");
+    expect(result.data.cosmetics[0].iconToken).toMatch(/^[\da-f-]{36}$/);
   });
 
   it("accepts an explicit degraded catalog without fabricating installed metadata", async () => {
     const result = await getCosmetics(client({ ok: true, cosmetics: degradedView() }));
 
-    expect(result).toEqual({ ok: true, data: degradedView() });
+    expect(result).toMatchObject({ ok: true, data: { ...degradedView(), cosmetics: expect.any(Array) } });
+    expect(result.data.cosmetics[0]).not.toHaveProperty("iconKey");
     expect(result.data.cosmetics[0]).toMatchObject({
       id: 27,
       type: null,
@@ -311,6 +319,11 @@ describe("cosmetics IPC", () => {
     writableFuture.cosmetics[547]!.mutationEligible = true;
     writableFuture.cosmetics[547]!.removalBlockedReason = null;
     await expect(getCosmetics(client({ ok: true, cosmetics: writableFuture }))).resolves
+      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+
+    const traversal = view();
+    Object.assign(traversal.cosmetics[0], { iconKey: "../secret.png" });
+    await expect(getCosmetics(client({ ok: true, cosmetics: traversal }))).resolves
       .toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
