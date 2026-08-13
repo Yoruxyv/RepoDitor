@@ -11,6 +11,10 @@ from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.saves import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
+from repo_save_editor.services.cosmetics.installed_catalog import (
+    discover_installed_cosmetic_catalog,
+)
+from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.mutations import (
     clear_all_presets,
     lock_all_cosmetics,
@@ -18,6 +22,7 @@ from repo_save_editor.services.cosmetics.mutations import (
     unlock_all_cosmetics,
     unlock_cosmetic,
 )
+from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_IDS
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.saves.discovery import get_default_save_root
@@ -30,7 +35,9 @@ from repo_save_editor.storage.repository import (
 )
 
 META_SAVE_NAME = "MetaSave.es3"
-MAX_COSMETIC_CHANGES = 547
+MAX_COSMETIC_CHANGES = len(PROVEN_MUTATION_IDS)
+
+CatalogLoader = Callable[[], tuple[InstalledCosmeticMetadata, ...] | None]
 
 
 def _meta_path(root: Path | None) -> Path:
@@ -58,10 +65,15 @@ def _load_meta_save(
         raise DesktopSaveError("backend_unavailable", "MetaSave.es3 could not be opened.") from exc
 
 
-def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
-    view = discover_cosmetics(data)
+def _serialize(
+    data: SaveData,
+    source: bytes,
+    installed_catalog: tuple[InstalledCosmeticMetadata, ...] | None,
+) -> dict[str, object]:
+    view = discover_cosmetics(data, installed_catalog)
     return {
         "fingerprint": sha256(source).hexdigest(),
+        "catalogAvailable": bool(installed_catalog),
         "knownCatalogCount": view.known_catalog_count,
         "knownOwnedCount": view.known_owned_count,
         "knownLockedCount": view.known_locked_count,
@@ -77,8 +89,15 @@ def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
             {
                 "id": cosmetic.cosmetic_id,
                 "displayName": cosmetic.display_name,
+                "type": cosmetic.cosmetic_type,
+                "rarity": cosmetic.rarity,
+                "status": cosmetic.status,
                 "owned": cosmetic.owned,
                 "known": cosmetic.known,
+                "state": (
+                    "unknown" if not cosmetic.known else "owned" if cosmetic.owned else "locked"
+                ),
+                "mutationEligible": cosmetic.mutation_eligible,
                 "removalBlockedReason": cosmetic.removal_blocked_reason,
             }
             for cosmetic in view.cosmetics
@@ -86,7 +105,11 @@ def _serialize(data: SaveData, source: bytes) -> dict[str, object]:
     }
 
 
-def get_cosmetics(root: Path | None = None) -> dict[str, object]:
+def get_cosmetics(
+    root: Path | None = None,
+    *,
+    catalog_loader: CatalogLoader = discover_installed_cosmetic_catalog,
+) -> dict[str, object]:
     """Return the typed Cosmetics projection for MetaSave.es3.
 
     Args:
@@ -98,20 +121,28 @@ def get_cosmetics(root: Path | None = None) -> dict[str, object]:
     """
     try:
         _path, data, source, _repository = _load_meta_save(root)
-        return {"ok": True, "cosmetics": _serialize(data, source)}
+        installed_catalog = catalog_loader()
+        return {"ok": True, "cosmetics": _serialize(data, source, installed_catalog)}
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
 
 def _cosmetic_id(value: object) -> int:
     if not isinstance(value, str) or not value.isascii() or not value.isdigit():
-        raise ValueError("A known cosmetic ID is required.")
-    return int(value)
+        raise ValueError("A canonical cosmetic ID is required.")
+    cosmetic_id = int(value)
+    if str(cosmetic_id) != value:
+        raise ValueError("A canonical cosmetic ID is required.")
+    return cosmetic_id
 
 
-def _apply_changes(data: SaveData, changes: object) -> None:
+def _apply_changes(
+    data: SaveData,
+    changes: object,
+    installed_catalog: tuple[InstalledCosmeticMetadata, ...] | None,
+) -> None:
     if not isinstance(changes, list) or not changes or len(changes) > MAX_COSMETIC_CHANGES:
-        raise ValueError("One to 547 cosmetic changes are required.")
+        raise ValueError(f"One to {MAX_COSMETIC_CHANGES} cosmetic changes are required.")
     if len(changes) > 1 and any(
         isinstance(change, dict)
         and (
@@ -134,17 +165,17 @@ def _apply_changes(data: SaveData, changes: object) -> None:
             raise ValueError("Duplicate cosmetic changes are not supported.")
         seen.add(signature)
         if entity == "known" and field == "unlockAll" and change["after"] is True:
-            unlock_all_cosmetics(data)
+            unlock_all_cosmetics(data, installed_catalog)
         elif entity == "known" and field == "lockAll" and change["after"] is False:
-            lock_all_cosmetics(data)
+            lock_all_cosmetics(data, installed_catalog)
         elif entity == "presets" and field == "clearAll" and change["after"] is True:
             clear_all_presets(data)
         elif field == "owned" and isinstance(change["after"], bool):
             cosmetic_id = _cosmetic_id(entity)
             if change["after"]:
-                unlock_cosmetic(data, cosmetic_id)
+                unlock_cosmetic(data, cosmetic_id, installed_catalog)
             else:
-                remove_cosmetic_ownership(data, cosmetic_id)
+                remove_cosmetic_ownership(data, cosmetic_id, installed_catalog)
         else:
             raise ValueError("A cosmetic change is not supported.")
     validate_meta_save(data)
@@ -156,6 +187,7 @@ def save_cosmetics(
     root: Path | None = None,
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
+    catalog_loader: CatalogLoader = discover_installed_cosmetic_catalog,
 ) -> dict[str, object]:
     """Validate and safely persist supported MetaSave changes.
 
@@ -183,13 +215,14 @@ def save_cosmetics(
             return _failure("save_validation_failed", "The MetaSave fingerprint is invalid.")
         if sha256(source).hexdigest() != expected_fingerprint:
             return _failure("save_stale", "MetaSave.es3 changed after it was opened.")
-        _apply_changes(data, changes)
+        installed_catalog = catalog_loader()
+        _apply_changes(data, changes, installed_catalog)
         backup, written = repository.overwrite(path, data, expected_source=source)
         return {
             "ok": True,
             "result": {
                 "backupPath": str(backup),
-                "cosmetics": _serialize(data, written),
+                "cosmetics": _serialize(data, written, installed_catalog),
             },
         }
     except GameSafetyError as exc:

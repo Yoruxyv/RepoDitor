@@ -109,6 +109,7 @@ const advanced: AdvancedSaveDto = {
 };
 const cosmetics: CosmeticsViewDto = {
   fingerprint: "c".repeat(64),
+  catalogAvailable: true,
   knownCatalogCount: 547,
   knownOwnedCount: 1,
   knownLockedCount: 546,
@@ -123,16 +124,26 @@ const cosmetics: CosmeticsViewDto = {
   cosmetics: [
     ...Array.from({ length: 547 }, (_, id) => ({
       id,
-      displayName: `Cosmetic #${id}`,
+      displayName: id === 27 ? "Long Sleeve" : `Installed Cosmetic ${id}`,
+      type: id % 4,
+      rarity: id % 3,
+      status: 1,
       owned: id === 27,
       known: true,
+      state: id === 27 ? "owned" as const : "locked" as const,
+      mutationEligible: true,
       removalBlockedReason: null,
     })),
     {
       id: 999,
       displayName: "Cosmetic #999",
+      type: null,
+      rarity: null,
+      status: null,
       owned: true,
       known: false,
+      state: "unknown",
+      mutationEligible: false,
       removalBlockedReason: "Unknown or future cosmetics are preserved read-only.",
     },
   ],
@@ -140,7 +151,10 @@ const cosmetics: CosmeticsViewDto = {
 
 function setKnownCosmeticsOwned(next: CosmeticsViewDto, owned: boolean): void {
   for (const cosmetic of next.cosmetics) {
-    if (cosmetic.known) cosmetic.owned = owned;
+    if (cosmetic.known) {
+      cosmetic.owned = owned;
+      cosmetic.state = owned ? "owned" : "locked";
+    }
   }
   next.knownOwnedCount = owned ? 547 : 0;
   next.knownLockedCount = owned ? 0 : 547;
@@ -156,7 +170,10 @@ function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): vo
     return;
   }
   const cosmetic = next.cosmetics.find((entry) => String(entry.id) === change.entity);
-  if (cosmetic) cosmetic.owned = change.after;
+  if (cosmetic) {
+    cosmetic.owned = change.after;
+    cosmetic.state = change.after ? "owned" : "locked";
+  }
 }
 
 function bridge(
@@ -883,6 +900,7 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Known catalog")).toBeTruthy();
     expect(screen.getByText("Saved presets")).toBeTruthy();
     expect(screen.queryByLabelText("Search by cosmetic ID")).toBeNull();
+    expect(await screen.findByText("Long Sleeve")).toBeTruthy();
     expect(screen.queryByText("Cosmetic #27")).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,

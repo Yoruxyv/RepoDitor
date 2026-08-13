@@ -212,16 +212,24 @@ export interface CosmeticCapabilitiesDto {
   canRemoveOwnership: boolean;
 }
 
+export type CosmeticState = "owned" | "locked" | "unknown";
+
 export interface CosmeticDto {
   id: number;
   displayName: string;
+  type: number | null;
+  rarity: number | null;
+  status: number | null;
   owned: boolean;
   known: boolean;
+  state: CosmeticState;
+  mutationEligible: boolean;
   removalBlockedReason: string | null;
 }
 
 export interface CosmeticsViewDto {
   fingerprint: string;
+  catalogAvailable: boolean;
   knownCatalogCount: number;
   knownOwnedCount: number;
   knownLockedCount: number;
