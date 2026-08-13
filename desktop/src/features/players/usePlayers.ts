@@ -11,11 +11,18 @@ interface PlayersState {
   loading: boolean;
 }
 
+interface AvatarAttempt {
+  readonly requests: number;
+  readonly failedAt: number | null;
+}
+
 const INITIAL_STATE: PlayersState = {
   players: [],
   error: null,
   loading: true,
 };
+const AVATAR_RETRY_COOLDOWN_MS = 30_000;
+const MAX_AVATAR_REQUESTS = 2;
 
 export function usePlayers(saveId: string) {
   const { t } = usePreferences();
@@ -26,28 +33,60 @@ export function usePlayers(saveId: string) {
   const mounted = useRef(false);
   const playerRequestInFlight = useRef(false);
   const avatarRequests = useRef(new Set<string>());
+  const avatarAttempts = useRef(new Map<string, AvatarAttempt>());
+
+  const markAvatarFailure = useCallback((playerId: string) => {
+    const attempt = avatarAttempts.current.get(playerId);
+    avatarAttempts.current.set(playerId, {
+      requests: Math.max(attempt?.requests ?? 0, 1),
+      failedAt: Date.now(),
+    });
+    if (mounted.current) {
+      setAvatarUrls((current) => ({ ...current, [playerId]: null }));
+    }
+  }, []);
 
   const loadAvatar = useCallback(
     async (playerId: string) => {
-      if (avatarRequests.current.has(playerId)) {
+      const previous = avatarAttempts.current.get(playerId);
+      if (
+        avatarRequests.current.has(playerId)
+        || (previous?.requests ?? 0) >= MAX_AVATAR_REQUESTS
+        || previous?.failedAt === null
+        || (
+          previous?.failedAt !== null
+          && previous?.failedAt !== undefined
+          && Date.now() - previous.failedAt < AVATAR_RETRY_COOLDOWN_MS
+        )
+      ) {
         return;
       }
       avatarRequests.current.add(playerId);
+      avatarAttempts.current.set(playerId, {
+        requests: (previous?.requests ?? 0) + 1,
+        failedAt: null,
+      });
+      if (mounted.current && previous?.failedAt !== null && previous?.failedAt !== undefined) {
+        setAvatarUrls((current) => {
+          const next = { ...current };
+          delete next[playerId];
+          return next;
+        });
+      }
       try {
         const result = await window.repoditor.players.avatar(saveId, playerId);
-        if (mounted.current) {
-          setAvatarUrls((current) => ({
-            ...current,
-            [playerId]: result.ok ? result.data.avatarUrl : null,
-          }));
+        if (!result.ok || result.data.avatarUrl === null) {
+          markAvatarFailure(playerId);
+        } else if (mounted.current) {
+          setAvatarUrls((current) => ({ ...current, [playerId]: result.data.avatarUrl }));
         }
       } catch {
-        if (mounted.current) {
-          setAvatarUrls((current) => ({ ...current, [playerId]: null }));
-        }
+        markAvatarFailure(playerId);
+      } finally {
+        avatarRequests.current.delete(playerId);
       }
     },
-    [saveId],
+    [markAvatarFailure, saveId],
   );
 
   const loadPlayers = useCallback(async () => {
@@ -120,7 +159,14 @@ export function usePlayers(saveId: string) {
   }
 
   function rejectAvatar(playerId: string): void {
-    setAvatarUrls((current) => ({ ...current, [playerId]: null }));
+    markAvatarFailure(playerId);
+  }
+
+  function selectPlayer(playerId: string): void {
+    setSelectedPlayerId(playerId);
+    if (avatarUrls[playerId] === null) {
+      void loadAvatar(playerId);
+    }
   }
 
   function reload(): void {
@@ -136,7 +182,7 @@ export function usePlayers(saveId: string) {
     ...state,
     error: state.error ? t(state.error) : null,
     selectedPlayerId,
-    setSelectedPlayerId,
+    setSelectedPlayerId: selectPlayer,
     pendingByPlayer,
     pendingEdits: Object.values(pendingByPlayer),
     avatarUrls,
