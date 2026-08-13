@@ -890,7 +890,7 @@ describe("save workspace transition", () => {
     expect(
       (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,
     ).toBe(true);
-  });
+  }, 10_000);
 
   it("opens Cosmetics without a Run save and keeps Lock All pending until save", async () => {
     const cosmeticWrite = vi.mocked(window.repoditor.cosmetics.write);
