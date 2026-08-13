@@ -33,7 +33,63 @@ const blockedView: CosmeticsViewDto = {
   }],
 };
 
+const degradedView: CosmeticsViewDto = {
+  fingerprint: "d".repeat(64),
+  catalogAvailable: false,
+  knownCatalogCount: 0,
+  knownOwnedCount: 0,
+  knownLockedCount: 0,
+  savedPresetCount: 1,
+  unknownOwnedIds: [27],
+  capabilities: {
+    canReadCosmetics: true,
+    canUnlockCosmetic: false,
+    canUnlockAll: false,
+    canRemoveOwnership: false,
+  },
+  cosmetics: [{
+    id: 27,
+    displayName: "Cosmetic #27",
+    type: null,
+    rarity: null,
+    status: null,
+    owned: true,
+    known: false,
+    state: "unknown",
+    mutationEligible: false,
+    removalBlockedReason: "Preserved read-only",
+  }],
+};
+
 describe("CosmeticsView", () => {
+  it("keeps ownership bulk controls fail-closed while presets remain independent", () => {
+    render(
+      <PreferencesProvider>
+        <CosmeticsView
+          clearAllPresetsPending={false}
+          error={null}
+          knownLockedCount={0}
+          knownOwnedCount={0}
+          loading={false}
+          lockAllBlockedReason={null}
+          lockAllPending={false}
+          savedPresetCount={1}
+          unlockAllPending={false}
+          view={degradedView}
+          onClearAllPresets={vi.fn()}
+          onLockAll={vi.fn()}
+          onRetry={vi.fn()}
+          onUnlockAll={vi.fn()}
+        />
+      </PreferencesProvider>,
+    );
+
+    expect((screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Lock All Cosmetics" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("listitem", { name: "Cosmetic #27, ID 27, Unknown" })).toBeTruthy();
+  });
+
   it("exposes the Lock All blocker independently of the disabled button", () => {
     render(
       <PreferencesProvider>

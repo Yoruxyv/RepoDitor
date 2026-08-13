@@ -124,7 +124,7 @@ const cosmetics: CosmeticsViewDto = {
   cosmetics: [
     ...Array.from({ length: 547 }, (_, id) => ({
       id,
-      displayName: `Cosmetic #${id}`,
+      displayName: id === 27 ? "Long Sleeve" : `Installed Cosmetic ${id}`,
       type: id % 4,
       rarity: id % 3,
       status: 1,
@@ -900,6 +900,7 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Known catalog")).toBeTruthy();
     expect(screen.getByText("Saved presets")).toBeTruthy();
     expect(screen.queryByLabelText("Search by cosmetic ID")).toBeNull();
+    expect(await screen.findByText("Long Sleeve")).toBeTruthy();
     expect(screen.queryByText("Cosmetic #27")).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,

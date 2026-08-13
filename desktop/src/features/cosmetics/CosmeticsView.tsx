@@ -2,6 +2,7 @@ import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@pho
 
 import type { CosmeticsViewDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
 interface CosmeticsViewProps {
   readonly view: CosmeticsViewDto | null;
@@ -128,6 +129,8 @@ export function CosmeticsView({
           {lockAllUnavailable}
         </output>
       ) : null}
+
+      <CosmeticsCatalog view={view} />
     </section>
   );
 }
