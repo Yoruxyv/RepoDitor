@@ -18,6 +18,8 @@ from repo_save_editor.services.items.models import (
     ItemRechargeCapability,
 )
 from repo_save_editor.services.items.recharge_capability import discover_installed_item_metadata
+from repo_save_editor.services.player.installed_upgrades import match_upgrade_items
+from repo_save_editor.services.player.upgrades import discover_player_upgrades
 
 RechargeCapabilityLoader = Callable[
     [tuple[str, ...]],
@@ -39,6 +41,8 @@ def get_advanced_save(
     try:
         _, data, _ = load_discovered_save(save_id, root)
         item_type_names = discover_item_type_names(data)
+        upgrade_keys = tuple(upgrade.key for upgrade in discover_player_upgrades(data))
+        upgrade_visual_keys = match_upgrade_items(upgrade_keys, item_type_names)
         metadata = metadata_loader(item_type_names) if capability_loader is None else {}
         capabilities = (
             {name: value.recharge_capability for name, value in metadata.items()}
@@ -94,6 +98,11 @@ def get_advanced_save(
                     "rechargeCapability": item.recharge_capability.value,
                     "canRefillToFull": item.can_refill_to_full,
                     "iconKey": icons_by_type.get(f"Item {item.name}"),
+                    **(
+                        {"upgradeVisualKey": upgrade_visual_keys[f"Item {item.name}"]}
+                        if f"Item {item.name}" in upgrade_visual_keys
+                        else {}
+                    ),
                 }
                 for item in advanced.items
             ],

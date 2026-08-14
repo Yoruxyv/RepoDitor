@@ -12,6 +12,7 @@ import {
 import {
   localIconRegistry,
   readIconKey,
+  readUpgradeVisualKey,
   type LocalIconRegistry,
 } from "../icons/registry.cjs";
 import { type PythonClient } from "../python/client.cjs";
@@ -110,6 +111,7 @@ function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
 
 interface ParsedAdvancedItem extends Omit<AdvancedItemDto, "iconToken"> {
   readonly iconKey: string | null;
+  readonly upgradeVisualKey: string | null;
 }
 
 function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
@@ -128,6 +130,7 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
     value.canRefillToFull,
     "item refill-to-full eligibility",
   );
+  const isUpgrade = readBoolean(value.isUpgrade, "item upgrade classification");
   if (
     !/^\d+$/.test(instanceId)
     || !saveKey.startsWith("Item ")
@@ -152,16 +155,26 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
   } catch {
     throw new EditorProtocolError("Invalid advanced item icon.");
   }
+  let upgradeVisualKey: string | null;
+  try {
+    upgradeVisualKey = readUpgradeVisualKey(value.upgradeVisualKey ?? null);
+  } catch {
+    throw new EditorProtocolError("Invalid advanced item upgrade visual.");
+  }
+  if (!isUpgrade && upgradeVisualKey !== null) {
+    throw new EditorProtocolError("Non-upgrade item cannot request an upgrade visual.");
+  }
   return {
     saveKey,
     name: readString(value.name, "item name"),
     instanceId,
-    isUpgrade: readBoolean(value.isUpgrade, "item upgrade classification"),
+    isUpgrade,
     storedCharge,
     chargeState: chargeState as AdvancedItemChargeState,
     rechargeCapability: rechargeCapability as AdvancedItemRechargeCapability,
     canRefillToFull,
     iconKey,
+    upgradeVisualKey,
   };
 }
 
@@ -197,14 +210,20 @@ function parseAdvanced(
     throw new EditorProtocolError("Invalid advanced data.");
   }
   const parsedItems = value.advanced.items.map(parseAdvancedItem);
-  const tokens = icons.replace("item", parsedItems.map((item) => item.iconKey));
+  const tokens = icons.replaceVisuals(
+    "item",
+    parsedItems.map((item) => ({
+      cacheKey: item.iconKey,
+      upgradeKey: item.upgradeVisualKey,
+    })),
+  );
   return {
     ok: true,
     data: {
       domains,
-      items: parsedItems.map(({ iconKey, ...item }) => ({
+      items: parsedItems.map(({ iconKey: _iconKey, upgradeVisualKey: _upgradeVisualKey, ...item }, index) => ({
         ...item,
-        iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+        iconToken: tokens[index] ?? null,
       })),
       unlinkedChargeEntryCount,
     },

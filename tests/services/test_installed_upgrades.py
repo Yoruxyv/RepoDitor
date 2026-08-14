@@ -1,6 +1,7 @@
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.player.installed_upgrades import (
     discover_installed_upgrade_presentations,
+    match_upgrade_items,
 )
 from repo_save_editor.services.player.upgrades import UpgradePresentationSource
 
@@ -57,3 +58,19 @@ def test_missing_install_and_future_upgrade_remain_open_fail_soft_fallbacks():
     assert result["playerUpgradeSuperMegaJump"].label == "Super Mega Jump"
     assert result["playerUpgradeSuperMegaJump"].source is UpgradePresentationSource.HUMANIZED
     assert all(value.icon_cache_key is None for value in result.values())
+
+
+def test_dynamic_upgrade_keys_match_upgrade_item_prefab_names_without_closed_membership():
+    result = match_upgrade_items(
+        ("playerUpgradeStrength", "playerUpgradeMoonBoots"),
+        (
+            "Item Upgrade Player Grab Strength",
+            "Item Upgrade Player Moon Boots",
+            "Item Unrelated",
+        ),
+    )
+
+    assert result == {
+        "Item Upgrade Player Grab Strength": "playerUpgradeStrength",
+        "Item Upgrade Player Moon Boots": "playerUpgradeMoonBoots",
+    }

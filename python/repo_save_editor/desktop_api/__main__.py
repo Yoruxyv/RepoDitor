@@ -9,7 +9,7 @@ from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
 from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.game_status import get_game_status
-from repo_save_editor.desktop_api.icons import get_icon_roots
+from repo_save_editor.desktop_api.icons import get_icon_roots, get_upgrade_texture
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.players import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -43,6 +43,12 @@ def _player_avatar(args: argparse.Namespace) -> dict[str, object]:
 
 def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
     return _missing_save() if args.save_id is None else list_upgrades(args.save_id)
+
+
+def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
+    if args.upgrade_key is None:
+        return _invalid_request("The required upgrade identity is missing.")
+    return get_upgrade_texture(args.upgrade_key)
 
 
 def _run_state(args: argparse.Namespace) -> dict[str, object]:
@@ -110,6 +116,10 @@ def _parser() -> argparse.ArgumentParser:
     upgrades = commands.add_parser("upgrades-list")
     upgrades.add_argument("save_id", nargs="?")
     upgrades.set_defaults(handler=_list_upgrades)
+
+    upgrade_texture = commands.add_parser("upgrade-texture")
+    upgrade_texture.add_argument("upgrade_key", nargs="?")
+    upgrade_texture.set_defaults(handler=_upgrade_texture)
 
     run = commands.add_parser("run-get")
     run.add_argument("save_id", nargs="?")

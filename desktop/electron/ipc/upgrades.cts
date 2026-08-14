@@ -6,6 +6,7 @@ import { type PythonClient } from "../python/client.cjs";
 import {
   localIconRegistry,
   readIconKey,
+  readUpgradeVisualKey,
   type LocalIconRegistry,
 } from "../icons/registry.cjs";
 import {
@@ -29,7 +30,7 @@ function parseUpgrade(value: unknown): ParsedUpgrade {
     throw new EditorProtocolError("Invalid upgrade.");
   }
   const key = readString(value.key, "upgrade key");
-  if (!key.startsWith("playerUpgrade")) {
+  if (readUpgradeVisualKey(key) === null) {
     throw new EditorProtocolError("Invalid upgrade key.");
   }
   const presentationSource = readString(value.presentationSource, "upgrade presentation source");
@@ -80,12 +81,15 @@ function parseUpgrades(
     throw new EditorProtocolError("Invalid upgrades.");
   }
   const upgrades = value.upgrades.map(parseUpgrade);
-  const tokens = icons.replace("upgrade", upgrades.map((upgrade) => upgrade.iconKey));
+  const tokens = icons.replaceVisuals(
+    "upgrade",
+    upgrades.map((upgrade) => ({ cacheKey: upgrade.iconKey, upgradeKey: upgrade.key })),
+  );
   return {
     ok: true,
-    data: upgrades.map(({ iconKey, ...upgrade }) => ({
+    data: upgrades.map(({ iconKey: _iconKey, ...upgrade }, index) => ({
       ...upgrade,
-      iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+      iconToken: tokens[index] ?? null,
     })),
   };
 }

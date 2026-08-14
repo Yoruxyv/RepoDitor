@@ -3,7 +3,9 @@ import { spawn } from "node:child_process";
 import { app } from "electron";
 
 const PYTHON_TIMEOUT_MS = 30_000;
+const UPGRADE_TEXTURE_TIMEOUT_MS = 60_000;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
+const MAX_UPGRADE_TEXTURE_STDOUT_BYTES = 3 * 1024 * 1024;
 
 export type PythonCommand =
   | "environment"
@@ -13,6 +15,7 @@ export type PythonCommand =
   | "players-list"
   | "players-avatar"
   | "upgrades-list"
+  | "upgrade-texture"
   | "run-get"
   | "advanced-get"
   | "cosmetics-get"
@@ -152,7 +155,13 @@ class SpawnPythonClient implements PythonClient {
       let settled = false;
       let stdout = "";
       let stdoutBytes = 0;
+      const stdoutLimit = command === "upgrade-texture"
+        ? MAX_UPGRADE_TEXTURE_STDOUT_BYTES
+        : MAX_STDOUT_BYTES;
 
+      const timeoutMs = command === "upgrade-texture"
+        ? UPGRADE_TEXTURE_TIMEOUT_MS
+        : PYTHON_TIMEOUT_MS;
       const timer = setTimeout(() => {
         child.kill();
         fail(
@@ -161,7 +170,7 @@ class SpawnPythonClient implements PythonClient {
             "Python command timed out.",
           ),
         );
-      }, PYTHON_TIMEOUT_MS);
+      }, timeoutMs);
 
       function finish(value: unknown): void {
         if (settled) {
@@ -192,7 +201,7 @@ class SpawnPythonClient implements PythonClient {
             "utf8",
           );
           if (
-            stdoutBytes > MAX_STDOUT_BYTES
+            stdoutBytes > stdoutLimit
           ) {
             child.kill();
             fail(

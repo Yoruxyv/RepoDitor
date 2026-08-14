@@ -82,6 +82,7 @@ describe("GameIcon", () => {
       <GameIcon fallback={WrenchIcon} fallbackSource="specific" testId="upgrade-icon" token="upgrade-token" variant="upgrade" />,
     );
     expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
+    expect(screen.getByTestId("upgrade-icon").querySelector("img")?.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("upgrade-icon-loading")).toBeTruthy();
     rerender(<GameIcon fallback={WrenchIcon} fallbackSource="specific" testId="upgrade-icon" token={null} variant="upgrade" />);
     expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");

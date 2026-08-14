@@ -23,7 +23,7 @@ function variantSize(variant: GameIconProps["variant"]): string {
 export function GameIcon({
   fallback,
   fallbackSource,
-  loading = "eager",
+  loading = "lazy",
   testId,
   token,
   variant,
