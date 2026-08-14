@@ -4,8 +4,12 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 
-import type { SaveChange, SaveSession } from "@electron/contracts";
+import type { AssetPreparationState, SaveChange, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import {
+  AssetPreparationNotice,
+  AssetPreparationView,
+} from "@/features/assets/AssetPreparationView";
 import { PathDetails } from "@/components/PathDetails";
 import { ItemsView } from "@/features/items/ItemsView";
 import { useItems } from "@/features/items/useItems";
@@ -32,6 +36,7 @@ const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as 
 type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
+  readonly assetState: AssetPreparationState;
   readonly session: SaveSession;
   readonly saving: boolean;
   readonly saveError: string | null;
@@ -42,6 +47,7 @@ interface WorkspaceProps {
 }
 
 export function Workspace({
+  assetState,
   session,
   saving,
   saveError,
@@ -51,6 +57,7 @@ export function Workspace({
   onSave,
 }: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
+  const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);
@@ -78,6 +85,24 @@ export function Workspace({
     onPendingCountChange(pendingEdits.length);
     return () => onPendingCountChange(0);
   }, [onPendingCountChange, pendingEdits.length]);
+
+  const assetPreparationActive = [
+    "discovering",
+    "validating",
+    "indexing",
+    "resolving",
+    "decoding",
+  ].includes(assetState.stage);
+
+  if (!continueWithoutArtwork && (upgrades.loading || assetPreparationActive)) {
+    return (
+      <AssetPreparationView
+        state={assetState}
+        waitingForUpgradeDiscovery={upgrades.loading && !assetPreparationActive}
+        onContinue={() => setContinueWithoutArtwork(true)}
+      />
+    );
+  }
 
   function revertAll(): void {
     players.revertAll();
@@ -118,6 +143,12 @@ export function Workspace({
 
   return (
     <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
+      {assetState.degraded || (continueWithoutArtwork && assetPreparationActive) ? (
+        <AssetPreparationNotice
+          state={assetState}
+          showPreparing={continueWithoutArtwork && assetPreparationActive}
+        />
+      ) : null}
       <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">{t("workspace.selectedSave")}</p>

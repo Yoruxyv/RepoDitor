@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const themeCss = readFileSync(path.join(desktopRoot, "src", "styles", "theme.css"), "utf8");
+const mainSource = readFileSync(path.join(desktopRoot, "electron", "main.cts"), "utf8");
+const indexHtml = readFileSync(path.join(desktopRoot, "index.html"), "utf8");
 const textTokens = ["ink", "secondary", "muted", "accent", "success", "warning", "danger"];
 const surfaceTokens = ["app", "surface", "surface-raised"];
 
@@ -74,4 +76,23 @@ test("reduced motion removes spatial transforms", () => {
     themeCss,
     /prefers-reduced-motion:\s*reduce[\s\S]*?\.ui-feedback\s*\{[^}]*transform:\s*none\s*!important/s,
   );
+});
+
+test("asset preparation motion is opt-in and reduced-motion safe", () => {
+  assert.match(
+    themeCss,
+    /prefers-reduced-motion:\s*no-preference[\s\S]*?\.asset-preparation-crate\s*\{[^}]*animation:/s,
+  );
+  assert.match(
+    themeCss,
+    /prefers-reduced-motion:\s*reduce[\s\S]*?animation-duration:\s*0\.01ms\s*!important/s,
+  );
+});
+
+
+test("startup prepaint matches the authoritative dark application surface", () => {
+  const startupBackground = token(themeBlock(":root"), "app");
+  assert.equal(startupBackground.toLowerCase(), "#0d1110");
+  assert.match(mainSource, /backgroundColor:\s*"#0d1110"/);
+  assert.match(indexHtml, /background:\s*#0d1110/);
 });

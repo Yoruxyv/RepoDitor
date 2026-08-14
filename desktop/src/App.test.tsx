@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   AdvancedSaveDto,
+  AssetPreparationState,
   CosmeticChange,
   CosmeticsViewDto,
   EnvironmentDiscovery,
@@ -180,6 +181,15 @@ function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): vo
   }
 }
 
+const readyAssets: AssetPreparationState = {
+  stage: "ready",
+  installationFound: true,
+  buildVerified: true,
+  completed: null,
+  total: null,
+  degraded: false,
+};
+
 function bridge(
   open: RepoDitorApi["saves"]["open"],
   playerList: PlayerDto[] = [],
@@ -201,6 +211,13 @@ function bridge(
       status: vi.fn().mockResolvedValue({
         ok: true,
         data: { status: "not_running", running: false },
+      }),
+    },
+    assets: {
+      state: vi.fn().mockResolvedValue(readyAssets),
+      onState: vi.fn((listener) => {
+        listener(readyAssets);
+        return () => undefined;
       }),
     },
     saves: {
@@ -237,6 +254,125 @@ describe("save workspace transition", () => {
   beforeEach(() => {
     localStorage.clear();
     window.repoditor = bridge(vi.fn());
+  });
+
+  it("keeps startup asset preparation silent while save discovery remains usable", async () => {
+    const stillDiscovering: AssetPreparationState = {
+      ...readyAssets,
+      stage: "discovering",
+      installationFound: false,
+      buildVerified: false,
+    };
+    window.repoditor.assets.state = vi.fn().mockResolvedValue(stillDiscovering);
+    window.repoditor.assets.onState = vi.fn((listener) => {
+      listener(stillDiscovering);
+      return () => undefined;
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
+  });
+
+  it("shows the preparation view only after a save is opened", async () => {
+    let assetListener: ((state: AssetPreparationState) => void) | undefined;
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+    );
+    window.repoditor.assets.onState = vi.fn((listener) => {
+      assetListener = listener;
+      listener(readyAssets);
+      return () => undefined;
+    });
+
+    render(<App />);
+    const openButton = await screen.findByRole("button", { name: /Open workspace/ });
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+
+    fireEvent.click(openButton);
+    act(() => assetListener?.({
+      stage: "decoding",
+      installationFound: true,
+      buildVerified: true,
+      completed: 0,
+      total: 3,
+      degraded: false,
+    }));
+
+    expect(await screen.findByTestId("asset-preparation")).toBeTruthy();
+  });
+
+  it("allows entering the editor after the slow threshold while artwork continues in background", async () => {
+    let assetListener: ((state: AssetPreparationState) => void) | undefined;
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+    );
+    window.repoditor.assets.onState = vi.fn((listener) => {
+      assetListener = listener;
+      listener(readyAssets);
+      return () => undefined;
+    });
+    render(<App />);
+    const openButton = await screen.findByRole("button", { name: /Open workspace/ });
+
+    vi.useFakeTimers();
+    try {
+      act(() => assetListener?.({
+        stage: "decoding",
+        installationFound: true,
+        buildVerified: true,
+        completed: 2,
+        total: 7,
+        degraded: false,
+      }));
+      fireEvent.click(openButton);
+      await act(async () => undefined);
+      expect(screen.getByTestId("asset-preparation")).toBeTruthy();
+
+      act(() => vi.advanceTimersByTime(6_000));
+      fireEvent.click(screen.getByRole("button", { name: "Continue to editor" }));
+      await act(async () => undefined);
+
+      expect(screen.getByRole("heading", { name: session.name })).toBeTruthy();
+      expect(screen.getByTestId("asset-preparation-notice").textContent).toContain(
+        "2 / 7 assets",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps save editing available when optional game artwork preparation is degraded", async () => {
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+    );
+    const degradedAssets: AssetPreparationState = {
+      stage: "degraded",
+      installationFound: false,
+      buildVerified: false,
+      completed: null,
+      total: null,
+      degraded: true,
+    };
+    window.repoditor.assets.state = vi.fn().mockResolvedValue(degradedAssets);
+    window.repoditor.assets.onState = vi.fn((listener) => {
+      listener(degradedAssets);
+      return () => undefined;
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByRole("heading", { name: session.name })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Upgrades" })).toBeTruthy();
+    expect(screen.getByTestId("asset-preparation-notice")).toBeTruthy();
   });
 
   it("presents release identity and project attribution", () => {
@@ -335,7 +471,7 @@ describe("save workspace transition", () => {
     expect(await screen.findByText(environment.saves[0]!.name)).toBeTruthy();
 
     await user.click((await screen.findByText("ワークスペースを開く")).closest("button")!);
-    await user.click(screen.getByRole("tab", { name: "アップグレード" }));
+    await user.click(await screen.findByRole("tab", { name: "アップグレード" }));
     expect(await screen.findByRole("spinbutton", { name: "Alpha の Strength" })).toBeTruthy();
     expect(screen.getByText("Strength")).toBeTruthy();
     unmount();
@@ -570,7 +706,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     fireEvent.change(health, { target: { value: "-1" } });
 
@@ -585,7 +721,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
 
     expect(screen.getByLabelText("Maximum health 100")).toBeTruthy();
@@ -616,7 +752,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
 
     expect(
       (await screen.findByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled,
@@ -630,7 +766,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
 
     await user.click(screen.getByRole("tab", { name: "Upgrades" }));
@@ -709,7 +845,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(await screen.findByRole("tab", { name: "Items" }));
     await user.click(await screen.findByRole("button", { name: "Recharge All Tools" }));
 
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
@@ -945,7 +1081,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Run" }));
+    await user.click(await screen.findByRole("tab", { name: "Run" }));
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "20");
@@ -1082,7 +1218,7 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(screen.getByRole("tab", { name: "Run" }));
+    await user.click(await screen.findByRole("tab", { name: "Run" }));
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "20");

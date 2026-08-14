@@ -5,6 +5,7 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { usePreferences } from "@/app/preferences";
 import { useUiSound } from "@/app/useUiSound";
 import { UtilityCluster } from "@/app/UtilityCluster";
+import { useAssetPreparation } from "@/features/assets/useAssetPreparation";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
 import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
 import { Workspace } from "@/features/editor/Workspace";
@@ -30,6 +31,7 @@ function PendingDot({ count, id }: { readonly count: number; readonly id: string
 function AppContent() {
   useUiSound();
   const save = useSaveSession();
+  const assets = useAssetPreparation();
   const gameSafety = useGameSafety();
   const { t } = usePreferences();
   const editorContent = useRef<HTMLDivElement>(null);
@@ -42,7 +44,6 @@ function AppContent() {
       ? gameSafety.status
       : null;
   const initialSafetyCheck = safetyRequired && gameSafety.status === null;
-
   return (
     <AppShell>
       <div
@@ -102,6 +103,7 @@ function AppContent() {
           ) : (
             <Workspace
               key={save.session.fingerprint}
+              assetState={assets}
               backupPath={save.lastBackupPath}
               saveError={save.saveError}
               saving={save.saving}
