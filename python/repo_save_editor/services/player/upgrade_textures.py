@@ -6,12 +6,17 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Final
 
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
-from repo_save_editor.services.game.installed_build import validated_installed_build
+from repo_save_editor.services.game.installed_build import (
+    ValidatedInstalledBuild,
+    validated_installed_build,
+)
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
 from repo_save_editor.services.player.upgrades import UPGRADE_PREFIX
 from repo_save_editor.services.texture_codec import (
@@ -53,6 +58,8 @@ VALIDATED_ASSEMBLY_SHA256: Final = (
 MAX_UPGRADE_KEY_BYTES: Final = 512
 MAX_PREFAB_OBJECTS: Final = 512
 MAX_STREAM_BYTES: Final = 64 * 1024 * 1024
+MAX_BATCH_UPGRADES: Final = 64
+MAX_BATCH_PNG_BYTES: Final = 16 * 1024 * 1024
 HASH_CHUNK_BYTES: Final = 1024 * 1024
 
 
@@ -78,6 +85,30 @@ class DecodedUpgradeTexture:
     watches: tuple[SourceWatch, ...]
 
 
+class UpgradePreparationStage(StrEnum):
+    """Structured installed-art preparation stages exposed to desktop adapters."""
+
+    DISCOVERING = "discovering"
+    VALIDATING = "validating"
+    INDEXING = "indexing"
+    RESOLVING = "resolving"
+    DECODING = "decoding"
+
+
+@dataclass(frozen=True, slots=True)
+class UpgradeTextureBatchResult:
+    """Fail-soft result for one bounded installed-upgrade preparation batch."""
+
+    installation_found: bool
+    build_verified: bool
+    assets_ready: bool
+    textures: tuple[tuple[str, DecodedUpgradeTexture | None], ...]
+
+
+PreparationStageCallback = Callable[[UpgradePreparationStage, bool, bool], None]
+PreparationTextureCallback = Callable[[str, DecodedUpgradeTexture | None], None]
+
+
 @dataclass(frozen=True, slots=True)
 class _VisualFraming:
     mesh_path_id: int
@@ -91,7 +122,7 @@ class _ResolvedUpgradeVisual:
     framing: _VisualFraming | None
 
 
-def _validate_upgrade_key(key: str) -> None:
+def validate_upgrade_texture_key(key: str) -> None:
     if (
         not isinstance(key, str)
         or not key.startswith(UPGRADE_PREFIX)
@@ -137,9 +168,10 @@ def _sha256_file(path: Path) -> str:
 
 def _validated_paths(
     installation: GameInstallation,
+    build: ValidatedInstalledBuild | None = None,
 ) -> tuple[Path, Path, Path, Path, Path, Path, str]:
-    build = validated_installed_build(installation)
-    if build is None:
+    resolved_build = build if build is not None else validated_installed_build(installation)
+    if resolved_build is None:
         raise UpgradeTextureError("Installed Steam build is not the validated build.")
     try:
         game_root = installation.root.resolve(strict=True)
@@ -160,12 +192,12 @@ def _validated_paths(
         resources,
         resource_manager,
         assembly,
-        build.manifest_path.resolve(strict=True),
-        build.build_id,
+        resolved_build.manifest_path.resolve(strict=True),
+        resolved_build.build_id,
     )
 
 
-def _candidate_prefab_names(key: str, _game_dir: Path | None) -> tuple[str, ...]:
+def _candidate_prefab_names(key: str) -> tuple[str, ...]:
     # ResourceManager is the authoritative installed prefab map for this visual path.
     # Search only the semantic candidates derived from the dynamic save key, then let
     # the installed m_Container entry choose the unique canonical prefab. This avoids
@@ -286,6 +318,84 @@ def _front_uv_bounds(mesh: MeshVertexData) -> tuple[float, float, float, float]:
     return (u_min, v_min, u_max, v_max)
 
 
+def _resolve_upgrade_visual_from_indexes(
+    managers: SerializedFileIndex,
+    resources: SerializedFileIndex,
+    names: tuple[str, ...],
+    *,
+    data_root: Path | None = None,
+) -> _ResolvedUpgradeVisual:
+    prefab = _find_prefab(managers, resources, names)
+    renderers = _find_renderers(resources, prefab)
+    textures: dict[int, Texture2DMetadata] = {}
+    framings: dict[int, dict[tuple[int, tuple[float, float, float, float]], _VisualFraming]] = {}
+    for renderer, game_object_id in renderers:
+        try:
+            materials = renderer_materials(
+                resources,
+                renderer,
+                game_object_id=game_object_id,
+            )
+        except UnityMetadataError:
+            continue
+
+        for material_pointer in materials:
+            try:
+                material = resources.find_records({material_pointer.path_id})[
+                    material_pointer.path_id
+                ]
+                texture_pointer = material_main_texture(resources, material)
+                texture_record = resources.find_records({texture_pointer.path_id})[
+                    texture_pointer.path_id
+                ]
+                texture = parse_texture2d(resources, texture_record)
+            except UnityMetadataError:
+                continue
+            textures.setdefault(texture.path_id, texture)
+
+            try:
+                game_object = resources.find_records({game_object_id})[game_object_id]
+                mesh_record = mesh_filter_mesh(resources, game_object)
+                mesh_stream = parse_mesh_stream_metadata(resources, mesh_record)
+                mesh_stream_path: Path | None = None
+                mesh_stream_data: bytes | None = None
+                if mesh_stream is not None:
+                    if data_root is None:
+                        raise UnityMetadataError(
+                            "Streamed Mesh framing requires the validated data root."
+                        )
+                    mesh_stream_path, _mesh_stat = _resolve_stream_range(
+                        data_root,
+                        mesh_stream.path,
+                        mesh_stream.offset,
+                        mesh_stream.size,
+                    )
+                    with mesh_stream_path.open("rb") as handle:
+                        handle.seek(mesh_stream.offset)
+                        mesh_stream_data = handle.read(mesh_stream.size)
+                    if len(mesh_stream_data) != mesh_stream.size:
+                        raise UpgradeTextureError(
+                            "Mesh streamed vertex data could not be read completely."
+                        )
+                mesh = parse_mesh_vertex_data(
+                    resources,
+                    mesh_record,
+                    stream_data=mesh_stream_data,
+                )
+                bounds = _front_uv_bounds(mesh)
+            except (OSError, UnityMetadataError, UpgradeTextureError):
+                continue
+            framing = _VisualFraming(mesh.path_id, bounds, mesh_stream_path)
+            framings.setdefault(texture.path_id, {})[(mesh.path_id, bounds)] = framing
+
+    if len(textures) != 1:
+        raise UnityMetadataError("Upgrade material Texture2D relationship is missing or ambiguous.")
+    texture = next(iter(textures.values()))
+    matching_framings = tuple(framings.get(texture.path_id, {}).values())
+    framing = matching_framings[0] if len(matching_framings) == 1 else None
+    return _ResolvedUpgradeVisual(texture, framing)
+
+
 def _resolve_upgrade_visual(
     resources_path: Path,
     resource_manager_path: Path,
@@ -297,79 +407,12 @@ def _resolve_upgrade_visual(
         SerializedFileIndex(resource_manager_path) as managers,
         SerializedFileIndex(resources_path) as resources,
     ):
-        prefab = _find_prefab(managers, resources, names)
-        renderers = _find_renderers(resources, prefab)
-        textures: dict[int, Texture2DMetadata] = {}
-        framings: dict[
-            int, dict[tuple[int, tuple[float, float, float, float]], _VisualFraming]
-        ] = {}
-        for renderer, game_object_id in renderers:
-            try:
-                materials = renderer_materials(
-                    resources,
-                    renderer,
-                    game_object_id=game_object_id,
-                )
-            except UnityMetadataError:
-                continue
-
-            for material_pointer in materials:
-                try:
-                    material = resources.find_records({material_pointer.path_id})[
-                        material_pointer.path_id
-                    ]
-                    texture_pointer = material_main_texture(resources, material)
-                    texture_record = resources.find_records({texture_pointer.path_id})[
-                        texture_pointer.path_id
-                    ]
-                    texture = parse_texture2d(resources, texture_record)
-                except UnityMetadataError:
-                    continue
-                textures.setdefault(texture.path_id, texture)
-
-                try:
-                    game_object = resources.find_records({game_object_id})[game_object_id]
-                    mesh_record = mesh_filter_mesh(resources, game_object)
-                    mesh_stream = parse_mesh_stream_metadata(resources, mesh_record)
-                    mesh_stream_path: Path | None = None
-                    mesh_stream_data: bytes | None = None
-                    if mesh_stream is not None:
-                        if data_root is None:
-                            raise UnityMetadataError(
-                                "Streamed Mesh framing requires the validated data root."
-                            )
-                        mesh_stream_path, _mesh_stat = _resolve_stream_range(
-                            data_root,
-                            mesh_stream.path,
-                            mesh_stream.offset,
-                            mesh_stream.size,
-                        )
-                        with mesh_stream_path.open("rb") as handle:
-                            handle.seek(mesh_stream.offset)
-                            mesh_stream_data = handle.read(mesh_stream.size)
-                        if len(mesh_stream_data) != mesh_stream.size:
-                            raise UpgradeTextureError(
-                                "Mesh streamed vertex data could not be read completely."
-                            )
-                    mesh = parse_mesh_vertex_data(
-                        resources,
-                        mesh_record,
-                        stream_data=mesh_stream_data,
-                    )
-                    bounds = _front_uv_bounds(mesh)
-                except (OSError, UnityMetadataError, UpgradeTextureError):
-                    continue
-                framing = _VisualFraming(mesh.path_id, bounds, mesh_stream_path)
-                framings.setdefault(texture.path_id, {})[(mesh.path_id, bounds)] = framing
-
-        if len(textures) != 1:
-            raise UnityMetadataError(
-                "Upgrade material Texture2D relationship is missing or ambiguous."
-            )
-        texture = next(iter(textures.values()))
-        matching_framings = tuple(framings.get(texture.path_id, {}).values())
-        framing = matching_framings[0] if len(matching_framings) == 1 else None
-        return _ResolvedUpgradeVisual(texture, framing)
+        return _resolve_upgrade_visual_from_indexes(
+            managers,
+            resources,
+            names,
+            data_root=data_root,
+        )
 
 
 def _resolve_texture_metadata(
@@ -499,6 +542,195 @@ def _source_identity(
     return hashlib.sha256(raw).hexdigest()
 
 
+def _decode_resolved_upgrade_texture(
+    key: str,
+    visual: _ResolvedUpgradeVisual,
+    *,
+    data_root: Path,
+    resources: Path,
+    resource_manager: Path,
+    assembly: Path,
+    manifest: Path,
+    build_id: str,
+) -> DecodedUpgradeTexture:
+    texture = visual.texture
+    stream, _stream_stat = _resolve_stream(data_root, texture)
+    with stream.open("rb") as handle:
+        handle.seek(texture.stream_offset)
+        compressed = handle.read(texture.top_mip_size)
+    if len(compressed) != texture.top_mip_size:
+        raise UpgradeTextureError("Texture top mip could not be read completely.")
+    rgba = decode_texture_rgba(
+        compressed,
+        texture.width,
+        texture.height,
+        texture.texture_format,
+    )
+    rgba = flip_rgba_vertical(rgba, texture.width, texture.height)
+    png_width = texture.width
+    png_height = texture.height
+    applied_framing = visual.framing
+    if applied_framing is not None:
+        try:
+            left, top, right, bottom = _uv_crop(
+                applied_framing.uv_bounds,
+                texture.width,
+                texture.height,
+            )
+            rgba, png_width, png_height = crop_rgba(
+                rgba,
+                texture.width,
+                texture.height,
+                left,
+                top,
+                right,
+                bottom,
+            )
+        except (TextureDecodeError, UpgradeTextureError):
+            applied_framing = None
+            png_width = texture.width
+            png_height = texture.height
+    png = encode_rgba_png(rgba, png_width, png_height)
+    watch_paths = [manifest, assembly, resources, resource_manager, stream]
+    if (
+        applied_framing is not None
+        and applied_framing.source_path is not None
+        and applied_framing.source_path not in watch_paths
+    ):
+        watch_paths.append(applied_framing.source_path)
+    watches = tuple(_watch(path) for path in watch_paths)
+    source_identity = _source_identity(
+        build_id,
+        texture,
+        applied_framing,
+        png_width,
+        png_height,
+        watches,
+        data_root,
+    )
+    return DecodedUpgradeTexture(
+        key,
+        texture,
+        png,
+        png_width,
+        png_height,
+        source_identity,
+        watches,
+    )
+
+
+def prepare_installed_upgrade_textures(
+    keys: Iterable[str],
+    installation: GameInstallation,
+    build: ValidatedInstalledBuild,
+    *,
+    on_stage: PreparationStageCallback | None = None,
+    on_texture: PreparationTextureCallback | None = None,
+) -> UpgradeTextureBatchResult:
+    """Prepare one bounded upgrade set from an already validated installation.
+
+    Discovery and build validation intentionally live outside this function so a
+    future bounded installation source can reuse the same asset-preparation path.
+    Individual visual failures resolve to ``None`` and never affect save semantics.
+    """
+    upgrade_keys = tuple(dict.fromkeys(keys))
+    if len(upgrade_keys) > MAX_BATCH_UPGRADES:
+        raise UpgradeTextureError("Upgrade preparation batch exceeds the supported bound.")
+    for key in upgrade_keys:
+        validate_upgrade_texture_key(key)
+
+    def stage(value: UpgradePreparationStage) -> None:
+        if on_stage is not None:
+            on_stage(value, True, True)
+
+    def resolved(key: str, texture: DecodedUpgradeTexture | None) -> None:
+        if on_texture is not None:
+            on_texture(key, texture)
+
+    stage(UpgradePreparationStage.INDEXING)
+    try:
+        (
+            _game_root,
+            data_root,
+            resources_path,
+            resource_manager_path,
+            assembly,
+            manifest,
+            build_id,
+        ) = _validated_paths(installation, build)
+        if not upgrade_keys:
+            return UpgradeTextureBatchResult(True, True, True, ())
+
+        with (
+            SerializedFileIndex(resource_manager_path) as managers,
+            SerializedFileIndex(resources_path) as resources,
+        ):
+            stage(UpgradePreparationStage.RESOLVING)
+            outcomes: dict[str, DecodedUpgradeTexture | None] = {}
+            pending: list[tuple[str, _ResolvedUpgradeVisual]] = []
+            for key in upgrade_keys:
+                try:
+                    visual = _resolve_upgrade_visual_from_indexes(
+                        managers,
+                        resources,
+                        _candidate_prefab_names(key),
+                        data_root=data_root,
+                    )
+                except (OSError, UnityMetadataError, UpgradeTextureError, ValueError):
+                    outcomes[key] = None
+                    resolved(key, None)
+                    continue
+                pending.append((key, visual))
+
+            stage(UpgradePreparationStage.DECODING)
+            png_bytes = 0
+            budget_exhausted = False
+            for key, visual in pending:
+                decoded: DecodedUpgradeTexture | None = None
+                if not budget_exhausted:
+                    try:
+                        candidate = _decode_resolved_upgrade_texture(
+                            key,
+                            visual,
+                            data_root=data_root,
+                            resources=resources_path,
+                            resource_manager=resource_manager_path,
+                            assembly=assembly,
+                            manifest=manifest,
+                            build_id=build_id,
+                        )
+                        if png_bytes + len(candidate.png) > MAX_BATCH_PNG_BYTES:
+                            budget_exhausted = True
+                        else:
+                            png_bytes += len(candidate.png)
+                            decoded = candidate
+                    except (
+                        OSError,
+                        OverflowError,
+                        TextureDecodeError,
+                        UnityMetadataError,
+                        UpgradeTextureError,
+                        ValueError,
+                    ):
+                        decoded = None
+                outcomes[key] = decoded
+                resolved(key, decoded)
+    except (OSError, OverflowError, UnityMetadataError, UpgradeTextureError, ValueError):
+        return UpgradeTextureBatchResult(
+            True,
+            True,
+            False,
+            tuple((key, None) for key in upgrade_keys),
+        )
+
+    return UpgradeTextureBatchResult(
+        True,
+        True,
+        True,
+        tuple((key, outcomes.get(key)) for key in upgrade_keys),
+    )
+
+
 def decode_installed_upgrade_texture(
     key: str,
     game_dir: Path | None = None,
@@ -509,100 +741,26 @@ def decode_installed_upgrade_texture(
     path never affects save opening or mutation authorization.
     """
     try:
-        _validate_upgrade_key(key)
+        validate_upgrade_texture_key(key)
         discovery = discover_game_installation(game_dir)
         installation = discovery.installation
         if installation is None:
-            raise UpgradeTextureError("R.E.P.O. installation is unavailable.")
-        (
-            _game_root,
-            data_root,
-            resources,
-            resource_manager,
-            assembly,
-            manifest,
-            build_id,
-        ) = _validated_paths(installation)
-        names = _candidate_prefab_names(key, game_dir)
-        visual = _resolve_upgrade_visual(
-            resources,
-            resource_manager,
-            names,
-            data_root=data_root,
-        )
-        texture = visual.texture
-        stream, _stream_stat = _resolve_stream(data_root, texture)
-        with stream.open("rb") as handle:
-            handle.seek(texture.stream_offset)
-            compressed = handle.read(texture.top_mip_size)
-        if len(compressed) != texture.top_mip_size:
-            raise UpgradeTextureError("Texture top mip could not be read completely.")
-        rgba = decode_texture_rgba(
-            compressed,
-            texture.width,
-            texture.height,
-            texture.texture_format,
-        )
-        rgba = flip_rgba_vertical(rgba, texture.width, texture.height)
-        png_width = texture.width
-        png_height = texture.height
-        applied_framing = visual.framing
-        if applied_framing is not None:
-            try:
-                left, top, right, bottom = _uv_crop(
-                    applied_framing.uv_bounds,
-                    texture.width,
-                    texture.height,
-                )
-                rgba, png_width, png_height = crop_rgba(
-                    rgba,
-                    texture.width,
-                    texture.height,
-                    left,
-                    top,
-                    right,
-                    bottom,
-                )
-            except (TextureDecodeError, UpgradeTextureError):
-                applied_framing = None
-                png_width = texture.width
-                png_height = texture.height
-        png = encode_rgba_png(rgba, png_width, png_height)
-        watch_paths = [manifest, assembly, resources, resource_manager, stream]
-        if (
-            applied_framing is not None
-            and applied_framing.source_path is not None
-            and applied_framing.source_path not in watch_paths
-        ):
-            watch_paths.append(applied_framing.source_path)
-        watches = tuple(_watch(path) for path in watch_paths)
-        source_identity = _source_identity(
-            build_id,
-            texture,
-            applied_framing,
-            png_width,
-            png_height,
-            watches,
-            data_root,
-        )
-        return DecodedUpgradeTexture(
-            key,
-            texture,
-            png,
-            png_width,
-            png_height,
-            source_identity,
-            watches,
-        )
-    except (
-        OSError,
-        OverflowError,
-        TextureDecodeError,
-        UnityMetadataError,
-        UpgradeTextureError,
-        ValueError,
-    ):
+            return None
+        build = validated_installed_build(installation)
+        if build is None:
+            return None
+        result = prepare_installed_upgrade_textures((key,), installation, build)
+    except (OSError, OverflowError, UpgradeTextureError, ValueError):
         return None
+    return result.textures[0][1] if result.textures else None
 
 
-__all__ = ["DecodedUpgradeTexture", "SourceWatch", "decode_installed_upgrade_texture"]
+__all__ = [
+    "DecodedUpgradeTexture",
+    "SourceWatch",
+    "UpgradePreparationStage",
+    "UpgradeTextureBatchResult",
+    "decode_installed_upgrade_texture",
+    "prepare_installed_upgrade_textures",
+    "validate_upgrade_texture_key",
+]

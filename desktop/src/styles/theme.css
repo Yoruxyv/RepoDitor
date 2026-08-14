@@ -109,3 +109,51 @@ html:has([data-pending-surface-active="true"]) {
     transition-duration: 0.01ms !important;
   }
 }
+
+.asset-preparation-panel {
+  background-image:
+    linear-gradient(135deg, var(--theme-accent-muted), transparent 32%),
+    linear-gradient(180deg, var(--theme-surface-raised), var(--theme-surface));
+}
+
+.asset-preparation-scanline {
+  opacity: 0.22;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 5px,
+    var(--theme-line) 6px
+  );
+}
+
+@keyframes asset-preparation-crate-shift {
+  0%, 100% { transform: translateY(0); }
+  48% { transform: translateY(-2px); }
+  56% { transform: translateY(1px); }
+}
+
+@keyframes asset-preparation-tool-turn {
+  0%, 76%, 100% { transform: rotate(0deg); }
+  84% { transform: rotate(-10deg); }
+  92% { transform: rotate(8deg); }
+}
+
+@keyframes asset-preparation-sweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(480%); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .asset-preparation-crate {
+    animation: asset-preparation-crate-shift 1.9s ease-in-out infinite;
+  }
+
+  .asset-preparation-tool {
+    animation: asset-preparation-tool-turn 2.6s ease-in-out infinite;
+    transform-origin: 50% 55%;
+  }
+
+  .asset-preparation-sweep {
+    animation: asset-preparation-sweep 1.4s linear infinite;
+  }
+}

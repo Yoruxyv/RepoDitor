@@ -96,11 +96,9 @@ function readDecimalBigInt(value: unknown): bigint | null {
   }
 }
 
-function parseDecodedTexture(value: unknown): DecodedTexture | null {
-  if (!isRecord(value) || value.ok !== true) return null;
-  if (value.texture === null) return null;
-  if (!isRecord(value.texture)) return null;
-  const texture = value.texture;
+function parseDecodedTexturePayload(value: unknown): DecodedTexture | null {
+  if (!isRecord(value)) return null;
+  const texture = value;
   if (
     typeof texture.sourceIdentity !== "string"
     || !SOURCE_ID_PATTERN.test(texture.sourceIdentity)
@@ -138,6 +136,12 @@ function parseDecodedTexture(value: unknown): DecodedTexture | null {
   return { sourceIdentity: texture.sourceIdentity, png, watches };
 }
 
+function parseDecodedTexture(value: unknown): DecodedTexture | null {
+  if (!isRecord(value) || value.ok !== true || value.texture === null) return null;
+  return parseDecodedTexturePayload(value.texture);
+}
+
+
 async function sourcesUnchanged(watches: readonly SourceWatch[]): Promise<boolean> {
   try {
     for (const watch of watches) {
@@ -157,14 +161,51 @@ async function sourcesUnchanged(watches: readonly SourceWatch[]): Promise<boolea
   }
 }
 
+interface PreparationWaiter {
+  readonly promise: Promise<Buffer | null>;
+  readonly resolve: (value: Buffer | null) => void;
+}
+
 export class DecodedUpgradeTextureCache {
   readonly #bySource = new Map<string, DecodedTexture>();
   readonly #sourceByUpgrade = new Map<string, string>();
   readonly #inFlight = new Map<string, Promise<Buffer | null>>();
+  readonly #preparing = new Map<string, PreparationWaiter>();
   #decodeTail: Promise<void> = Promise.resolve();
 
+  beginPreparation(upgradeKeys: readonly string[]): void {
+    for (const upgradeKey of new Set(upgradeKeys)) {
+      if (this.#preparing.has(upgradeKey)) continue;
+      let resolve!: (value: Buffer | null) => void;
+      const promise = new Promise<Buffer | null>((next) => {
+        resolve = next;
+      });
+      this.#preparing.set(upgradeKey, { promise, resolve });
+    }
+  }
+
+  finishPreparation(upgradeKey: string): void {
+    this.#resolvePreparation(upgradeKey, null);
+  }
+
+  async hasPrepared(upgradeKey: string): Promise<boolean> {
+    return await this.#cached(upgradeKey) !== null;
+  }
+
+  async storePrepared(upgradeKey: string, value: unknown): Promise<boolean> {
+    const decoded = parseDecodedTexturePayload(value);
+    if (decoded === null || !await sourcesUnchanged(decoded.watches)) return false;
+    const png = this.#store(upgradeKey, decoded);
+    this.#resolvePreparation(upgradeKey, png);
+    return true;
+  }
+
   async get(upgradeKey: string, client: PythonClient): Promise<Buffer | null> {
-    const pending = this.#inFlight.get(upgradeKey);
+    const existing = this.#inFlight.get(upgradeKey);
+    if (existing !== undefined) return existing;
+    const cached = await this.#cached(upgradeKey);
+    if (cached !== null) return cached;
+    const pending = this.#inFlight.get(upgradeKey) ?? this.#preparing.get(upgradeKey)?.promise;
     if (pending !== undefined) return pending;
     const task = this.#load(upgradeKey, client);
     this.#inFlight.set(upgradeKey, task);
@@ -175,14 +216,34 @@ export class DecodedUpgradeTextureCache {
     }
   }
 
-  async #load(upgradeKey: string, client: PythonClient): Promise<Buffer | null> {
+  async #cached(upgradeKey: string): Promise<Buffer | null> {
     const knownSource = this.#sourceByUpgrade.get(upgradeKey);
-    if (knownSource !== undefined) {
-      const cached = this.#bySource.get(knownSource);
-      if (cached !== undefined && await sourcesUnchanged(cached.watches)) return cached.png;
-      this.#sourceByUpgrade.delete(upgradeKey);
-      if (cached !== undefined) this.#bySource.delete(knownSource);
-    }
+    if (knownSource === undefined) return null;
+    const cached = this.#bySource.get(knownSource);
+    if (cached !== undefined && await sourcesUnchanged(cached.watches)) return cached.png;
+    this.#sourceByUpgrade.delete(upgradeKey);
+    if (cached !== undefined) this.#bySource.delete(knownSource);
+    return null;
+  }
+
+  #store(upgradeKey: string, decoded: DecodedTexture): Buffer {
+    const existing = this.#bySource.get(decoded.sourceIdentity);
+    const stored = existing ?? decoded;
+    this.#bySource.set(decoded.sourceIdentity, stored);
+    this.#sourceByUpgrade.set(upgradeKey, decoded.sourceIdentity);
+    return stored.png;
+  }
+
+  #resolvePreparation(upgradeKey: string, value: Buffer | null): void {
+    const waiter = this.#preparing.get(upgradeKey);
+    if (waiter === undefined) return;
+    this.#preparing.delete(upgradeKey);
+    waiter.resolve(value);
+  }
+
+  async #load(upgradeKey: string, client: PythonClient): Promise<Buffer | null> {
+    const cached = await this.#cached(upgradeKey);
+    if (cached !== null) return cached;
 
     let decoded: DecodedTexture | null;
     try {
@@ -198,13 +259,12 @@ export class DecodedUpgradeTextureCache {
       return null;
     }
     if (decoded === null || !await sourcesUnchanged(decoded.watches)) return null;
-    const existing = this.#bySource.get(decoded.sourceIdentity);
-    const stored = existing ?? decoded;
-    this.#bySource.set(decoded.sourceIdentity, stored);
-    this.#sourceByUpgrade.set(upgradeKey, decoded.sourceIdentity);
-    return stored.png;
+    return this.#store(upgradeKey, decoded);
   }
 }
+
+export const decodedUpgradeTextureCache = new DecodedUpgradeTextureCache();
+
 
 async function serveCacheIcon(
   entry: { readonly domain: "item" | "upgrade" | "cosmetic"; readonly key: string },
@@ -286,9 +346,14 @@ export function registerLocalIconScheme(): void {
 
 export function registerLocalIconProtocol(client: PythonClient = pythonClient): void {
   const roots = loadRoots(client);
-  const decodedCache = new DecodedUpgradeTextureCache();
   protocol.handle(
     ICON_SCHEME,
-    async (request) => serveLocalIcon(request, await roots, localIconRegistry, client, decodedCache),
+    async (request) => serveLocalIcon(
+      request,
+      await roots,
+      localIconRegistry,
+      client,
+      decodedUpgradeTextureCache,
+    ),
   );
 }

@@ -21,6 +21,24 @@ const packagedExecutable = process.env.REPODITOR_E2E_EXECUTABLE
   ? path.resolve(desktopRoot, process.env.REPODITOR_E2E_EXECUTABLE)
   : null;
 
+async function waitForWorkspaceOrContinue(page: Page): Promise<void> {
+  const workspace = page.getByTestId("workspace");
+  const continueEditor = page.getByRole("button", { name: "Continue to editor" });
+
+  await expect.poll(
+    async () => (await workspace.isVisible()) || (await continueEditor.isVisible()),
+    {
+      message: "workspace or bounded asset-preparation escape should become available",
+      timeout: 15_000,
+    },
+  ).toBe(true);
+
+  if (await continueEditor.isVisible()) {
+    await continueEditor.click();
+  }
+  await expect(workspace).toBeVisible();
+}
+
 function getPythonExecutable(): string {
   const executable = path.join(
     repoRoot,
@@ -391,7 +409,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     const openStarted = performance.now();
     await page.getByRole("button", { name: /Open workspace/ }).click();
-    await expect(page.getByTestId("workspace")).toBeVisible();
+    await waitForWorkspaceOrContinue(page);
     const openReadyMs = performance.now() - openStarted;
     await expect(page.getByRole("heading", { name: "2026-08-08 10:20:30" })).toBeVisible();
     await expect(page.getByText("Validated locally")).toBeVisible();

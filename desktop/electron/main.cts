@@ -7,6 +7,10 @@ import {
   shell,
 } from "electron";
 
+import {
+  assetPreparationService,
+  registerAssetPreparationIpc,
+} from "./assets/preparation.cjs";
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
 import { registerGameIpc } from "./ipc/game.cjs";
 import { registerCosmeticsIpc } from "./ipc/cosmetics.cjs";
@@ -85,6 +89,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     show: false,
+    backgroundColor: "#0d1110", // Keep Chromium prepaint aligned with --theme-app.
     title: "RepoDitor",
     icon: path.join(__dirname, "..", app.isPackaged ? "dist" : "public", "icon.png"),
 
@@ -111,6 +116,7 @@ function createWindow(): void {
 }
 
 registerLocalIconScheme();
+registerAssetPreparationIpc();
 registerEnvironmentIpc();
 registerGameIpc();
 registerCosmeticsIpc();
@@ -128,6 +134,7 @@ void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   registerLocalIconProtocol();
   createWindow();
+  void assetPreparationService.prepareStartup();
 
   app.on("activate", () => {
     if (

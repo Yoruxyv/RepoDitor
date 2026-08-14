@@ -1,6 +1,8 @@
+import io
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -210,3 +212,89 @@ def test_game_status_cli_returns_narrow_status(monkeypatch, capsys) -> None:
         "status": "not_running",
         "running": False,
     }
+
+
+def test_assets_prepare_cli_streams_records_and_one_structured_final(monkeypatch, capsys) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_prepare(keys: tuple[str, ...], emit) -> None:
+        captured["keys"] = keys
+        emit(
+            {
+                "type": "progress",
+                "stage": "resolving",
+                "installationFound": True,
+                "buildVerified": True,
+                "completed": 0,
+                "total": len(keys),
+                "degraded": False,
+            }
+        )
+        emit(
+            {
+                "type": "final",
+                "ok": True,
+                "installationFound": True,
+                "buildVerified": True,
+                "completed": len(keys),
+                "total": len(keys),
+                "degraded": False,
+            }
+        )
+
+    monkeypatch.setattr(desktop_main, "prepare_game_assets", fake_prepare)
+    payload = json.dumps(["playerUpgradeHealth", "playerUpgradeFuture"]).encode("utf-8")
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(payload)))
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", "assets-prepare"])
+
+    desktop_main.main()
+
+    records = [json.loads(line) for line in capsys.readouterr().out.strip().splitlines()]
+    assert captured["keys"] == ("playerUpgradeHealth", "playerUpgradeFuture")
+    assert [record["type"] for record in records] == ["progress", "final"]
+    assert records[-1]["completed"] == 2
+    assert records[-1]["total"] == 2
+
+
+def _assert_bad_assets_prepare_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    payload: bytes,
+) -> None:
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(payload)))
+    monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", "assets-prepare"])
+
+    desktop_main.main()
+
+    record = json.loads(capsys.readouterr().out)
+    assert record == {
+        "type": "final",
+        "ok": False,
+        "installationFound": False,
+        "buildVerified": False,
+        "completed": None,
+        "total": None,
+        "degraded": True,
+        "error": {
+            "code": "invalid_request",
+            "message": "The upgrade preparation payload is invalid.",
+        },
+    }
+
+
+def test_assets_prepare_cli_rejects_malformed_stdin_as_structured_final(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _assert_bad_assets_prepare_stdin(monkeypatch, capsys, b"not-json")
+
+
+def test_assets_prepare_cli_rejects_oversized_stdin_as_structured_final(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Construct the large payload inside the test instead of parameterizing it.
+    # Pytest exposes the current node ID through PYTEST_CURRENT_TEST; embedding a
+    # 64 KiB bytes parameter in that node ID exceeds Windows' environment limit.
+    payload = b"[" + b" " * (64 * 1024) + b"]"
+    _assert_bad_assets_prepare_stdin(monkeypatch, capsys, payload)

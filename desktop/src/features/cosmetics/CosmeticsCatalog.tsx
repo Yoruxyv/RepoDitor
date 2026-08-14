@@ -233,12 +233,9 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
       </div>
 
       {!view.catalogAvailable ? (
-        <p
-          className="mt-4 border-l-2 border-warning bg-warning-muted px-4 py-3 text-sm/6 text-secondary"
-          role="status"
-        >
+        <output className="mt-4 block border-l-2 border-warning bg-warning-muted px-4 py-3 text-sm/6 text-secondary">
           {t("cosmetics.catalogUnavailableMetadata")}
-        </p>
+        </output>
       ) : null}
 
       <div className="mt-5">

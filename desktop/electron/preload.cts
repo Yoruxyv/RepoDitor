@@ -1,10 +1,12 @@
 import {
   contextBridge,
   ipcRenderer,
+  type IpcRendererEvent,
 } from "electron";
 
 import {
   type AdvancedSaveDto,
+  type AssetPreparationState,
   type CosmeticChange,
   type CosmeticsViewDto,
   type CosmeticsWriteResult,
@@ -31,6 +33,8 @@ const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
   projectMetadata: "project:metadata",
   gameStatus: "game:status",
+  assetPreparationState: "assets:state",
+  assetPreparationProgress: "assets:progress",
   savesList: "saves:list",
   savesOpen: "saves:open",
   savesWrite: "saves:write",
@@ -68,6 +72,19 @@ const repoditorApi: RepoDitorApi = {
       ) as Promise<
         DesktopOperationResult<GameProcessState>
       >,
+  },
+  assets: {
+    state: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.assetPreparationState) as Promise<AssetPreparationState>,
+    onState: (listener) => {
+      const handler = (_event: IpcRendererEvent, state: AssetPreparationState) => {
+        listener(state);
+      };
+      ipcRenderer.on(IPC_CHANNELS.assetPreparationProgress, handler);
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.assetPreparationProgress, handler);
+      };
+    },
   },
   saves: {
     list: () =>
