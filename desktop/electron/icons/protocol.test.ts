@@ -22,7 +22,7 @@ function png(width = 1, height = 1): Buffer {
 
 async function fixture() {
   const base = await mkdtemp(path.join(os.tmpdir(), "repoditor-icons-"));
-  const roots = { item: path.join(base, "Items"), cosmetic: path.join(base, "Cosmetics") };
+  const roots = { item: path.join(base, "Items"), upgrade: path.join(base, "Items"), cosmetic: path.join(base, "Cosmetics") };
   await mkdir(roots.item);
   await mkdir(roots.cosmetic);
   return { base, roots };
@@ -52,12 +52,14 @@ describe("local icon protocol", () => {
     const registry = new LocalIconRegistry();
     const first = registry.replace("cosmetic", ["kept.png", "removed.png"]);
     const item = registry.replace("item", ["kept.png"]);
+    const upgrade = registry.replace("upgrade", ["kept.png"]);
     const second = registry.replace("cosmetic", ["kept.png", "added.png"]);
 
     expect(second.get("kept.png")).toBe(first.get("kept.png"));
     expect(second.get("added.png")).not.toBe(first.get("removed.png"));
     expect(registry.get(first.get("removed.png"))).toBeUndefined();
     expect(registry.get(item.get("kept.png"))).toEqual({ domain: "item", key: "kept.png" });
+    expect(registry.get(upgrade.get("kept.png"))).toEqual({ domain: "upgrade", key: "kept.png" });
   });
 
   it("rejects unknown tokens, arbitrary paths, bad files, and writes", async () => {

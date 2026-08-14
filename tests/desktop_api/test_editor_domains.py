@@ -8,6 +8,10 @@ from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
+from repo_save_editor.services.player.upgrades import (
+    UpgradePresentation,
+    UpgradePresentationSource,
+)
 from repo_save_editor.storage.repository import SaveRepository
 
 
@@ -34,7 +38,15 @@ def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save
     save_path = _write_save(tmp_path, sample_save)
     before = save_path.read_bytes()
 
-    result = list_upgrades(save_path.parent.name, tmp_path)
+    result = list_upgrades(
+        save_path.parent.name,
+        tmp_path,
+        presentation_loader=lambda keys: {
+            "playerUpgradeStrength": UpgradePresentation(
+                "Strength", UpgradePresentationSource.INSTALLED, gameplay_cap=10
+            )
+        },
+    )
 
     assert result == {
         "ok": True,
@@ -42,7 +54,9 @@ def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save
             {
                 "key": "playerUpgradeStrength",
                 "label": "Strength",
-                "known": True,
+                "presentationSource": "installed",
+                "iconKey": None,
+                "gameplayCap": 10,
                 "values": [
                     {"playerId": "111", "value": 2},
                     {"playerId": "222", "value": 0},
@@ -51,7 +65,9 @@ def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save
             {
                 "key": "playerUpgradeMoonBoots",
                 "label": "Moon Boots",
-                "known": False,
+                "presentationSource": "humanized",
+                "iconKey": None,
+                "gameplayCap": None,
                 "values": [
                     {"playerId": "111", "value": 0},
                     {"playerId": "222", "value": 7},

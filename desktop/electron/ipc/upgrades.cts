@@ -4,20 +4,27 @@ import {
 } from "../contracts.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {
+  localIconRegistry,
+  readIconKey,
+  type LocalIconRegistry,
+} from "../icons/registry.cjs";
+import {
   EditorProtocolError,
   failure,
   invalidSaveId,
   isRecord,
   parseError,
-  readBoolean,
   readInteger,
+  readNullableInteger,
   readString,
   validSaveId,
 } from "./protocol.cjs";
 
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 
-function parseUpgrade(value: unknown): PlayerUpgradeDto {
+type ParsedUpgrade = Omit<PlayerUpgradeDto, "iconToken"> & { readonly iconKey: string | null };
+
+function parseUpgrade(value: unknown): ParsedUpgrade {
   if (!isRecord(value) || !Array.isArray(value.values)) {
     throw new EditorProtocolError("Invalid upgrade.");
   }
@@ -25,10 +32,26 @@ function parseUpgrade(value: unknown): PlayerUpgradeDto {
   if (!key.startsWith("playerUpgrade")) {
     throw new EditorProtocolError("Invalid upgrade key.");
   }
+  const presentationSource = readString(value.presentationSource, "upgrade presentation source");
+  const gameplayCap = readNullableInteger(value.gameplayCap, "upgrade gameplay cap");
+  if (
+    !["installed", "alias", "humanized"].includes(presentationSource)
+    || (gameplayCap !== null && gameplayCap < 0)
+  ) {
+    throw new EditorProtocolError("Invalid upgrade presentation.");
+  }
+  let iconKey: string | null;
+  try {
+    iconKey = readIconKey(value.iconKey);
+  } catch {
+    throw new EditorProtocolError("Invalid upgrade icon.");
+  }
   return {
     key,
     label: readString(value.label, "upgrade label"),
-    known: readBoolean(value.known, "known upgrade flag"),
+    presentationSource: presentationSource as PlayerUpgradeDto["presentationSource"],
+    gameplayCap,
+    iconKey,
     values: value.values.map((entry) => {
       if (!isRecord(entry)) {
         throw new EditorProtocolError("Invalid upgrade value.");
@@ -43,7 +66,10 @@ function parseUpgrade(value: unknown): PlayerUpgradeDto {
   };
 }
 
-function parseUpgrades(value: unknown): DesktopOperationResult<PlayerUpgradeDto[]> {
+function parseUpgrades(
+  value: unknown,
+  icons: LocalIconRegistry,
+): DesktopOperationResult<PlayerUpgradeDto[]> {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid upgrades response.");
   }
@@ -53,18 +79,27 @@ function parseUpgrades(value: unknown): DesktopOperationResult<PlayerUpgradeDto[
   if (!Array.isArray(value.upgrades)) {
     throw new EditorProtocolError("Invalid upgrades.");
   }
-  return { ok: true, data: value.upgrades.map(parseUpgrade) };
+  const upgrades = value.upgrades.map(parseUpgrade);
+  const tokens = icons.replace("upgrade", upgrades.map((upgrade) => upgrade.iconKey));
+  return {
+    ok: true,
+    data: upgrades.map(({ iconKey, ...upgrade }) => ({
+      ...upgrade,
+      iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+    })),
+  };
 }
 
 export async function listUpgrades(
   client: PythonClient,
   saveId: unknown,
+  icons: LocalIconRegistry = localIconRegistry,
 ): Promise<DesktopOperationResult<PlayerUpgradeDto[]>> {
   if (!validSaveId(saveId)) {
     return invalidSaveId();
   }
   try {
-    return parseUpgrades(await client.run("upgrades-list", [saveId]));
+    return parseUpgrades(await client.run("upgrades-list", [saveId]), icons);
   } catch (error) {
     return failure("upgrades", error);
   }

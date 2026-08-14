@@ -10,10 +10,15 @@ interface GameIconProps {
   readonly loading?: "eager" | "lazy";
   readonly testId: string;
   readonly token: string | null;
-  readonly variant: "item" | "cosmetic";
+  readonly variant: "item" | "upgrade" | "cosmetic";
 }
 
 const loadedIconTokens = new Set<string>();
+
+function variantSize(variant: GameIconProps["variant"]): string {
+  if (variant === "cosmetic") return "size-12";
+  return variant === "upgrade" ? "size-20" : "size-14";
+}
 
 export function GameIcon({
   fallback,
@@ -36,7 +41,7 @@ export function GameIcon({
         icon={fallback}
         source={fallbackSource}
         testId={testId}
-        variant="item"
+        variant={variant === "upgrade" ? "upgrade" : "item"}
       />
     );
   }
@@ -45,7 +50,7 @@ export function GameIcon({
     <span
       aria-hidden="true"
       aria-busy={!loaded}
-      className={`${variant === "cosmetic" ? "size-12" : "size-14"} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line bg-app`}
+      className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line bg-app`}
       data-icon-source="local"
       data-testid={testId}
     >

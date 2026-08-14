@@ -244,3 +244,9 @@ game image is copied into RepoDitor, its derived cache, tests, or installer. Ico
 changes item/cosmetic identity or mutation policy.
 The known all-black `WalkieTalkieBox` cache output is intentionally treated as unavailable so its
 existing Phosphor fallback remains visible.
+
+A future upgrade-art fallback may dynamically resolve installed upgrade identity through prefab,
+material, and `Texture2D` metadata; validate the referenced local stream byte range; decode its
+DXT1/DXT5 payload; expose only a renderer-safe ephemeral image token/URL; and cache it for the
+session. Production code must resolve those references from the installed build and must never
+hardcode researched stream offsets or redistribute the decoded artwork.

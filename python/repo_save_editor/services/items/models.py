@@ -33,6 +33,9 @@ class InstalledItemMetadata:
 
     recharge_capability: ItemRechargeCapability
     icon_cache_key: str | None
+    canonical_name: str | None = None
+    display_name: str | None = None
+    gameplay_cap: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
