@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from tests.unity_serialized_fixture import write_serialized_file
 
 from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
-from tests.unity_serialized_fixture import write_serialized_file
 
 
 def test_find_records_resolves_sorted_object_table(tmp_path: Path) -> None:
@@ -48,6 +48,8 @@ def test_find_records_still_rejects_missing_pointer(tmp_path: Path) -> None:
     assets = tmp_path / "missing.assets"
     write_serialized_file(assets, [(1, 1, b"a"), (5, 4, b"b")])
 
-    with SerializedFileIndex(assets) as index:
-        with pytest.raises(UnityMetadataError, match="could not be resolved"):
-            index.find_records({9})
+    with (
+        SerializedFileIndex(assets) as index,
+        pytest.raises(UnityMetadataError, match="could not be resolved"),
+    ):
+        index.find_records({9})

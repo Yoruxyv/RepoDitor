@@ -5,6 +5,7 @@ import struct
 from pathlib import Path
 
 import pytest
+from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
 
 from repo_save_editor.services.player import upgrade_textures
 from repo_save_editor.services.player.upgrade_textures import (
@@ -24,7 +25,6 @@ from repo_save_editor.services.unity_textures import (
     parse_mesh_vertex_data,
     parse_texture2d,
 )
-from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
 
 
 def _game_object(name: str, components: list[int]) -> bytes:
@@ -85,11 +85,26 @@ def _upgrade_pack_mesh() -> bytes:
     )
     channels = bytes(
         (
-            0, 0, 0, 3,
-            0, 12, 0, 3,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 24, 0, 2,
+            0,
+            0,
+            0,
+            3,
+            0,
+            12,
+            0,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            24,
+            0,
+            2,
         )
     )
     return (
@@ -149,20 +164,62 @@ def _streamed_upgrade_pack_mesh(
     )
     channels = bytes(
         (
-            0, 0, 0, 3,
-            0, 12, 1, 0x34,
-            0, 20, 1, 4,
-            0, 0, 0, 0,
-            0, 28, 1, 2,
-            0, 32, 0, 2,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            3,
+            0,
+            12,
+            1,
+            0x34,
+            0,
+            20,
+            1,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            28,
+            1,
+            2,
+            0,
+            32,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
         )
     )
     mesh = (
@@ -219,12 +276,8 @@ def _texture2d(
 
 
 def _resource_manager(*entries: tuple[str, int, int]) -> bytes:
-    return (
-        struct.pack("<i", len(entries))
-        + b"".join(
-            aligned_string(key) + pptr(file_id, path_id)
-            for key, file_id, path_id in entries
-        )
+    return struct.pack("<i", len(entries)) + b"".join(
+        aligned_string(key) + pptr(file_id, path_id) for key, file_id, path_id in entries
     )
 
 
@@ -284,9 +337,7 @@ def test_dynamic_prefab_renderer_material_maintex_texture_chain(tmp_path: Path) 
         ("items/item upgrade player health", 1, 1),
     )
 
-    metadata = _resolve_texture_metadata(
-        resources, managers, ("Item Upgrade Player Health",)
-    )
+    metadata = _resolve_texture_metadata(resources, managers, ("Item Upgrade Player Health",))
 
     assert metadata.path_id == 40
     assert metadata.name == "Upgrade_Health_Albedo"
@@ -416,9 +467,7 @@ def test_multiple_prefab_renderers_resolve_unique_supported_texture_chain(
         ("items/item upgrade player health", 1, 1),
     )
 
-    metadata = _resolve_texture_metadata(
-        resources, managers, ("Item Upgrade Player Health",)
-    )
+    metadata = _resolve_texture_metadata(resources, managers, ("Item Upgrade Player Health",))
 
     assert metadata.path_id == 40
 
@@ -449,9 +498,7 @@ def test_multiple_supported_texture_chains_are_rejected_as_ambiguous(tmp_path: P
     )
 
     with pytest.raises(UnityMetadataError, match="missing or ambiguous"):
-        _resolve_texture_metadata(
-            resources, managers, ("Item Upgrade Player Health",)
-        )
+        _resolve_texture_metadata(resources, managers, ("Item Upgrade Player Health",))
 
 
 def test_texture2d_unsupported_format_rejected(tmp_path: Path) -> None:
@@ -491,9 +538,7 @@ def test_resource_manager_pointer_is_authoritative_when_prefab_names_repeat(
         ("items/item upgrade player health", 1, 1),
     )
 
-    metadata = _resolve_texture_metadata(
-        resources, managers, ("Item Upgrade Player Health",)
-    )
+    metadata = _resolve_texture_metadata(resources, managers, ("Item Upgrade Player Health",))
 
     assert metadata.path_id == 40
 

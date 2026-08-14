@@ -161,12 +161,9 @@ def test_png_encoder_rejects_encoded_output_over_protocol_bound() -> None:
     with pytest.raises(TextureDecodeError, match="protocol bound"):
         encode_rgba_png(rgba, 768, 768)
 
+
 def test_crop_rgba_uses_exclusive_bounds_and_preserves_row_order() -> None:
-    rgba = bytes(
-        channel
-        for pixel in range(12)
-        for channel in (pixel, 0, 0, 255)
-    )
+    rgba = bytes(channel for pixel in range(12) for channel in (pixel, 0, 0, 255))
 
     cropped, width, height = crop_rgba(rgba, 4, 3, 1, 1, 4, 3)
 

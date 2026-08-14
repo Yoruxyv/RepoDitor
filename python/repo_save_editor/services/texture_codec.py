@@ -48,7 +48,9 @@ def decode_texture_rgba(
         for block_x in range((width + 3) // 4):
             block = data[cursor : cursor + block_bytes]
             cursor += block_bytes
-            pixels = _decode_dxt1_block(block) if texture_format == "DXT1" else _decode_dxt5_block(block)
+            pixels = (
+                _decode_dxt1_block(block) if texture_format == "DXT1" else _decode_dxt5_block(block)
+            )
             for local_y in range(4):
                 y = block_y * 4 + local_y
                 if y >= height:
@@ -187,7 +189,9 @@ def _mix_rgb(
     )  # type: ignore[return-value]
 
 
-def _color_palette(color0: int, color1: int, *, allow_transparent: bool) -> tuple[tuple[int, int, int, int], ...]:
+def _color_palette(
+    color0: int, color1: int, *, allow_transparent: bool
+) -> tuple[tuple[int, int, int, int], ...]:
     rgb0 = _rgb565(color0)
     rgb1 = _rgb565(color1)
     if color0 > color1 or not allow_transparent:

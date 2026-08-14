@@ -332,21 +332,13 @@ class SerializedFileIndex:
                 "Serialized object table index is outside the supported bound."
             )
         offset = self.object_table_offset + index * _OBJECT_RECORD.size
-        path_id, relative_start, byte_size, type_id = _OBJECT_RECORD.unpack_from(
-            self._data, offset
-        )
+        path_id, relative_start, byte_size, type_id = _OBJECT_RECORD.unpack_from(self._data, offset)
         if not 0 <= type_id < len(self.types):
             raise UnityMetadataError("Serialized object references an invalid type index.")
         byte_start = self.data_offset + relative_start
         byte_end = byte_start + byte_size
-        if (
-            relative_start < 0
-            or byte_start < self.data_offset
-            or byte_end > len(self._data)
-        ):
-            raise UnityMetadataError(
-                "Serialized object data is outside the declared file bounds."
-            )
+        if relative_start < 0 or byte_start < self.data_offset or byte_end > len(self._data):
+            raise UnityMetadataError("Serialized object data is outside the declared file bounds.")
         return ObjectRecord(path_id, byte_start, byte_size, self.types[type_id])
 
     def _has_sorted_path_ids(self) -> bool:
@@ -599,8 +591,8 @@ def parse_mono_script(index: SerializedFileIndex, record: ObjectRecord) -> MonoS
 __all__ = [
     "GAME_OBJECT_CLASS_ID",
     "MONO_BEHAVIOUR_CLASS_ID",
-    "RESOURCE_MANAGER_CLASS_ID",
     "MONO_SCRIPT_CLASS_ID",
+    "RESOURCE_MANAGER_CLASS_ID",
     "MonoBehaviourPrefix",
     "MonoScriptData",
     "ObjectRecord",

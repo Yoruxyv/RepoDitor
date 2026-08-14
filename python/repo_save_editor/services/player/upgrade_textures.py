@@ -223,21 +223,19 @@ def _find_renderers(
         transform = parse_transform(index, transforms[0])
         if transform.game_object.path_id != record.path_id:
             raise UnityMetadataError("Transform does not point back to its GameObject.")
-        for component_record in component_records.values():
-            if component_record.class_id == MESH_RENDERER_CLASS_ID:
-                renderers.append((component_record, record.path_id))
-        child_transforms = index.find_records(
-            {pointer.path_id for pointer in transform.children}
+        renderers.extend(
+            (component_record, record.path_id)
+            for component_record in component_records.values()
+            if component_record.class_id == MESH_RENDERER_CLASS_ID
         )
+        child_transforms = index.find_records({pointer.path_id for pointer in transform.children})
         children = []
         for child_pointer in transform.children:
             child_transform = child_transforms[child_pointer.path_id]
             if child_transform.class_id != TRANSFORM_CLASS_ID:
                 raise UnityMetadataError("Transform child pointer has an unsupported class.")
             children.append(parse_transform(index, child_transform))
-        child_game_objects = index.find_records(
-            {child.game_object.path_id for child in children}
-        )
+        child_game_objects = index.find_records({child.game_object.path_id for child in children})
         for child in children:
             child_game_object = child_game_objects[child.game_object.path_id]
             if child_game_object.class_id != GAME_OBJECT_CLASS_ID:

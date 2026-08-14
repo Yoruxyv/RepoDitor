@@ -26,7 +26,10 @@ def steam_manifest_path(installation: GameInstallation) -> Path | None:
     if installation.steam_library_root is not None:
         return installation.steam_library_root / "steamapps" / APP_MANIFEST_NAME
     root = installation.root
-    if root.parent.name.casefold() == "common" and root.parent.parent.name.casefold() == "steamapps":
+    if (
+        root.parent.name.casefold() == "common"
+        and root.parent.parent.name.casefold() == "steamapps"
+    ):
         return root.parent.parent / APP_MANIFEST_NAME
     return None
 

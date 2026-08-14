@@ -239,8 +239,7 @@ def _mesh_vertex_candidate(
     if channels_end + 4 > len(raw):
         return None
     channels = [
-        tuple(raw[position : position + 4])
-        for position in range(channels_start, channels_end, 4)
+        tuple(raw[position : position + 4]) for position in range(channels_start, channels_end, 4)
     ]
 
     def channel_shape(channel_index: int) -> tuple[int, int]:
@@ -282,8 +281,7 @@ def _mesh_vertex_candidate(
         if not members:
             return None
         stride = sum(
-            component_size * dimension
-            for _stream, _offset, component_size, dimension in members
+            component_size * dimension for _stream, _offset, component_size, dimension in members
         )
         if stride <= 0 or stride > 255:
             return None
@@ -354,8 +352,7 @@ def _mesh_vertex_candidate(
     if any(abs(component) > 1_000_000 for value in positions for component in value):
         return None
     if any(
-        not 0.25 <= sum(component * component for component in value) <= 2.25
-        for value in normals
+        not 0.25 <= sum(component * component for component in value) <= 2.25 for value in normals
     ):
         return None
     return MeshVertexData(path_id, positions, normals, uv0)
@@ -421,9 +418,11 @@ def renderer_materials(
             resolved = index.find_records({pointer.path_id for pointer in pointers})
         except UnityMetadataError:
             continue
-        if all(resolved[pointer.path_id].class_id == MATERIAL_CLASS_ID for pointer in pointers):
-            if pointers not in candidates:
-                candidates.append(pointers)
+        if (
+            all(resolved[pointer.path_id].class_id == MATERIAL_CLASS_ID for pointer in pointers)
+            and pointers not in candidates
+        ):
+            candidates.append(pointers)
     if len(candidates) != 1:
         raise UnityMetadataError("MeshRenderer material relationship is missing or ambiguous.")
     return candidates[0]
