@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+
 from repo_save_editor.services.icon_cache import get_icon_cache_roots
+from repo_save_editor.services.player.upgrade_textures import decode_installed_upgrade_texture
 
 
 def get_icon_roots() -> dict[str, object]:
@@ -16,4 +19,34 @@ def get_icon_roots() -> dict[str, object]:
     }
 
 
-__all__ = ["get_icon_roots"]
+def get_upgrade_texture(save_key: str) -> dict[str, object]:
+    """Return one bounded decoded local albedo for Electron main, never a renderer path."""
+    decoded = decode_installed_upgrade_texture(save_key)
+    if decoded is None:
+        return {"ok": True, "texture": None}
+    texture = decoded.texture
+    return {
+        "ok": True,
+        "texture": {
+            "sourceIdentity": decoded.source_identity,
+            "pngBase64": base64.b64encode(decoded.png).decode("ascii"),
+            "width": decoded.png_width,
+            "height": decoded.png_height,
+            "textureName": texture.name,
+            "textureFormat": texture.texture_format,
+            "mipCount": texture.mip_count,
+            "streamSize": texture.stream_size,
+            "topMipSize": texture.top_mip_size,
+            "watches": [
+                {
+                    "path": str(watch.path),
+                    "size": str(watch.size),
+                    "mtimeNs": str(watch.mtime_ns),
+                }
+                for watch in decoded.watches
+            ],
+        },
+    }
+
+
+__all__ = ["get_icon_roots", "get_upgrade_texture"]

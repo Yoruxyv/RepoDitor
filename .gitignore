@@ -30,3 +30,6 @@ Thumbs.db
 .agents/
 skills-lock.json
 graphify-out/
+
+# Local production texture proof output (never commit extracted game artwork)
+local-evidence/upgrade-texture-production-proof/

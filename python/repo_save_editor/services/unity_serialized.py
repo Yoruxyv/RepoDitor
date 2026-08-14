@@ -17,6 +17,13 @@ SERIALIZED_FILE_VERSION: Final = 22
 UNITY_VERSION: Final = "2022.3.67f2"
 TARGET_PLATFORM: Final = 19  # StandaloneWindows64 in the known build
 GAME_OBJECT_CLASS_ID: Final = 1
+TRANSFORM_CLASS_ID: Final = 4
+MATERIAL_CLASS_ID: Final = 21
+MESH_RENDERER_CLASS_ID: Final = 23
+TEXTURE2D_CLASS_ID: Final = 28
+MESH_FILTER_CLASS_ID: Final = 33
+MESH_CLASS_ID: Final = 43
+RESOURCE_MANAGER_CLASS_ID: Final = 147
 MONO_BEHAVIOUR_CLASS_ID: Final = 114
 MONO_SCRIPT_CLASS_ID: Final = 115
 MAX_TYPES: Final = 16_384
@@ -24,6 +31,8 @@ MAX_OBJECTS: Final = 4_000_000
 MAX_STRING_BYTES: Final = 16_384
 MAX_TYPETREE_NODES: Final = 1_000_000
 MAX_TYPETREE_STRINGS: Final = 64 * 1024 * 1024
+MAX_RESOURCE_MANAGER_BYTES: Final = 128 * 1024 * 1024
+MAX_RESOURCE_KEY_OCCURRENCES: Final = 16
 _OBJECT_RECORD = struct.Struct("<qqIi")
 
 
@@ -124,6 +133,12 @@ class _Reader:
     def i64(self) -> int:
         return int(self.unpack("q")[0])
 
+    def u64(self) -> int:
+        return int(self.unpack("Q")[0])
+
+    def bytes(self, size: int) -> bytes:
+        return self._take(size)
+
     def cstring(self, *, maximum: int = MAX_STRING_BYTES) -> str:
         limit = min(self._end, self.pos + maximum + 1)
         nul = self._data.find(b"\0", self.pos, limit)
@@ -153,6 +168,7 @@ class SerializedFileIndex:
 
     def __init__(self, path: Path) -> None:
         self.path = path
+        self._path_ids_sorted: bool | None = None
         self._handle = path.open("rb")
         try:
             self._data = mmap.mmap(self._handle.fileno(), 0, access=mmap.ACCESS_READ)
@@ -310,20 +326,34 @@ class SerializedFileIndex:
             raise UnityMetadataError("Serialized metadata extends past the declared metadata size.")
         self.data_offset = data_offset
 
-    def find_records(self, path_ids: set[int]) -> dict[int, ObjectRecord]:
-        if not path_ids:
-            return {}
-        remaining = set(path_ids)
-        found: dict[int, ObjectRecord] = {}
+    def _record_at_table_index(self, index: int) -> ObjectRecord:
+        if not 0 <= index < self.object_count:
+            raise UnityMetadataError(
+                "Serialized object table index is outside the supported bound."
+            )
+        offset = self.object_table_offset + index * _OBJECT_RECORD.size
+        path_id, relative_start, byte_size, type_id = _OBJECT_RECORD.unpack_from(self._data, offset)
+        if not 0 <= type_id < len(self.types):
+            raise UnityMetadataError("Serialized object references an invalid type index.")
+        byte_start = self.data_offset + relative_start
+        byte_end = byte_start + byte_size
+        if relative_start < 0 or byte_start < self.data_offset or byte_end > len(self._data):
+            raise UnityMetadataError("Serialized object data is outside the declared file bounds.")
+        return ObjectRecord(path_id, byte_start, byte_size, self.types[type_id])
+
+    def _has_sorted_path_ids(self) -> bool:
+        cached = self._path_ids_sorted
+        if cached is not None:
+            return cached
+        previous: int | None = None
         offset = self.object_table_offset
+        sorted_ids = True
         data_len = len(self._data)
-        types = self.types
         for _ in range(self.object_count):
             path_id, relative_start, byte_size, type_id = _OBJECT_RECORD.unpack_from(
                 self._data, offset
             )
-            offset += _OBJECT_RECORD.size
-            if not 0 <= type_id < len(types):
+            if not 0 <= type_id < len(self.types):
                 raise UnityMetadataError("Serialized object references an invalid type index.")
             byte_start = self.data_offset + relative_start
             byte_end = byte_start + byte_size
@@ -331,12 +361,54 @@ class SerializedFileIndex:
                 raise UnityMetadataError(
                     "Serialized object data is outside the declared file bounds."
                 )
-            if path_id not in path_ids:
+            if previous is not None and path_id <= previous:
+                sorted_ids = False
+            previous = path_id
+            offset += _OBJECT_RECORD.size
+        self._path_ids_sorted = sorted_ids
+        return sorted_ids
+
+    def _find_sorted_record(self, path_id: int) -> ObjectRecord | None:
+        low = 0
+        high = self.object_count
+        while low < high:
+            middle = (low + high) // 2
+            offset = self.object_table_offset + middle * _OBJECT_RECORD.size
+            candidate = struct.unpack_from("<q", self._data, offset)[0]
+            if candidate < path_id:
+                low = middle + 1
+            else:
+                high = middle
+        if low >= self.object_count:
+            return None
+        record = self._record_at_table_index(low)
+        return record if record.path_id == path_id else None
+
+    def find_records(self, path_ids: set[int]) -> dict[int, ObjectRecord]:
+        if not path_ids:
+            return {}
+        if self._has_sorted_path_ids():
+            found = {
+                path_id: record
+                for path_id in path_ids
+                if (record := self._find_sorted_record(path_id)) is not None
+            }
+            if len(found) != len(path_ids):
+                raise UnityMetadataError(
+                    "A required serialized object pointer could not be resolved."
+                )
+            return found
+
+        remaining = set(path_ids)
+        found: dict[int, ObjectRecord] = {}
+        for index in range(self.object_count):
+            record = self._record_at_table_index(index)
+            if record.path_id not in path_ids:
                 continue
-            if path_id in found:
+            if record.path_id in found:
                 raise UnityMetadataError("A required serialized object path ID is duplicated.")
-            found[path_id] = ObjectRecord(path_id, byte_start, byte_size, types[type_id])
-            remaining.discard(path_id)
+            found[record.path_id] = record
+            remaining.discard(record.path_id)
         if remaining:
             raise UnityMetadataError("A required serialized object pointer could not be resolved.")
         return found
@@ -413,6 +485,73 @@ class SerializedFileIndex:
         return pointers
 
 
+def find_resource_manager_pointer(
+    index: SerializedFileIndex,
+    resource_keys: Iterable[str],
+) -> tuple[str, PPtr]:
+    """Resolve one exact ResourceManager container key to its serialized PPtr.
+
+    The validated Unity build serializes each ``m_Container`` entry as an aligned
+    string immediately followed by a PPtr.  This intentionally does not attempt to
+    parse unrelated ResourceManager fields: it searches only the unique class-147
+    object for exact bounded aligned-string encodings and fails closed on missing or
+    ambiguous matches.
+    """
+    keys: list[tuple[str, bytes]] = []
+    identities: set[str] = set()
+    for value in resource_keys:
+        if not isinstance(value, str) or not value or "\0" in value:
+            raise UnityMetadataError("ResourceManager key is malformed.")
+        raw = value.encode("utf-8")
+        if len(raw) > MAX_STRING_BYTES:
+            raise UnityMetadataError("ResourceManager key is outside the supported bound.")
+        identity = value.casefold()
+        if identity in identities:
+            continue
+        identities.add(identity)
+        keys.append((value, raw))
+    if not keys:
+        raise UnityMetadataError("ResourceManager lookup requires at least one key.")
+
+    managers = tuple(index.iter_records(frozenset({RESOURCE_MANAGER_CLASS_ID})))
+    if len(managers) != 1:
+        raise UnityMetadataError("ResourceManager object is missing or ambiguous.")
+    record = managers[0]
+    if record.byte_size <= 0 or record.byte_size > MAX_RESOURCE_MANAGER_BYTES:
+        raise UnityMetadataError("ResourceManager object size is outside the supported bound.")
+    record_end = record.byte_start + record.byte_size
+    matches: list[tuple[str, PPtr]] = []
+
+    for key, raw in keys:
+        needle = struct.pack("<i", len(raw)) + raw
+        cursor = record.byte_start
+        occurrences = 0
+        while cursor < record_end:
+            position = index._data.find(needle, cursor, record_end)
+            if position < 0:
+                break
+            occurrences += 1
+            if occurrences > MAX_RESOURCE_KEY_OCCURRENCES:
+                raise UnityMetadataError("ResourceManager key occurs too many times.")
+            cursor = position + 1
+            # Aligned Unity strings start on a four-byte boundary in this map layout.
+            if position % 4 != 0:
+                continue
+            pointer_offset = (position + len(needle) + 3) & ~3
+            if pointer_offset + 12 > record_end:
+                continue
+            if any(index._data[position + len(needle) : pointer_offset]):
+                continue
+            file_id, path_id = struct.unpack_from("<iq", index._data, pointer_offset)
+            if file_id <= 0 or path_id == 0:
+                continue
+            matches.append((key, PPtr(file_id, path_id)))
+
+    if len(matches) != 1:
+        raise UnityMetadataError("ResourceManager prefab entry is missing or ambiguous.")
+    return matches[0]
+
+
 def read_pptr(reader: _Reader) -> PPtr:
     return PPtr(reader.i32(), reader.i64())
 
@@ -453,12 +592,14 @@ __all__ = [
     "GAME_OBJECT_CLASS_ID",
     "MONO_BEHAVIOUR_CLASS_ID",
     "MONO_SCRIPT_CLASS_ID",
+    "RESOURCE_MANAGER_CLASS_ID",
     "MonoBehaviourPrefix",
     "MonoScriptData",
     "ObjectRecord",
     "PPtr",
     "SerializedFileIndex",
     "UnityMetadataError",
+    "find_resource_manager_pointer",
     "parse_mono_behaviour_prefix",
     "parse_mono_script",
     "read_pptr",

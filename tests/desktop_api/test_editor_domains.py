@@ -211,6 +211,38 @@ def test_advanced_read_rejects_malformed_structure(tmp_path: Path, sample_save) 
     }
 
 
+def test_advanced_read_marks_matching_upgrade_item_for_internal_visual_resolution(
+    tmp_path: Path, sample_save
+) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {"Item Upgrade Player Grab Strength/1": 1}
+    save_path = _write_save(tmp_path, sample_save)
+
+    result = get_advanced_save(
+        save_path.parent.name,
+        tmp_path,
+        capability_loader=lambda names: dict.fromkeys(
+            names, ItemRechargeCapability.NOT_RECHARGEABLE
+        ),
+    )
+
+    assert result["ok"] is True
+    assert result["advanced"]["items"] == [
+        {
+            "saveKey": "Item Upgrade Player Grab Strength/1",
+            "name": "Upgrade Player Grab Strength",
+            "instanceId": "1",
+            "isUpgrade": True,
+            "storedCharge": None,
+            "chargeState": "not_applicable",
+            "rechargeCapability": "not_rechargeable",
+            "canRefillToFull": False,
+            "iconKey": None,
+            "upgradeVisualKey": "playerUpgradeStrength",
+        }
+    ]
+
+
 def test_advanced_read_enriches_only_currently_available_canonical_item_icons(
     tmp_path: Path, sample_save
 ) -> None:

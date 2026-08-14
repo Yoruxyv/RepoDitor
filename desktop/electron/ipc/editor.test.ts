@@ -130,9 +130,10 @@ describe("editor data IPC", () => {
       ],
     };
     const result = await listUpgrades(client(response), saveId);
-    expect(result).toMatchObject({ ok: true, data: [{ presentationSource: "installed" }, { presentationSource: "humanized", iconToken: null }] });
+    expect(result).toMatchObject({ ok: true, data: [{ presentationSource: "installed" }, { presentationSource: "humanized" }] });
     expect(result.data[0]).not.toHaveProperty("iconKey");
     expect(result.data[0].iconToken).toMatch(/^[\da-f-]{36}$/);
+    expect(result.data[1].iconToken).toMatch(/^[\da-f-]{36}$/);
 
     await expect(
       listUpgrades(
@@ -195,6 +196,46 @@ describe("editor data IPC", () => {
     expect(result.data).not.toHaveProperty("rawSave");
     expect(result.data.domains[1].capabilities)
       .toMatchObject({ canEdit: false, canRefillToFull: true });
+  });
+
+  it("registers the same lazy upgrade visual path for upgrade Items without exposing its key", async () => {
+    const advanced = {
+      domains: advancedDomains,
+      items: [
+        {
+          saveKey: "Item Upgrade Player Health/1",
+          name: "Upgrade Player Health",
+          instanceId: "1",
+          isUpgrade: true,
+          storedCharge: null,
+          chargeState: "not_applicable",
+          rechargeCapability: "not_rechargeable",
+          canRefillToFull: false,
+          iconKey: null,
+          upgradeVisualKey: "playerUpgradeHealth",
+        },
+        {
+          saveKey: "Item Modded Boost/2",
+          name: "Modded Boost",
+          instanceId: "2",
+          isUpgrade: true,
+          storedCharge: null,
+          chargeState: "not_applicable",
+          rechargeCapability: "not_rechargeable",
+          canRefillToFull: false,
+          iconKey: null,
+        },
+      ],
+      unlinkedChargeEntryCount: 0,
+    };
+
+    const result = await getAdvancedSave(client({ ok: true, advanced }), saveId);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected advanced data.");
+    expect(result.data.items[0]!.iconToken).toMatch(/^[\da-f-]{36}$/);
+    expect(result.data.items[0]).not.toHaveProperty("upgradeVisualKey");
+    expect(result.data.items[1]!.iconToken).toBeNull();
   });
 
   it("accepts absent stored charge and rejects malformed advanced responses", async () => {

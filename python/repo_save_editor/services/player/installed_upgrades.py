@@ -26,10 +26,33 @@ MetadataLoader = Callable[[Iterable[str]], Mapping[str, InstalledItemMetadata]]
 IconLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
-def _candidates(key: str) -> tuple[str, str]:
+def upgrade_item_candidates(key: str) -> tuple[str, str]:
     raw = get_fallback_presentation(key).label
     installed_name = _INSTALLED_NAME_ALIASES.get(raw, raw)
     return (f"Item Upgrade Player {installed_name}", f"Item Upgrade {installed_name}")
+
+
+def match_upgrade_items(
+    keys: Iterable[str],
+    item_names: Iterable[str],
+) -> dict[str, str]:
+    """Map uniquely matched installed Item prefab names to dynamic save upgrade keys."""
+    owners: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for key in dict.fromkeys(keys):
+        for candidate in upgrade_item_candidates(key):
+            identity = candidate.casefold()
+            owner = owners.get(identity)
+            if owner is None:
+                owners[identity] = key
+            elif owner != key:
+                ambiguous.add(identity)
+    return {
+        name: owners[identity]
+        for name in dict.fromkeys(item_names)
+        for identity in [name.casefold()]
+        if identity in owners and identity not in ambiguous
+    }
 
 
 def discover_installed_upgrade_presentations(
@@ -40,7 +63,7 @@ def discover_installed_upgrade_presentations(
 ) -> dict[str, UpgradePresentation]:
     """Enrich upgrade labels, guidance, and cache icons without authorizing edits."""
     upgrade_keys = tuple(dict.fromkeys(keys))
-    candidates_by_key = {key: _candidates(key) for key in upgrade_keys}
+    candidates_by_key = {key: upgrade_item_candidates(key) for key in upgrade_keys}
     metadata = metadata_loader(
         candidate for candidates in candidates_by_key.values() for candidate in candidates
     )
@@ -79,4 +102,8 @@ def discover_installed_upgrade_presentations(
     return result
 
 
-__all__ = ["discover_installed_upgrade_presentations"]
+__all__ = [
+    "discover_installed_upgrade_presentations",
+    "match_upgrade_items",
+    "upgrade_item_candidates",
+]
