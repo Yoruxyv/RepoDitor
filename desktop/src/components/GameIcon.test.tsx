@@ -76,4 +76,15 @@ describe("GameIcon", () => {
     expect(screen.queryByTestId("remounted-icon-loading")).toBeNull();
     expect(screen.getByTestId("remounted-icon").getAttribute("aria-busy")).toBe("false");
   });
+
+  it("keeps upgrade thumbnail and fallback geometry aligned", () => {
+    const { rerender } = render(
+      <GameIcon fallback={WrenchIcon} fallbackSource="specific" testId="upgrade-icon" token="upgrade-token" variant="upgrade" />,
+    );
+    expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
+    expect(screen.getByTestId("upgrade-icon-loading")).toBeTruthy();
+    rerender(<GameIcon fallback={WrenchIcon} fallbackSource="specific" testId="upgrade-icon" token={null} variant="upgrade" />);
+    expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
+    expect(screen.getByTestId("upgrade-icon").dataset.iconSource).toBe("specific");
+  });
 });

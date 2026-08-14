@@ -15,6 +15,7 @@ const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 interface IconRoots {
   readonly item: string;
+  readonly upgrade: string;
   readonly cosmetic: string;
 }
 
@@ -36,7 +37,7 @@ function readRoots(value: unknown): IconRoots | null {
   const roots = response.roots as Record<string, unknown>;
   return typeof roots.item === "string" && path.isAbsolute(roots.item)
     && typeof roots.cosmetic === "string" && path.isAbsolute(roots.cosmetic)
-    ? { item: roots.item, cosmetic: roots.cosmetic }
+    ? { item: roots.item, upgrade: roots.item, cosmetic: roots.cosmetic }
     : null;
 }
 

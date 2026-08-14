@@ -6,6 +6,7 @@ import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 import { GameIcon } from "@/components/GameIcon";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
+import { getItemUpgradeIcon } from "@/features/upgrades/upgradeIcons";
 import { getItemIcon } from "./itemIcons";
 
 interface ItemGroupsProps {
@@ -183,7 +184,9 @@ export function ItemGroups({
       ) : (
         <ul className="mt-5 space-y-4" aria-label={t("items.instances")}>
           {groups.map((group) => {
-            const itemIcon = getItemIcon(group.name);
+            const itemIcon = group.items[0]!.isUpgrade
+              ? getItemUpgradeIcon(group.name)
+              : getItemIcon(group.name);
             const chargeRows = group.items
               .map((item) => {
                 const pending = pendingByItem[item.saveKey];

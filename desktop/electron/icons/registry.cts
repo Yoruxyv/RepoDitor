@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-export type IconDomain = "item" | "cosmetic";
+export type IconDomain = "item" | "upgrade" | "cosmetic";
 
 interface IconRegistration {
   readonly domain: IconDomain;

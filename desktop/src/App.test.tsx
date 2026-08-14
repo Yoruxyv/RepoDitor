@@ -59,13 +59,17 @@ const upgrades: PlayerUpgradeDto[] = [
   {
     key: "playerUpgradeStrength",
     label: "Strength",
-    known: true,
+    presentationSource: "installed",
+    gameplayCap: 10,
+    iconToken: null,
     values: [{ playerId: "111", value: 2 }, { playerId: "222", value: 0 }],
   },
   {
     key: "playerUpgradeMoonBoots",
     label: "Moon Boots",
-    known: false,
+    presentationSource: "humanized",
+    gameplayCap: null,
+    iconToken: null,
     values: [{ playerId: "111", value: 0 }, { playerId: "222", value: 7 }],
   },
 ];

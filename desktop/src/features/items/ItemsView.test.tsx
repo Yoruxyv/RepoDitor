@@ -204,6 +204,7 @@ describe("ItemsView", () => {
             { saveKey: "Item Cart Medium/2", name: "Cart Medium", instanceId: "2", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
             { saveKey: "Item Cart Medium/3", name: "Cart Medium", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
             { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", isUpgrade: false, storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+            { saveKey: "Item Upgrade Player Health/1", name: "Upgrade Player Health", instanceId: "1", isUpgrade: true, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
             { saveKey: "Item Modded Boost/1", name: "Modded Boost", instanceId: "1", isUpgrade: true, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
           ],
         }}
@@ -227,6 +228,10 @@ describe("ItemsView", () => {
 
     await user.selectOptions(filter, "upgrades");
     expect(screen.getByTestId("item-group-Modded Boost")).toBeTruthy();
+    expect(screen.getByTestId("item-icon-Item Upgrade Player Health/1").dataset.iconSource)
+      .toBe("specific");
+    expect(screen.getByTestId("item-icon-Item Modded Boost/1").dataset.iconSource)
+      .toBe("fallback");
     expect(screen.queryByTestId("item-group-Cart Medium")).toBeNull();
 
     await user.selectOptions(filter, "all");

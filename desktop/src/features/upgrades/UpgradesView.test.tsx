@@ -9,8 +9,8 @@ import { UpgradesView } from "./UpgradesView";
 const player: PlayerDto = { id: "1", name: "Alpha", health: 100, maxHealth: 100 };
 const secondPlayer: PlayerDto = { id: "2", name: "Beta User", health: 80, maxHealth: 100 };
 const upgrades: PlayerUpgradeDto[] = [
-  { key: "playerUpgradeHealth", label: "Health", known: true, values: [{ playerId: "1", value: 2 }] },
-  { key: "futureUpgrade", label: "Future upgrade", known: false, values: [{ playerId: "1", value: 1 }] },
+  { key: "playerUpgradeHealth", label: "Health", presentationSource: "installed", gameplayCap: 10, iconToken: "health-token", values: [{ playerId: "1", value: 2 }] },
+  { key: "playerUpgradeSuperMegaJump", label: "Super Mega Jump", presentationSource: "humanized", gameplayCap: null, iconToken: null, values: [{ playerId: "1", value: 1 }] },
 ];
 
 describe("UpgradesView", () => {
@@ -59,8 +59,9 @@ describe("UpgradesView", () => {
     );
 
     expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource)
-      .toBe("specific");
-    expect(screen.getByTestId("upgrade-icon-futureUpgrade").dataset.iconSource).toBe("fallback");
+      .toBe("local");
+    fireEvent.load(screen.getByTestId("upgrade-icon-playerUpgradeHealth").querySelector("img")!);
+    expect(screen.getByTestId("upgrade-icon-playerUpgradeSuperMegaJump").dataset.iconSource).toBe("fallback");
     const avatar = screen.getByRole("img", { name: "Alpha avatar" });
     expect(avatar.getAttribute("src"))
       .toContain("alpha.jpg");
@@ -70,9 +71,9 @@ describe("UpgradesView", () => {
     fireEvent.load(avatar);
     expect(screen.queryByTestId("upgrades-avatar-fallback-loading")).toBeNull();
     expect(screen.getByTestId("selected-player-identity").textContent).toContain("1");
-    expect(screen.getByRole("spinbutton", { name: "Future upgrade for Alpha" })).toBeTruthy();
+    expect(screen.getByRole("spinbutton", { name: "Super Mega Jump for Alpha" })).toBeTruthy();
     expect(screen.queryByText("playerUpgradeHealth")).toBeNull();
-    expect(screen.queryByText("futureUpgrade")).toBeNull();
+    expect(screen.queryByText("playerUpgradeSuperMegaJump")).toBeNull();
     expect(document.querySelector("details")).toBeNull();
     expect(screen.getByText("Detected").className).toContain("text-xs");
 

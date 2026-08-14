@@ -124,7 +124,9 @@ export interface PlayerUpgradeValueDto {
 export interface PlayerUpgradeDto {
   key: string;
   label: string;
-  known: boolean;
+  presentationSource: "installed" | "alias" | "humanized";
+  gameplayCap: number | null;
+  iconToken: string | null;
   values: PlayerUpgradeValueDto[];
 }
 

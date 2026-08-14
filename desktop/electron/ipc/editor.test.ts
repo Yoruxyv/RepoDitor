@@ -107,28 +107,42 @@ describe("editor data IPC", () => {
     expect(fake.run).not.toHaveBeenCalled();
   });
 
-  it("parses dynamic known and unknown upgrades", async () => {
+  it("parses dynamic installed and fallback upgrades with isolated icon tokens", async () => {
     const response = {
       ok: true,
       upgrades: [
         {
           key: "playerUpgradeStrength",
           label: "Strength",
-          known: true,
+          presentationSource: "installed",
+          gameplayCap: 10,
+          iconKey: "item upgrade player grab strength.png",
           values: [{ playerId: "111", value: 2 }],
         },
         {
           key: "playerUpgradeMoonBoots",
           label: "Moon Boots",
-          known: false,
+          presentationSource: "humanized",
+          gameplayCap: null,
+          iconKey: null,
           values: [{ playerId: "111", value: 7 }],
         },
       ],
     };
-    await expect(listUpgrades(client(response), saveId)).resolves.toEqual({
-      ok: true,
-      data: response.upgrades,
-    });
+    const result = await listUpgrades(client(response), saveId);
+    expect(result).toMatchObject({ ok: true, data: [{ presentationSource: "installed" }, { presentationSource: "humanized", iconToken: null }] });
+    expect(result.data[0]).not.toHaveProperty("iconKey");
+    expect(result.data[0].iconToken).toMatch(/^[\da-f-]{36}$/);
+
+    await expect(
+      listUpgrades(
+        client({
+          ...response,
+          upgrades: [{ ...response.upgrades[0], iconKey: "../secret.png" }],
+        }),
+        saveId,
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("parses friendly run values and unknown resume options", async () => {
