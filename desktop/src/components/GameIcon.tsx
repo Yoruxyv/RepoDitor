@@ -50,12 +50,23 @@ export function GameIcon({
     <span
       aria-hidden="true"
       aria-busy={!loaded}
-      className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line bg-app`}
+      className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border ${
+        loaded || variant === "upgrade"
+          ? "border-transparent bg-transparent"
+          : "border-line bg-app"
+      }`}
       data-icon-source="local"
       data-testid={testId}
     >
       {!loaded ? (
-        <Skeleton className="absolute inset-0 size-full" testId={`${testId}-loading`} />
+        <Skeleton
+          className={
+            variant === "upgrade"
+              ? "absolute inset-y-0 left-1/2 h-full w-2/3 -translate-x-1/2 border border-line"
+              : "absolute inset-0 size-full"
+          }
+          testId={`${testId}-loading`}
+        />
       ) : null}
       <img
         alt=""

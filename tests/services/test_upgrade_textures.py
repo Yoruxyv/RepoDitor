@@ -9,12 +9,21 @@ import pytest
 from repo_save_editor.services.player import upgrade_textures
 from repo_save_editor.services.player.upgrade_textures import (
     UpgradeTextureError,
+    _front_uv_bounds,
     _resolve_stream,
     _resolve_texture_metadata,
+    _resolve_upgrade_visual,
+    _uv_crop,
     decode_installed_upgrade_texture,
 )
 from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
-from repo_save_editor.services.unity_textures import Texture2DMetadata, parse_texture2d
+from repo_save_editor.services.unity_textures import (
+    MeshVertexData,
+    Texture2DMetadata,
+    parse_mesh_stream_metadata,
+    parse_mesh_vertex_data,
+    parse_texture2d,
+)
 from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
 
 
@@ -42,6 +51,132 @@ def _renderer(game_object: int, material: int) -> bytes:
 
 def _material(texture: int) -> bytes:
     return aligned_string("_MainTex") + pptr(0, texture)
+
+
+def _mesh_filter(game_object: int, mesh: int) -> bytes:
+    return pptr(0, game_object) + pptr(0, mesh)
+
+
+def _upgrade_pack_mesh() -> bytes:
+    positions = [
+        (-1.0, -1.0, 1.0),
+        (1.0, -1.0, 1.0),
+        (1.0, 1.0, 1.0),
+        (-1.0, 1.0, 1.0),
+        (-1.0, -1.0, -1.0),
+        (1.0, -1.0, -1.0),
+        (1.0, 1.0, -1.0),
+        (-1.0, 1.0, -1.0),
+    ]
+    normals = [(0.0, 0.0, 1.0)] * 4 + [(0.0, 0.0, -1.0)] * 4
+    uvs = [
+        (0.5, 0.0),
+        (1.0, 0.0),
+        (1.0, 0.5),
+        (0.5, 0.5),
+        (0.0, 0.0),
+        (0.5, 0.0),
+        (0.5, 0.5),
+        (0.0, 0.5),
+    ]
+    vertex_data = b"".join(
+        struct.pack("<3f3f2f", *position, *normal, *uv)
+        for position, normal, uv in zip(positions, normals, uvs, strict=True)
+    )
+    channels = bytes(
+        (
+            0, 0, 0, 3,
+            0, 12, 0, 3,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 24, 0, 2,
+        )
+    )
+    return (
+        aligned_string("Upgrade Pack")
+        + b"vertex-prefix"
+        + b"\0" * 3
+        + struct.pack("<Ii", len(positions), 5)
+        + channels
+        + struct.pack("<i", len(vertex_data))
+        + vertex_data
+    )
+
+
+def _streamed_upgrade_pack_mesh(
+    *,
+    stream_offset: int = 16,
+    stream_path: str = "resources.assets.resS",
+) -> tuple[bytes, bytes]:
+    positions = [
+        (-1.0, -1.0, 1.0),
+        (1.0, -1.0, 1.0),
+        (1.0, 1.0, 1.0),
+        (-1.0, 1.0, 1.0),
+        (-1.0, -1.0, -1.0),
+        (1.0, -1.0, -1.0),
+        (1.0, 1.0, -1.0),
+        (-1.0, 1.0, -1.0),
+    ]
+    normals = [(0.0, 0.0, 1.0)] * 4 + [(0.0, 0.0, -1.0)] * 4
+    uvs = [
+        (0.5, 0.0),
+        (1.0, 0.0),
+        (1.0, 0.5),
+        (0.5, 0.5),
+        (0.0, 0.0),
+        (0.5, 0.0),
+        (0.5, 0.5),
+        (0.0, 0.5),
+    ]
+    vertex_data = b"".join(
+        struct.pack(
+            "<3f4e4e2e2f",
+            *position,
+            normal[0],
+            normal[1],
+            normal[2],
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            1.0,
+            *uv,
+            0.0,
+            0.0,
+        )
+        for position, normal, uv in zip(positions, normals, uvs, strict=True)
+    )
+    channels = bytes(
+        (
+            0, 0, 0, 3,
+            0, 12, 1, 0x34,
+            0, 20, 1, 4,
+            0, 0, 0, 0,
+            0, 28, 1, 2,
+            0, 32, 0, 2,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+        )
+    )
+    mesh = (
+        aligned_string("Upgrade Pack")
+        + b"vertex-prefix"
+        + b"\0" * 3
+        + struct.pack("<Ii", len(positions), 14)
+        + channels
+        + struct.pack("<i", 0)
+        + b"compressed-mesh-placeholder"
+    )
+    mesh += b"\0" * ((-len(mesh)) % 4)
+    mesh += struct.pack("<QI", stream_offset, len(vertex_data)) + aligned_string(stream_path)
+    return mesh, vertex_data
 
 
 def _texture2d(
@@ -111,11 +246,13 @@ def _write_upgrade_assets(path: Path, *, texture: bytes | None = None) -> None:
         [
             (1, 1, _game_object("Item Upgrade Player Health", [10])),
             (10, 4, _transform(1, [11])),
-            (2, 1, _game_object("Upgrade Mesh", [11, 20])),
+            (2, 1, _game_object("Upgrade Mesh", [11, 20, 21])),
             (11, 4, _transform(2, [])),
             (20, 23, _renderer(2, 30)),
+            (21, 33, _mesh_filter(2, 50)),
             (30, 21, _material(40)),
             (40, 28, texture or _texture2d()),
+            (50, 43, _upgrade_pack_mesh()),
         ],
     )
 
@@ -159,6 +296,93 @@ def test_dynamic_prefab_renderer_material_maintex_texture_chain(tmp_path: Path) 
     assert metadata.stream_path == "resources.assets.resS"
     assert metadata.stream_size == 8
     assert metadata.top_mip_size == 8
+
+
+def test_mesh_vertex_data_resolves_installed_front_uv_bounds(tmp_path: Path) -> None:
+    resources = tmp_path / "resources.assets"
+    write_serialized_file(resources, [(50, 43, _upgrade_pack_mesh())])
+
+    with SerializedFileIndex(resources) as index:
+        record = index.find_records({50})[50]
+        mesh = parse_mesh_vertex_data(index, record)
+
+    assert mesh.path_id == 50
+    assert len(mesh.positions) == 8
+    assert _front_uv_bounds(mesh) == (0.5, 0.0, 1.0, 0.5)
+    assert _uv_crop(_front_uv_bounds(mesh), 512, 512) == (256, 256, 512, 512)
+
+
+def test_streamed_float16_mesh_resolves_installed_front_uv_bounds(tmp_path: Path) -> None:
+    resources = tmp_path / "resources.assets"
+    mesh_bytes, stream_bytes = _streamed_upgrade_pack_mesh()
+    write_serialized_file(resources, [(50, 43, mesh_bytes)])
+
+    with SerializedFileIndex(resources) as index:
+        record = index.find_records({50})[50]
+        stream = parse_mesh_stream_metadata(index, record)
+        assert stream is not None
+        assert stream.path == "resources.assets.resS"
+        assert stream.offset == 16
+        assert stream.size == len(stream_bytes)
+        mesh = parse_mesh_vertex_data(index, record, stream_data=stream_bytes)
+
+    assert len(mesh.positions) == 8
+    assert _front_uv_bounds(mesh) == (0.5, 0.0, 1.0, 0.5)
+
+
+def test_upgrade_visual_reads_bounded_streamed_mesh_for_framing(tmp_path: Path) -> None:
+    resources = tmp_path / "resources.assets"
+    managers = tmp_path / "globalgamemanagers"
+    mesh_bytes, stream_bytes = _streamed_upgrade_pack_mesh()
+    write_serialized_file(
+        resources,
+        [
+            (1, 1, _game_object("Item Upgrade Player Health", [10])),
+            (10, 4, _transform(1, [11])),
+            (2, 1, _game_object("Upgrade Mesh", [11, 20, 21])),
+            (11, 4, _transform(2, [])),
+            (20, 23, _renderer(2, 30)),
+            (21, 33, _mesh_filter(2, 50)),
+            (30, 21, _material(40)),
+            (40, 28, _texture2d()),
+            (50, 43, mesh_bytes),
+        ],
+    )
+    _write_resource_manager(managers, ("items/item upgrade player health", 1, 1))
+    stream_file = tmp_path / "resources.assets.resS"
+    stream_file.write_bytes(b"\0" * 16 + stream_bytes)
+
+    visual = _resolve_upgrade_visual(
+        resources,
+        managers,
+        ("Item Upgrade Player Health",),
+        data_root=tmp_path,
+    )
+
+    assert visual.framing is not None
+    assert visual.framing.uv_bounds == (0.5, 0.0, 1.0, 0.5)
+    assert visual.framing.source_path == stream_file.resolve()
+
+
+def test_real_strength_uv_oracle_maps_to_measured_front_panel_crop() -> None:
+    bounds = (0.499512, 0.00293, 0.85498, 0.541992)
+
+    assert _uv_crop(bounds, 512, 512) == (255, 234, 438, 511)
+
+
+def test_front_uv_bounds_reject_non_front_or_out_of_range_meshes() -> None:
+    no_front = MeshVertexData(1, ((0.0, 0.0, 0.0),) * 3, ((0.0, 1.0, 0.0),) * 3, ((0.0, 0.0),) * 3)
+    with pytest.raises(UnityMetadataError, match="presentation face"):
+        _front_uv_bounds(no_front)
+
+    bad_uv = MeshVertexData(
+        1,
+        ((0.0, 0.0, 1.0), (1.0, 0.0, 1.0), (0.0, 1.0, 1.0)),
+        ((0.0, 0.0, 1.0),) * 3,
+        ((0.5, 0.0), (1.1, 0.0), (0.5, 0.5)),
+    )
+    with pytest.raises(UnityMetadataError, match="outside"):
+        _front_uv_bounds(bad_uv)
 
 
 def test_multiple_prefab_renderers_resolve_unique_supported_texture_chain(
@@ -403,5 +627,7 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     assert decoded.texture.name == "Upgrade_Health_Albedo"
     assert decoded.texture.texture_format == "DXT1"
     assert decoded.png.startswith(b"\x89PNG\r\n\x1a\n")
+    assert (decoded.png_width, decoded.png_height) == (2, 2)
+    assert struct.unpack_from(">II", decoded.png, 16) == (2, 2)
     assert len(decoded.watches) == 5
     assert len(decoded.source_identity) == 64

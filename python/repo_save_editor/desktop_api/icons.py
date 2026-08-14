@@ -30,8 +30,8 @@ def get_upgrade_texture(save_key: str) -> dict[str, object]:
         "texture": {
             "sourceIdentity": decoded.source_identity,
             "pngBase64": base64.b64encode(decoded.png).decode("ascii"),
-            "width": texture.width,
-            "height": texture.height,
+            "width": decoded.png_width,
+            "height": decoded.png_height,
             "textureName": texture.name,
             "textureFormat": texture.texture_format,
             "mipCount": texture.mip_count,

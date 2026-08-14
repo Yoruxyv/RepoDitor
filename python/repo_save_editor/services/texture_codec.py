@@ -78,6 +78,47 @@ def flip_rgba_vertical(rgba: bytes, width: int, height: int) -> bytes:
     return bytes(output)
 
 
+def crop_rgba(
+    rgba: bytes,
+    width: int,
+    height: int,
+    left: int,
+    top: int,
+    right: int,
+    bottom: int,
+) -> tuple[bytes, int, int]:
+    """Return a bounded top-left-origin RGBA crop with exclusive right/bottom edges."""
+    _validate_dimensions(width, height)
+    expected = width * height * 4
+    if len(rgba) != expected or expected > MAX_RGBA_BYTES:
+        raise TextureDecodeError("RGBA pixel buffer does not match the bounded dimensions.")
+    if (
+        not all(isinstance(value, int) for value in (left, top, right, bottom))
+        or left < 0
+        or top < 0
+        or right > width
+        or bottom > height
+        or left >= right
+        or top >= bottom
+    ):
+        raise TextureDecodeError("RGBA crop is outside the bounded image.")
+
+    cropped_width = right - left
+    cropped_height = bottom - top
+    cropped_size = cropped_width * cropped_height * 4
+    if cropped_size > MAX_RGBA_BYTES:
+        raise TextureDecodeError("RGBA crop exceeds the decoded allocation bound.")
+
+    source_stride = width * 4
+    row_bytes = cropped_width * 4
+    output = bytearray(cropped_size)
+    for row in range(cropped_height):
+        source = (top + row) * source_stride + left * 4
+        target = row * row_bytes
+        output[target : target + row_bytes] = rgba[source : source + row_bytes]
+    return bytes(output), cropped_width, cropped_height
+
+
 def encode_rgba_png(rgba: bytes, width: int, height: int) -> bytes:
     """Encode bounded 8-bit RGBA pixels using only the Python standard library."""
     _validate_dimensions(width, height)
@@ -220,6 +261,7 @@ __all__ = [
     "MAX_PNG_BYTES",
     "MAX_TEXTURE_DIMENSION",
     "TextureDecodeError",
+    "crop_rgba",
     "decode_texture_rgba",
     "encode_rgba_png",
     "flip_rgba_vertical",

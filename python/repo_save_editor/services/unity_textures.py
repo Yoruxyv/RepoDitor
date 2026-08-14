@@ -6,6 +6,7 @@ used by RepoDitor's local presentation fallback. It is not a general asset extra
 
 from __future__ import annotations
 
+import math
 import struct
 from dataclasses import dataclass
 from typing import Final
@@ -14,6 +15,8 @@ from repo_save_editor.services.texture_codec import MAX_TEXTURE_DIMENSION, top_m
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MATERIAL_CLASS_ID,
+    MESH_CLASS_ID,
+    MESH_FILTER_CLASS_ID,
     MESH_RENDERER_CLASS_ID,
     TEXTURE2D_CLASS_ID,
     TRANSFORM_CLASS_ID,
@@ -29,8 +32,28 @@ MAX_TRANSFORM_CHILDREN: Final = 4_096
 MAX_RENDERER_MATERIALS: Final = 64
 MAX_RENDERER_BYTES: Final = 2 * 1024 * 1024
 MAX_MATERIAL_BYTES: Final = 2 * 1024 * 1024
+MAX_MESH_BYTES: Final = 2 * 1024 * 1024
+MAX_MESH_VERTEX_BYTES: Final = 16 * 1024 * 1024
+MAX_MESH_STREAM_PATH_BYTES: Final = 4_096
+MAX_MESH_VERTICES: Final = 65_536
+MAX_MESH_CHANNELS: Final = 32
+MAX_MESH_STREAMS: Final = 8
 MAX_PLATFORM_BLOB_BYTES: Final = 16 * 1024 * 1024
 DXT_FORMATS: Final = {10: "DXT1", 12: "DXT5"}
+_VERTEX_FORMAT_BYTES: Final = {
+    0: 4,  # Float32
+    1: 2,  # Float16
+    2: 1,  # UNorm8
+    3: 1,  # SNorm8
+    4: 2,  # UNorm16
+    5: 2,  # SNorm16
+    6: 1,  # UInt8
+    7: 1,  # SInt8
+    8: 2,  # UInt16
+    9: 2,  # SInt16
+    10: 4,  # UInt32
+    11: 4,  # SInt32
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +66,21 @@ class GameObjectData:
 class TransformData:
     game_object: PPtr
     children: tuple[PPtr, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MeshVertexData:
+    path_id: int
+    positions: tuple[tuple[float, float, float], ...]
+    normals: tuple[tuple[float, float, float], ...]
+    uv0: tuple[tuple[float, float], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MeshStreamMetadata:
+    path: str
+    offset: int
+    size: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +143,253 @@ def parse_transform(index: SerializedFileIndex, record: ObjectRecord) -> Transfo
     if any(pointer.file_id != 0 or pointer.path_id == 0 for pointer in children):
         raise UnityMetadataError("Transform contains an unsupported child pointer.")
     return TransformData(game_object, children)
+
+
+def mesh_filter_mesh(
+    index: SerializedFileIndex,
+    game_object_record: ObjectRecord,
+) -> ObjectRecord:
+    """Resolve the unique local Mesh owned by one renderer GameObject."""
+    game_object = parse_game_object(index, game_object_record)
+    components = index.find_records({pointer.path_id for pointer in game_object.components})
+    filters = [record for record in components.values() if record.class_id == MESH_FILTER_CLASS_ID]
+    if len(filters) != 1:
+        raise UnityMetadataError(
+            "Renderer GameObject MeshFilter relationship is missing or ambiguous."
+        )
+
+    reader = index.object_reader(filters[0])
+    owner = read_pptr(reader)
+    mesh_pointer = read_pptr(reader)
+    if owner != PPtr(0, game_object_record.path_id):
+        raise UnityMetadataError("MeshFilter does not point back to its GameObject.")
+    if mesh_pointer.file_id != 0 or mesh_pointer.path_id == 0:
+        raise UnityMetadataError("MeshFilter contains an unsupported Mesh pointer.")
+    mesh = index.find_records({mesh_pointer.path_id})[mesh_pointer.path_id]
+    if mesh.class_id != MESH_CLASS_ID:
+        raise UnityMetadataError("MeshFilter pointer does not resolve to a Mesh.")
+    return mesh
+
+
+def _align16(value: int) -> int:
+    return (value + 15) & ~15
+
+
+def _mesh_stream_candidate(raw: bytes, offset: int, endian: str) -> MeshStreamMetadata | None:
+    if offset < 0 or offset + 16 > len(raw):
+        return None
+    stream_offset, stream_size, path_size = struct.unpack_from(endian + "QIi", raw, offset)
+    if not 0 < stream_size <= MAX_MESH_VERTEX_BYTES:
+        return None
+    if not 0 < path_size <= MAX_MESH_STREAM_PATH_BYTES:
+        return None
+    path_start = offset + 16
+    path_end = path_start + path_size
+    padded_end = (path_end + 3) & ~3
+    if path_end > len(raw) or padded_end != len(raw):
+        return None
+    if any(raw[path_end:padded_end]):
+        return None
+    try:
+        path = raw[path_start:path_end].decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if not path or "\0" in path or any(ord(character) < 0x20 for character in path):
+        return None
+    return MeshStreamMetadata(path, stream_offset, stream_size)
+
+
+def parse_mesh_stream_metadata(
+    index: SerializedFileIndex,
+    record: ObjectRecord,
+) -> MeshStreamMetadata | None:
+    """Resolve the optional tail StreamedResource used by Unity 2022.3 Mesh data."""
+    if record.class_id != MESH_CLASS_ID:
+        raise UnityMetadataError("Expected a Mesh record.")
+    if record.byte_size <= 0 or record.byte_size > MAX_MESH_BYTES:
+        raise UnityMetadataError("Mesh record size is outside the supported bound.")
+    reader = index.object_reader(record)
+    raw = reader.bytes(record.byte_size)
+    candidates: list[MeshStreamMetadata] = []
+    for offset in range(0, max(0, len(raw) - 15), 4):
+        candidate = _mesh_stream_candidate(raw, offset, reader.endian)
+        if candidate is not None and candidate not in candidates:
+            candidates.append(candidate)
+    if len(candidates) > 1:
+        raise UnityMetadataError("Mesh streamed vertex relationship is ambiguous.")
+    return candidates[0] if candidates else None
+
+
+def _mesh_vertex_candidate(
+    raw: bytes,
+    offset: int,
+    endian: str,
+    path_id: int,
+    *,
+    stream_data: bytes | None,
+) -> MeshVertexData | None:
+    if offset < 0 or offset + 12 > len(raw):
+        return None
+    vertex_count, channel_count = struct.unpack_from(endian + "Ii", raw, offset)
+    if not 3 <= vertex_count <= MAX_MESH_VERTICES or not 5 <= channel_count <= MAX_MESH_CHANNELS:
+        return None
+
+    channels_start = offset + 8
+    channels_end = channels_start + channel_count * 4
+    if channels_end + 4 > len(raw):
+        return None
+    channels = [
+        tuple(raw[position : position + 4])
+        for position in range(channels_start, channels_end, 4)
+    ]
+
+    def channel_shape(channel_index: int) -> tuple[int, int]:
+        _stream, _channel_offset, format_id, raw_dimension = channels[channel_index]
+        return format_id, raw_dimension & 0x0F
+
+    position_format, position_dimension = channel_shape(0)
+    normal_format, normal_dimension = channel_shape(1)
+    uv_format, uv_dimension = channel_shape(4)
+    if (
+        position_format != 0
+        or position_dimension != 3
+        or normal_format not in (0, 1)
+        or normal_dimension not in (3, 4)
+        or uv_format not in (0, 1)
+        or uv_dimension != 2
+    ):
+        return None
+
+    active = []
+    for channel in channels:
+        stream, channel_offset, format_id, raw_dimension = channel
+        dimension = raw_dimension & 0x0F
+        if dimension == 0:
+            continue
+        component_size = _VERTEX_FORMAT_BYTES.get(format_id)
+        if component_size is None or dimension > 4 or stream >= MAX_MESH_STREAMS:
+            return None
+        active.append((stream, channel_offset, component_size, dimension))
+    if not active:
+        return None
+
+    stream_count = 1 + max(stream for stream, _offset, _size, _dimension in active)
+    stream_offsets: list[int] = []
+    stream_strides: list[int] = []
+    cursor = 0
+    for stream in range(stream_count):
+        members = [entry for entry in active if entry[0] == stream]
+        if not members:
+            return None
+        stride = sum(
+            component_size * dimension
+            for _stream, _offset, component_size, dimension in members
+        )
+        if stride <= 0 or stride > 255:
+            return None
+        for _stream, channel_offset, component_size, dimension in members:
+            if channel_offset + component_size * dimension > stride:
+                return None
+        stream_offsets.append(cursor)
+        stream_strides.append(stride)
+        cursor = _align16(cursor + vertex_count * stride)
+
+    minimum_size = max(
+        stream_offsets[stream] + vertex_count * stream_strides[stream]
+        for stream in range(stream_count)
+    )
+    data_size = struct.unpack_from(endian + "i", raw, channels_end)[0]
+    if data_size < 0 or data_size > MAX_MESH_VERTEX_BYTES:
+        return None
+    if data_size == 0:
+        if stream_data is None:
+            return None
+        data = stream_data
+    else:
+        data_start = channels_end + 4
+        data_end = data_start + data_size
+        if data_end > len(raw):
+            return None
+        data = raw[data_start:data_end]
+    if len(data) < minimum_size or len(data) > _align16(minimum_size):
+        return None
+
+    def read_channel(
+        channel_index: int,
+        components: int,
+    ) -> tuple[tuple[float, ...], ...] | None:
+        stream, channel_offset, format_id, raw_dimension = channels[channel_index]
+        dimension = raw_dimension & 0x0F
+        if format_id not in (0, 1) or dimension < components or stream >= len(stream_offsets):
+            return None
+        component_size = _VERTEX_FORMAT_BYTES[format_id]
+        stride = stream_strides[stream]
+        start = stream_offsets[stream] + channel_offset
+        item_size = components * component_size
+        format_character = "f" if format_id == 0 else "e"
+        values: list[tuple[float, ...]] = []
+        for vertex in range(vertex_count):
+            position = start + vertex * stride
+            if position < 0 or position + item_size > len(data):
+                return None
+            value = tuple(
+                float(item)
+                for item in struct.unpack_from(
+                    endian + (format_character * components), data, position
+                )
+            )
+            if not all(math.isfinite(item) for item in value):
+                return None
+            values.append(value)
+        return tuple(values)
+
+    positions_raw = read_channel(0, 3)
+    normals_raw = read_channel(1, 3)
+    uv_raw = read_channel(4, 2)
+    if positions_raw is None or normals_raw is None or uv_raw is None:
+        return None
+    positions = tuple((value[0], value[1], value[2]) for value in positions_raw)
+    normals = tuple((value[0], value[1], value[2]) for value in normals_raw)
+    uv0 = tuple((value[0], value[1]) for value in uv_raw)
+    if any(abs(component) > 1_000_000 for value in positions for component in value):
+        return None
+    if any(
+        not 0.25 <= sum(component * component for component in value) <= 2.25
+        for value in normals
+    ):
+        return None
+    return MeshVertexData(path_id, positions, normals, uv0)
+
+
+def parse_mesh_vertex_data(
+    index: SerializedFileIndex,
+    record: ObjectRecord,
+    *,
+    stream_data: bytes | None = None,
+) -> MeshVertexData:
+    """Parse the bounded VertexData needed for installed UV framing."""
+    if record.class_id != MESH_CLASS_ID:
+        raise UnityMetadataError("Expected a Mesh record.")
+    if record.byte_size <= 0 or record.byte_size > MAX_MESH_BYTES:
+        raise UnityMetadataError("Mesh record size is outside the supported bound.")
+    if stream_data is not None and len(stream_data) > MAX_MESH_VERTEX_BYTES:
+        raise UnityMetadataError("Mesh streamed vertex data exceeds the supported bound.")
+    reader = index.object_reader(record)
+    raw = reader.bytes(record.byte_size)
+    candidates: list[MeshVertexData] = []
+    for offset in range(0, max(0, len(raw) - 11), 4):
+        candidate = _mesh_vertex_candidate(
+            raw,
+            offset,
+            reader.endian,
+            record.path_id,
+            stream_data=stream_data,
+        )
+        if candidate is not None:
+            candidates.append(candidate)
+    if len(candidates) != 1:
+        raise UnityMetadataError("Mesh VertexData relationship is missing or ambiguous.")
+    return candidates[0]
 
 
 def renderer_materials(
@@ -272,9 +557,12 @@ def parse_texture2d(index: SerializedFileIndex, record: ObjectRecord) -> Texture
 
 __all__ = [
     "GameObjectData",
+    "MeshVertexData",
     "Texture2DMetadata",
     "material_main_texture",
+    "mesh_filter_mesh",
     "parse_game_object",
+    "parse_mesh_vertex_data",
     "parse_texture2d",
     "parse_transform",
     "read_game_object_name",

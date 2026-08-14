@@ -83,7 +83,9 @@ describe("GameIcon", () => {
     );
     expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
     expect(screen.getByTestId("upgrade-icon").querySelector("img")?.getAttribute("loading")).toBe("lazy");
-    expect(screen.getByTestId("upgrade-icon-loading")).toBeTruthy();
+    const loadingSkeleton = screen.getByTestId("upgrade-icon-loading");
+    expect(loadingSkeleton.className).toContain("w-2/3");
+    expect(loadingSkeleton.className).toContain("h-full");
     rerender(<GameIcon fallback={WrenchIcon} fallbackSource="specific" testId="upgrade-icon" token={null} variant="upgrade" />);
     expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
     expect(screen.getByTestId("upgrade-icon").dataset.iconSource).toBe("specific");
