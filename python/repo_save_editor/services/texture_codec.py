@@ -63,6 +63,21 @@ def decode_texture_rgba(
     return bytes(output)
 
 
+def flip_rgba_vertical(rgba: bytes, width: int, height: int) -> bytes:
+    """Convert Unity bottom-up texture rows into top-down image row order."""
+    _validate_dimensions(width, height)
+    expected = width * height * 4
+    if len(rgba) != expected or expected > MAX_RGBA_BYTES:
+        raise TextureDecodeError("RGBA pixel buffer does not match the bounded dimensions.")
+    stride = width * 4
+    output = bytearray(expected)
+    for source_y in range(height):
+        source = source_y * stride
+        target = (height - 1 - source_y) * stride
+        output[target : target + stride] = rgba[source : source + stride]
+    return bytes(output)
+
+
 def encode_rgba_png(rgba: bytes, width: int, height: int) -> bytes:
     """Encode bounded 8-bit RGBA pixels using only the Python standard library."""
     _validate_dimensions(width, height)
@@ -207,5 +222,6 @@ __all__ = [
     "TextureDecodeError",
     "decode_texture_rgba",
     "encode_rgba_png",
+    "flip_rgba_vertical",
     "top_mip_size",
 ]

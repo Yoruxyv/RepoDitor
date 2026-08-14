@@ -17,6 +17,7 @@ from repo_save_editor.services.texture_codec import (
     TextureDecodeError,
     decode_texture_rgba,
     encode_rgba_png,
+    flip_rgba_vertical,
 )
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
@@ -389,6 +390,7 @@ def decode_installed_upgrade_texture(
             texture.height,
             texture.texture_format,
         )
+        rgba = flip_rgba_vertical(rgba, texture.width, texture.height)
         png = encode_rgba_png(rgba, texture.width, texture.height)
         watches = (
             _watch(manifest),

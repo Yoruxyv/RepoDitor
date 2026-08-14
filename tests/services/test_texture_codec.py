@@ -9,6 +9,7 @@ from repo_save_editor.services.texture_codec import (
     TextureDecodeError,
     decode_texture_rgba,
     encode_rgba_png,
+    flip_rgba_vertical,
     top_mip_size,
 )
 
@@ -130,6 +131,20 @@ def test_oversized_dimensions_are_rejected_before_allocation() -> None:
 def test_unsupported_format_is_rejected() -> None:
     with pytest.raises(TextureDecodeError, match="Unsupported"):
         top_mip_size(4, 4, "RGBA32")
+
+
+def test_vertical_flip_reverses_rows_without_changing_columns() -> None:
+    top = bytes((255, 0, 0, 255, 0, 255, 0, 255))
+    bottom = bytes((0, 0, 255, 255, 255, 255, 0, 255))
+
+    flipped = flip_rgba_vertical(top + bottom, 2, 2)
+
+    assert flipped == bottom + top
+
+
+def test_vertical_flip_rejects_mismatched_buffer() -> None:
+    with pytest.raises(TextureDecodeError, match="does not match"):
+        flip_rgba_vertical(b"\0" * 15, 2, 2)
 
 
 def test_png_encoder_emits_bounded_rgba_png() -> None:
