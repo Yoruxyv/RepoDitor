@@ -43,6 +43,13 @@ class VariantResult:
     battery_metadata: tuple[int, int] | None
 
 
+@dataclass(frozen=True, slots=True)
+class ItemPresentation:
+    canonical_name: str
+    display_name: str | None
+    gameplay_cap: int | None
+
+
 def _read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> str:
     """Read only a GameObject name for broad candidate discovery.
 
@@ -97,6 +104,40 @@ def _item_battery_metadata(
     return battery_bars, exceptional_flag
 
 
+def _item_presentation(
+    index: SerializedFileIndex,
+    record: ObjectRecord,
+    prefix: MonoBehaviourPrefix,
+) -> ItemPresentation:
+    """Read the narrow Item fields proven for the validated installed build."""
+    reader = index.object_reader(record)
+    reader.skip(prefix.field_offset)
+    disabled = reader.i32()
+    display_name = reader.aligned_string()
+    reader.aligned_string()  # description
+    read_pptr(reader)  # localized display name
+    for _ in range(4):
+        reader.i32()
+    read_pptr(reader)
+    prefab_name = reader.aligned_string()
+    resource_path = reader.aligned_string()
+    for _ in range(3):
+        reader.i32()
+    read_pptr(reader)
+    gameplay_cap = reader.i32()
+    max_amount_in_shop = reader.i32()
+    if (
+        disabled not in (0, 1)
+        or not display_name
+        or prefab_name != prefix.name
+        or resource_path != f"Items/{prefix.name}"
+        or gameplay_cap < 0
+        or max_amount_in_shop < 0
+    ):
+        raise UnityMetadataError("Installed Item presentation fields are malformed.")
+    return ItemPresentation(prefix.name, display_name, gameplay_cap)
+
+
 def _normalize_item_names(item_names: Iterable[str]) -> tuple[tuple[str, ...], dict[str, str]]:
     names: list[str] = []
     by_identity: dict[str, str] = {}
@@ -137,6 +178,7 @@ def _classify_variants(
     resources: SerializedFileIndex,
     globals_: SerializedFileIndex,
     variants_by_item: dict[str, tuple[ObjectRecord, ...]],
+    presentations: dict[str, ItemPresentation],
 ) -> dict[str, InstalledItemMetadata]:
     game_objects: dict[int, GameObjectData] = {}
     item_variant_ids: dict[str, tuple[int, ...]] = {}
@@ -198,6 +240,7 @@ def _classify_variants(
 
     results: dict[str, InstalledItemMetadata] = {}
     for item_name, variant_ids in item_variant_ids.items():
+        presentation = presentations[item_name]
         item_variants = [variant_results[path_id] for path_id in variant_ids]
         icon_keys = {
             normalize_icon_cache_key(game_objects[path_id].name) for path_id in variant_ids
@@ -206,11 +249,23 @@ def _classify_variants(
         presence = {result.has_battery for result in item_variants}
         if None in presence or len(presence) != 1:
             capability = ItemRechargeCapability.UNKNOWN
-            results[item_name] = InstalledItemMetadata(capability, icon_key)
+            results[item_name] = InstalledItemMetadata(
+                capability,
+                icon_key,
+                presentation.canonical_name,
+                presentation.display_name,
+                presentation.gameplay_cap,
+            )
             continue
         if not item_variants[0].has_battery:
             capability = ItemRechargeCapability.NOT_RECHARGEABLE
-            results[item_name] = InstalledItemMetadata(capability, icon_key)
+            results[item_name] = InstalledItemMetadata(
+                capability,
+                icon_key,
+                presentation.canonical_name,
+                presentation.display_name,
+                presentation.gameplay_cap,
+            )
             continue
         metadata = {result.battery_metadata for result in item_variants}
         exceptional = any(
@@ -222,7 +277,13 @@ def _classify_variants(
             if len(metadata) == 1 and not exceptional
             else ItemRechargeCapability.UNKNOWN
         )
-        results[item_name] = InstalledItemMetadata(capability, icon_key)
+        results[item_name] = InstalledItemMetadata(
+            capability,
+            icon_key,
+            presentation.canonical_name,
+            presentation.display_name,
+            presentation.gameplay_cap,
+        )
     key_counts: dict[str, int] = {}
     for metadata in results.values():
         if metadata.icon_cache_key is not None:
@@ -233,6 +294,9 @@ def _classify_variants(
             metadata.icon_cache_key
             if metadata.icon_cache_key is not None and key_counts[metadata.icon_cache_key] == 1
             else None,
+            metadata.canonical_name,
+            metadata.display_name,
+            metadata.gameplay_cap,
         )
         for name, metadata in results.items()
     }
@@ -273,7 +337,7 @@ def discover_installed_item_metadata(
             ]
             definition_scripts = _resolve_mono_scripts(resources, globals_, relevant_prefixes)
 
-            verified_definition_names: dict[str, str] = {}
+            verified_definitions: dict[str, ItemPresentation] = {}
             for identity in by_identity:
                 item_definitions = [
                     (record, prefix)
@@ -282,9 +346,14 @@ def discover_installed_item_metadata(
                 ]
                 if len(item_definitions) != 1:
                     continue
-                definition_name = item_definitions[0][1].name
+                record, prefix = item_definitions[0]
+                definition_name = prefix.name
                 if definition_name.casefold() == identity:
-                    verified_definition_names[identity] = definition_name
+                    try:
+                        presentation = _item_presentation(resources, record, prefix)
+                    except UnityMetadataError:
+                        presentation = ItemPresentation(definition_name, None, None)
+                    verified_definitions[identity] = presentation
 
             variants: dict[str, list[ObjectRecord]] = {name: [] for name in names}
             for record in resources.iter_records(frozenset({GAME_OBJECT_CLASS_ID})):
@@ -292,7 +361,7 @@ def discover_installed_item_metadata(
                 if not name:
                     continue
                 identity = name.casefold()
-                if identity not in verified_definition_names:
+                if identity not in verified_definitions:
                     continue
                 game_object = _parse_game_object(resources, record)
                 if game_object.name.casefold() != identity:
@@ -304,9 +373,12 @@ def discover_installed_item_metadata(
             ready = {
                 name: tuple(records)
                 for name, records in variants.items()
-                if name.casefold() in verified_definition_names and records
+                if name.casefold() in verified_definitions and records
             }
-            classified = _classify_variants(resources, globals_, ready) if ready else {}
+            presentations = {name: verified_definitions[name.casefold()] for name in ready}
+            classified = (
+                _classify_variants(resources, globals_, ready, presentations) if ready else {}
+            )
             return {name: classified.get(name, unknown[name]) for name in names}
     except (OSError, UnityMetadataError, struct.error, OverflowError, ValueError):
         return unknown

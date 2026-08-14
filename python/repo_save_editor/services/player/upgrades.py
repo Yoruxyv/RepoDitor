@@ -3,31 +3,41 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 
 from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries
 from repo_save_editor.core.types import SaveData
 
 UPGRADE_PREFIX = "playerUpgrade"
 
-KNOWN_UPGRADE_LABELS: dict[str, str] = {
-    "playerUpgradeHealth": "Health",
-    "playerUpgradeStamina": "Stamina / Energy",
-    "playerUpgradeExtraJump": "Extra Jump",
+UPGRADE_LABEL_ALIASES: dict[str, str] = {
     "playerUpgradeLaunch": "Tumble Launch",
-    "playerUpgradeTumbleClimb": "Tumble Climb",
-    "playerUpgradeDeathHeadBattery": "Death Head Battery",
-    "playerUpgradeMapPlayerCount": "Map Player Count",
-    "playerUpgradeSpeed": "Speed",
-    "playerUpgradeStrength": "Strength",
-    "playerUpgradeRange": "Range",
-    "playerUpgradeThrow": "Throw",
-    "playerUpgradeCrouchRest": "Crouch Rest",
-    "playerUpgradeTumbleWings": "Tumble Wings",
+    "playerUpgradeSpeed": "Sprint Speed",
 }
 
 _CAMEL_ACRONYM_BOUNDARY = re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])")
 _CAMEL_WORD_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+class UpgradePresentationSource(StrEnum):
+    """Origin of one player-facing upgrade label."""
+
+    INSTALLED = "installed"
+    ALIAS = "alias"
+    HUMANIZED = "humanized"
+
+
+@dataclass(frozen=True, slots=True)
+class UpgradePresentation:
+    """Optional presentation metadata that never authorizes mutation."""
+
+    label: str
+    source: UpgradePresentationSource
+    installed_item_name: str | None = None
+    icon_cache_key: str | None = None
+    gameplay_cap: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +46,9 @@ class PlayerUpgrade:
 
     key: str
     label: str
-    known: bool
+    presentation_source: UpgradePresentationSource
+    icon_cache_key: str | None
+    gameplay_cap: int | None
 
 
 def _humanize_upgrade_key(key: str) -> str:
@@ -50,31 +62,51 @@ def _humanize_upgrade_key(key: str) -> str:
 
 
 def get_upgrade_label(key: str) -> str:
-    """Return a friendly label for a known or newly detected upgrade key."""
-    return KNOWN_UPGRADE_LABELS.get(key, _humanize_upgrade_key(key))
+    """Return a friendly fail-soft label for any upgrade key."""
+    return get_fallback_presentation(key).label
 
 
-def discover_player_upgrades(data: SaveData) -> tuple[PlayerUpgrade, ...]:
+def get_fallback_presentation(key: str) -> UpgradePresentation:
+    """Return the tiny semantic-alias or open CamelCase fallback."""
+    alias = UPGRADE_LABEL_ALIASES.get(key)
+    return UpgradePresentation(
+        alias or _humanize_upgrade_key(key),
+        UpgradePresentationSource.ALIAS if alias else UpgradePresentationSource.HUMANIZED,
+    )
+
+
+def discover_player_upgrades(
+    data: SaveData,
+    presentations: Mapping[str, UpgradePresentation] | None = None,
+) -> tuple[PlayerUpgrade, ...]:
     """Discover player-upgrade dictionaries from the loaded save itself.
 
-    Known keys receive curated labels. Unknown keys are still exposed so newer
-    game versions and modded saves do not require a RepoDitor code change just
-    to make their upgrade values editable.
+    Installed metadata is optional presentation only. Newer game versions and
+    modded saves remain visible and editable through the same prefix rule.
     """
     dictionaries = get_dictionaries(data)
     upgrades = [
         PlayerUpgrade(
-            key=key,
-            label=get_upgrade_label(key),
-            known=key in KNOWN_UPGRADE_LABELS,
+            key,
+            presentation.label,
+            presentation.source,
+            presentation.icon_cache_key,
+            presentation.gameplay_cap,
         )
         for key, value in dictionaries.items()
         if isinstance(key, str)
         and key.startswith(UPGRADE_PREFIX)
         and key != UPGRADE_PREFIX
         and isinstance(value, dict)
+        for presentation in [(presentations or {}).get(key, get_fallback_presentation(key))]
     ]
-    upgrades.sort(key=lambda upgrade: (not upgrade.known, upgrade.label.casefold(), upgrade.key))
+    upgrades.sort(
+        key=lambda upgrade: (
+            upgrade.presentation_source != UpgradePresentationSource.INSTALLED,
+            upgrade.label.casefold(),
+            upgrade.key,
+        )
+    )
     return tuple(upgrades)
 
 

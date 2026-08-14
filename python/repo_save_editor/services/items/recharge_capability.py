@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path
 from typing import Final
 
@@ -87,10 +88,41 @@ def discover_installed_item_metadata(
             return unknown
     except OSError:
         return unknown
-    discovered = discover_installed_item_metadata_from_assets(
-        resources_path, global_managers_path, names
+    try:
+        resources_stat = resources_path.stat()
+        globals_stat = global_managers_path.stat()
+    except OSError:
+        return unknown
+    discovered = dict(
+        _cached_item_metadata(
+            resources_path,
+            resources_stat.st_size,
+            resources_stat.st_mtime_ns,
+            global_managers_path,
+            globals_stat.st_size,
+            globals_stat.st_mtime_ns,
+            names,
+        )
     )
     return {name: discovered.get(name, unknown[name]) for name in names}
+
+
+@lru_cache(maxsize=16)
+def _cached_item_metadata(
+    resources_path: Path,
+    _resources_size: int,
+    _resources_mtime_ns: int,
+    global_managers_path: Path,
+    _globals_size: int,
+    _globals_mtime_ns: int,
+    names: tuple[str, ...],
+) -> tuple[tuple[str, InstalledItemMetadata], ...]:
+    """Cache derived metadata by requested identities and installed file identity."""
+    return tuple(
+        discover_installed_item_metadata_from_assets(
+            resources_path, global_managers_path, names
+        ).items()
+    )
 
 
 __all__ = ["discover_installed_item_metadata", "discover_installed_recharge_capabilities"]
