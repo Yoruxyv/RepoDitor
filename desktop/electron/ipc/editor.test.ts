@@ -8,6 +8,7 @@ import type { AdvancedDomainDto } from "../contracts.cjs";
 const require = createRequire(import.meta.url);
 const { IPC_CHANNELS } = require("../../dist-electron/channels.cjs");
 const { PythonClientError } = require("../../dist-electron/python/client.cjs");
+const { LocalIconRegistry } = require("../../dist-electron/icons/registry.cjs");
 const {
   getAdvancedSave,
   getRunState,
@@ -144,6 +145,78 @@ describe("editor data IPC", () => {
         saveId,
       ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+  });
+
+  it("returns dynamic upgrade DTOs without awaiting optional artwork preparation", async () => {
+    const response = {
+      ok: true,
+      upgrades: [
+        {
+          key: "playerUpgradeHealth",
+          label: "Health",
+          presentationSource: "installed",
+          gameplayCap: 10,
+          iconKey: "item upgrade player health.png",
+          values: [{ playerId: "111", value: 2 }],
+        },
+        {
+          key: "playerUpgradeFutureVision",
+          label: "Future Vision",
+          presentationSource: "humanized",
+          gameplayCap: null,
+          iconKey: null,
+          values: [{ playerId: "111", value: 4 }],
+        },
+      ],
+    };
+    let finishPreparation: (() => void) | undefined;
+    const pendingPreparation = new Promise<void>((resolve) => {
+      finishPreparation = resolve;
+    });
+    const preparation = {
+      prepareUpgradeVisuals: vi.fn(() => pendingPreparation),
+    };
+
+    const result = await listUpgrades(
+      client(response),
+      saveId,
+      new LocalIconRegistry(),
+      preparation,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(preparation.prepareUpgradeVisuals).toHaveBeenCalledWith([
+      { cacheKey: "item upgrade player health.png", upgradeKey: "playerUpgradeHealth" },
+      { cacheKey: null, upgradeKey: "playerUpgradeFutureVision" },
+    ]);
+    finishPreparation?.();
+  });
+
+  it("keeps upgrade reads available when optional artwork preparation degrades", async () => {
+    const response = {
+      ok: true,
+      upgrades: [{
+        key: "playerUpgradeHealth",
+        label: "Health",
+        presentationSource: "installed",
+        gameplayCap: 10,
+        iconKey: null,
+        values: [{ playerId: "111", value: 2 }],
+      }],
+    };
+    const preparation = {
+      prepareUpgradeVisuals: vi.fn().mockRejectedValue(new Error("optional art failed")),
+    };
+
+    const result = await listUpgrades(
+      client(response),
+      saveId,
+      new LocalIconRegistry(),
+      preparation,
+    );
+
+    expect(result).toMatchObject({ ok: true, data: [{ key: "playerUpgradeHealth" }] });
+    expect(preparation.prepareUpgradeVisuals).toHaveBeenCalledTimes(1);
   });
 
   it("parses friendly run values and unknown resume options", async () => {

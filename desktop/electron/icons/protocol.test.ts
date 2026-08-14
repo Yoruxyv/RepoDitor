@@ -149,6 +149,35 @@ describe("local icon protocol", () => {
     expect(client.run).toHaveBeenCalledWith("upgrade-texture", ["playerUpgradeHealth"]);
   });
 
+  it("lets background preparation satisfy an icon request without starting a duplicate lazy process", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const registry = new LocalIconRegistry();
+    const [token] = registry.replaceVisuals("upgrade", [
+      { cacheKey: null, upgradeKey: "playerUpgradeHealth" },
+    ]);
+    const client = { run: vi.fn(), dispose: vi.fn() };
+    const cache = new DecodedUpgradeTextureCache();
+    cache.beginPreparation(["playerUpgradeHealth"]);
+
+    const response = serveLocalIcon(url(token), null, registry, client, cache);
+    await Promise.resolve();
+    expect(client.run).not.toHaveBeenCalled();
+
+    await cache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity: "c".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    });
+
+    expect((await response).status).toBe(200);
+    expect(client.run).not.toHaveBeenCalled();
+  });
+
   it("serializes different upgrade decodes instead of spawning a process fan-out", async () => {
     const { base } = await fixture();
     const watch = path.join(base, "resources.assets");
@@ -241,6 +270,40 @@ describe("local icon protocol", () => {
     expect(client.run).toHaveBeenCalledTimes(1);
   });
 
+
+  it("accepts validated batch textures into the same session cache used by lazy requests", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const cache = new DecodedUpgradeTextureCache();
+    const payload = {
+      sourceIdentity: "c".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    };
+    const client = { run: vi.fn(), dispose: vi.fn() };
+
+    await expect(cache.storePrepared("playerUpgradeHealth", payload)).resolves.toBe(true);
+    await expect(cache.hasPrepared("playerUpgradeHealth")).resolves.toBe(true);
+    await expect(cache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
+    expect(client.run).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed batch texture payloads before they enter session memory", async () => {
+    const cache = new DecodedUpgradeTextureCache();
+
+    await expect(cache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity: "not-a-source-id",
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [],
+    })).resolves.toBe(false);
+    await expect(cache.hasPrepared("playerUpgradeHealth")).resolves.toBe(false);
+  });
   it("invalidates decoded session memory when a watched installed source changes", async () => {
     const { base } = await fixture();
     const watch = path.join(base, "resources.assets");

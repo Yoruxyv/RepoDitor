@@ -4,6 +4,8 @@ export const IPC_CHANNELS: IpcChannelMap = {
   environmentDetect: "environment:detect",
   projectMetadata: "project:metadata",
   gameStatus: "game:status",
+  assetPreparationState: "assets:state",
+  assetPreparationProgress: "assets:progress",
   savesList: "saves:list",
   savesOpen: "saves:open",
   savesWrite: "saves:write",

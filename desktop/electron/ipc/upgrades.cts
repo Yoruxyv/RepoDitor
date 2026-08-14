@@ -2,6 +2,10 @@ import {
   type DesktopOperationResult,
   type PlayerUpgradeDto,
 } from "../contracts.cjs";
+import type {
+  AssetPreparationService,
+  UpgradeVisualPreparationRequest,
+} from "../assets/preparation.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {
   localIconRegistry,
@@ -70,27 +74,34 @@ function parseUpgrade(value: unknown): ParsedUpgrade {
 function parseUpgrades(
   value: unknown,
   icons: LocalIconRegistry,
-): DesktopOperationResult<PlayerUpgradeDto[]> {
+): {
+  readonly result: DesktopOperationResult<PlayerUpgradeDto[]>;
+  readonly visuals: readonly UpgradeVisualPreparationRequest[];
+} {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid upgrades response.");
   }
   if (value.ok !== true) {
-    return parseError(value);
+    return { result: parseError(value), visuals: [] };
   }
   if (!Array.isArray(value.upgrades)) {
     throw new EditorProtocolError("Invalid upgrades.");
   }
   const upgrades = value.upgrades.map(parseUpgrade);
-  const tokens = icons.replaceVisuals(
-    "upgrade",
-    upgrades.map((upgrade) => ({ cacheKey: upgrade.iconKey, upgradeKey: upgrade.key })),
-  );
+  const visuals = upgrades.map((upgrade) => ({
+    cacheKey: upgrade.iconKey,
+    upgradeKey: upgrade.key,
+  }));
+  const tokens = icons.replaceVisuals("upgrade", visuals);
   return {
-    ok: true,
-    data: upgrades.map(({ iconKey: _iconKey, ...upgrade }, index) => ({
-      ...upgrade,
-      iconToken: tokens[index] ?? null,
-    })),
+    result: {
+      ok: true,
+      data: upgrades.map(({ iconKey: _iconKey, ...upgrade }, index) => ({
+        ...upgrade,
+        iconToken: tokens[index] ?? null,
+      })),
+    },
+    visuals,
   };
 }
 
@@ -98,12 +109,18 @@ export async function listUpgrades(
   client: PythonClient,
   saveId: unknown,
   icons: LocalIconRegistry = localIconRegistry,
+  preparation: Pick<AssetPreparationService, "prepareUpgradeVisuals"> | null = null,
 ): Promise<DesktopOperationResult<PlayerUpgradeDto[]>> {
   if (!validSaveId(saveId)) {
     return invalidSaveId();
   }
   try {
-    return parseUpgrades(await client.run("upgrades-list", [saveId]), icons);
+    const parsed = parseUpgrades(await client.run("upgrades-list", [saveId]), icons);
+    if (!parsed.result.ok) return parsed.result;
+    if (preparation !== null) {
+      void preparation.prepareUpgradeVisuals(parsed.visuals).catch(() => undefined);
+    }
+    return parsed.result;
   } catch (error) {
     return failure("upgrades", error);
   }

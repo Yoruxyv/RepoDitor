@@ -2,6 +2,8 @@ export interface IpcChannelMap {
   environmentDetect: "environment:detect";
   projectMetadata: "project:metadata";
   gameStatus: "game:status";
+  assetPreparationState: "assets:state";
+  assetPreparationProgress: "assets:progress";
   savesList: "saves:list";
   savesOpen: "saves:open";
   savesWrite: "saves:write";
@@ -25,6 +27,25 @@ export type GameProcessStatus = "running" | "not_running" | "unknown";
 export interface GameProcessState {
   status: GameProcessStatus;
   running: boolean;
+}
+
+export type AssetPreparationStage =
+  | "idle"
+  | "discovering"
+  | "validating"
+  | "indexing"
+  | "resolving"
+  | "decoding"
+  | "ready"
+  | "degraded";
+
+export interface AssetPreparationState {
+  stage: AssetPreparationStage;
+  installationFound: boolean;
+  buildVerified: boolean;
+  completed: number | null;
+  total: number | null;
+  degraded: boolean;
 }
 
 export interface ProjectMetadata {
@@ -353,6 +374,10 @@ export interface RepoDitorApi {
     status: () => Promise<
       DesktopOperationResult<GameProcessState>
     >;
+  };
+  assets: {
+    state: () => Promise<AssetPreparationState>;
+    onState: (listener: (state: AssetPreparationState) => void) => () => void;
   };
   saves: {
     list: () => Promise<

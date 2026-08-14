@@ -1,6 +1,11 @@
 import { ipcMain } from "electron";
 
+import {
+  assetPreparationService,
+  type AssetPreparationService,
+} from "../assets/preparation.cjs";
 import { IPC_CHANNELS } from "../channels.cjs";
+import { localIconRegistry } from "../icons/registry.cjs";
 import { pythonClient, type PythonClient } from "../python/client.cjs";
 import { getAdvancedSave } from "./items.cjs";
 import { listMaps } from "./maps.cjs";
@@ -17,9 +22,10 @@ type IpcRegistrar = Pick<typeof ipcMain, "handle">;
 export function registerEditorIpc(
   client: PythonClient = pythonClient,
   registrar: IpcRegistrar = ipcMain,
+  preparation: AssetPreparationService = assetPreparationService,
 ): void {
   registrar.handle(IPC_CHANNELS.upgradesList, (_event, saveId: unknown) =>
-    listUpgrades(client, saveId),
+    listUpgrades(client, saveId, localIconRegistry, preparation),
   );
   registrar.handle(IPC_CHANNELS.runGet, (_event, saveId: unknown) =>
     getRunState(client, saveId),
