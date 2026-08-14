@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
 from repo_save_editor.desktop_api.discovery.maps import list_maps
+from repo_save_editor.desktop_api.game_assets import (
+    prepare_game_assets,
+    read_upgrade_keys_stdin,
+)
 from repo_save_editor.desktop_api.game_status import get_game_status
 from repo_save_editor.desktop_api.icons import get_icon_roots, get_upgrade_texture
 from repo_save_editor.desktop_api.items import get_advanced_save
@@ -49,6 +54,32 @@ def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
     if args.upgrade_key is None:
         return _invalid_request("The required upgrade identity is missing.")
     return get_upgrade_texture(args.upgrade_key)
+
+
+def _prepare_assets(_args: argparse.Namespace) -> None:
+    def emit(record: dict[str, object]) -> None:
+        print(json.dumps(record, separators=(",", ":")), flush=True)
+
+    try:
+        upgrade_keys = read_upgrade_keys_stdin(sys.stdin.buffer)
+    except ValueError:
+        emit(
+            {
+                "type": "final",
+                "ok": False,
+                "installationFound": False,
+                "buildVerified": False,
+                "completed": None,
+                "total": None,
+                "degraded": True,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "The upgrade preparation payload is invalid.",
+                },
+            }
+        )
+        return
+    prepare_game_assets(upgrade_keys, emit)
 
 
 def _run_state(args: argparse.Namespace) -> dict[str, object]:
@@ -121,6 +152,9 @@ def _parser() -> argparse.ArgumentParser:
     upgrade_texture.add_argument("upgrade_key", nargs="?")
     upgrade_texture.set_defaults(handler=_upgrade_texture)
 
+    assets_prepare = commands.add_parser("assets-prepare")
+    assets_prepare.set_defaults(handler=_prepare_assets, streaming=True)
+
     run = commands.add_parser("run-get")
     run.add_argument("save_id", nargs="?")
     run.set_defaults(handler=_run_state)
@@ -137,9 +171,11 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """Parse one command, execute its handler, and emit exactly one JSON result."""
+    """Execute one bounded desktop command and emit its declared JSON protocol."""
     args = _parser().parse_args()
-    print(json.dumps(args.handler(args)))
+    result = args.handler(args)
+    if not getattr(args, "streaming", False):
+        print(json.dumps(result))
 
 
 if __name__ == "__main__":
