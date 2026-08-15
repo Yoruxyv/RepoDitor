@@ -21,7 +21,10 @@ function getHeadline(environment: EnvironmentDiscovery, t: Translate): string {
   if (environment.saveRootStatus === "missing") {
     return t("discovery.headline.missing");
   }
-  if (environment.saveRootStatus === "unreadable") {
+  if (
+    environment.saveRootStatus === "unreadable"
+    || environment.saveRootStatus === "unavailable"
+  ) {
     return t("discovery.headline.unreadable");
   }
   return t("discovery.headline.ready");

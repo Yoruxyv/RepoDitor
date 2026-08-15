@@ -97,6 +97,7 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
       REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
+    delete applicationEnvironment["REPO_GAME_DIR"];
     delete applicationEnvironment["VITE_DEV_SERVER_URL"];
 
     const launchStarted = performance.now();

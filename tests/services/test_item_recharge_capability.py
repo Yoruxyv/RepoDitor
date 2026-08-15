@@ -4,6 +4,7 @@ import struct
 from collections.abc import Iterable
 from pathlib import Path
 
+import pytest
 from tests.unity_serialized_fixture import (
     aligned_string as _aligned_string,
 )
@@ -17,6 +18,8 @@ from tests.unity_serialized_fixture import (
     write_serialized_file as _write_serialized_file,
 )
 
+from repo_save_editor.services.game.discovery import discover_game_installation
+from repo_save_editor.services.items import recharge_capability
 from repo_save_editor.services.items.installed_metadata import (
     _parse_game_object,
     _read_game_object_name,
@@ -223,7 +226,9 @@ def test_missing_or_unsupported_assets_fail_soft_to_unknown(tmp_path: Path) -> N
     }
 
 
-def test_installed_discovery_requires_the_validated_game_build(tmp_path: Path) -> None:
+def test_explicit_game_directory_does_not_infer_steam_build_provenance(
+    tmp_path: Path,
+) -> None:
     steamapps = tmp_path / "steamapps"
     game_root = steamapps / "common" / "REPO"
     data_dir = game_root / "REPO_Data"
@@ -233,11 +238,45 @@ def test_installed_discovery_requires_the_validated_game_build(tmp_path: Path) -
     catalog.parent.mkdir(parents=True)
     catalog.write_text("{}", encoding="utf-8")
     manifest = steamapps / "appmanifest_3241660.acf"
-    manifest.write_text('"AppState" { "buildid" "23363152" }', encoding="utf-8")
+    manifest.write_text(
+        '"AppState" { "appid" "3241660" "installdir" "REPO" "buildid" "23363152" }',
+        encoding="utf-8",
+    )
 
     result = discover_installed_recharge_capabilities(("Item Rechargeable",), game_root)
+
+    assert result == {"Item Rechargeable": ItemRechargeCapability.UNKNOWN}
+
+
+def test_steam_discovery_requires_the_validated_game_build(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    steamapps = tmp_path / "steamapps"
+    game_root = steamapps / "common" / "REPO"
+    data_dir = game_root / "REPO_Data"
+    resources, globals_ = _build_assets(data_dir)
+    assert resources.is_file() and globals_.is_file()
+    catalog = data_dir / "StreamingAssets" / "aa" / "catalog.json"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("{}", encoding="utf-8")
+    manifest = steamapps / "appmanifest_3241660.acf"
+    manifest.write_text(
+        '"AppState" { "appid" "3241660" "installdir" "REPO" "buildid" "23363152" }',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        recharge_capability,
+        "discover_game_installation",
+        lambda _game_dir: discover_game_installation(steam_roots=(tmp_path,), environment={}),
+    )
+    result = discover_installed_recharge_capabilities(("Item Rechargeable",))
     assert result == {"Item Rechargeable": ItemRechargeCapability.RECHARGEABLE}
 
-    manifest.write_text('"AppState" { "buildid" "99999999" }', encoding="utf-8")
-    result = discover_installed_recharge_capabilities(("Item Rechargeable",), game_root)
+    manifest.write_text(
+        '"AppState" { "appid" "3241660" "installdir" "REPO" "buildid" "99999999" }',
+        encoding="utf-8",
+    )
+    result = discover_installed_recharge_capabilities(("Item Rechargeable",))
     assert result == {"Item Rechargeable": ItemRechargeCapability.UNKNOWN}

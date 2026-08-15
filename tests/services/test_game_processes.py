@@ -59,6 +59,24 @@ def test_windows_process_path_matching_is_case_insensitive() -> None:
     )
 
 
+def test_process_identity_accepts_filesystem_aliases(tmp_path: Path) -> None:
+    expected = tmp_path / "REPO.exe"
+    expected.write_bytes(b"fixture")
+
+    alias_root = tmp_path / "alias"
+    alias_root.mkdir()
+    observed = alias_root / "REPO.exe"
+    observed.hardlink_to(expected)
+
+    assert (
+        classify_game_process(
+            expected,
+            ProcessInspection((observed,)),
+        )
+        is GameProcessStatus.RUNNING
+    )
+
+
 def test_unverifiable_repo_candidate_fails_closed() -> None:
     expected = Path(r"D:\fixture\REPO\REPO.exe")
 

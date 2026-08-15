@@ -29,7 +29,7 @@ function getContent(status: SaveRootStatus, t: Translate) {
       description: t("discovery.state.missingDescription"),
     };
   }
-  if (status === "unreadable") {
+  if (status === "unreadable" || status === "unavailable") {
     return {
       icon: <WarningCircleIcon aria-hidden="true" size={28} weight="regular" />,
       title: t("discovery.state.unreadableTitle"),

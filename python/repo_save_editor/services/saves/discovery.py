@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Final
+
+from repo_save_editor.services.game.local_data import (
+    RepoLocalDataRoots,
+    get_repo_local_data_roots,
+)
 
 SAVE_SLOT_PATTERN: Final = re.compile(
     r"^REPO_SAVE_(?P<timestamp>\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})$"
@@ -21,6 +27,7 @@ class SaveRootStatus(StrEnum):
     AVAILABLE = "available"
     MISSING = "missing"
     UNREADABLE = "unreadable"
+    UNAVAILABLE = "unavailable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +45,7 @@ class DiscoveredSave:
 class SaveDiscoveryResult:
     """Save-root state and any valid slots found beneath it."""
 
-    root: Path
+    root: Path | None
     status: SaveRootStatus
     saves: tuple[DiscoveredSave, ...]
     skipped_entries: tuple[Path, ...] = ()
@@ -49,10 +56,12 @@ class SaveDiscoveryResult:
         return self.status is SaveRootStatus.AVAILABLE
 
 
-def get_default_save_root(home: Path | None = None) -> Path:
-    """Return the current user's normal R.E.P.O. save directory."""
-    user_home = Path.home() if home is None else home
-    return user_home / "AppData" / "LocalLow" / "semiwork" / "Repo" / "saves"
+def get_default_save_root(
+    roots_loader: Callable[[], RepoLocalDataRoots | None] = get_repo_local_data_roots,
+) -> Path | None:
+    """Return the normal R.E.P.O. save directory from the trusted local-data root."""
+    roots = roots_loader()
+    return None if roots is None else roots.saves
 
 
 def _get_display_name(slot_name: str) -> str | None:
@@ -71,9 +80,15 @@ def _get_display_name(slot_name: str) -> str | None:
     return timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def discover_saves(root: Path | None = None) -> SaveDiscoveryResult:
+def discover_saves(
+    root: Path | None = None,
+    *,
+    roots_loader: Callable[[], RepoLocalDataRoots | None] = get_repo_local_data_roots,
+) -> SaveDiscoveryResult:
     """Discover valid save slots using directory and file metadata only."""
-    save_root = get_default_save_root() if root is None else root
+    save_root = get_default_save_root(roots_loader) if root is None else root
+    if save_root is None:
+        return SaveDiscoveryResult(None, SaveRootStatus.UNAVAILABLE, ())
 
     try:
         entries = tuple(save_root.iterdir())

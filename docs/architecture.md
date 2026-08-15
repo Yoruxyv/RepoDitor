@@ -36,6 +36,29 @@ and serves only validated PNGs through the read-only `repoditor-icon:` protocol.
 receives cache roots, filenames, or filesystem access. Missing or invalid images keep the existing
 Phosphor fallback and cannot affect save discovery, identity, or mutation eligibility.
 
+## Local path discovery
+
+RepoDitor derives R.E.P.O. user data from the Windows Known Folder API rather than from a
+physical profile layout. `FOLDERID_LocalAppDataLow` is the authoritative dynamic base; the
+product-owned suffix remains fixed as `semiwork/Repo`. Save slots, `MetaSave.es3`, and the
+game-generated icon cache all derive from that shared root. If the Known Folder lookup is
+unavailable, discovery fails soft without guessing `Path.home()/AppData`, a drive letter, or
+scanning user directories.
+
+Installed-game discovery is similarly bounded. RepoDitor reads known Windows Steam roots,
+`steamapps/libraryfolders.vdf`, and then the fixed `appmanifest_3241660.acf` in each configured
+library. A bounded manifest parser validates the app identity and a safe single-directory
+`installdir`, then derives `steamapps/common/<installdir>` and applies the existing structural
+R.E.P.O. checks. Configured libraries are deduplicated while preserving Steam discovery/configuration
+order, and the first structurally valid manifest-backed candidate is selected deterministically. No
+Steam library or drive is recursively scanned.
+
+Installation discovery and build compatibility remain separate facts. A `GameInstallation`
+identifies a structurally valid candidate root and may carry authoritative Steam-manifest
+provenance; fixed-build consumers independently validate that provenance before parsing
+build-specific metadata. Explicit `REPO_GAME_DIR` roots remain valid discovery candidates but do
+not become Steam-verified merely because their physical path resembles `steamapps/common`.
+
 ## Python runtime resolution
 
 Runtime selection is centralized in `desktop/electron/python/client.cts`:

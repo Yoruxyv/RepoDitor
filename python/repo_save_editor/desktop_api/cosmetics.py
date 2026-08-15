@@ -24,9 +24,9 @@ from repo_save_editor.services.cosmetics.mutations import (
 )
 from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_IDS
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
+from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
-from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
     SaveBackupError,
@@ -43,8 +43,15 @@ IconAvailabilityLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
 def _meta_path(root: Path | None) -> Path:
-    save_root = get_default_save_root() if root is None else root
-    return save_root.parent / META_SAVE_NAME
+    if root is not None:
+        return root.parent / META_SAVE_NAME
+    roots = get_repo_local_data_roots()
+    if roots is None:
+        raise DesktopSaveError(
+            "backend_unavailable",
+            "R.E.P.O. local data location could not be resolved.",
+        )
+    return roots.meta_save
 
 
 def _load_meta_save(

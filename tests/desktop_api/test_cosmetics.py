@@ -3,9 +3,36 @@ from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
+from repo_save_editor.desktop_api import cosmetics as cosmetics_api
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
+from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.game.processes import GameProcessStatus
+
+
+def test_default_meta_path_uses_shared_repo_local_data_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    roots = get_repo_local_data_roots(lambda: tmp_path / "LocalLow")
+    assert roots is not None
+    monkeypatch.setattr(cosmetics_api, "get_repo_local_data_roots", lambda: roots)
+
+    assert cosmetics_api._meta_path(None) == roots.meta_save
+
+
+def test_missing_local_data_root_fails_soft_without_home_guess(monkeypatch) -> None:
+    monkeypatch.setattr(cosmetics_api, "get_repo_local_data_roots", lambda: None)
+
+    result = get_cosmetics(catalog_loader=lambda: None)
+
+    assert result == {
+        "ok": False,
+        "error": {
+            "code": "backend_unavailable",
+            "message": "R.E.P.O. local data location could not be resolved.",
+        },
+    }
 
 
 def _game_closed() -> GameProcessStatus:

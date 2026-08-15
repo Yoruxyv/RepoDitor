@@ -20,7 +20,7 @@ def serialize_environment(
     installation = game_result.installation
     return {
         "ok": True,
-        "saveRoot": str(save_result.root),
+        "saveRoot": None if save_result.root is None else str(save_result.root),
         "saveRootStatus": save_result.status.value,
         "saveRootDetected": save_result.root_detected,
         "saveCount": len(save_result.saves),
@@ -51,7 +51,7 @@ def serialize_environment(
 
 
 def discover_environment() -> dict[str, object]:
-    """Discover local saves and the validated R.E.P.O. installation."""
+    """Discover local saves and the structurally validated R.E.P.O. candidate."""
     return serialize_environment(
         discover_saves(),
         discover_game_installation(),

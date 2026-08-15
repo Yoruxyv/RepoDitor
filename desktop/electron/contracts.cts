@@ -20,7 +20,8 @@ export interface IpcChannelMap {
 export type SaveRootStatus =
   | "available"
   | "missing"
-  | "unreadable";
+  | "unreadable"
+  | "unavailable";
 
 export type GameProcessStatus = "running" | "not_running" | "unknown";
 
@@ -308,7 +309,7 @@ export interface InstalledMapsDto {
 }
 
 export interface EnvironmentDiscovery {
-  saveRoot: string;
+  saveRoot: string | null;
   saveRootStatus: SaveRootStatus;
   saveRootDetected: boolean;
   gameRoot: string | null;

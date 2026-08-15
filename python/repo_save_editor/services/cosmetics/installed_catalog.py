@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import struct
 import tempfile
 from collections import Counter
@@ -33,7 +32,6 @@ from repo_save_editor.services.unity_serialized import (
     parse_mono_script,
 )
 
-STEAM_APP_ID: Final = "3241660"
 LEVEL0_RELATIVE_PATH: Final = Path("REPO_Data/level0")
 META_MANAGER_CLASS: Final = "MetaManager"
 COSMETIC_ASSET_CLASS: Final = "CosmeticAsset"
@@ -42,10 +40,6 @@ MAX_OPEN_FILES: Final = 128
 CACHE_SCHEMA_VERSION: Final = 2
 PARSER_SCHEMA_VERSION: Final = 2
 CACHE_FILE_NAME: Final = "installed-cosmetics.json"
-APP_MANIFEST_NAME: Final = f"appmanifest_{STEAM_APP_ID}.acf"
-MANIFEST_VALUE_PATTERN: Final = re.compile(
-    r'"(?P<key>appid|buildid)"\s+"(?P<value>[^"]+)"', re.IGNORECASE
-)
 
 
 class InstalledCosmeticCatalogError(ValueError):
@@ -328,33 +322,12 @@ def _scan_catalog(
         return tuple(catalog), tuple(relevant_paths.values())
 
 
-def _manifest_path(installation: GameInstallation) -> Path | None:
-    if installation.steam_library_root is not None:
-        return installation.steam_library_root / "steamapps" / APP_MANIFEST_NAME
-    root = installation.root
-    if (
-        root.parent.name.casefold() == "common"
-        and root.parent.parent.name.casefold() == "steamapps"
-    ):
-        return root.parent.parent / APP_MANIFEST_NAME
-    return None
-
-
 def _steam_build_id(installation: GameInstallation) -> str | None:
-    manifest = _manifest_path(installation)
-    if manifest is None:
+    """Return Steam build metadata only when discovery supplied Steam provenance."""
+    if installation.steam_library_root is None or installation.manifest_path is None:
         return None
-    try:
-        text = manifest.read_text(encoding="utf-8", errors="strict")
-    except (OSError, UnicodeError):
-        return None
-    values = {
-        match.group("key").casefold(): match.group("value")
-        for match in MANIFEST_VALUE_PATTERN.finditer(text)
-    }
-    app_id = values.get("appid")
-    build_id = values.get("buildid")
-    if app_id != STEAM_APP_ID or build_id is None or not build_id.isdigit():
+    build_id = installation.steam_build_id
+    if build_id is None or not build_id.isascii() or not build_id.isdigit():
         return None
     return build_id
 
