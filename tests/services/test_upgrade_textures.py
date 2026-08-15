@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
 
+from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.player import upgrade_textures
 from repo_save_editor.services.player.upgrade_textures import (
     UpgradeTextureError,
@@ -641,7 +642,7 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     (data_root / "StreamingAssets" / "aa" / "catalog.json").write_text("{}", encoding="utf-8")
     steamapps.mkdir(exist_ok=True)
     (steamapps / "appmanifest_3241660.acf").write_text(
-        '"AppState" { "buildid" "23363152" }',
+        '"AppState" { "appid" "3241660" "installdir" "REPO" "buildid" "23363152" }',
         encoding="utf-8",
     )
     resources = data_root / "resources.assets"
@@ -666,7 +667,12 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     # One opaque-red DXT1 block; only the top mip is read even if stream metadata grows later.
     (data_root / "resources.assets.resS").write_bytes(struct.pack("<HHI", 0xF800, 0, 0))
 
-    decoded = decode_installed_upgrade_texture("playerUpgradeHealth", game_root)
+    monkeypatch.setattr(
+        upgrade_textures,
+        "discover_game_installation",
+        lambda _game_dir: discover_game_installation(steam_roots=(tmp_path,), environment={}),
+    )
+    decoded = decode_installed_upgrade_texture("playerUpgradeHealth")
 
     assert decoded is not None
     assert decoded.texture.name == "Upgrade_Health_Albedo"

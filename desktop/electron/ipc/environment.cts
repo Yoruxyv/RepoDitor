@@ -150,7 +150,8 @@ function isSaveRootStatus(
   return (
     value === "available" ||
     value === "missing" ||
-    value === "unreadable"
+    value === "unreadable" ||
+    value === "unavailable"
   );
 }
 
@@ -206,9 +207,18 @@ function parseEnvironment(
     );
   }
 
+  const saveRoot = readNullableNonEmptyString(
+    value.saveRoot,
+    "saveRoot",
+  );
   const saveRootStatus = parseSaveRootStatus(
     value.saveRootStatus,
   );
+  if ((saveRootStatus === "unavailable") !== (saveRoot === null)) {
+    throw new EnvironmentProtocolError(
+      "Inconsistent save-root path state.",
+    );
+  }
   const saveRootDetected = readBoolean(
     value.saveRootDetected,
     "saveRootDetected",
@@ -252,10 +262,7 @@ function parseEnvironment(
   }
 
   return {
-    saveRoot: readNonEmptyString(
-      value.saveRoot,
-      "saveRoot",
-    ),
+    saveRoot,
     saveRootStatus,
     saveRootDetected,
     gameRoot,
@@ -315,7 +322,7 @@ function failure(
   };
 }
 
-async function detectEnvironment(
+export async function detectEnvironment(
   client: PythonClient,
 ): Promise<
   DesktopOperationResult<EnvironmentDiscovery>

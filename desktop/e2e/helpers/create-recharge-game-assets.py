@@ -146,11 +146,16 @@ def main() -> None:
         externals=("globalgamemanagers.assets",),
     )
 
-    steamapps = game_root.parent.parent
-    if steamapps.name.casefold() != "steamapps":
-        raise SystemExit("game root must be under <library>/steamapps/common/REPO")
+    common = game_root.parent
+    steamapps = common.parent
+    if common.name.casefold() != "common" or steamapps.name.casefold() != "steamapps":
+        raise SystemExit("game root must be under <library>/steamapps/common/<installdir>")
     (steamapps / f"appmanifest_{STEAM_APP_ID}.acf").write_text(
-        f'"AppState"\n{{\n    "appid" "{STEAM_APP_ID}"\n    "buildid" "{VALIDATED_BUILD_ID}"\n}}\n',
+        f'"AppState"\n{{\n'
+        f'    "appid" "{STEAM_APP_ID}"\n'
+        f'    "installdir" "{game_root.name}"\n'
+        f'    "buildid" "{VALIDATED_BUILD_ID}"\n'
+        "}\n",
         encoding="utf-8",
     )
 

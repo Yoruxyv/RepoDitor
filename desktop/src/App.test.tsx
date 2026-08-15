@@ -551,6 +551,7 @@ describe("save workspace transition", () => {
   it.each([
     ["available" as const, "No valid saves yet"],
     ["missing" as const, "Standard save folder not found"],
+    ["unavailable" as const, "Save folder could not be read"],
   ])("renders the %s discovery state", async (saveRootStatus, expectedHeading) => {
     window.repoditor.environment.detect = vi.fn().mockResolvedValue({
       ok: true,
@@ -692,7 +693,13 @@ describe("save workspace transition", () => {
     await user.type(health, "42");
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(
+  await screen.findByRole(
+    "tab",
+    { name: "Players" },
+    { timeout: 10_000 },
+  ),
+);
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
     expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
       .toBe("42");
@@ -735,7 +742,13 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 100");
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(
+  await screen.findByRole(
+    "tab",
+    { name: "Players" },
+    { timeout: 10_000 },
+  ),
+);
     expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
       .toBe("100");
 
@@ -1159,7 +1172,13 @@ describe("save workspace transition", () => {
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
 
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(
+  await screen.findByRole(
+    "tab",
+    { name: "Players" },
+    { timeout: 10_000 },
+  ),
+);
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
     const health = screen.getByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
@@ -1258,7 +1277,13 @@ describe("save workspace transition", () => {
     await waitFor(() => {
       expect(avatar).toHaveBeenCalledWith(saveId, "111");
     });
-    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(
+  await screen.findByRole(
+    "tab",
+    { name: "Players" },
+    { timeout: 10_000 },
+  ),
+);
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
     await user.type(health, "95");

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.icon_cache import (
     IconCacheRoots,
     available_icon_keys,
@@ -11,7 +12,9 @@ from repo_save_editor.services.icon_cache import (
 
 
 def test_known_folder_root_uses_only_the_fixed_game_cache_suffix(tmp_path: Path) -> None:
-    roots = get_icon_cache_roots(lambda: tmp_path / "LocalLow")
+    local_data = get_repo_local_data_roots(lambda: tmp_path / "LocalLow")
+    assert local_data is not None
+    roots = get_icon_cache_roots(lambda: local_data)
 
     assert roots == IconCacheRoots(
         items=tmp_path / "LocalLow" / "semiwork" / "Repo" / "Cache" / "Icons" / "Items",

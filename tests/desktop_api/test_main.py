@@ -9,7 +9,11 @@ import pytest
 import repo_save_editor.desktop_api.__main__ as desktop_main
 from repo_save_editor.desktop_api.discovery.environment import serialize_environment
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.saves.discovery import discover_saves
+from repo_save_editor.services.saves.discovery import (
+    SaveDiscoveryResult,
+    SaveRootStatus,
+    discover_saves,
+)
 
 
 @pytest.mark.parametrize(
@@ -155,6 +159,22 @@ def test_environment_serialization_adapts_domain_names(tmp_path: Path) -> None:
     saves = payload["saves"]
     assert isinstance(saves, list)
     assert saves[0]["path"] == str(save_path)
+
+
+def test_environment_serialization_preserves_unavailable_local_data_state(
+    tmp_path: Path,
+) -> None:
+    game_result = discover_game_installation(tmp_path / "missing")
+
+    payload = serialize_environment(
+        SaveDiscoveryResult(None, SaveRootStatus.UNAVAILABLE, ()),
+        game_result,
+    )
+
+    assert payload["saveRoot"] is None
+    assert payload["saveRootStatus"] == "unavailable"
+    assert payload["saveRootDetected"] is False
+    assert payload["saves"] == []
 
 
 def test_cosmetics_get_cli_requires_no_run_save_id(monkeypatch, capsys) -> None:

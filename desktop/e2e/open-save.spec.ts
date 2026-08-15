@@ -103,7 +103,13 @@ async function createFixture(home: string): Promise<{ savePath: string; metaPath
 }
 
 async function createGameFixture(home: string): Promise<string> {
-  const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "REPO");
+  const gameRoot = path.join(
+    home,
+    "SteamLibrary",
+    "steamapps",
+    "common",
+    "RepoDitor E2E Install",
+  );
   const catalogPath = path.join(
     gameRoot,
     "REPO_Data",
@@ -271,13 +277,14 @@ test("safely writes changes with backup and stale-save protection", async () => 
       APPDATA: path.join(home, "AppData", "Roaming"),
       HOME: home,
       LOCALAPPDATA: path.join(home, "AppData", "Local"),
-      REPO_GAME_DIR: gameRoot,
       REPODITOR_E2E: "1",
       REPODITOR_E2E_LOCAL_APP_DATA_LOW: localAppDataLow,
+      REPODITOR_E2E_STEAM_ROOT: path.resolve(gameRoot, "..", "..", ".."),
       REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
 
+    delete applicationEnvironment["REPO_GAME_DIR"];
     delete applicationEnvironment["VITE_DEV_SERVER_URL"];
     const launchStarted = performance.now();
     application = await electron.launch({

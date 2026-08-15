@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.saves.discovery import (
     SaveRootStatus,
     discover_saves,
@@ -21,10 +22,21 @@ def _create_save(root: Path, slot_name: str, content: bytes = b"save") -> Path:
     return save_path
 
 
-def test_default_save_root_uses_supplied_home() -> None:
-    home = Path("C:/Users/ExampleUser")
+def test_default_save_root_uses_authoritative_local_data_root() -> None:
+    local_low = Path("D:/Profiles/Example/LocalLow")
+    roots = get_repo_local_data_roots(lambda: local_low)
+    assert roots is not None
 
-    assert get_default_save_root(home) == (home / "AppData/LocalLow/semiwork/Repo/saves")
+    assert get_default_save_root(lambda: roots) == local_low / "semiwork/Repo/saves"
+
+
+def test_unavailable_known_folder_does_not_guess_home_or_scan_drives() -> None:
+    result = discover_saves(roots_loader=lambda: None)
+
+    assert result.status is SaveRootStatus.UNAVAILABLE
+    assert result.root is None
+    assert result.root_detected is False
+    assert result.saves == ()
 
 
 def test_missing_save_root_is_an_intentional_result(tmp_path: Path) -> None:

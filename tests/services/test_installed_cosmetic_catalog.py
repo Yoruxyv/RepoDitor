@@ -5,6 +5,7 @@ import os
 import struct
 from collections.abc import Iterable
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from tests.unity_serialized_fixture import (
@@ -27,10 +28,12 @@ from repo_save_editor.services.cosmetics import installed_catalog
 from repo_save_editor.services.cosmetics.installed_catalog import (
     CACHE_SCHEMA_VERSION,
     PARSER_SCHEMA_VERSION,
-    discover_installed_cosmetic_catalog,
+)
+from repo_save_editor.services.cosmetics.installed_catalog import (
+    discover_installed_cosmetic_catalog as _discover_installed_cosmetic_catalog,
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
-from repo_save_editor.services.game.discovery import GameInstallation
+from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 
 
 def _mono_behaviour_prefix(script_file_id: int, script_path_id: int, name: str = "") -> bytes:
@@ -92,7 +95,7 @@ def _build_install(
     catalog_path.write_text("{}", encoding="utf-8")
     manifest = steamapps / "appmanifest_3241660.acf"
     manifest.write_text(
-        f'"AppState"\n{{\n"appid" "3241660"\n"buildid" "{build_id}"\n}}\n',
+        f'"AppState"\n{{\n"appid" "3241660"\n"installdir" "REPO"\n"buildid" "{build_id}"\n}}\n',
         encoding="utf-8",
     )
 
@@ -168,6 +171,20 @@ def _build_install(
     return game_root, level0_path, target_path, manifest
 
 
+def _discover_catalog(
+    game_root: Path,
+    *,
+    cache_dir: Path,
+) -> tuple[InstalledCosmeticMetadata, ...] | None:
+    """Run catalog discovery with Steam provenance when the fixture manifest is valid."""
+    steam_root = game_root.parents[2]
+    discovery = discover_game_installation(steam_roots=(steam_root,), environment={})
+    if discovery.installation is None:
+        return _discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir)
+    with patch.object(installed_catalog, "discover_game_installation", return_value=discovery):
+        return _discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir)
+
+
 def _expected(names: tuple[str, ...]) -> tuple[InstalledCosmeticMetadata, ...]:
     return tuple(
         InstalledCosmeticMetadata(
@@ -185,7 +202,7 @@ def test_dynamic_count_and_duplicate_names_preserve_distinct_position_ids(tmp_pa
     names = ("Same", "Same", "Third", "Fourth")
     game_root, _level0, _target, _manifest = _build_install(tmp_path, names=names)
 
-    result = discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache")
+    result = _discover_catalog(game_root, cache_dir=tmp_path / "cache")
 
     assert result == _expected(names)
     assert len(result or ()) == 4
@@ -207,7 +224,7 @@ def test_cosmetic_cache_identity_uses_object_name_not_duplicate_display_name(
         externals=(("archive:/CAB/globalgamemanagers.assets", "globalgamemanagers.assets"),),
     )
 
-    result = discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache")
+    result = _discover_catalog(game_root, cache_dir=tmp_path / "cache")
 
     assert result is not None
     assert [entry.asset_name for entry in result] == ["Same", "Same"]
@@ -229,7 +246,7 @@ def test_missing_or_ambiguous_meta_manager_fails_soft(
         extra_meta_managers=extra_meta_managers,
     )
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 @pytest.mark.parametrize(
@@ -245,13 +262,13 @@ def test_null_or_duplicate_catalog_pointer_fails_soft(
 ) -> None:
     game_root, _level0, _target, _manifest = _build_install(tmp_path, pointers=pointers)
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 def test_malformed_pointer_vector_fails_soft(tmp_path: Path) -> None:
     game_root, _level0, _target, _manifest = _build_install(tmp_path, malformed_vector=True)
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 def test_external_resolution_can_use_asset_path_when_path_is_stale(tmp_path: Path) -> None:
@@ -265,9 +282,7 @@ def test_external_resolution_can_use_asset_path_when_path_is_stale(tmp_path: Pat
         ),
     )
 
-    assert discover_installed_cosmetic_catalog(
-        game_root, cache_dir=tmp_path / "cache"
-    ) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") == _expected(names)
 
 
 def test_unresolved_external_fails_soft(tmp_path: Path) -> None:
@@ -276,7 +291,7 @@ def test_unresolved_external_fails_soft(tmp_path: Path) -> None:
         unresolved_target_external=True,
     )
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 @pytest.mark.parametrize(
@@ -294,13 +309,13 @@ def test_wrong_target_type_or_script_class_fails_soft(
         target_script_class=target_script_class,
     )
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 def test_malformed_metadata_fails_soft(tmp_path: Path) -> None:
     game_root, _level0, _target, _manifest = _build_install(tmp_path, malformed_name_index=1)
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 @pytest.mark.parametrize(
@@ -318,20 +333,20 @@ def test_unsupported_serialized_layout_fails_soft(
         serialized_version=serialized_version,
     )
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=tmp_path / "cache") is None
+    assert _discover_catalog(game_root, cache_dir=tmp_path / "cache") is None
 
 
 def test_cache_hit_avoids_rescan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     names = ("A", "B", "C")
     game_root, _level0, _target, _manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
 
     def fail_scan(_installation: object) -> object:
         raise AssertionError("cache hit unexpectedly rescanned serialized files")
 
     monkeypatch.setattr(installed_catalog, "_scan_catalog", fail_scan)
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
 
 
 def test_empty_cached_catalog_is_rejected_and_rebuilt(
@@ -342,7 +357,7 @@ def test_empty_cached_catalog_is_rejected_and_rebuilt(
     game_root, _level0, _target, _manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
     cache_path = cache_dir / "installed-cosmetics.json"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
 
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
     payload["catalog"] = []
@@ -359,7 +374,7 @@ def test_empty_cached_catalog_is_rejected_and_rebuilt(
         return original(installation)
 
     monkeypatch.setattr(installed_catalog, "_scan_catalog", counted_scan)
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert calls == 1
     replacement = json.loads(cache_path.read_text(encoding="utf-8"))
     assert [row["assetName"] for row in replacement["catalog"]] == list(names)
@@ -372,9 +387,9 @@ def test_cache_invalidates_when_steam_build_changes(
     names = ("A", "B")
     game_root, _level0, _target, manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     manifest.write_text(
-        '"AppState"\n{\n"appid" "3241660"\n"buildid" "900002"\n}\n',
+        '"AppState"\n{\n"appid" "3241660"\n"installdir" "REPO"\n"buildid" "900002"\n}\n',
         encoding="utf-8",
     )
 
@@ -389,7 +404,7 @@ def test_cache_invalidates_when_steam_build_changes(
         return original(installation)
 
     monkeypatch.setattr(installed_catalog, "_scan_catalog", counted_scan)
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert calls == 1
 
 
@@ -400,7 +415,7 @@ def test_cache_invalidates_when_level0_or_resolved_external_identity_changes(
     names = ("A", "B")
     game_root, level0, target, _manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
 
     original = installed_catalog._scan_catalog
     calls = 0
@@ -417,9 +432,7 @@ def test_cache_invalidates_when_level0_or_resolved_external_identity_changes(
     for path in (level0, target):
         stat = path.stat()
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
-        assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(
-            names
-        )
+        assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert calls == 2
 
 
@@ -437,7 +450,7 @@ def test_cache_schema_change_invalidates_existing_cache(
     game_root, _level0, _target, _manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
     cache_path = cache_dir / "installed-cosmetics.json"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
     payload[field] = value
     cache_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -453,7 +466,7 @@ def test_cache_schema_change_invalidates_existing_cache(
         return original(installation)
 
     monkeypatch.setattr(installed_catalog, "_scan_catalog", counted_scan)
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert calls == 1
 
 
@@ -465,7 +478,7 @@ def test_corrupted_or_stale_cache_is_ignored_and_replaced(tmp_path: Path) -> Non
     cache_dir.mkdir(parents=True)
     cache_path.write_text("{broken", encoding="utf-8")
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
     assert payload["schema"] == CACHE_SCHEMA_VERSION
     assert payload["parserSchema"] == PARSER_SCHEMA_VERSION
@@ -481,7 +494,7 @@ def test_atomic_cache_replacement_uses_same_directory_temp_file(
     names = ("A", "B")
     game_root, level0, _target, _manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     cache_path = cache_dir / "installed-cosmetics.json"
 
     original_replace = os.replace
@@ -498,7 +511,7 @@ def test_atomic_cache_replacement_uses_same_directory_temp_file(
     stat = level0.stat()
     os.utime(level0, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert replacements
     temporary, destination = replacements[-1]
     assert destination == cache_path
@@ -514,9 +527,9 @@ def test_missing_or_wrong_manifest_disables_cache_without_blocking_discovery(
     game_root, _level0, _target, manifest = _build_install(tmp_path, names=names)
     cache_dir = tmp_path / "cache"
     manifest.write_text(
-        '"AppState"\n{\n"appid" "999"\n"buildid" "900001"\n}\n',
+        '"AppState"\n{\n"appid" "999"\n"installdir" "REPO"\n"buildid" "900001"\n}\n',
         encoding="utf-8",
     )
 
-    assert discover_installed_cosmetic_catalog(game_root, cache_dir=cache_dir) == _expected(names)
+    assert _discover_catalog(game_root, cache_dir=cache_dir) == _expected(names)
     assert not (cache_dir / "installed-cosmetics.json").exists()
