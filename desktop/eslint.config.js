@@ -46,7 +46,6 @@ export default defineConfig([
         ecmaFeatures: { jsx: true },
         projectService: {
           allowDefaultProject: [
-            "e2e/*.ts",
             "playwright.config.ts",
           ],
         },
