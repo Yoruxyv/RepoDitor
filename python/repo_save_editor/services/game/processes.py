@@ -65,13 +65,23 @@ def _normalize_windows_path(path: Path) -> str:
     return ntpath.normcase(ntpath.normpath(str(path)))
 
 
+def _is_same_executable(expected: Path, observed: Path) -> bool:
+    """Return whether two paths identify the same executable file."""
+    if _normalize_windows_path(expected) == _normalize_windows_path(observed):
+        return True
+
+    try:
+        return expected.samefile(observed)
+    except OSError:
+        return False
+
+
 def classify_game_process(
     expected_executable: Path,
     inspection: ProcessInspection,
 ) -> GameProcessStatus:
     """Classify process observations against one validated executable path."""
-    expected = _normalize_windows_path(expected_executable)
-    if any(_normalize_windows_path(path) == expected for path in inspection.executable_paths):
+    if any(_is_same_executable(expected_executable, path) for path in inspection.executable_paths):
         return GameProcessStatus.RUNNING
     if inspection.has_unverifiable_candidate:
         return GameProcessStatus.UNKNOWN
