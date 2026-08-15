@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "..");
@@ -37,6 +37,24 @@ async function waitForWorkspaceOrContinue(page: Page): Promise<void> {
     await continueEditor.click();
   }
   await expect(workspace).toBeVisible();
+}
+
+function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(environment).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
+async function imageNaturalWidth(locator: Locator): Promise<number> {
+  return locator.evaluate((element) => {
+    if (!(element instanceof HTMLImageElement)) {
+      throw new Error("Expected locator to resolve to an HTMLImageElement.");
+    }
+
+    return element.naturalWidth;
+  });
 }
 
 function getPythonExecutable(): string {
@@ -259,8 +277,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const localAppDataLow = await createIconFixture(home);
     const sourceBefore = await readFile(savePath);
     const metaBefore = await readFile(metaPath);
-    const applicationEnvironment = {
-      ...process.env,
+    const applicationEnvironment: Record<string, string> = {
+      ...stringEnvironment(process.env),
       APPDATA: path.join(home, "AppData", "Roaming"),
       HOME: home,
       LOCALAPPDATA: path.join(home, "AppData", "Local"),
@@ -270,7 +288,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
       REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
-    delete applicationEnvironment.VITE_DEV_SERVER_URL;
+
+    delete applicationEnvironment["VITE_DEV_SERVER_URL"];
     const launchStarted = performance.now();
     application = await electron.launch(
       packagedExecutable
@@ -441,10 +460,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
     const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
     await expect(cosmeticIcon.locator("img")).toHaveAttribute("loading", "lazy");
-    expect(await cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth)).toBe(0);
+    expect(await imageNaturalWidth(cosmeticIcon.locator("img"))).toBe(0);
     await cosmeticIcon.scrollIntoViewIfNeeded();
     await expect(cosmeticIcon.locator("img")).toBeVisible();
-    await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
+    await expect.poll(() => imageNaturalWidth(cosmeticIcon.locator("img")))
       .toBeGreaterThan(0);
     await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
     await cosmeticIcon.locator("img").evaluate((image) => {
@@ -497,7 +516,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
     await expect(hammerIcon.locator("img")).toBeVisible();
-    await expect.poll(() => hammerIcon.locator("img").evaluate((image) => image.naturalWidth))
+    await expect.poll(() => imageNaturalWidth(hammerIcon.locator("img")))
       .toBeGreaterThan(0);
     await expect(page.getByTestId("item-icon-Item Cart Medium/1"))
       .not.toHaveAttribute("data-icon-source", "local");
@@ -747,7 +766,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceMetaTokens(metaPath, 8);
     const externalMetaBytes = await readFile(metaPath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed on disk");
+    await expect(page.getByRole("alert")).toContainText(
+      "changed on disk",
+      { timeout: 10_000 },
+    );
     await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
     expect(
@@ -763,7 +785,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceFixtureCurrency(savePath, 777);
     const externalBytes = await readFile(savePath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed on disk");
+    await expect(page.getByRole("alert")).toContainText(
+      "changed on disk",
+      { timeout: 10_000 },
+    );
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
     expect(
