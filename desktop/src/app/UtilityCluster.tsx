@@ -1,14 +1,15 @@
-import { CircleHalfIcon, GithubLogoIcon, StarIcon } from "@phosphor-icons/react";
+import { GithubLogoIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { LanguageMenu } from "@/app/LanguageMenu";
-import { usePreferences, type ThemePreference } from "@/app/preferences";
+import { usePreferences } from "@/app/preferences";
+import { ThemeMenu } from "@/app/ThemeMenu";
 
 const PROJECT_URL = "https://github.com/Yoruxyv/RepoDitor";
 
 export function UtilityCluster() {
   const [stars, setStars] = useState<number | null>(null);
-  const { theme, setTheme, t } = usePreferences();
+  const { t } = usePreferences();
 
   useEffect(() => {
     let active = true;
@@ -41,20 +42,7 @@ export function UtilityCluster() {
           {stars ?? "—"}
         </span>
       </a>
-      <label className="ui-feedback relative inline-flex h-10 items-center rounded-sm border border-control bg-surface text-secondary focus-within:border-accent focus-within:text-accent">
-        <CircleHalfIcon aria-hidden="true" className="pointer-events-none absolute left-3" size={16} />
-        <span className="sr-only">{t("utility.theme")}</span>
-        <select
-          aria-label={t("utility.theme")}
-          className="h-full appearance-none bg-transparent py-0 pr-7 pl-9 text-sm font-semibold text-inherit"
-          value={theme}
-          onChange={(event) => setTheme(event.target.value as ThemePreference)}
-        >
-          <option value="system">{t("utility.theme.system")}</option>
-          <option value="dark">{t("utility.theme.dark")}</option>
-          <option value="light">{t("utility.theme.light")}</option>
-        </select>
-      </label>
+      <ThemeMenu />
       <LanguageMenu />
     </div>
   );

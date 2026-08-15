@@ -62,8 +62,9 @@ export function AssetPreparationView({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const filledSegments = countFilledSegments(progress);
-  const heading = waitingForUpgradeDiscovery || progress !== null
+  const displayProgress = waitingForUpgradeDiscovery ? null : progress;
+  const filledSegments = countFilledSegments(displayProgress);
+  const heading = waitingForUpgradeDiscovery || displayProgress !== null
     ? t("assets.preparingUpgrades")
     : t("assets.preparingGame");
 
@@ -85,9 +86,8 @@ export function AssetPreparationView({
               {t("assets.localPreparation")}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-muted" aria-hidden="true">
+          <div aria-hidden="true" className="text-muted">
             <WrenchIcon className="asset-preparation-tool" size={18} weight="bold" />
-            <span className="size-2 bg-accent" />
           </div>
         </header>
 
@@ -115,17 +115,17 @@ export function AssetPreparationView({
 
             <div className="mt-7">
               <div
-                {...(progress !== null
+                {...(displayProgress !== null
                   ? {
                       role: "progressbar",
                       "aria-label": t("assets.progressLabel"),
                       "aria-valuemin": 0,
-                      "aria-valuemax": progress.total,
-                      "aria-valuenow": progress.completed,
-                      "aria-valuetext": t("assets.progressCount", progress),
+                      "aria-valuemax": displayProgress.total,
+                      "aria-valuenow": displayProgress.completed,
+                      "aria-valuetext": t("assets.progressCount", displayProgress),
                     }
                   : {})}
-                className="relative"
+                className="relative overflow-hidden"
                 data-testid="asset-progress"
               >
                 <div className="grid grid-cols-18 gap-1">
@@ -133,7 +133,7 @@ export function AssetPreparationView({
                     <span
                       aria-hidden="true"
                       className={`h-3 border border-line ${
-                        progress !== null && index < filledSegments
+                        displayProgress !== null && index < filledSegments
                           ? "bg-accent"
                           : "bg-surface-raised"
                       }`}
@@ -141,19 +141,19 @@ export function AssetPreparationView({
                     />
                   ))}
                 </div>
-                {progress === null ? (
+                {displayProgress === null ? (
                   <span
                     aria-hidden="true"
-                    className="asset-preparation-sweep absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
+                    className="asset-preparation-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
                   />
                 ) : null}
               </div>
 
               <div className="mt-3 flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-[0.12em] text-secondary">
                 <span>{t(stageKey)}</span>
-                {progress !== null ? (
+                {displayProgress !== null ? (
                   <span data-testid="asset-progress-count">
-                    {t("assets.progressCount", progress)}
+                    {t("assets.progressCount", displayProgress)}
                   </span>
                 ) : (
                   <span>{t("assets.working")}</span>
