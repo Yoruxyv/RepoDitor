@@ -201,6 +201,8 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.locked": "Terkunci",
   "cosmetics.savedPresets": "Preset tersimpan",
   "cosmetics.actions": "Tindakan massal kosmetik",
+  "cosmetics.unlock": "Buka",
+  "cosmetics.unlockCosmetic": "Buka {name}",
   "cosmetics.unlockAll": "Buka Semua Kosmetik",
   "cosmetics.unlockPending": "Buka Semua tertunda",
   "cosmetics.clearPresets": "Hapus Semua Preset",

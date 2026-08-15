@@ -199,6 +199,8 @@ export const en = {
   "cosmetics.locked": "Locked",
   "cosmetics.savedPresets": "Saved presets",
   "cosmetics.actions": "Cosmetic bulk actions",
+  "cosmetics.unlock": "Unlock",
+  "cosmetics.unlockCosmetic": "Unlock {name}",
   "cosmetics.unlockAll": "Unlock All Cosmetics",
   "cosmetics.unlockPending": "Unlock All pending",
   "cosmetics.clearPresets": "Clear All Presets",

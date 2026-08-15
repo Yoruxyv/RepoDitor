@@ -35,9 +35,12 @@ export function CosmeticsWorkspace({ hidden, recoveryGeneration, onPendingCountC
           <CosmeticsView
             clearAllPresetsPending={cosmetics.clearAllPresetsPending}
             error={cosmetics.loadError}
+            hasBulkPending={cosmetics.hasBulkPending}
+            hasPendingEdits={cosmetics.hasPendingEdits}
             knownLockedCount={cosmetics.knownLockedCount}
             knownOwnedCount={cosmetics.knownOwnedCount}
             lockAllBlockedReason={cosmetics.lockAllBlockedReason}
+            saving={cosmetics.saving}
             lockAllPending={cosmetics.lockAllPending}
             loading={cosmetics.loading}
             savedPresetCount={cosmetics.savedPresetCount}
@@ -47,6 +50,7 @@ export function CosmeticsWorkspace({ hidden, recoveryGeneration, onPendingCountC
             onLockAll={cosmetics.lockAll}
             onRetry={() => void cosmetics.reload()}
             onUnlockAll={cosmetics.unlockAll}
+            onUnlockCosmetic={cosmetics.unlockCosmetic}
           />
         </div>
 

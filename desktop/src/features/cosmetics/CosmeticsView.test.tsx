@@ -68,9 +68,12 @@ describe("CosmeticsView", () => {
     const props = {
       clearAllPresetsPending: false,
       error: null,
+      hasBulkPending: false,
+      hasPendingEdits: false,
       knownLockedCount: 0,
       knownOwnedCount: 1,
       lockAllBlockedReason: null,
+      saving: false,
       lockAllPending: false,
       savedPresetCount: 0,
       unlockAllPending: false,
@@ -78,6 +81,7 @@ describe("CosmeticsView", () => {
       onLockAll: vi.fn(),
       onRetry: vi.fn(),
       onUnlockAll: vi.fn(),
+      onUnlockCosmetic: vi.fn(),
     };
     const { rerender } = render(
       <PreferencesProvider>
@@ -107,10 +111,13 @@ describe("CosmeticsView", () => {
         <CosmeticsView
           clearAllPresetsPending={false}
           error={null}
+          hasBulkPending={false}
+          hasPendingEdits={false}
           knownLockedCount={0}
           knownOwnedCount={0}
           loading={false}
           lockAllBlockedReason={null}
+          saving={false}
           lockAllPending={false}
           savedPresetCount={1}
           unlockAllPending={false}
@@ -119,6 +126,7 @@ describe("CosmeticsView", () => {
           onLockAll={vi.fn()}
           onRetry={vi.fn()}
           onUnlockAll={vi.fn()}
+          onUnlockCosmetic={vi.fn()}
         />
       </PreferencesProvider>,
     );
@@ -135,10 +143,13 @@ describe("CosmeticsView", () => {
         <CosmeticsView
           clearAllPresetsPending={false}
           error={null}
+          hasBulkPending={false}
+          hasPendingEdits={false}
           knownLockedCount={0}
           knownOwnedCount={1}
           loading={false}
           lockAllBlockedReason="Equipped cosmetic"
+          saving={false}
           lockAllPending={false}
           savedPresetCount={0}
           unlockAllPending={false}
@@ -147,6 +158,7 @@ describe("CosmeticsView", () => {
           onLockAll={vi.fn()}
           onRetry={vi.fn()}
           onUnlockAll={vi.fn()}
+          onUnlockCosmetic={vi.fn()}
         />
       </PreferencesProvider>,
     );

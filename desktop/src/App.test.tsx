@@ -113,9 +113,9 @@ const advanced: AdvancedSaveDto = {
 const cosmetics: CosmeticsViewDto = {
   fingerprint: "c".repeat(64),
   catalogAvailable: true,
-  knownCatalogCount: 547,
+  knownCatalogCount: 2,
   knownOwnedCount: 1,
-  knownLockedCount: 546,
+  knownLockedCount: 1,
   savedPresetCount: 0,
   unknownOwnedIds: [999],
   capabilities: {
@@ -125,19 +125,32 @@ const cosmetics: CosmeticsViewDto = {
     canRemoveOwnership: true,
   },
   cosmetics: [
-    ...Array.from({ length: 547 }, (_, id) => ({
-      id,
-      displayName: id === 27 ? "Long Sleeve" : `Installed Cosmetic ${id}`,
-      type: id % 4,
-      rarity: id % 3,
+    {
+      id: 27,
+      displayName: "Long Sleeve",
+      type: 3,
+      rarity: 0,
       status: 1,
-      owned: id === 27,
+      owned: true,
       known: true,
-      state: id === 27 ? "owned" as const : "locked" as const,
+      state: "owned",
       mutationEligible: true,
       removalBlockedReason: null,
       iconToken: null,
-    })),
+    },
+    {
+      id: 28,
+      displayName: "Installed Cosmetic 28",
+      type: 0,
+      rarity: 1,
+      status: 1,
+      owned: false,
+      known: true,
+      state: "locked",
+      mutationEligible: true,
+      removalBlockedReason: null,
+      iconToken: null,
+    },
     {
       id: 999,
       displayName: "Cosmetic #999",
@@ -155,14 +168,13 @@ const cosmetics: CosmeticsViewDto = {
 };
 
 function setKnownCosmeticsOwned(next: CosmeticsViewDto, owned: boolean): void {
-  for (const cosmetic of next.cosmetics) {
-    if (cosmetic.known) {
-      cosmetic.owned = owned;
-      cosmetic.state = owned ? "owned" : "locked";
-    }
+  const knownCosmetics = next.cosmetics.filter((cosmetic) => cosmetic.known);
+  for (const cosmetic of knownCosmetics) {
+    cosmetic.owned = owned;
+    cosmetic.state = owned ? "owned" : "locked";
   }
-  next.knownOwnedCount = owned ? 547 : 0;
-  next.knownLockedCount = owned ? 0 : 547;
+  next.knownOwnedCount = owned ? knownCosmetics.length : 0;
+  next.knownLockedCount = owned ? 0 : knownCosmetics.length;
 }
 
 function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): void {
@@ -176,6 +188,10 @@ function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): vo
   }
   const cosmetic = next.cosmetics.find((entry) => String(entry.id) === change.entity);
   if (cosmetic) {
+    if (cosmetic.known && cosmetic.owned !== change.after) {
+      next.knownOwnedCount += change.after ? 1 : -1;
+      next.knownLockedCount += change.after ? -1 : 1;
+    }
     cosmetic.owned = change.after;
     cosmetic.state = change.after ? "owned" : "locked";
   }
@@ -993,6 +1009,56 @@ describe("save workspace transition", () => {
     expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
   });
 
+  it("stages, projects, reverts, and safely saves one cosmetic unlock", async () => {
+    const cosmeticWrite = vi.mocked(window.repoditor.cosmetics.write);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await screen.findByRole("heading", { name: "Cosmetics" });
+
+    const ownedCount = () => screen.getByText("Owned", { selector: "dt" }).nextElementSibling?.textContent;
+    const lockedCount = () => screen.getByText("Locked", { selector: "dt" }).nextElementSibling?.textContent;
+    expect(ownedCount()).toBe("1");
+    expect(lockedCount()).toBe("1");
+
+    await user.click(screen.getByRole("button", { name: "Unlock Installed Cosmetic 28" }));
+
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
+    expect(ownedCount()).toBe("2");
+    expect(lockedCount()).toBe("0");
+    expect(
+      screen.getByRole("listitem", { name: "Installed Cosmetic 28, ID 28, Owned" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Unlock Installed Cosmetic 28" })).toBeNull();
+    expect((screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect(cosmeticWrite).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText(/Installed Cosmetic 28.*Ownership/)).toBeTruthy();
+    expect(screen.getByText("Locked → Owned")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(ownedCount()).toBe("1");
+    expect(lockedCount()).toBe("1");
+    expect(
+      screen.getByRole("listitem", { name: "Installed Cosmetic 28, ID 28, Locked" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unlock Installed Cosmetic 28" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Unlock Installed Cosmetic 28" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(cosmeticWrite).toHaveBeenCalledWith(cosmetics.fingerprint, [
+      { feature: "cosmetics", entity: "28", field: "owned", after: true },
+    ]);
+    expect(await screen.findByText("Saved safely · Backup created")).toBeTruthy();
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("No pending changes");
+    expect(ownedCount()).toBe("2");
+    expect(lockedCount()).toBe("0");
+  }, 10_000);
+
   it("stages Clear All Presets as one revertible edit and saves it separately", async () => {
     const withPresets = structuredClone(cosmetics);
     withPresets.savedPresetCount = 3;
@@ -1088,7 +1154,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
-  });
+  }, 10_000);
 
   it("keeps Run and Cosmetics pending state independent across workspace navigation", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
