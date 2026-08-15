@@ -15,9 +15,13 @@ interface CosmeticsViewProps {
   readonly unlockAllPending: boolean;
   readonly lockAllPending: boolean;
   readonly clearAllPresetsPending: boolean;
+  readonly hasPendingEdits: boolean;
+  readonly hasBulkPending: boolean;
+  readonly saving: boolean;
   readonly lockAllBlockedReason: string | null;
   readonly onRetry: () => void;
   readonly onUnlockAll: () => void;
+  readonly onUnlockCosmetic: (cosmeticId: number) => void;
   readonly onClearAllPresets: () => void;
   readonly onLockAll: () => void;
 }
@@ -106,9 +110,13 @@ export function CosmeticsView({
   unlockAllPending,
   lockAllPending,
   clearAllPresetsPending,
+  hasPendingEdits,
+  hasBulkPending,
+  saving,
   lockAllBlockedReason,
   onRetry,
   onUnlockAll,
+  onUnlockCosmetic,
   onClearAllPresets,
   onLockAll,
 }: CosmeticsViewProps) {
@@ -134,7 +142,6 @@ export function CosmeticsView({
   }
   if (!view) return null;
 
-  const bulkPending = unlockAllPending || lockAllPending || clearAllPresetsPending;
   const lockAllUnavailable = lockAllBlockedReason
     ? t("cosmetics.lockUnavailable")
     : null;
@@ -164,7 +171,7 @@ export function CosmeticsView({
       <div className="mt-7 flex flex-wrap gap-3" aria-label={t("cosmetics.actions")}>
         <button
           className="ui-feedback inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || bulkPending}
+          disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || hasPendingEdits}
           type="button"
           onClick={onUnlockAll}
         >
@@ -173,7 +180,7 @@ export function CosmeticsView({
         </button>
         <button
           className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={view.savedPresetCount === 0 || bulkPending}
+          disabled={view.savedPresetCount === 0 || hasPendingEdits}
           type="button"
           onClick={onClearAllPresets}
         >
@@ -185,7 +192,7 @@ export function CosmeticsView({
           disabled={
             !view.capabilities.canRemoveOwnership
             || knownOwnedCount === 0
-            || bulkPending
+            || hasPendingEdits
             || lockAllBlockedReason !== null
           }
           type="button"
@@ -205,7 +212,11 @@ export function CosmeticsView({
         </output>
       ) : null}
 
-      <CosmeticsCatalog view={view} />
+      <CosmeticsCatalog
+        actionsDisabled={hasBulkPending || saving}
+        view={view}
+        onUnlockCosmetic={onUnlockCosmetic}
+      />
     </section>
   );
 }

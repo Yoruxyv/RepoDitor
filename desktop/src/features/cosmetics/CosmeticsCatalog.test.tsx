@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -91,10 +91,18 @@ function catalogView(
   };
 }
 
-function renderCatalog(view: CosmeticsViewDto): void {
+function renderCatalog(
+  view: CosmeticsViewDto,
+  onUnlockCosmetic = vi.fn(),
+  actionsDisabled = false,
+): void {
   render(
     <PreferencesProvider>
-      <CosmeticsCatalog view={view} />
+      <CosmeticsCatalog
+        actionsDisabled={actionsDisabled}
+        view={view}
+        onUnlockCosmetic={onUnlockCosmetic}
+      />
     </PreferencesProvider>,
   );
 }
@@ -104,6 +112,40 @@ function visibleIds(): number[] {
 }
 
 describe("CosmeticsCatalog", () => {
+  it("shows an accessible Unlock action only for eligible locked cosmetics", async () => {
+    const user = userEvent.setup();
+    const onUnlockCosmetic = vi.fn();
+    renderCatalog(catalogView([
+      installedCosmetic(0, "Locked Cosmetic"),
+      installedCosmetic(1, "Owned Cosmetic", { owned: true }),
+      ...Array.from({ length: 545 }, (_, offset) =>
+        installedCosmetic(offset + 2, `Installed Cosmetic ${offset + 2}`),
+      ),
+      installedCosmetic(547, "Future Cosmetic"),
+      unknownCosmetic(999),
+    ]), onUnlockCosmetic);
+
+    const locked = screen.getByRole("listitem", { name: "Locked Cosmetic, ID 0, Locked" });
+    const unlock = within(locked).getByRole("button", { name: "Unlock Locked Cosmetic" });
+    expect(unlock.textContent).toBe("Unlock");
+
+    expect(
+      within(screen.getByRole("listitem", { name: "Owned Cosmetic, ID 1, Owned" }))
+        .queryByRole("button", { name: /Unlock/ }),
+    ).toBeNull();
+    expect(
+      within(screen.getByRole("listitem", { name: "Future Cosmetic, ID 547, Locked" }))
+        .queryByRole("button", { name: /Unlock/ }),
+    ).toBeNull();
+    expect(
+      within(screen.getByRole("listitem", { name: "Cosmetic #999, ID 999, Unknown" }))
+        .queryByRole("button", { name: /Unlock/ }),
+    ).toBeNull();
+
+    await user.click(unlock);
+    expect(onUnlockCosmetic).toHaveBeenCalledOnce();
+    expect(onUnlockCosmetic).toHaveBeenCalledWith(0);
+  });
   it("shows optional local thumbnails while preserving duplicate IDs and fallback", () => {
     renderCatalog(catalogView([
       { ...installedCosmetic(0, "Duplicate Name"), iconToken: "cosmetic-token" },
@@ -229,7 +271,7 @@ describe("CosmeticsCatalog", () => {
     expect(screen.getByText("Cosmetic #999")).toBeTruthy();
   });
 
-  it("presents proven managed type, rarity, and lifecycle status symbols", () => {
+  it("presents managed type and rarity while hiding lifecycle status metadata", () => {
     renderCatalog(catalogView([
       installedCosmetic(0, "Common WIP Hat", { type: 0, rarity: 0, status: 0 }),
       installedCosmetic(1, "Uncommon Ears", { type: 17, rarity: 1, status: 1 }),
@@ -245,7 +287,7 @@ describe("CosmeticsCatalog", () => {
       expect(screen.getByText(`Rarity: ${rarity}`)).toBeTruthy();
     }
     for (const status of ["WIP", "First Iteration", "Need Revision", "Finalized"]) {
-      expect(screen.getByText(`Status: ${status}`)).toBeTruthy();
+      expect(screen.queryByText(`Status: ${status}`)).toBeNull();
     }
   });
 
@@ -362,7 +404,7 @@ describe("CosmeticsCatalog", () => {
     const row = screen.getByRole("listitem", { name: "Future Cosmetic, ID 0, Locked" });
     expect(within(row).getByText("Type 33")).toBeTruthy();
     expect(within(row).getByText("Rarity 4")).toBeTruthy();
-    expect(within(row).getByText("Status 4")).toBeTruthy();
+    expect(within(row).queryByText("Status 4")).toBeNull();
   });
 
   it("keeps a future installed ID visible but read-only", () => {

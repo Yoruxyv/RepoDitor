@@ -201,6 +201,8 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.locked": "未解除",
   "cosmetics.savedPresets": "保存済みプリセット",
   "cosmetics.actions": "コスメティック一括操作",
+  "cosmetics.unlock": "解除",
+  "cosmetics.unlockCosmetic": "{name}を解除",
   "cosmetics.unlockAll": "すべてのコスメティックを解除",
   "cosmetics.unlockPending": "全解除を保留中",
   "cosmetics.clearPresets": "全プリセットを消去",

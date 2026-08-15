@@ -201,6 +201,8 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.locked": "잠김",
   "cosmetics.savedPresets": "저장된 프리셋",
   "cosmetics.actions": "코스메틱 일괄 작업",
+  "cosmetics.unlock": "잠금 해제",
+  "cosmetics.unlockCosmetic": "{name} 잠금 해제",
   "cosmetics.unlockAll": "모든 코스메틱 잠금 해제",
   "cosmetics.unlockPending": "모두 잠금 해제 대기 중",
   "cosmetics.clearPresets": "모든 프리셋 지우기",

@@ -201,6 +201,8 @@ export const zh: Record<keyof typeof en, string> = {
   "cosmetics.locked": "未解锁",
   "cosmetics.savedPresets": "已保存预设",
   "cosmetics.actions": "外观批量操作",
+  "cosmetics.unlock": "解锁",
+  "cosmetics.unlockCosmetic": "解锁{name}",
   "cosmetics.unlockAll": "解锁全部外观",
   "cosmetics.unlockPending": "全部解锁待处理",
   "cosmetics.clearPresets": "清除全部预设",

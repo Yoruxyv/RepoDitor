@@ -37,7 +37,9 @@ function displayValue(
 
 function displaySubject(edit: PendingEdit, t: Translate): string {
   if (edit.feature === "run") return t("nav.run");
-  if (edit.feature === "cosmetics") return t("app.cosmetics");
+  if (edit.feature === "cosmetics") {
+    return edit.field === "owned" ? edit.subject : t("app.cosmetics");
+  }
   return edit.subject;
 }
 
@@ -45,7 +47,8 @@ function displayLabel(edit: PendingEdit, t: Translate): string {
   if (edit.feature === "players") return t("pending.health");
   if (edit.feature === "advanced") return t("pending.storedCharge");
   if (edit.feature === "cosmetics") {
-    return t(edit.field === "clearAll" ? "cosmetics.savedPresets" : "pending.knownOwnership");
+    if (edit.field === "clearAll") return t("cosmetics.savedPresets");
+    return t(edit.field === "owned" ? "cosmetics.ownershipFilterLabel" : "pending.knownOwnership");
   }
   if (edit.feature === "run") {
     const keys = {

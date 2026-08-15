@@ -9,6 +9,8 @@ import type { Translate } from "@/app/translations";
 
 interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
+  readonly actionsDisabled: boolean;
+  readonly onUnlockCosmetic: (cosmeticId: number) => void;
 }
 
 type OwnershipFilter = "all" | "owned" | "locked";
@@ -57,7 +59,6 @@ const COSMETIC_TYPE_SYMBOLS = [
   "FaceBottom",
 ] as const;
 const COSMETIC_RARITY_SYMBOLS = ["Common", "Uncommon", "Rare", "UltraRare"] as const;
-const COSMETIC_STATUS_SYMBOLS = ["WIP", "FirstIteration", "NeedRevision", "Finalized"] as const;
 
 function formatManagedSymbol(symbol: string): string {
   return symbol.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
@@ -100,11 +101,12 @@ function cosmeticRarityLabel(rarity: number, t: Translate): string {
     : t("cosmetics.rarityManagedLabel", { rarity: name });
 }
 
-function cosmeticStatusLabel(status: number, t: Translate): string {
-  const name = managedSymbol(COSMETIC_STATUS_SYMBOLS, status);
-  return name === null
-    ? t("cosmetics.statusLabel", { status })
-    : t("cosmetics.statusManagedLabel", { status: name });
+function isUnlockEligible(view: CosmeticsViewDto, cosmetic: CosmeticDto): boolean {
+  return view.capabilities.canUnlockCosmetic
+    && cosmetic.known
+    && cosmetic.state === "locked"
+    && !cosmetic.owned
+    && cosmetic.mutationEligible;
 }
 
 function compareDisplayName(left: CosmeticDto, right: CosmeticDto): number {
@@ -188,7 +190,7 @@ function matchesCatalogFilters(
   return matchesSearch && matchesOwnership && matchesType;
 }
 
-export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
+export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: CosmeticsCatalogProps) {
   const { t } = usePreferences();
   const [search, setSearch] = useState("");
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>("all");
@@ -382,13 +384,22 @@ export function CosmeticsCatalog({ view }: CosmeticsCatalogProps) {
                 {cosmetic.rarity === null ? null : (
                   <span>{cosmeticRarityLabel(cosmetic.rarity, t)}</span>
                 )}
-                {cosmetic.status === null ? null : (
-                  <span>{cosmeticStatusLabel(cosmetic.status, t)}</span>
-                )}
                 {!cosmetic.mutationEligible ? (
                   <span className="font-semibold text-warning">{t("cosmetics.readOnly")}</span>
                 ) : null}
               </div>
+
+              {isUnlockEligible(view, cosmetic) ? (
+                <button
+                  aria-label={t("cosmetics.unlockCosmetic", { name: cosmetic.displayName })}
+                  className="ui-feedback mt-3 rounded-sm border border-control px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={actionsDisabled}
+                  type="button"
+                  onClick={() => onUnlockCosmetic(cosmetic.id)}
+                >
+                  {t("cosmetics.unlock")}
+                </button>
+              ) : null}
 
               {!cosmetic.known ? (
                 <p className="mt-2 text-xs/5 text-secondary">{t("cosmetics.unknownPreserved")}</p>
