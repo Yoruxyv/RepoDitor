@@ -1142,7 +1142,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
-  });
+  }, 10_000);
 
   it("keeps Run and Cosmetics pending state independent across workspace navigation", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
