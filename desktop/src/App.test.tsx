@@ -412,14 +412,14 @@ describe("save workspace transition", () => {
     const { unmount } = render(<App />);
 
     expect(document.documentElement.dataset.theme).toBe("light");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), "dark");
+    await user.click(screen.getByRole("button", { name: "Theme: System" }));
+    await user.click(screen.getByRole("option", { name: "Dark" }));
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("repoditor.theme")).toBe("dark");
     unmount();
 
     render(<App />);
-    expect((screen.getByRole("combobox", { name: "Theme" }) as HTMLSelectElement).value)
-      .toBe("dark");
+    expect(screen.getByRole("button", { name: "Theme: Dark" })).toBeTruthy();
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
@@ -450,7 +450,9 @@ describe("save workspace transition", () => {
     expect(document.documentElement.lang).toBe(locale);
     expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.runSaves"] })).toBeTruthy();
     expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.cosmetics"] })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: TRANSLATIONS[locale]["utility.theme"] })).toBeTruthy();
+    expect(screen.getByRole("button", {
+      name: `${TRANSLATIONS[locale]["utility.theme"]}: ${TRANSLATIONS[locale]["utility.theme.system"]}`,
+    })).toBeTruthy();
     expect(screen.getByRole("button", { name: new RegExp(nativeName) })).toBeTruthy();
     expect(await screen.findByRole("button", { name: TRANSLATIONS[locale]["action.refresh"] }))
       .toBeTruthy();

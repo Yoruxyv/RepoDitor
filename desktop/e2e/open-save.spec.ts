@@ -320,15 +320,18 @@ test("safely writes changes with backup and stale-save protection", async () => 
       "https://github.com/Yoruxyv/RepoDitor",
     );
     await expect(page.getByTestId("github-stars")).toHaveText("321");
-    await expect(page.getByRole("combobox", { name: "Theme" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Theme: System" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Language: English" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Language" })).toHaveCount(0);
-    await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
+    await page.getByRole("button", { name: "Theme: System" }).click();
+    await page.getByRole("option", { name: "Light" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    await page.getByRole("combobox", { name: "Theme" }).selectOption("system");
-    await expect(page.getByRole("combobox", { name: "Theme" })).toHaveValue("system");
+    await page.getByRole("button", { name: "Theme: Light" }).click();
+    await page.getByRole("option", { name: "System" }).click();
+    await expect(page.getByRole("button", { name: "Theme: System" })).toBeVisible();
     await expect(page.locator("html")).toHaveAttribute("data-theme", /dark|light/);
-    await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
+    await page.getByRole("button", { name: "Theme: System" }).click();
+    await page.getByRole("option", { name: "Light" }).click();
 
     await setWindowSize(application, page, 960, 640);
     await expect(page.getByTestId("github-project-link")).toBeVisible();
@@ -343,7 +346,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("button", { name: check.trigger }).click();
       await page.getByRole("option", { name: check.option }).click();
       await expect(page.getByRole("button", { name: check.run })).toBeVisible();
-      await expect(page.getByRole("combobox", { name: check.theme })).toBeVisible();
+      await expect(page.getByRole("button", { name: new RegExp(`^${check.theme}:`) })).toBeVisible();
       await expect(page.getByRole("button", { name: check.refresh })).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
     }
