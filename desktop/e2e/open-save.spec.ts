@@ -36,6 +36,61 @@ function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, strin
   );
 }
 
+async function waitForChildSpawn(
+  child: ChildProcess,
+  label: string,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      child.off("spawn", onSpawn);
+      child.off("error", onError);
+      child.off("exit", onExit);
+    };
+    const onSpawn = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(new Error(`${label} failed to spawn.`, { cause: error }));
+    };
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      cleanup();
+      reject(
+        new Error(
+          `${label} exited before spawn completed (code=${code ?? "null"}, signal=${signal ?? "none"}).`,
+        ),
+      );
+    };
+
+    child.once("spawn", onSpawn);
+    child.once("error", onError);
+    child.once("exit", onExit);
+  });
+}
+
+async function terminateChildProcess(
+  child: ChildProcess,
+  label: string,
+): Promise<void> {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  const close = once(child, "close", {
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!child.kill()) {
+    throw new Error(`${label} could not be terminated.`);
+  }
+
+  try {
+    await close;
+  } catch (error) {
+    throw new Error(`${label} did not close within 5 seconds.`, { cause: error });
+  }
+}
+
 async function imageNaturalWidth(locator: Locator): Promise<number> {
   return locator.evaluate((element) => {
     if (!(element instanceof HTMLImageElement)) {
@@ -778,11 +833,17 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     if (process.platform === "win32") {
       const repoExecutable = path.join(gameRoot, "REPO.exe");
-      repoProcess = spawn(repoExecutable, ["-e", "setInterval(() => {}, 1000)"], {
-        cwd: gameRoot,
-        stdio: "ignore",
-        windowsHide: true,
-      });
+      repoProcess = spawn(
+        repoExecutable,
+        ["-e", "setInterval(() => {}, 1000)"],
+        {
+          cwd: gameRoot,
+          stdio: "ignore",
+          windowsHide: true,
+        },
+        );
+      await waitForChildSpawn(repoProcess, "synthetic REPO.exe");
+      expect(repoProcess.exitCode).toBeNull();
       await waitForGameStatus(page, "running");
 
       await page.getByRole("button", { name: "Save Changes" }).focus();
@@ -849,8 +910,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await checkAgain.click();
       await waitForGameRunningDialog(page);
 
-      repoProcess.kill();
-      await once(repoProcess, "exit");
+      await terminateChildProcess(repoProcess, "synthetic REPO.exe");
       repoProcess = undefined;
       await waitForGameStatus(page, "not_running");
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -862,11 +922,18 @@ test("safely writes changes with backup and stale-save protection", async () => 
       `Release timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, save=${saveReadyMs.toFixed(0)}`,
     );
   } finally {
-    if (repoProcess && repoProcess.exitCode === null) {
-      repoProcess.kill();
-      await once(repoProcess, "exit").catch(() => undefined);
+    try {
+      if (repoProcess && repoProcess.exitCode === null) {
+        await terminateChildProcess(repoProcess, "synthetic REPO.exe");
+      }
+    } finally {
+      await application?.close();
+      await rm(home, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     }
-    await application?.close();
-    await rm(home, { recursive: true, force: true });
   }
 });
