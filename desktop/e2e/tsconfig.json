@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@electron/*": ["../electron/*.cts"]
+    }
+  },
+  "include": [
+    "./**/*.ts",
+    "../src/electron.d.ts"
+  ]
+}

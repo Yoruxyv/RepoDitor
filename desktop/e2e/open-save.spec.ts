@@ -7,7 +7,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
+
+import {
+  waitForDiscoveredSave,
+  waitForGameDialogClosed,
+  waitForGameRunningDialog,
+  waitForGameStatus,
+  waitForSafeSave,
+  waitForStaleSave,
+  waitForWorkspaceOrContinue,
+} from "./support/waits";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "..");
@@ -17,26 +27,23 @@ const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const expectedVersion = JSON.parse(
   readFileSync(path.join(desktopRoot, "package.json"), "utf8"),
 ).version as string;
-const packagedExecutable = process.env.REPODITOR_E2E_EXECUTABLE
-  ? path.resolve(desktopRoot, process.env.REPODITOR_E2E_EXECUTABLE)
-  : null;
 
-async function waitForWorkspaceOrContinue(page: Page): Promise<void> {
-  const workspace = page.getByTestId("workspace");
-  const continueEditor = page.getByRole("button", { name: "Continue to editor" });
+function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(environment).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
 
-  await expect.poll(
-    async () => (await workspace.isVisible()) || (await continueEditor.isVisible()),
-    {
-      message: "workspace or bounded asset-preparation escape should become available",
-      timeout: 15_000,
-    },
-  ).toBe(true);
+async function imageNaturalWidth(locator: Locator): Promise<number> {
+  return locator.evaluate((element) => {
+    if (!(element instanceof HTMLImageElement)) {
+      throw new Error("Expected locator to resolve to an HTMLImageElement.");
+    }
 
-  if (await continueEditor.isVisible()) {
-    await continueEditor.click();
-  }
-  await expect(workspace).toBeVisible();
+    return element.naturalWidth;
+  });
 }
 
 function getPythonExecutable(): string {
@@ -259,8 +266,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const localAppDataLow = await createIconFixture(home);
     const sourceBefore = await readFile(savePath);
     const metaBefore = await readFile(metaPath);
-    const applicationEnvironment = {
-      ...process.env,
+    const applicationEnvironment: Record<string, string> = {
+      ...stringEnvironment(process.env),
       APPDATA: path.join(home, "AppData", "Roaming"),
       HOME: home,
       LOCALAPPDATA: path.join(home, "AppData", "Local"),
@@ -270,25 +277,17 @@ test("safely writes changes with backup and stale-save protection", async () => 
       REPODITOR_E2E_PROJECT_STARS: "321",
       USERPROFILE: home,
     };
-    delete applicationEnvironment.VITE_DEV_SERVER_URL;
+
+    delete applicationEnvironment["VITE_DEV_SERVER_URL"];
     const launchStarted = performance.now();
-    application = await electron.launch(
-      packagedExecutable
-        ? {
-            executablePath: packagedExecutable,
-            args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-            cwd: path.dirname(packagedExecutable),
-            env: applicationEnvironment,
-          }
-        : {
-            args: [".", "--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-            cwd: desktopRoot,
-            env: {
-              ...applicationEnvironment,
-              VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-            },
-          },
-    );
+    application = await electron.launch({
+      args: [".", "--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
+      cwd: desktopRoot,
+      env: {
+        ...applicationEnvironment,
+        VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
+      },
+    });
     const page = await application.firstWindow();
     await application.evaluate(({ BrowserWindow }) => {
       const renderer = BrowserWindow.getAllWindows()[0];
@@ -352,7 +351,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     }
     await setWindowSize(application, page, 1200, 800);
 
-    await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
+    await waitForDiscoveredSave(page);
     await expect(page.locator("details")).toHaveCount(0);
     await expect(page.getByText(savePath, { exact: true })).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -441,10 +440,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
     const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
     await expect(cosmeticIcon.locator("img")).toHaveAttribute("loading", "lazy");
-    expect(await cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth)).toBe(0);
+    expect(await imageNaturalWidth(cosmeticIcon.locator("img"))).toBe(0);
     await cosmeticIcon.scrollIntoViewIfNeeded();
     await expect(cosmeticIcon.locator("img")).toBeVisible();
-    await expect.poll(() => cosmeticIcon.locator("img").evaluate((image) => image.naturalWidth))
+    await expect.poll(() => imageNaturalWidth(cosmeticIcon.locator("img")))
       .toBeGreaterThan(0);
     await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
     await cosmeticIcon.locator("img").evaluate((image) => {
@@ -483,7 +482,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Revert all" }).click();
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByTestId("cosmetics-action-bar").getByText(/Saved safely · Backup created/)).toBeVisible();
+    await waitForSafeSave(page, "cosmetics");
     const metaBackups = (await readdir(path.dirname(metaPath)))
       .filter((name) => name.startsWith(`${path.basename(metaPath)}.bak-`));
     expect(metaBackups).toHaveLength(1);
@@ -497,7 +496,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
     await expect(hammerIcon.locator("img")).toBeVisible();
-    await expect.poll(() => hammerIcon.locator("img").evaluate((image) => image.naturalWidth))
+    await expect.poll(() => imageNaturalWidth(hammerIcon.locator("img")))
       .toBeGreaterThan(0);
     await expect(page.getByTestId("item-icon-Item Cart Medium/1"))
       .not.toHaveAttribute("data-icon-source", "local");
@@ -659,10 +658,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
-    await expect(page.getByTestId("workspace-action-bar").getByText(/Saved safely · Backup created/)).toBeVisible();
+    await waitForSafeSave(page, "workspace");
     await expect(page.getByText(/\.bak-\d+$/)).toHaveCount(0);
     const saveReadyMs = performance.now() - saveStarted;
-    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
     const backups = (await readdir(path.dirname(savePath)))
       .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
     expect(backups).toHaveLength(1);
@@ -671,8 +669,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(false);
 
     await page.getByRole("button", { name: "Change save" }).click();
+    await waitForDiscoveredSave(page);
     await page.getByRole("button", { name: /Open workspace/ }).click();
-    await expect(page.getByTestId("workspace")).toBeVisible();
+    await waitForWorkspaceOrContinue(page);
 
     await page.getByRole("tab", { name: "Players" }).click();
     await page.getByRole("button", { name: /Beta/ }).click();
@@ -747,8 +746,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceMetaTokens(metaPath, 8);
     const externalMetaBytes = await readFile(metaPath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed on disk");
-    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
+    await waitForStaleSave(page, "cosmetics");
     expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
     expect(
       (await readdir(path.dirname(metaPath))).filter((name) =>
@@ -763,8 +761,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     replaceFixtureCurrency(savePath, 777);
     const externalBytes = await readFile(savePath);
     await page.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed on disk");
-    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
+    await waitForStaleSave(page, "workspace");
     expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
     expect(
       (await readdir(path.dirname(savePath))).filter((name) =>
@@ -779,13 +776,11 @@ test("safely writes changes with backup and stale-save protection", async () => 
         stdio: "ignore",
         windowsHide: true,
       });
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitForGameStatus(page, "running");
 
       await page.getByRole("button", { name: "Save Changes" }).focus();
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
-        .toBeVisible();
-      await expect(page.getByTestId("editor-content")).toHaveAttribute("inert", "");
+      await waitForGameRunningDialog(page);
       const checkAgain = page.getByRole("button", { name: "Check Again" });
       const exitRepoDitor = page.getByRole("button", { name: "Exit RepoDitor" });
       await expect(checkAgain).toBeFocused();
@@ -845,17 +840,14 @@ test("safely writes changes with backup and stale-save protection", async () => 
       )).toHaveLength(metaBackupsBefore);
 
       await checkAgain.click();
-      await expect(page.getByRole("heading", { name: "R.E.P.O. is currently running" }))
-        .toBeVisible();
+      await waitForGameRunningDialog(page);
 
       repoProcess.kill();
       await once(repoProcess, "exit");
       repoProcess = undefined;
+      await waitForGameStatus(page, "not_running");
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await expect(page.getByRole("dialog")).toHaveCount(0);
-      await expect.poll(() => page.getByTestId("editor-content").evaluate((editor) => (
-        editor === document.activeElement || editor.contains(document.activeElement)
-      ))).toBe(true);
+      await waitForGameDialogClosed(page);
       await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
     }
 

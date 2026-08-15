@@ -20,8 +20,8 @@
     "test:imports": "node --test scripts/normalize-imports.test.mjs",
     "test:theme": "node --test scripts/theme-contrast.test.mjs",
     "test:coverage": "tsc -p tsconfig.electron.json && npm run typecheck:electron-tests && vitest run --coverage",
-    "test:e2e": "tsc -p tsconfig.electron.json && playwright test",
-    "test:e2e:packaged": "cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test",
+    "test:e2e": "tsc -p tsconfig.electron.json && npm run typecheck:e2e && playwright test e2e/open-save.spec.ts",
+    "test:e2e:packaged": "npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test e2e/package-smoke.spec.ts",
     "preview": "vite preview",
     "start": "electron .",
     "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../python/repo_save_editor/desktop_api/__main__.py",
@@ -39,7 +39,8 @@
     "imports:fix": "node scripts/normalize-imports.mjs --write --strict",
     "imports:check": "node scripts/normalize-imports.mjs --check --strict",
     "postinstall": "node node_modules/electron/install.js",
-    "typecheck:electron-tests": "tsc -p electron/tsconfig.json"
+    "typecheck:electron-tests": "tsc -p electron/tsconfig.json",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json"
   },
   "build": {
     "appId": "io.github.Yoruxyv.repoditor",

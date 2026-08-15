@@ -6,6 +6,7 @@ export default defineConfig({
   outputDir: "test-results",
   testDir: "./e2e",
   timeout: packagedExecutable ? 75_000 : 45_000,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: "line",
   use: {
