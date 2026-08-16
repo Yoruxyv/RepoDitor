@@ -64,6 +64,7 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
+platform = "win32"
 mypy_path = "python"
 files = ["python/repo_save_editor"]
 strict = true
