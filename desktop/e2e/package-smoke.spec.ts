@@ -1,95 +1,36 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
 
+import {
+  DESKTOP_ROOT,
+  E2E_SAVE_ID,
+  EXPECTED_DESKTOP_VERSION,
+  createRunSaveFixture,
+  isolatedApplicationEnvironment,
+} from "./support/fixtureEnvironment";
 import { waitForDiscoveredSave, waitForWorkspaceOrContinue } from "./support/waits";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = path.resolve(desktopRoot, "..");
-const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
-const saveId = "REPO_SAVE_2026_08_08_10_20_30";
-const expectedVersion = JSON.parse(readFileSync(path.join(desktopRoot, "package.json"), "utf8"))
-  .version as string;
+const saveId = E2E_SAVE_ID;
+const expectedVersion = EXPECTED_DESKTOP_VERSION;
 const executableSetting = process.env.REPODITOR_E2E_EXECUTABLE;
 
 if (!executableSetting) {
   throw new Error("REPODITOR_E2E_EXECUTABLE is required for the packaged smoke test.");
 }
 
-const packagedExecutable = path.resolve(desktopRoot, executableSetting);
-
-function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(environment).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
-}
-
-function getPythonExecutable(): string {
-  const executable = path.join(
-    repoRoot,
-    ".venv",
-    process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
-  );
-  if (!existsSync(executable)) {
-    throw new Error(`Python test environment is missing: ${executable}`);
-  }
-  return executable;
-}
-
-async function createSaveFixture(home: string): Promise<void> {
-  const savePath = path.join(
-    home,
-    "AppData",
-    "LocalLow",
-    "semiwork",
-    "Repo",
-    "saves",
-    saveId,
-    `${saveId}.es3`,
-  );
-  await mkdir(path.dirname(savePath), { recursive: true });
-  execFileSync(
-    getPythonExecutable(),
-    [
-      "-c",
-      "import json,sys; from pathlib import Path; from repo_save_editor.core.crypto import encrypt_save; Path(sys.argv[2]).write_bytes(encrypt_save(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))))",
-      fixturePath,
-      savePath,
-    ],
-    {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
-      stdio: "inherit",
-    },
-  );
-}
+const packagedExecutable = path.resolve(DESKTOP_ROOT, executableSetting);
 
 test("packaged RepoDitor launches and reaches the Python-backed workspace", async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-package-smoke-"));
   let application: ElectronApplication | undefined;
 
   try {
-    await createSaveFixture(home);
+    await createRunSaveFixture(home);
     const localAppDataLow = path.join(home, "AppData", "LocalLow");
-    const applicationEnvironment: Record<string, string> = {
-      ...stringEnvironment(process.env),
-      APPDATA: path.join(home, "AppData", "Roaming"),
-      HOME: home,
-      LOCALAPPDATA: path.join(home, "AppData", "Local"),
-      REPODITOR_E2E: "1",
-      REPODITOR_E2E_LOCAL_APP_DATA_LOW: localAppDataLow,
-      REPODITOR_E2E_PROJECT_STARS: "321",
-      USERPROFILE: home,
-    };
-    delete applicationEnvironment["REPO_GAME_DIR"];
-    delete applicationEnvironment["VITE_DEV_SERVER_URL"];
+    const applicationEnvironment = isolatedApplicationEnvironment(home, localAppDataLow);
 
     const launchStarted = performance.now();
     application = await electron.launch({
