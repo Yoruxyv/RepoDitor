@@ -1,7 +1,4 @@
-import {
-  ArrowLeftIcon,
-  ShieldCheckIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 
 import type { AssetPreparationState, SaveChange, SaveSession } from "@electron/contracts";
@@ -22,15 +19,9 @@ import { RunView } from "@/features/run/RunView";
 import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
-import {
-  OverviewView,
-  type OverviewDestination,
-} from "@/features/editor/OverviewView";
+import { OverviewView, type OverviewDestination } from "@/features/editor/OverviewView";
 import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
-import {
-  toSaveChange,
-  type RunSavePendingEdit,
-} from "@/features/editor/pendingEdits";
+import { toSaveChange, type RunSavePendingEdit } from "@/features/editor/pendingEdits";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];
@@ -151,15 +142,23 @@ export function Workspace({
       ) : null}
       <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">{t("workspace.selectedSave")}</p>
-          <h1 className="font-display mt-1 truncate text-4xl font-semibold uppercase leading-none tracking-[-0.02em] text-ink" id="workspace-title" title={session.name}>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+            {t("workspace.selectedSave")}
+          </p>
+          <h1
+            className="font-display mt-1 truncate text-4xl font-semibold uppercase leading-none tracking-[-0.02em] text-ink"
+            id="workspace-title"
+            title={session.name}
+          >
             {session.name}
           </h1>
           <div
             className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-secondary"
             data-testid="selected-save-metadata"
           >
-            <span>{t("workspace.modified", { date: formatDateTime(session.modifiedAt, locale) })}</span>
+            <span>
+              {t("workspace.modified", { date: formatDateTime(session.modifiedAt, locale) })}
+            </span>
             <span className="inline-flex items-center gap-1.5 text-success">
               <ShieldCheckIcon aria-hidden="true" size={15} />
               {t("workspace.validatedShort")}
@@ -194,7 +193,9 @@ export function Workspace({
                 aria-label={t(`nav.${section}`)}
                 aria-selected={active}
                 className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
-                  active ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"
+                  active
+                    ? "bg-accent text-accent-ink"
+                    : "text-secondary hover:bg-surface hover:text-ink"
                 }`}
                 id={`workspace-tab-${index}`}
                 key={section}
@@ -207,8 +208,17 @@ export function Workspace({
                 {t(`nav.${section}`)}
                 {pendingCount > 0 ? (
                   <>
-                    <span aria-hidden="true" className="ml-2 inline-block size-1.5 rounded-full bg-warning" />
-                    <span className="sr-only" id={`workspace-tab-pending-${index}`}> · {t(pendingCount === 1 ? "pending.one" : "pending.many", { count: pendingCount })}</span>
+                    <span
+                      aria-hidden="true"
+                      className="ml-2 inline-block size-1.5 rounded-full bg-warning"
+                    />
+                    <span className="sr-only" id={`workspace-tab-pending-${index}`}>
+                      {" "}
+                      ·{" "}
+                      {t(pendingCount === 1 ? "pending.one" : "pending.many", {
+                        count: pendingCount,
+                      })}
+                    </span>
                   </>
                 ) : null}
               </button>
@@ -218,7 +228,13 @@ export function Workspace({
       </nav>
 
       <div className="pt-6">
-        <div className="min-w-0" id="workspace-panel" role="tabpanel" tabIndex={0} aria-labelledby={`workspace-tab-${SECTIONS.indexOf(activeSection)}`}>
+        <div
+          className="min-w-0"
+          id="workspace-panel"
+          role="tabpanel"
+          tabIndex={0}
+          aria-labelledby={`workspace-tab-${SECTIONS.indexOf(activeSection)}`}
+        >
           {activeSection === "overview" ? (
             <OverviewView session={session} onNavigate={openSection} />
           ) : null}
@@ -289,7 +305,6 @@ export function Workspace({
             />
           ) : null}
         </div>
-
       </div>
 
       <PendingChangesBar

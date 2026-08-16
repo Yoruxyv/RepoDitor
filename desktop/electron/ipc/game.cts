@@ -8,11 +8,7 @@ import {
   type GameProcessState,
   type GameProcessStatus,
 } from "../contracts.cjs";
-import {
-  PythonClientError,
-  pythonClient,
-  type PythonClient,
-} from "../python/client.cjs";
+import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
 
 class GameProtocolError extends Error {}
 

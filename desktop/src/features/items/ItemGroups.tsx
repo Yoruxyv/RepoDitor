@@ -65,10 +65,9 @@ export function ItemGroups({
   const query = search.trim().toLocaleLowerCase();
   const visibleItems = items.filter((item) => {
     const matchesSearch = !query || item.name.toLocaleLowerCase().includes(query);
-    const matchesFilter = filter === "all"
-      || (filter === "upgrades"
-        ? item.isUpgrade
-        : item.rechargeCapability === filter);
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "upgrades" ? item.isUpgrade : item.rechargeCapability === filter);
     return matchesSearch && matchesFilter;
   });
   const visibleKeys = new Set(visibleItems.map((item) => item.saveKey));
@@ -76,9 +75,8 @@ export function ItemGroups({
   const hiddenPendingCount = Object.keys(pendingByItem).filter(
     (saveKey) => itemKeys.has(saveKey) && !visibleKeys.has(saveKey),
   ).length;
-  const hiddenPendingKey = hiddenPendingCount === 1
-    ? "items.hiddenPending.one"
-    : "items.hiddenPending.many";
+  const hiddenPendingKey =
+    hiddenPendingCount === 1 ? "items.hiddenPending.one" : "items.hiddenPending.many";
   const groups = groupItems(visibleItems).sort((left, right) => {
     if (sort === "quantity-desc") {
       return right.items.length - left.items.length || left.name.localeCompare(right.name);
@@ -86,9 +84,8 @@ export function ItemGroups({
     const order = left.name.localeCompare(right.name);
     return sort === "name-desc" ? -order : order;
   });
-  const canRechargeAll = canRefillToFull && items.some(
-    (item) => item.canRefillToFull && !pendingByItem[item.saveKey],
-  );
+  const canRechargeAll =
+    canRefillToFull && items.some((item) => item.canRefillToFull && !pendingByItem[item.saveKey]);
 
   function clearSearch(): void {
     setSearch("");
@@ -167,10 +164,9 @@ export function ItemGroups({
           </button>
         </div>
         <p aria-live="polite" className="mt-2 text-xs text-muted" id="item-filter-status">
-          {t(
-            visibleItems.length === 1 ? "items.matches.one" : "items.matches.many",
-            { count: visibleItems.length },
-          )}
+          {t(visibleItems.length === 1 ? "items.matches.one" : "items.matches.many", {
+            count: visibleItems.length,
+          })}
           {hiddenPendingCount > 0
             ? ` · ${t(hiddenPendingKey, { count: hiddenPendingCount })}`
             : null}
@@ -219,55 +215,51 @@ export function ItemGroups({
                 </header>
                 {chargeRows.length > 0 ? (
                   <ul className="divide-y divide-line border-t border-line">
-                  {chargeRows.map(({ item, pending, status }) => {
-                    return (
-                      <li
-                        className="min-w-0 px-4 py-3"
-                        data-testid={`item-instance-${item.saveKey}`}
-                        key={item.saveKey}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="font-mono text-sm font-semibold text-ink">
-                            {status}
-                          </p>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            {pending ? (
-                              <button
-                                className="ui-feedback rounded-sm border border-control px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
-                                type="button"
-                                onClick={() => onRevertRefill(item.saveKey)}
-                              >
-                                {t("items.revertRefill")}
-                              </button>
-                            ) : null}
-                            {!pending
-                            && item.canRefillToFull
-                            && canRefillToFull ? (
-                              <button
-                                aria-label={t("items.refillLabel", {
-                                  item: item.name,
-                                  instance: item.instanceId,
-                                })}
-                                className="ui-feedback rounded-sm border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-accent hover:text-accent-ink"
-                                type="button"
-                                onClick={() => onRefillToFull(item)}
-                              >
-                                {t("items.refill")}
-                              </button>
-                            ) : null}
+                    {chargeRows.map(({ item, pending, status }) => {
+                      return (
+                        <li
+                          className="min-w-0 px-4 py-3"
+                          data-testid={`item-instance-${item.saveKey}`}
+                          key={item.saveKey}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="font-mono text-sm font-semibold text-ink">{status}</p>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {pending ? (
+                                <button
+                                  className="ui-feedback rounded-sm border border-control px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
+                                  type="button"
+                                  onClick={() => onRevertRefill(item.saveKey)}
+                                >
+                                  {t("items.revertRefill")}
+                                </button>
+                              ) : null}
+                              {!pending && item.canRefillToFull && canRefillToFull ? (
+                                <button
+                                  aria-label={t("items.refillLabel", {
+                                    item: item.name,
+                                    instance: item.instanceId,
+                                  })}
+                                  className="ui-feedback rounded-sm border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-accent hover:text-accent-ink"
+                                  type="button"
+                                  onClick={() => onRefillToFull(item)}
+                                >
+                                  {t("items.refill")}
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                        {pending ? (
-                          <p className="mt-2 font-mono text-xs text-secondary">
-                            {t("status.pending", {
-                              before: pending.before,
-                              after: t("status.fullDefault"),
-                            })}
-                          </p>
-                        ) : null}
-                      </li>
-                    );
-                  })}
+                          {pending ? (
+                            <p className="mt-2 font-mono text-xs text-secondary">
+                              {t("status.pending", {
+                                before: pending.before,
+                                after: t("status.fullDefault"),
+                              })}
+                            </p>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : null}
               </li>

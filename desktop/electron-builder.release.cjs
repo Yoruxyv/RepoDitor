@@ -29,13 +29,13 @@ function createReleaseConfig(environment = process.env) {
     throw new Error("AZURE_ARTIFACT_SIGNING_ENDPOINT must be a valid HTTPS URL.");
   }
   if (
-    endpoint.protocol !== "https:"
-    || !endpoint.hostname.endsWith(".codesigning.azure.net")
-    || endpoint.username
-    || endpoint.password
-    || endpoint.pathname !== "/"
-    || endpoint.search
-    || endpoint.hash
+    endpoint.protocol !== "https:" ||
+    !endpoint.hostname.endsWith(".codesigning.azure.net") ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.pathname !== "/" ||
+    endpoint.search ||
+    endpoint.hash
   ) {
     throw new Error(
       "AZURE_ARTIFACT_SIGNING_ENDPOINT must be an Azure HTTPS code-signing endpoint.",
@@ -50,8 +50,7 @@ function createReleaseConfig(environment = process.env) {
       azureSignOptions: {
         publisherName: values.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME,
         endpoint: endpoint.href.replace(/\/$/, ""),
-        certificateProfileName:
-          values.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME,
+        certificateProfileName: values.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME,
         codeSigningAccountName: values.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME,
         fileDigest: "SHA256",
         timestampDigest: "SHA256",

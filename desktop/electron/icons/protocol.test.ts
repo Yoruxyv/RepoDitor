@@ -8,7 +8,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { LocalIconRegistry, readIconKey } = require("../../dist-electron/icons/registry.cjs");
-const { DecodedUpgradeTextureCache, serveLocalIcon } = require("../../dist-electron/icons/protocol.cjs");
+const {
+  DecodedUpgradeTextureCache,
+  serveLocalIcon,
+} = require("../../dist-electron/icons/protocol.cjs");
 
 function png(width = 1, height = 1): Buffer {
   const data = Buffer.alloc(24);
@@ -22,7 +25,11 @@ function png(width = 1, height = 1): Buffer {
 
 async function fixture() {
   const base = await mkdtemp(path.join(os.tmpdir(), "repoditor-icons-"));
-  const roots = { item: path.join(base, "Items"), upgrade: path.join(base, "Items"), cosmetic: path.join(base, "Cosmetics") };
+  const roots = {
+    item: path.join(base, "Items"),
+    upgrade: path.join(base, "Items"),
+    cosmetic: path.join(base, "Cosmetics"),
+  };
   await mkdir(roots.item);
   await mkdir(roots.cosmetic);
   return { base, roots };
@@ -58,8 +65,16 @@ describe("local icon protocol", () => {
     expect(second.get("kept.png")).toBe(first.get("kept.png"));
     expect(second.get("added.png")).not.toBe(first.get("removed.png"));
     expect(registry.get(first.get("removed.png"))).toBeUndefined();
-    expect(registry.get(item.get("kept.png"))).toEqual({ kind: "cache", domain: "item", key: "kept.png" });
-    expect(registry.get(upgrade.get("kept.png"))).toEqual({ kind: "cache", domain: "upgrade", key: "kept.png" });
+    expect(registry.get(item.get("kept.png"))).toEqual({
+      kind: "cache",
+      domain: "item",
+      key: "kept.png",
+    });
+    expect(registry.get(upgrade.get("kept.png"))).toEqual({
+      kind: "cache",
+      domain: "upgrade",
+      key: "kept.png",
+    });
   });
 
   it("rejects unknown tokens, arbitrary paths, bad files, and writes", async () => {
@@ -84,7 +99,15 @@ describe("local icon protocol", () => {
     ]) {
       expect((await serveLocalIcon(request, roots, registry)).status).toBe(404);
     }
-    expect((await serveLocalIcon(new Request(`repoditor-icon://local/${wide}`, { method: "POST" }), roots, registry)).status).toBe(405);
+    expect(
+      (
+        await serveLocalIcon(
+          new Request(`repoditor-icon://local/${wide}`, { method: "POST" }),
+          roots,
+          registry,
+        )
+      ).status,
+    ).toBe(405);
     expect(() => readIconKey("../secret.png")).toThrow();
     expect(() => registry.replace("item", ["wrong.txt"])).toThrow();
   });
@@ -206,7 +229,9 @@ describe("local icon protocol", () => {
             pngBase64: png().toString("base64"),
             width: 1,
             height: 1,
-            watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+            watches: [
+              { path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() },
+            ],
           },
         };
       }),
@@ -265,11 +290,12 @@ describe("local icon protocol", () => {
     };
     const cache = new DecodedUpgradeTextureCache();
 
-    expect((await serveLocalIcon(url(upgradeToken), null, registry, client, cache)).status).toBe(200);
+    expect((await serveLocalIcon(url(upgradeToken), null, registry, client, cache)).status).toBe(
+      200,
+    );
     expect((await serveLocalIcon(url(itemToken), null, registry, client, cache)).status).toBe(200);
     expect(client.run).toHaveBeenCalledTimes(1);
   });
-
 
   it("accepts validated batch textures into the same session cache used by lazy requests", async () => {
     const { base } = await fixture();
@@ -295,13 +321,15 @@ describe("local icon protocol", () => {
   it("rejects malformed batch texture payloads before they enter session memory", async () => {
     const cache = new DecodedUpgradeTextureCache();
 
-    await expect(cache.storePrepared("playerUpgradeHealth", {
-      sourceIdentity: "not-a-source-id",
-      pngBase64: png().toString("base64"),
-      width: 1,
-      height: 1,
-      watches: [],
-    })).resolves.toBe(false);
+    await expect(
+      cache.storePrepared("playerUpgradeHealth", {
+        sourceIdentity: "not-a-source-id",
+        pngBase64: png().toString("base64"),
+        width: 1,
+        height: 1,
+        watches: [],
+      }),
+    ).resolves.toBe(false);
     await expect(cache.hasPrepared("playerUpgradeHealth")).resolves.toBe(false);
   });
   it("invalidates decoded session memory when a watched installed source changes", async () => {
@@ -324,7 +352,9 @@ describe("local icon protocol", () => {
             pngBase64: png().toString("base64"),
             width: 1,
             height: 1,
-            watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+            watches: [
+              { path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() },
+            ],
           },
         };
       }),
@@ -337,5 +367,4 @@ describe("local icon protocol", () => {
     expect((await serveLocalIcon(url(token), null, registry, client, cache)).status).toBe(200);
     expect(client.run).toHaveBeenCalledTimes(2);
   });
-
 });

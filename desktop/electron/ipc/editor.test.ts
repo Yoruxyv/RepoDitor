@@ -31,12 +31,48 @@ const readOnlyCapabilities = {
   canRefillToFull: false,
 } as const;
 const advancedDomains: AdvancedDomainDto[] = [
-  { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: readOnlyCapabilities },
-  { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRefillToFull: true } },
-  { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { ...readOnlyCapabilities, canRead: false } },
-  { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
-  { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyCapabilities, canRead: false } },
-  { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyCapabilities, canRead: false } },
+  {
+    key: "items",
+    label: "Item instances",
+    status: "confirmed",
+    entryCount: 1,
+    capabilities: readOnlyCapabilities,
+  },
+  {
+    key: "currentCharge",
+    label: "Stored charge entries",
+    status: "partially_confirmed",
+    entryCount: 1,
+    capabilities: { ...readOnlyCapabilities, canRefillToFull: true },
+  },
+  {
+    key: "batteryUpgrades",
+    label: "Battery upgrade entries",
+    status: "unknown",
+    entryCount: 0,
+    capabilities: { ...readOnlyCapabilities, canRead: false },
+  },
+  {
+    key: "purchasedUpgrades",
+    label: "Purchased upgrade entries",
+    status: "partially_confirmed",
+    entryCount: 1,
+    capabilities: { ...readOnlyCapabilities, canRead: false },
+  },
+  {
+    key: "purchasedItems",
+    label: "Purchased item entries",
+    status: "partially_confirmed",
+    entryCount: 1,
+    capabilities: { ...readOnlyCapabilities, canRead: false },
+  },
+  {
+    key: "purchasedItemsTotal",
+    label: "Total purchased item entries",
+    status: "partially_confirmed",
+    entryCount: 2,
+    capabilities: { ...readOnlyCapabilities, canRead: false },
+  },
 ];
 
 describe("editor data IPC", () => {
@@ -56,8 +92,9 @@ describe("editor data IPC", () => {
       IPC_CHANNELS.advancedGet,
       IPC_CHANNELS.mapsList,
     ]);
-    expect(registrar.handle.mock.calls.every(([, handler]) => typeof handler === "function"))
-      .toBe(true);
+    expect(registrar.handle.mock.calls.every(([, handler]) => typeof handler === "function")).toBe(
+      true,
+    );
   });
 
   it("forwards each domain to its exact Python command", async () => {
@@ -131,7 +168,10 @@ describe("editor data IPC", () => {
       ],
     };
     const result = await listUpgrades(client(response), saveId);
-    expect(result).toMatchObject({ ok: true, data: [{ presentationSource: "installed" }, { presentationSource: "humanized" }] });
+    expect(result).toMatchObject({
+      ok: true,
+      data: [{ presentationSource: "installed" }, { presentationSource: "humanized" }],
+    });
     expect(result.data[0]).not.toHaveProperty("iconKey");
     expect(result.data[0].iconToken).toMatch(/^[\da-f-]{36}$/);
     expect(result.data[1].iconToken).toMatch(/^[\da-f-]{36}$/);
@@ -195,14 +235,16 @@ describe("editor data IPC", () => {
   it("keeps upgrade reads available when optional artwork preparation degrades", async () => {
     const response = {
       ok: true,
-      upgrades: [{
-        key: "playerUpgradeHealth",
-        label: "Health",
-        presentationSource: "installed",
-        gameplayCap: 10,
-        iconKey: null,
-        values: [{ playerId: "111", value: 2 }],
-      }],
+      upgrades: [
+        {
+          key: "playerUpgradeHealth",
+          label: "Health",
+          presentationSource: "installed",
+          gameplayCap: 10,
+          iconKey: null,
+          values: [{ playerId: "111", value: 2 }],
+        },
+      ],
     };
     const preparation = {
       prepareUpgradeVisuals: vi.fn().mockRejectedValue(new Error("optional art failed")),
@@ -246,7 +288,9 @@ describe("editor data IPC", () => {
           instanceId: "1",
           isUpgrade: false,
           storedCharge: 99,
-          chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true,
+          chargeState: "stored",
+          rechargeCapability: "rechargeable",
+          canRefillToFull: true,
           iconKey: "item melee inflatable hammer.png",
           rawValue: 21,
         },
@@ -260,15 +304,24 @@ describe("editor data IPC", () => {
     expect(result).toMatchObject({
       ok: true,
       data: {
-        items: [{ storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true }],
+        items: [
+          {
+            storedCharge: 99,
+            chargeState: "stored",
+            rechargeCapability: "rechargeable",
+            canRefillToFull: true,
+          },
+        ],
       },
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
     expect(result.data.items[0]).not.toHaveProperty("iconKey");
     expect(result.data.items[0].iconToken).toMatch(/^[\da-f-]{36}$/);
     expect(result.data).not.toHaveProperty("rawSave");
-    expect(result.data.domains[1].capabilities)
-      .toMatchObject({ canEdit: false, canRefillToFull: true });
+    expect(result.data.domains[1].capabilities).toMatchObject({
+      canEdit: false,
+      canRefillToFull: true,
+    });
   });
 
   it("registers the same lazy upgrade visual path for upgrade Items without exposing its key", async () => {
@@ -321,7 +374,9 @@ describe("editor data IPC", () => {
           instanceId: "1",
           isUpgrade: false,
           storedCharge: null,
-          chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false,
+          chargeState: "default_full",
+          rechargeCapability: "rechargeable",
+          canRefillToFull: false,
           iconKey: null,
         },
       ],
@@ -329,34 +384,55 @@ describe("editor data IPC", () => {
     };
     await expect(getAdvancedSave(client({ ok: true, advanced }), saveId)).resolves.toMatchObject({
       ok: true,
-      data: { items: [{ storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false }] },
+      data: {
+        items: [
+          {
+            storedCharge: null,
+            chargeState: "default_full",
+            rechargeCapability: "rechargeable",
+            canRefillToFull: false,
+          },
+        ],
+      },
     });
 
     const mutable = structuredClone(advanced) as unknown as {
       domains: Array<{ capabilities: { canEdit: boolean } }>;
     };
     mutable.domains[0].capabilities.canEdit = true;
-    await expect(getAdvancedSave(client({ ok: true, advanced: mutable }), saveId)).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({ ok: true, advanced: mutable }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
     await expect(
       getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [{}] } }), saveId),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
     await expect(
-      getAdvancedSave(client({
-        ok: true,
-        advanced: { ...advanced, items: [{ ...advanced.items[0], iconKey: "../secret.png" }] },
-      }), saveId),
+      getAdvancedSave(
+        client({
+          ok: true,
+          advanced: { ...advanced, items: [{ ...advanced.items[0], iconKey: "../secret.png" }] },
+        }),
+        saveId,
+      ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
     await expect(
-      getAdvancedSave(client({
-        ok: true,
-        advanced: { ...advanced, items: [{ ...advanced.items[0], isUpgrade: "yes" }] },
-      }), saveId),
+      getAdvancedSave(
+        client({
+          ok: true,
+          advanced: { ...advanced, items: [{ ...advanced.items[0], isUpgrade: "yes" }] },
+        }),
+        saveId,
+      ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 
     for (const item of [
       { ...advanced.items[0], chargeState: "guessed" },
-      { ...advanced.items[0], chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true },
+      {
+        ...advanced.items[0],
+        chargeState: "stored",
+        rechargeCapability: "rechargeable",
+        canRefillToFull: true,
+      },
     ]) {
       await expect(
         getAdvancedSave(client({ ok: true, advanced: { ...advanced, items: [item] } }), saveId),
@@ -365,8 +441,9 @@ describe("editor data IPC", () => {
 
     const wrongDomain = structuredClone(advanced);
     wrongDomain.domains[0]!.capabilities.canRefillToFull = true;
-    await expect(getAdvancedSave(client({ ok: true, advanced: wrongDomain }), saveId)).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getAdvancedSave(client({ ok: true, advanced: wrongDomain }), saveId),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("parses available and unavailable map discovery", async () => {

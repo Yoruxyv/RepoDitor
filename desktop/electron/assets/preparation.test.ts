@@ -143,9 +143,11 @@ describe("AssetPreparationService", () => {
     });
     const service = new AssetPreparationService(fakeClient, fakeCache);
     const states: Array<{ stage: string; completed: number | null; total: number | null }> = [];
-    service.subscribe((state: { stage: string; completed: number | null; total: number | null }) => {
-      states.push({ stage: state.stage, completed: state.completed, total: state.total });
-    });
+    service.subscribe(
+      (state: { stage: string; completed: number | null; total: number | null }) => {
+        states.push({ stage: state.stage, completed: state.completed, total: state.total });
+      },
+    );
 
     await service.prepareUpgradeVisuals([
       { upgradeKey: "playerUpgradeCached", cacheKey: "item upgrade cached.png" },
@@ -282,44 +284,39 @@ describe("AssetPreparationService", () => {
   it.each([
     [false, false],
     [true, false],
-  ])("degrades safely when installation/build preparation ends unavailable", async (
-    installationFound,
-    buildVerified,
-  ) => {
-    const fakeCache = cache();
-    const fakeClient = client(async () => final({
-      installationFound,
-      buildVerified,
-      completed: 2,
-      total: 2,
-      degraded: true,
-    }));
-    const service = new AssetPreparationService(fakeClient, fakeCache);
+  ])(
+    "degrades safely when installation/build preparation ends unavailable",
+    async (installationFound, buildVerified) => {
+      const fakeCache = cache();
+      const fakeClient = client(async () =>
+        final({
+          installationFound,
+          buildVerified,
+          completed: 2,
+          total: 2,
+          degraded: true,
+        }),
+      );
+      const service = new AssetPreparationService(fakeClient, fakeCache);
 
-    await service.prepareUpgradeVisuals([
-      { upgradeKey: "playerUpgradeA", cacheKey: null },
-      { upgradeKey: "playerUpgradeB", cacheKey: null },
-    ]);
+      await service.prepareUpgradeVisuals([
+        { upgradeKey: "playerUpgradeA", cacheKey: null },
+        { upgradeKey: "playerUpgradeB", cacheKey: null },
+      ]);
 
-    expect(service.getState()).toEqual({
-      stage: "degraded",
-      installationFound,
-      buildVerified,
-      completed: 2,
-      total: 2,
-      degraded: true,
-    });
-    expect(
-      Object.keys(service.getState()).sort((left, right) => left.localeCompare(right)),
-    ).toEqual([
-      "buildVerified",
-      "completed",
-      "degraded",
-      "installationFound",
-      "stage",
-      "total",
-    ]);
-  });
+      expect(service.getState()).toEqual({
+        stage: "degraded",
+        installationFound,
+        buildVerified,
+        completed: 2,
+        total: 2,
+        degraded: true,
+      });
+      expect(
+        Object.keys(service.getState()).sort((left, right) => left.localeCompare(right)),
+      ).toEqual(["buildVerified", "completed", "degraded", "installationFound", "stage", "total"]);
+    },
+  );
 
   it("deduplicates identical in-flight visual preparation in the same session", async () => {
     const fakeCache = cache();

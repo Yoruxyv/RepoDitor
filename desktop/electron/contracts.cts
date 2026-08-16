@@ -17,11 +17,7 @@ export interface IpcChannelMap {
   mapsList: "maps:list";
 }
 
-export type SaveRootStatus =
-  | "available"
-  | "missing"
-  | "unreadable"
-  | "unavailable";
+export type SaveRootStatus = "available" | "missing" | "unreadable" | "unavailable";
 
 export type GameProcessStatus = "running" | "not_running" | "unknown";
 
@@ -54,10 +50,7 @@ export interface ProjectMetadata {
 }
 
 export type GameDiscoveryStatus =
-  | "found"
-  | "steam_not_found"
-  | "game_not_found"
-  | "discovery_error";
+  "found" | "steam_not_found" | "game_not_found" | "discovery_error";
 
 export interface SaveSummary {
   id: string;
@@ -127,11 +120,7 @@ export interface AdvancedRefillChange {
 }
 
 export type SaveChange =
-  | PlayerHealthChange
-  | UpgradeValueChange
-  | RunStatChange
-  | RunResumeChange
-  | AdvancedRefillChange;
+  PlayerHealthChange | UpgradeValueChange | RunStatChange | RunResumeChange | AdvancedRefillChange;
 
 export interface SaveWriteResult {
   backupPath: string;
@@ -193,16 +182,9 @@ export interface AdvancedDomainDto {
   capabilities: AdvancedCapabilitiesDto;
 }
 
-export type AdvancedItemChargeState =
-  | "stored"
-  | "default_full"
-  | "not_applicable"
-  | "unknown";
+export type AdvancedItemChargeState = "stored" | "default_full" | "not_applicable" | "unknown";
 
-export type AdvancedItemRechargeCapability =
-  | "rechargeable"
-  | "not_rechargeable"
-  | "unknown";
+export type AdvancedItemRechargeCapability = "rechargeable" | "not_rechargeable" | "unknown";
 
 export interface AdvancedItemDto {
   saveKey: string;
@@ -356,95 +338,52 @@ export interface DesktopOperationFailure {
   error: DesktopOperationError;
 }
 
-export type DesktopOperationResult<T> =
-  | DesktopOperationSuccess<T>
-  | DesktopOperationFailure;
+export type DesktopOperationResult<T> = DesktopOperationSuccess<T> | DesktopOperationFailure;
 
 export interface RepoDitorApi {
   project: {
-    metadata: () => Promise<
-      DesktopOperationResult<ProjectMetadata>
-    >;
+    metadata: () => Promise<DesktopOperationResult<ProjectMetadata>>;
   };
   environment: {
-    detect: () => Promise<
-      DesktopOperationResult<EnvironmentDiscovery>
-    >;
+    detect: () => Promise<DesktopOperationResult<EnvironmentDiscovery>>;
   };
   game: {
-    status: () => Promise<
-      DesktopOperationResult<GameProcessState>
-    >;
+    status: () => Promise<DesktopOperationResult<GameProcessState>>;
   };
   assets: {
     state: () => Promise<AssetPreparationState>;
     onState: (listener: (state: AssetPreparationState) => void) => () => void;
   };
   saves: {
-    list: () => Promise<
-      DesktopOperationResult<SaveSummary[]>
-    >;
-    open: (
-      saveId: string,
-    ) => Promise<
-      DesktopOperationResult<SaveSession>
-    >;
+    list: () => Promise<DesktopOperationResult<SaveSummary[]>>;
+    open: (saveId: string) => Promise<DesktopOperationResult<SaveSession>>;
     write: (
       saveId: string,
       fingerprint: string,
       changes: SaveChange[],
-    ) => Promise<
-      DesktopOperationResult<SaveWriteResult>
-    >;
+    ) => Promise<DesktopOperationResult<SaveWriteResult>>;
   };
   players: {
-    list: (
-      saveId: string,
-    ) => Promise<
-      DesktopOperationResult<PlayerDto[]>
-    >;
-    avatar: (
-      saveId: string,
-      playerId: string,
-    ) => Promise<
-      DesktopOperationResult<PlayerAvatar>
-    >;
+    list: (saveId: string) => Promise<DesktopOperationResult<PlayerDto[]>>;
+    avatar: (saveId: string, playerId: string) => Promise<DesktopOperationResult<PlayerAvatar>>;
   };
   upgrades: {
-    list: (
-      saveId: string,
-    ) => Promise<
-      DesktopOperationResult<PlayerUpgradeDto[]>
-    >;
+    list: (saveId: string) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>;
   };
   run: {
-    get: (
-      saveId: string,
-    ) => Promise<
-      DesktopOperationResult<RunStateDto>
-    >;
+    get: (saveId: string) => Promise<DesktopOperationResult<RunStateDto>>;
   };
   advanced: {
-    get: (
-      saveId: string,
-    ) => Promise<
-      DesktopOperationResult<AdvancedSaveDto>
-    >;
+    get: (saveId: string) => Promise<DesktopOperationResult<AdvancedSaveDto>>;
   };
   cosmetics: {
-    get: () => Promise<
-      DesktopOperationResult<CosmeticsViewDto>
-    >;
+    get: () => Promise<DesktopOperationResult<CosmeticsViewDto>>;
     write: (
       fingerprint: string,
       changes: CosmeticChange[],
-    ) => Promise<
-      DesktopOperationResult<CosmeticsWriteResult>
-    >;
+    ) => Promise<DesktopOperationResult<CosmeticsWriteResult>>;
   };
   maps: {
-    list: () => Promise<
-      DesktopOperationResult<InstalledMapsDto>
-    >;
+    list: () => Promise<DesktopOperationResult<InstalledMapsDto>>;
   };
 }

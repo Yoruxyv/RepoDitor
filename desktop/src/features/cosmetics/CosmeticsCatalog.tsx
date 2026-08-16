@@ -14,13 +14,7 @@ interface CosmeticsCatalogProps {
 }
 
 type OwnershipFilter = "all" | "owned" | "locked";
-type CosmeticSort =
-  | "name-asc"
-  | "name-desc"
-  | "rarity-asc"
-  | "rarity-desc"
-  | "id-asc"
-  | "id-desc";
+type CosmeticSort = "name-asc" | "name-desc" | "rarity-asc" | "rarity-desc" | "id-asc" | "id-desc";
 type TypeFilter = "all" | number;
 
 const COSMETIC_TYPE_SYMBOLS = [
@@ -64,10 +58,7 @@ function formatManagedSymbol(symbol: string): string {
   return symbol.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
 }
 
-function managedSymbol(
-  symbols: readonly string[],
-  value: number,
-): string | null {
+function managedSymbol(symbols: readonly string[], value: number): string | null {
   const symbol = symbols[value];
   return symbol === undefined ? null : formatManagedSymbol(symbol);
 }
@@ -102,44 +93,34 @@ function cosmeticRarityLabel(rarity: number, t: Translate): string {
 }
 
 function isUnlockEligible(view: CosmeticsViewDto, cosmetic: CosmeticDto): boolean {
-  return view.capabilities.canUnlockCosmetic
-    && cosmetic.known
-    && cosmetic.state === "locked"
-    && !cosmetic.owned
-    && cosmetic.mutationEligible;
+  return (
+    view.capabilities.canUnlockCosmetic &&
+    cosmetic.known &&
+    cosmetic.state === "locked" &&
+    !cosmetic.owned &&
+    cosmetic.mutationEligible
+  );
 }
 
 function compareDisplayName(left: CosmeticDto, right: CosmeticDto): number {
   return left.displayName.localeCompare(right.displayName) || left.id - right.id;
 }
 
-function compareRarity(
-  left: CosmeticDto,
-  right: CosmeticDto,
-  direction: "asc" | "desc",
-): number {
+function compareRarity(left: CosmeticDto, right: CosmeticDto, direction: "asc" | "desc"): number {
   const leftRarity =
-    left.rarity !== null
-    && left.rarity >= 0
-    && left.rarity < COSMETIC_RARITY_SYMBOLS.length
+    left.rarity !== null && left.rarity >= 0 && left.rarity < COSMETIC_RARITY_SYMBOLS.length
       ? left.rarity
       : null;
 
   const rightRarity =
-    right.rarity !== null
-    && right.rarity >= 0
-    && right.rarity < COSMETIC_RARITY_SYMBOLS.length
+    right.rarity !== null && right.rarity >= 0 && right.rarity < COSMETIC_RARITY_SYMBOLS.length
       ? right.rarity
       : null;
 
   if (leftRarity === null && rightRarity !== null) return 1;
   if (leftRarity !== null && rightRarity === null) return -1;
 
-  if (
-    leftRarity !== null
-    && rightRarity !== null
-    && leftRarity !== rightRarity
-  ) {
+  if (leftRarity !== null && rightRarity !== null && leftRarity !== rightRarity) {
     const difference = leftRarity - rightRarity;
     return direction === "asc" ? difference : -difference;
   }
@@ -168,11 +149,13 @@ function sortCosmetics(cosmetics: CosmeticDto[], sort: CosmeticSort): CosmeticDt
 }
 
 function cosmeticTypeOptions(cosmetics: readonly CosmeticDto[]): number[] {
-  return [...new Set(
-    cosmetics.flatMap((cosmetic) =>
-      cosmetic.known && cosmetic.type !== null ? [cosmetic.type] : [],
+  return [
+    ...new Set(
+      cosmetics.flatMap((cosmetic) =>
+        cosmetic.known && cosmetic.type !== null ? [cosmetic.type] : [],
+      ),
     ),
-  )].sort((left, right) => left - right);
+  ].sort((left, right) => left - right);
 }
 
 function matchesCatalogFilters(
@@ -181,16 +164,20 @@ function matchesCatalogFilters(
   ownershipFilter: OwnershipFilter,
   typeFilter: TypeFilter,
 ): boolean {
-  const matchesSearch = !query
-    || cosmetic.displayName.toLocaleLowerCase().includes(query)
-    || String(cosmetic.id).includes(query);
-  const matchesOwnership = ownershipFilter === "all"
-    || cosmetic.state === ownershipFilter;
+  const matchesSearch =
+    !query ||
+    cosmetic.displayName.toLocaleLowerCase().includes(query) ||
+    String(cosmetic.id).includes(query);
+  const matchesOwnership = ownershipFilter === "all" || cosmetic.state === ownershipFilter;
   const matchesType = typeFilter === "all" || cosmetic.type === typeFilter;
   return matchesSearch && matchesOwnership && matchesType;
 }
 
-export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: CosmeticsCatalogProps) {
+export function CosmeticsCatalog({
+  view,
+  actionsDisabled,
+  onUnlockCosmetic,
+}: CosmeticsCatalogProps) {
   const { t } = usePreferences();
   const [search, setSearch] = useState("");
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>("all");
@@ -202,12 +189,7 @@ export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: Co
   const query = search.trim().toLocaleLowerCase();
   const visibleCosmeticIds = new Set(
     sortedCosmetics
-      .filter((cosmetic) => matchesCatalogFilters(
-        cosmetic,
-        query,
-        ownershipFilter,
-        typeFilter,
-      ))
+      .filter((cosmetic) => matchesCatalogFilters(cosmetic, query, ownershipFilter, typeFilter))
       .map((cosmetic) => cosmetic.id),
   );
 
@@ -325,12 +307,9 @@ export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: Co
         </div>
 
         <p aria-live="polite" className="mt-2 text-xs text-muted" id="cosmetic-filter-status">
-          {t(
-            visibleCosmeticIds.size === 1
-              ? "cosmetics.matches.one"
-              : "cosmetics.matches.many",
-            { count: visibleCosmeticIds.size },
-          )}
+          {t(visibleCosmeticIds.size === 1 ? "cosmetics.matches.one" : "cosmetics.matches.many", {
+            count: visibleCosmeticIds.size,
+          })}
         </p>
       </div>
 
@@ -367,7 +346,10 @@ export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: Co
                   variant="cosmetic"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink" title={cosmetic.displayName}>
+                  <p
+                    className="truncate text-sm font-semibold text-ink"
+                    title={cosmetic.displayName}
+                  >
                     {cosmetic.displayName}
                   </p>
                   <p className="mt-1 font-mono text-xs text-secondary">
@@ -378,9 +360,7 @@ export function CosmeticsCatalog({ view, actionsDisabled, onUnlockCosmetic }: Co
               </div>
 
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary">
-                {cosmetic.type === null ? null : (
-                  <span>{cosmeticTypeLabel(cosmetic.type, t)}</span>
-                )}
+                {cosmetic.type === null ? null : <span>{cosmeticTypeLabel(cosmetic.type, t)}</span>}
                 {cosmetic.rarity === null ? null : (
                   <span>{cosmeticRarityLabel(cosmetic.rarity, t)}</span>
                 )}

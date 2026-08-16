@@ -19,19 +19,21 @@ const blockedView: CosmeticsViewDto = {
     canUnlockAll: true,
     canRemoveOwnership: true,
   },
-  cosmetics: [{
-    id: 0,
-    displayName: "Long Sleeve",
-    type: 0,
-    rarity: 0,
-    status: 1,
-    owned: true,
-    known: true,
-    state: "owned",
-    mutationEligible: true,
-    removalBlockedReason: "Equipped cosmetic",
-    iconToken: null,
-  }],
+  cosmetics: [
+    {
+      id: 0,
+      displayName: "Long Sleeve",
+      type: 0,
+      rarity: 0,
+      status: 1,
+      owned: true,
+      known: true,
+      state: "owned",
+      mutationEligible: true,
+      removalBlockedReason: "Equipped cosmetic",
+      iconToken: null,
+    },
+  ],
 };
 
 const degradedView: CosmeticsViewDto = {
@@ -48,19 +50,21 @@ const degradedView: CosmeticsViewDto = {
     canUnlockAll: false,
     canRemoveOwnership: false,
   },
-  cosmetics: [{
-    id: 27,
-    displayName: "Cosmetic #27",
-    type: null,
-    rarity: null,
-    status: null,
-    owned: true,
-    known: false,
-    state: "unknown",
-    mutationEligible: false,
-    removalBlockedReason: "Preserved read-only",
-    iconToken: null,
-  }],
+  cosmetics: [
+    {
+      id: 27,
+      displayName: "Cosmetic #27",
+      type: null,
+      rarity: null,
+      status: null,
+      owned: true,
+      known: false,
+      state: "unknown",
+      mutationEligible: false,
+      removalBlockedReason: "Preserved read-only",
+      iconToken: null,
+    },
+  ],
 };
 
 describe("CosmeticsView", () => {
@@ -101,8 +105,9 @@ describe("CosmeticsView", () => {
     );
     expect(screen.queryByTestId("cosmetics-skeleton")).toBeNull();
     expect(screen.getByRole("listitem", { name: "Long Sleeve, ID 0, Owned" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Cosmetics" }).getAttribute("aria-busy"))
-      .toBe("true");
+    expect(screen.getByRole("region", { name: "Cosmetics" }).getAttribute("aria-busy")).toBe(
+      "true",
+    );
   });
 
   it("keeps ownership bulk controls fail-closed while presets remain independent", () => {
@@ -131,9 +136,15 @@ describe("CosmeticsView", () => {
       </PreferencesProvider>,
     );
 
-    expect((screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Lock All Cosmetics" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Lock All Cosmetics" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Clear All Presets" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
     expect(screen.getByRole("listitem", { name: "Cosmetic #27, ID 27, Unknown" })).toBeTruthy();
   });
 

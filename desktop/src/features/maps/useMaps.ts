@@ -20,7 +20,11 @@ export function useMaps() {
     try {
       const result = await window.repoditor.maps.list();
       if (mounted.current) {
-        setState(result.ok ? { discovery: result.data, error: null, loading: false } : { discovery: null, error: operationErrorKey(result.error.code), loading: false });
+        setState(
+          result.ok
+            ? { discovery: result.data, error: null, loading: false }
+            : { discovery: null, error: operationErrorKey(result.error.code), loading: false },
+        );
       }
     } catch {
       if (mounted.current) setState({ discovery: null, error: "error.service", loading: false });
@@ -29,7 +33,9 @@ export function useMaps() {
   useEffect(() => {
     mounted.current = true;
     void load();
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+    };
   }, [load]);
   return { ...state, error: state.error ? t(state.error) : null, reload: load };
 }

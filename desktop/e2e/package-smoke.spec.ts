@@ -5,25 +5,16 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-} from "@playwright/test";
+import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
 
-import {
-  waitForDiscoveredSave,
-  waitForWorkspaceOrContinue,
-} from "./support/waits";
+import { waitForDiscoveredSave, waitForWorkspaceOrContinue } from "./support/waits";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "..");
 const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
-const expectedVersion = JSON.parse(
-  readFileSync(path.join(desktopRoot, "package.json"), "utf8"),
-).version as string;
+const expectedVersion = JSON.parse(readFileSync(path.join(desktopRoot, "package.json"), "utf8"))
+  .version as string;
 const executableSetting = process.env.REPODITOR_E2E_EXECUTABLE;
 
 if (!executableSetting) {
@@ -115,12 +106,8 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
 
     const preloadBoundary = await page.evaluate(() => ({
       requireType: typeof window.require,
-      saves: Object.keys(window.repoditor.saves).sort((left, right) =>
-        left.localeCompare(right),
-      ),
-      topLevel: Object.keys(window.repoditor).sort((left, right) =>
-        left.localeCompare(right),
-      ),
+      saves: Object.keys(window.repoditor.saves).sort((left, right) => left.localeCompare(right)),
+      topLevel: Object.keys(window.repoditor).sort((left, right) => left.localeCompare(right)),
     }));
     expect(preloadBoundary).toEqual({
       requireType: "undefined",

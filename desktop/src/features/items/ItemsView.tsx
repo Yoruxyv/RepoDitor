@@ -1,9 +1,6 @@
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
-import type {
-  AdvancedItemDto,
-  AdvancedSaveDto,
-} from "@electron/contracts";
+import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
@@ -49,9 +46,16 @@ function AdvancedSkeleton({ label }: { readonly label: string }) {
 
         <div className="mt-5 space-y-4">
           {[0, 1, 2].map((group) => (
-            <div className="border-y border-line bg-surface" data-skeleton-kind="item-group" key={group}>
+            <div
+              className="border-y border-line bg-surface"
+              data-skeleton-kind="item-group"
+              key={group}
+            >
               <div className="flex items-center gap-3 px-4 py-3">
-                <Skeleton className="size-14 shrink-0" testId={group === 0 ? "item-thumbnail-skeleton" : undefined} />
+                <Skeleton
+                  className="size-14 shrink-0"
+                  testId={group === 0 ? "item-thumbnail-skeleton" : undefined}
+                />
                 <Skeleton className="h-5 w-48 max-w-2/3" />
                 <Skeleton className="ml-auto h-4 w-7" />
               </div>
@@ -89,7 +93,9 @@ export function ItemsView({
         <h2 className="text-xl font-semibold text-ink" id="advanced-error-title">
           {t("items.unavailable")}
         </h2>
-        <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
+        <p className="mt-2 text-sm text-secondary" role="alert">
+          {error}
+        </p>
         <button
           className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
@@ -110,23 +116,19 @@ export function ItemsView({
 
   return (
     <section aria-busy={loading} aria-labelledby="advanced-title">
-      <h2 className="text-2xl font-semibold text-ink" id="advanced-title">{t("nav.items")}</h2>
-      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
-        {t("items.description")}
-      </p>
+      <h2 className="text-2xl font-semibold text-ink" id="advanced-title">
+        {t("nav.items")}
+      </h2>
+      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">{t("items.description")}</p>
 
       <div className="mt-6 flex items-start gap-2 border-l-2 border-success px-3 py-2 text-xs/5 text-secondary">
         <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
-        <p>
-          {t("items.safety")}
-        </p>
+        <p>{t("items.safety")}</p>
       </div>
 
       <div className="mt-7 border-t border-line pt-6">
         {!itemsDomain?.capabilities.canRead ? (
-          <p className="max-w-[58ch] text-sm/6 text-secondary">
-            {t("items.missingContainer")}
-          </p>
+          <p className="max-w-[58ch] text-sm/6 text-secondary">{t("items.missingContainer")}</p>
         ) : null}
         {itemsDomain?.capabilities.canRead && advanced.items.length === 0 ? (
           <p className="text-sm text-secondary">{t("items.empty")}</p>

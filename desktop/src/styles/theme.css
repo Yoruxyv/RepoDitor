@@ -127,20 +127,39 @@ html:has([data-pending-surface-active="true"]) {
 }
 
 @keyframes asset-preparation-crate-shift {
-  0%, 100% { transform: translateY(0); }
-  48% { transform: translateY(-2px); }
-  56% { transform: translateY(1px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  48% {
+    transform: translateY(-2px);
+  }
+  56% {
+    transform: translateY(1px);
+  }
 }
 
 @keyframes asset-preparation-tool-turn {
-  0%, 76%, 100% { transform: rotate(0deg); }
-  84% { transform: rotate(-10deg); }
-  92% { transform: rotate(8deg); }
+  0%,
+  76%,
+  100% {
+    transform: rotate(0deg);
+  }
+  84% {
+    transform: rotate(-10deg);
+  }
+  92% {
+    transform: rotate(8deg);
+  }
 }
 
 @keyframes asset-preparation-sweep {
-  from { transform: translateX(-120%); }
-  to { transform: translateX(480%); }
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(480%);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

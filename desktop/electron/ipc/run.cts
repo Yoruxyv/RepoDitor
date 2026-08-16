@@ -1,8 +1,4 @@
-import {
-  type DesktopOperationResult,
-  type RunStateDto,
-  type RunStatDto,
-} from "../contracts.cjs";
+import { type DesktopOperationResult, type RunStateDto, type RunStatDto } from "../contracts.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {
   EditorProtocolError,
@@ -15,12 +11,7 @@ import {
   validSaveId,
 } from "./protocol.cjs";
 
-const RUN_STAT_KEYS = new Set<RunStatDto["key"]>([
-  "level",
-  "currency",
-  "lives",
-  "totalHaul",
-]);
+const RUN_STAT_KEYS = new Set<RunStatDto["key"]>(["level", "currency", "lives", "totalHaul"]);
 
 function parseRunStat(value: unknown): RunStatDto {
   if (!isRecord(value)) {

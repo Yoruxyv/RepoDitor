@@ -63,7 +63,10 @@ const upgrades: PlayerUpgradeDto[] = [
     presentationSource: "installed",
     gameplayCap: 10,
     iconToken: null,
-    values: [{ playerId: "111", value: 2 }, { playerId: "222", value: 0 }],
+    values: [
+      { playerId: "111", value: 2 },
+      { playerId: "222", value: 0 },
+    ],
   },
   {
     key: "playerUpgradeMoonBoots",
@@ -71,7 +74,10 @@ const upgrades: PlayerUpgradeDto[] = [
     presentationSource: "humanized",
     gameplayCap: null,
     iconToken: null,
-    values: [{ playerId: "111", value: 0 }, { playerId: "222", value: 7 }],
+    values: [
+      { playerId: "111", value: 0 },
+      { playerId: "222", value: 7 },
+    ],
   },
 ];
 const run: RunStateDto = {
@@ -100,14 +106,62 @@ const readOnlyAdvancedCapabilities = {
 } as const;
 const advanced: AdvancedSaveDto = {
   domains: [
-    { key: "items", label: "Item instances", status: "confirmed", entryCount: 1, capabilities: readOnlyAdvancedCapabilities },
-    { key: "currentCharge", label: "Stored charge entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRefillToFull: true } },
-    { key: "batteryUpgrades", label: "Battery upgrade entries", status: "unknown", entryCount: 0, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
-    { key: "purchasedUpgrades", label: "Purchased upgrade entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
-    { key: "purchasedItems", label: "Purchased item entries", status: "partially_confirmed", entryCount: 1, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
-    { key: "purchasedItemsTotal", label: "Total purchased item entries", status: "partially_confirmed", entryCount: 2, capabilities: { ...readOnlyAdvancedCapabilities, canRead: false } },
+    {
+      key: "items",
+      label: "Item instances",
+      status: "confirmed",
+      entryCount: 1,
+      capabilities: readOnlyAdvancedCapabilities,
+    },
+    {
+      key: "currentCharge",
+      label: "Stored charge entries",
+      status: "partially_confirmed",
+      entryCount: 1,
+      capabilities: { ...readOnlyAdvancedCapabilities, canRefillToFull: true },
+    },
+    {
+      key: "batteryUpgrades",
+      label: "Battery upgrade entries",
+      status: "unknown",
+      entryCount: 0,
+      capabilities: { ...readOnlyAdvancedCapabilities, canRead: false },
+    },
+    {
+      key: "purchasedUpgrades",
+      label: "Purchased upgrade entries",
+      status: "partially_confirmed",
+      entryCount: 1,
+      capabilities: { ...readOnlyAdvancedCapabilities, canRead: false },
+    },
+    {
+      key: "purchasedItems",
+      label: "Purchased item entries",
+      status: "partially_confirmed",
+      entryCount: 1,
+      capabilities: { ...readOnlyAdvancedCapabilities, canRead: false },
+    },
+    {
+      key: "purchasedItemsTotal",
+      label: "Total purchased item entries",
+      status: "partially_confirmed",
+      entryCount: 2,
+      capabilities: { ...readOnlyAdvancedCapabilities, canRead: false },
+    },
   ],
-  items: [{ saveKey: "Item Melee Inflatable Hammer/1", name: "Melee Inflatable Hammer", instanceId: "1", isUpgrade: false, storedCharge: 99, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null }],
+  items: [
+    {
+      saveKey: "Item Melee Inflatable Hammer/1",
+      name: "Melee Inflatable Hammer",
+      instanceId: "1",
+      isUpgrade: false,
+      storedCharge: 99,
+      chargeState: "stored",
+      rechargeCapability: "rechargeable",
+      canRefillToFull: true,
+      iconToken: null,
+    },
+  ],
   unlinkedChargeEntryCount: 0,
 };
 const cosmetics: CosmeticsViewDto = {
@@ -294,10 +348,7 @@ describe("save workspace transition", () => {
 
   it("shows the preparation view only after a save is opened", async () => {
     let assetListener: ((state: AssetPreparationState) => void) | undefined;
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     window.repoditor.assets.onState = vi.fn((listener) => {
       assetListener = listener;
       listener(readyAssets);
@@ -309,24 +360,23 @@ describe("save workspace transition", () => {
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
 
     fireEvent.click(openButton);
-    act(() => assetListener?.({
-      stage: "decoding",
-      installationFound: true,
-      buildVerified: true,
-      completed: 0,
-      total: 3,
-      degraded: false,
-    }));
+    act(() =>
+      assetListener?.({
+        stage: "decoding",
+        installationFound: true,
+        buildVerified: true,
+        completed: 0,
+        total: 3,
+        degraded: false,
+      }),
+    );
 
     expect(await screen.findByTestId("asset-preparation")).toBeTruthy();
   });
 
   it("allows entering the editor after the slow threshold while artwork continues in background", async () => {
     let assetListener: ((state: AssetPreparationState) => void) | undefined;
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     window.repoditor.assets.onState = vi.fn((listener) => {
       assetListener = listener;
       listener(readyAssets);
@@ -337,14 +387,16 @@ describe("save workspace transition", () => {
 
     vi.useFakeTimers();
     try {
-      act(() => assetListener?.({
-        stage: "decoding",
-        installationFound: true,
-        buildVerified: true,
-        completed: 2,
-        total: 7,
-        degraded: false,
-      }));
+      act(() =>
+        assetListener?.({
+          stage: "decoding",
+          installationFound: true,
+          buildVerified: true,
+          completed: 2,
+          total: 7,
+          degraded: false,
+        }),
+      );
       fireEvent.click(openButton);
       await act(async () => undefined);
       expect(screen.getByTestId("asset-preparation")).toBeTruthy();
@@ -354,19 +406,14 @@ describe("save workspace transition", () => {
       await act(async () => undefined);
 
       expect(screen.getByRole("heading", { name: session.name })).toBeTruthy();
-      expect(screen.getByTestId("asset-preparation-notice").textContent).toContain(
-        "2 / 7 assets",
-      );
+      expect(screen.getByTestId("asset-preparation-notice").textContent).toContain("2 / 7 assets");
     } finally {
       vi.useRealTimers();
     }
   });
 
   it("keeps save editing available when optional game artwork preparation is degraded", async () => {
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const degradedAssets: AssetPreparationState = {
       stage: "degraded",
       installationFound: false,
@@ -459,26 +506,33 @@ describe("save workspace transition", () => {
     expect(localStorage.getItem("repoditor.theme")).toBe("system");
   });
 
-  it.each(localeCases)("renders critical shell controls in the %s locale", async (locale, nativeName) => {
-    localStorage.setItem("repoditor.locale", locale);
-    render(<App />);
+  it.each(localeCases)(
+    "renders critical shell controls in the %s locale",
+    async (locale, nativeName) => {
+      localStorage.setItem("repoditor.locale", locale);
+      render(<App />);
 
-    expect(document.documentElement.lang).toBe(locale);
-    expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.runSaves"] })).toBeTruthy();
-    expect(screen.getByRole("button", { name: TRANSLATIONS[locale]["app.cosmetics"] })).toBeTruthy();
-    expect(screen.getByRole("button", {
-      name: `${TRANSLATIONS[locale]["utility.theme"]}: ${TRANSLATIONS[locale]["utility.theme.system"]}`,
-    })).toBeTruthy();
-    expect(screen.getByRole("button", { name: new RegExp(nativeName) })).toBeTruthy();
-    expect(await screen.findByRole("button", { name: TRANSLATIONS[locale]["action.refresh"] }))
-      .toBeTruthy();
-  });
+      expect(document.documentElement.lang).toBe(locale);
+      expect(
+        screen.getByRole("button", { name: TRANSLATIONS[locale]["app.runSaves"] }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: TRANSLATIONS[locale]["app.cosmetics"] }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", {
+          name: `${TRANSLATIONS[locale]["utility.theme"]}: ${TRANSLATIONS[locale]["utility.theme.system"]}`,
+        }),
+      ).toBeTruthy();
+      expect(screen.getByRole("button", { name: new RegExp(nativeName) })).toBeTruthy();
+      expect(
+        await screen.findByRole("button", { name: TRANSLATIONS[locale]["action.refresh"] }),
+      ).toBeTruthy();
+    },
+  );
 
   it("switches and restores UI language while preserving game-derived strings", async () => {
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
@@ -521,11 +575,15 @@ describe("save workspace transition", () => {
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(screen.getByRole("button", { name: /Open workspace/ }));
-    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "R.E.P.O. is currently running" }),
+    ).toBeTruthy();
     expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Check Again" }));
-    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "R.E.P.O. is currently running" }),
+    ).toBeTruthy();
     expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Check Again" }));
@@ -627,15 +685,25 @@ describe("save workspace transition", () => {
     );
     screen.getByRole("tab", { name: "Overview" }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-selected")).toBe(
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it.each([
-    ["save_missing" as const, "The selected save no longer exists.", "The selected save could not be found."],
-    ["save_corrupt" as const, "The selected save is corrupted.", "The selected save could not be safely read or validated."],
-    ["save_unsupported" as const, "The selected save format is not supported.", "The selected save could not be safely read or validated."],
+    [
+      "save_missing" as const,
+      "The selected save no longer exists.",
+      "The selected save could not be found.",
+    ],
+    [
+      "save_corrupt" as const,
+      "The selected save is corrupted.",
+      "The selected save could not be safely read or validated.",
+    ],
+    [
+      "save_unsupported" as const,
+      "The selected save format is not supported.",
+      "The selected save could not be safely read or validated.",
+    ],
   ])("keeps discovery visible and reports %s open failures", async (code, message, localized) => {
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({
@@ -665,9 +733,7 @@ describe("save workspace transition", () => {
     expect(await screen.findByText("Validated locally")).toBeTruthy();
     const metadata = screen.getByTestId("selected-save-metadata");
     const source = screen.getByTestId("selected-save-path");
-    expect(source.textContent).toContain(
-      "REPO_SAVE_2026_08_08_10_20_30.es3",
-    );
+    expect(source.textContent).toContain("REPO_SAVE_2026_08_08_10_20_30.es3");
     expect(document.querySelectorAll("details")).toHaveLength(1);
     expect((source as HTMLDetailsElement).open).toBe(false);
     expect(metadata.contains(source)).toBe(false);
@@ -677,9 +743,9 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Normal")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Open Players" }));
-    await waitFor(() => expect(document.activeElement).toBe(
-      screen.getByRole("tab", { name: "Players" }),
-    ));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Players" })),
+    );
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
     expect(screen.getByTestId("avatar-fallback").textContent).toBe("B");
@@ -696,33 +762,30 @@ describe("save workspace transition", () => {
     expect(document.querySelector("#workspace-tab-pending-1")?.textContent).toContain(
       "1 pending change",
     );
-    expect(document.querySelector("#run-saves-pending")?.textContent).toContain(
-      "1 pending change",
-    );
+    expect(document.querySelector("#run-saves-pending")?.textContent).toContain("1 pending change");
 
     await user.clear(health);
     await user.type(health, "0");
     expect(screen.queryByTestId("pending-health-edit")).toBeNull();
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
 
     await user.clear(health);
     await user.type(health, "42");
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(
-  await screen.findByRole(
-    "tab",
-    { name: "Players" },
-    { timeout: 10_000 },
-  ),
-);
+    await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
-    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
-      .toBe("42");
+    expect(
+      (screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value,
+    ).toBe("42");
 
     await user.click(screen.getByRole("button", { name: "Revert" }));
     expect(screen.queryByTestId("pending-health-edit")).toBeNull();
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("rejects invalid health without creating a pending edit", async () => {
@@ -737,7 +800,9 @@ describe("save workspace transition", () => {
 
     expect(screen.getByRole("alert").textContent).toContain("whole number");
     expect(health.getAttribute("aria-describedby")).toContain("player-health-error");
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("heals to Python-provided max health through the existing pending edit", async () => {
@@ -752,27 +817,25 @@ describe("save workspace transition", () => {
     expect(screen.getByLabelText("Maximum health 100")).toBeTruthy();
     const heal = screen.getByRole("button", { name: "Heal to Full" });
     await user.click(heal);
-    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
-      .toBe("100");
+    expect(
+      (screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value,
+    ).toBe("100");
     expect((heal as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 100");
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(
-  await screen.findByRole(
-    "tab",
-    { name: "Players" },
-    { timeout: 10_000 },
-  ),
-);
-    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
-      .toBe("100");
+    await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
+    expect(
+      (screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value,
+    ).toBe("100");
 
     await user.click(screen.getByRole("button", { name: "Revert" }));
-    expect((screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value)
-      .toBe("0");
-    expect((screen.getByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled)
-      .toBe(false);
+    expect(
+      (screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value,
+    ).toBe("0");
+    expect(
+      (screen.getByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
   it("disables Heal to Full when current health already equals max health", async () => {
@@ -786,9 +849,11 @@ describe("save workspace transition", () => {
     await user.click(await screen.findByRole("tab", { name: "Players" }));
 
     expect(
-      (await screen.findByRole("button", { name: "Heal to Full" }) as HTMLButtonElement).disabled,
+      ((await screen.findByRole("button", { name: "Heal to Full" })) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("keeps advanced refill and other edits while navigating sections", async () => {
@@ -808,9 +873,7 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-upgrade-playerUpgradeStrength").textContent).toContain(
       "0 → 3",
     );
-    expect(strength.getAttribute("aria-describedby")).toContain(
-      "playerUpgradeStrength-pending",
-    );
+    expect(strength.getAttribute("aria-describedby")).toContain("playerUpgradeStrength-pending");
 
     await user.click(screen.getByRole("tab", { name: "Run" }));
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
@@ -819,18 +882,23 @@ describe("save workspace transition", () => {
     expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
     expect(currency.getAttribute("min")).toBeNull();
     expect(currency.getAttribute("aria-describedby")).toContain("run-currency-pending");
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "2 pending changes",
+    );
 
     await user.click(screen.getByRole("tab", { name: "Items" }));
     expect(await screen.findByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
-    expect(screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent)
-      .toContain("Current charge: 99");
+    expect(
+      screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent,
+    ).toContain("Current charge: 99");
     expect(screen.queryByText("#1")).toBeNull();
-    expect(screen.getByText(
-      "Recharge appears only for tools RepoDitor can safely refill.",
-    )).toBeTruthy();
+    expect(
+      screen.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+    ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Recharge All Tools" }));
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("3 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "3 pending changes",
+    );
 
     await user.click(screen.getByRole("tab", { name: "Maps" }));
     expect(await screen.findByText("McJannek Station")).toBeTruthy();
@@ -840,15 +908,19 @@ describe("save workspace transition", () => {
     expect(document.querySelectorAll("details")).toHaveLength(1);
 
     await user.click(screen.getByRole("tab", { name: "Upgrades" }));
-    expect((screen.getByRole("spinbutton", { name: "Strength for Beta" }) as HTMLInputElement).value)
-      .toBe("3");
+    expect(
+      (screen.getByRole("spinbutton", { name: "Strength for Beta" }) as HTMLInputElement).value,
+    ).toBe("3");
     await user.click(screen.getByRole("tab", { name: "Run" }));
-    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
-      .toBe("20");
+    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value).toBe(
+      "20",
+    );
     await user.click(screen.getByRole("tab", { name: "Items" }));
     expect(screen.getByText("Pending: 99 → Full")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert recharge" }));
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "2 pending changes",
+    );
   });
 
   it("stages bulk recharge only for confirmed partial rechargeable tools and keeps it memory-only", async () => {
@@ -865,10 +937,50 @@ describe("save workspace transition", () => {
         ...advanced,
         items: [
           advanced.items[0]!,
-          { saveKey: "Item Gun Tranq/2", name: "Gun Tranq", instanceId: "2", isUpgrade: false, storedCharge: 17, chargeState: "stored", rechargeCapability: "rechargeable", canRefillToFull: true, iconToken: null },
-          { saveKey: "Item Gun Tranq/3", name: "Gun Tranq", instanceId: "3", isUpgrade: false, storedCharge: null, chargeState: "default_full", rechargeCapability: "rechargeable", canRefillToFull: false, iconToken: null },
-          { saveKey: "Item Cart Medium/1", name: "Cart Medium", instanceId: "1", isUpgrade: false, storedCharge: null, chargeState: "not_applicable", rechargeCapability: "not_rechargeable", canRefillToFull: false, iconToken: null },
-          { saveKey: "Item Future Tool/4", name: "Future Tool", instanceId: "4", isUpgrade: false, storedCharge: 7, chargeState: "stored", rechargeCapability: "unknown", canRefillToFull: false, iconToken: null },
+          {
+            saveKey: "Item Gun Tranq/2",
+            name: "Gun Tranq",
+            instanceId: "2",
+            isUpgrade: false,
+            storedCharge: 17,
+            chargeState: "stored",
+            rechargeCapability: "rechargeable",
+            canRefillToFull: true,
+            iconToken: null,
+          },
+          {
+            saveKey: "Item Gun Tranq/3",
+            name: "Gun Tranq",
+            instanceId: "3",
+            isUpgrade: false,
+            storedCharge: null,
+            chargeState: "default_full",
+            rechargeCapability: "rechargeable",
+            canRefillToFull: false,
+            iconToken: null,
+          },
+          {
+            saveKey: "Item Cart Medium/1",
+            name: "Cart Medium",
+            instanceId: "1",
+            isUpgrade: false,
+            storedCharge: null,
+            chargeState: "not_applicable",
+            rechargeCapability: "not_rechargeable",
+            canRefillToFull: false,
+            iconToken: null,
+          },
+          {
+            saveKey: "Item Future Tool/4",
+            name: "Future Tool",
+            instanceId: "4",
+            isUpgrade: false,
+            storedCharge: 7,
+            chargeState: "stored",
+            rechargeCapability: "unknown",
+            canRefillToFull: false,
+            iconToken: null,
+          },
         ],
       },
     });
@@ -879,10 +991,13 @@ describe("save workspace transition", () => {
     await user.click(await screen.findByRole("tab", { name: "Items" }));
     await user.click(await screen.findByRole("button", { name: "Recharge All Tools" }));
 
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("2 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "2 pending changes",
+    );
     expect(screen.getAllByText(/Pending: .* Full/)).toHaveLength(2);
-    expect((screen.getByRole("button", { name: "Recharge All Tools" }) as HTMLButtonElement).disabled)
-      .toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Recharge All Tools" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(write).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Review" }));
@@ -891,7 +1006,9 @@ describe("save workspace transition", () => {
     expect(screen.queryByText(/Cart Medium.*Charge/)).toBeNull();
     expect(screen.queryByText(/Future Tool.*Charge/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("reloads MetaSave whenever Cosmetics is entered without pending edits", async () => {
@@ -918,7 +1035,7 @@ describe("save workspace transition", () => {
     await screen.findByRole("heading", { name: "Cosmetics" });
 
     expect(getCosmetics).toHaveBeenCalledTimes(1);
-    expect(workspace.querySelector('button')).toBeTruthy();
+    expect(workspace.querySelector("button")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
   });
 
@@ -926,11 +1043,7 @@ describe("save workspace transition", () => {
     const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
     const gameStatus = vi.mocked(window.repoditor.game.status);
     let finishFocusCheck:
-      | ((value: {
-          ok: true;
-          data: { status: "not_running"; running: false };
-        }) => void)
-      | undefined;
+      ((value: { ok: true; data: { status: "not_running"; running: false } }) => void) | undefined;
     gameStatus
       .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } })
       .mockImplementationOnce(
@@ -943,7 +1056,9 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false));
+    await waitFor(() =>
+      expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(false),
+    );
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
 
@@ -977,7 +1092,9 @@ describe("save workspace transition", () => {
     await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(1));
 
     act(() => window.dispatchEvent(new Event("focus")));
-    expect(await screen.findByRole("heading", { name: "R.E.P.O. is currently running" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "R.E.P.O. is currently running" }),
+    ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Check Again" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -993,12 +1110,8 @@ describe("save workspace transition", () => {
     await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await user.click(await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }));
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
-    expect(document.querySelector("#cosmetics-pending")?.textContent).toContain(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
+    expect(document.querySelector("#cosmetics-pending")?.textContent).toContain("1 pending change");
 
     act(() => window.dispatchEvent(new Event("focus")));
     await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(2));
@@ -1017,8 +1130,10 @@ describe("save workspace transition", () => {
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await screen.findByRole("heading", { name: "Cosmetics" });
 
-    const ownedCount = () => screen.getByText("Owned", { selector: "dt" }).nextElementSibling?.textContent;
-    const lockedCount = () => screen.getByText("Locked", { selector: "dt" }).nextElementSibling?.textContent;
+    const ownedCount = () =>
+      screen.getByText("Owned", { selector: "dt" }).nextElementSibling?.textContent;
+    const lockedCount = () =>
+      screen.getByText("Locked", { selector: "dt" }).nextElementSibling?.textContent;
     expect(ownedCount()).toBe("1");
     expect(lockedCount()).toBe("1");
 
@@ -1031,8 +1146,9 @@ describe("save workspace transition", () => {
       screen.getByRole("listitem", { name: "Installed Cosmetic 28, ID 28, Owned" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Unlock Installed Cosmetic 28" })).toBeNull();
-    expect((screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled)
-      .toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Unlock All Cosmetics" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(cosmeticWrite).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Review" }));
@@ -1054,7 +1170,9 @@ describe("save workspace transition", () => {
       { feature: "cosmetics", entity: "28", field: "owned", after: true },
     ]);
     expect(await screen.findByText("Saved safely · Backup created")).toBeTruthy();
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
     expect(ownedCount()).toBe("2");
     expect(lockedCount()).toBe("0");
   }, 10_000);
@@ -1082,9 +1200,7 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("3");
 
     await user.click(screen.getByRole("button", { name: "Clear All Presets" }));
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
     expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("0");
     expect(screen.getByText(/Cosmetics.*Saved presets/)).toBeTruthy();
     expect(screen.getByText("3 → 0")).toBeTruthy();
@@ -1132,9 +1248,7 @@ describe("save workspace transition", () => {
     ).toBe(true);
 
     await user.click(screen.getByRole("button", { name: /^Lock All Cosmetics$/ }));
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
     expect(screen.getByText(/Cosmetics.*Known ownership/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Run Saves" }));
@@ -1166,25 +1280,17 @@ describe("save workspace transition", () => {
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "20");
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
 
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
-    await user.click(
-      await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }),
-    );
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    await user.click(await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }));
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
 
     await user.click(screen.getByRole("button", { name: "Run Saves" }));
     expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value).toBe(
       "20",
     );
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
 
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
@@ -1194,9 +1300,7 @@ describe("save workspace transition", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Run Saves" }));
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
   });
 
   it("represents Unlock All as one revertible pending action", async () => {
@@ -1204,13 +1308,9 @@ describe("save workspace transition", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
-    await user.click(
-      await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /^Unlock All Cosmetics$/ }));
 
-    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
-      "1 pending change",
-    );
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
     expect(screen.getByText(/Cosmetics.*Known ownership/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
     expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe(
@@ -1238,13 +1338,7 @@ describe("save workspace transition", () => {
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
 
-    await user.click(
-  await screen.findByRole(
-    "tab",
-    { name: "Players" },
-    { timeout: 10_000 },
-  ),
-);
+    await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     await user.click(await screen.findByRole("button", { name: /Beta/ }));
     const health = screen.getByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
@@ -1263,18 +1357,25 @@ describe("save workspace transition", () => {
     expect(screen.getByText("Beta · Health")).toBeTruthy();
     expect(screen.getByText("Beta · Strength")).toBeTruthy();
     expect(screen.getByText("Run · Currency")).toBeTruthy();
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("3 pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "3 pending changes",
+    );
 
     await user.click(screen.getByRole("button", { name: "Revert all" }));
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
-    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value)
-      .toBe("12");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    expect((screen.getByRole("spinbutton", { name: "Currency" }) as HTMLInputElement).value).toBe(
+      "12",
+    );
     expect(write).not.toHaveBeenCalled();
 
     await user.clear(screen.getByRole("spinbutton", { name: "Currency" }));
     await user.type(screen.getByRole("spinbutton", { name: "Currency" }), "20");
     await user.click(screen.getByRole("tab", { name: "Items" }));
-    await user.click(screen.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }),
+    );
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(write).toHaveBeenCalledWith(session.id, session.fingerprint, [
@@ -1287,7 +1388,9 @@ describe("save workspace transition", () => {
       },
     ]);
     expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("No pending changes");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("keeps pending changes when a stale save is rejected", async () => {
@@ -1317,10 +1420,7 @@ describe("save workspace transition", () => {
 
   it("keeps editing available while an avatar loads and falls back if the image fails", async () => {
     let finishAvatar:
-      | ((value: {
-          ok: true;
-          data: { playerId: string; avatarUrl: string | null };
-        }) => void)
+      | ((value: { ok: true; data: { playerId: string; avatarUrl: string | null } }) => void)
       | undefined;
     const avatar = vi.fn(
       () =>
@@ -1343,13 +1443,7 @@ describe("save workspace transition", () => {
     await waitFor(() => {
       expect(avatar).toHaveBeenCalledWith(saveId, "111");
     });
-    await user.click(
-  await screen.findByRole(
-    "tab",
-    { name: "Players" },
-    { timeout: 10_000 },
-  ),
-);
+    await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
     await user.type(health, "95");

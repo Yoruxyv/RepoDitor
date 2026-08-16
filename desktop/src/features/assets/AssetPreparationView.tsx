@@ -1,14 +1,7 @@
-import {
-  PackageIcon,
-  WrenchIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { PackageIcon, WrenchIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import type {
-  AssetPreparationStage,
-  AssetPreparationState,
-} from "@electron/contracts";
+import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { TranslationKey } from "@/app/translations";
 
@@ -52,9 +45,10 @@ export function AssetPreparationView({
   const stageKey: TranslationKey = waitingForUpgradeDiscovery
     ? "assets.stage.saveUpgrades"
     : STAGE_KEYS[state.stage];
-  const progress = state.completed !== null && state.total !== null
-    ? { completed: state.completed, total: state.total }
-    : null;
+  const progress =
+    state.completed !== null && state.total !== null
+      ? { completed: state.completed, total: state.total }
+      : null;
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -64,9 +58,10 @@ export function AssetPreparationView({
 
   const displayProgress = waitingForUpgradeDiscovery ? null : progress;
   const filledSegments = countFilledSegments(displayProgress);
-  const heading = waitingForUpgradeDiscovery || displayProgress !== null
-    ? t("assets.preparingUpgrades")
-    : t("assets.preparingGame");
+  const heading =
+    waitingForUpgradeDiscovery || displayProgress !== null
+      ? t("assets.preparingUpgrades")
+      : t("assets.preparingGame");
 
   return (
     <section
@@ -76,7 +71,10 @@ export function AssetPreparationView({
       data-testid="asset-preparation"
     >
       <div className="asset-preparation-panel relative w-full overflow-hidden border border-line-strong bg-surface p-5 shadow-2xl sm:p-7">
-        <div aria-hidden="true" className="asset-preparation-scanline pointer-events-none absolute inset-0" />
+        <div
+          aria-hidden="true"
+          className="asset-preparation-scanline pointer-events-none absolute inset-0"
+        />
         <header className="relative flex items-center justify-between gap-4 border-b border-line pb-3">
           <div>
             <p className="font-display text-2xl font-semibold uppercase tracking-[0.12em] text-ink">
@@ -183,9 +181,7 @@ export function AssetPreparationView({
               : t("assets.installationPending")}
           </span>
           <span className={state.buildVerified ? "text-success" : undefined}>
-            {state.buildVerified
-              ? t("assets.buildVerified")
-              : t("assets.buildPending")}
+            {state.buildVerified ? t("assets.buildVerified") : t("assets.buildPending")}
           </span>
         </footer>
       </div>
@@ -219,9 +215,10 @@ export function AssetPreparationNotice({
   if (!state.degraded && !preparing) return null;
 
   if (preparing) {
-    const progress = state.completed !== null && state.total !== null
-      ? t("assets.progressCount", { completed: state.completed, total: state.total })
-      : t("assets.working");
+    const progress =
+      state.completed !== null && state.total !== null
+        ? t("assets.progressCount", { completed: state.completed, total: state.total })
+        : t("assets.working");
     return (
       <output
         className="mb-5 flex items-start gap-3 border-l-2 border-accent bg-accent-muted px-4 py-3 text-sm text-secondary"
@@ -254,8 +251,7 @@ export function AssetPreparationNotice({
         weight="fill"
       />
       <span>
-        <strong className="font-semibold text-ink">{t("assets.notice.title")}</strong>{" "}
-        {t(detail)}
+        <strong className="font-semibold text-ink">{t("assets.notice.title")}</strong> {t(detail)}
       </span>
     </output>
   );

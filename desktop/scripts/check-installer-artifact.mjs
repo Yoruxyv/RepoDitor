@@ -1,8 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 
-const packageJson = JSON.parse(
-  await readFile(new URL("../package.json", import.meta.url), "utf8"),
-);
+const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const nsisTarget = packageJson.build.win.target.find(({ target }) => target === "nsis");
 const nsis = packageJson.build.nsis;
 

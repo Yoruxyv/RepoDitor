@@ -22,7 +22,8 @@ function PendingDot({ count, id }: { readonly count: number; readonly id: string
     <>
       <span aria-hidden="true" className="ml-2 inline-block size-2 rounded-full bg-warning" />
       <span className="sr-only" id={id}>
-        {" · "}{t(count === 1 ? "pending.one" : "pending.many", { count })}
+        {" · "}
+        {t(count === 1 ? "pending.one" : "pending.many", { count })}
       </span>
     </>
   );

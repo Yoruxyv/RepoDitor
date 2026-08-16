@@ -28,9 +28,15 @@ interface CosmeticsViewProps {
 
 function CosmeticCardSkeleton({ first }: { readonly first: boolean }) {
   return (
-    <div className="min-w-0 rounded-sm border border-line bg-surface p-3" data-skeleton-kind="cosmetic-card">
+    <div
+      className="min-w-0 rounded-sm border border-line bg-surface p-3"
+      data-skeleton-kind="cosmetic-card"
+    >
       <div className="flex min-w-0 items-start gap-3">
-        <Skeleton className="size-12 shrink-0" testId={first ? "cosmetic-thumbnail-skeleton" : undefined} />
+        <Skeleton
+          className="size-12 shrink-0"
+          testId={first ? "cosmetic-thumbnail-skeleton" : undefined}
+        />
         <div className="min-w-0 flex-1 space-y-2">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-3 w-14" />
@@ -127,8 +133,12 @@ export function CosmeticsView({
   if (error) {
     return (
       <section aria-labelledby="cosmetics-error-title">
-        <h2 className="text-xl font-semibold text-ink" id="cosmetics-error-title">{t("cosmetics.unavailable")}</h2>
-        <p className="mt-2 text-sm text-secondary" role="alert">{error}</p>
+        <h2 className="text-xl font-semibold text-ink" id="cosmetics-error-title">
+          {t("cosmetics.unavailable")}
+        </h2>
+        <p className="mt-2 text-sm text-secondary" role="alert">
+          {error}
+        </p>
         <button
           className="ui-feedback mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
@@ -142,17 +152,17 @@ export function CosmeticsView({
   }
   if (!view) return null;
 
-  const lockAllUnavailable = lockAllBlockedReason
-    ? t("cosmetics.lockUnavailable")
-    : null;
+  const lockAllUnavailable = lockAllBlockedReason ? t("cosmetics.lockUnavailable") : null;
 
   return (
     <section aria-busy={loading} aria-labelledby="cosmetics-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">{t("cosmetics.ownership")}</p>
-      <h2 className="mt-1 text-2xl font-semibold text-ink" id="cosmetics-title">{t("app.cosmetics")}</h2>
-      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
-        {t("cosmetics.description")}
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
+        {t("cosmetics.ownership")}
       </p>
+      <h2 className="mt-1 text-2xl font-semibold text-ink" id="cosmetics-title">
+        {t("app.cosmetics")}
+      </h2>
+      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">{t("cosmetics.description")}</p>
 
       <dl className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
@@ -190,10 +200,10 @@ export function CosmeticsView({
         <button
           className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={
-            !view.capabilities.canRemoveOwnership
-            || knownOwnedCount === 0
-            || hasPendingEdits
-            || lockAllBlockedReason !== null
+            !view.capabilities.canRemoveOwnership ||
+            knownOwnedCount === 0 ||
+            hasPendingEdits ||
+            lockAllBlockedReason !== null
           }
           type="button"
           onClick={onLockAll}

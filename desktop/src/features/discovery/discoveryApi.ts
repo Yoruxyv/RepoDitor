@@ -1,7 +1,4 @@
-import type {
-  DesktopOperationResult,
-  EnvironmentDiscovery,
-} from "@electron/contracts";
+import type { DesktopOperationResult, EnvironmentDiscovery } from "@electron/contracts";
 
 const BRIDGE_FAILURE: DesktopOperationResult<EnvironmentDiscovery> = {
   ok: false,
@@ -11,9 +8,7 @@ const BRIDGE_FAILURE: DesktopOperationResult<EnvironmentDiscovery> = {
   },
 };
 
-export async function detectEnvironment(): Promise<
-  DesktopOperationResult<EnvironmentDiscovery>
-> {
+export async function detectEnvironment(): Promise<DesktopOperationResult<EnvironmentDiscovery>> {
   try {
     return await window.repoditor.environment.detect();
   } catch {

@@ -40,10 +40,7 @@ export type PythonClientErrorCode =
 export class PythonClientError extends Error {
   readonly code: PythonClientErrorCode;
 
-  constructor(
-    code: PythonClientErrorCode,
-    message: string,
-  ) {
+  constructor(code: PythonClientErrorCode, message: string) {
     super(message);
     this.name = "PythonClientError";
     this.code = code;
@@ -51,10 +48,7 @@ export class PythonClientError extends Error {
 }
 
 export interface PythonClient {
-  run(
-    command: PythonCommand,
-    arguments_?: readonly string[],
-  ): Promise<unknown>;
+  run(command: PythonCommand, arguments_?: readonly string[]): Promise<unknown>;
   dispose(): void;
 }
 
@@ -67,29 +61,14 @@ export interface PythonRecordClient extends PythonClient {
 }
 
 function getRepoRoot(): string {
-  return path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-  );
+  return path.resolve(__dirname, "..", "..", "..");
 }
 
 function getDevelopmentPythonExecutable(): string {
   const executable =
     process.platform === "win32"
-      ? path.join(
-          getRepoRoot(),
-          ".venv",
-          "Scripts",
-          "python.exe",
-        )
-      : path.join(
-          getRepoRoot(),
-          ".venv",
-          "bin",
-          "python",
-        );
+      ? path.join(getRepoRoot(), ".venv", "Scripts", "python.exe")
+      : path.join(getRepoRoot(), ".venv", "bin", "python");
   return executable;
 }
 
@@ -117,11 +96,7 @@ function getPythonInvocation(
   arguments_: readonly string[],
 ): PythonInvocation {
   if (app.isPackaged) {
-    const executable = path.join(
-      process.resourcesPath,
-      "backend",
-      "repoditor-backend.exe",
-    );
+    const executable = path.join(process.resourcesPath, "backend", "repoditor-backend.exe");
     return {
       executable,
       arguments: buildPythonArguments(command, arguments_, true),
@@ -137,62 +112,36 @@ function getPythonInvocation(
 }
 
 class SpawnPythonClient implements PythonClient {
-  private readonly activeChildren = new Set<
-    ReturnType<typeof spawn>
-  >();
+  private readonly activeChildren = new Set<ReturnType<typeof spawn>>();
 
   private disposed = false;
 
-  async run(
-    command: PythonCommand,
-    arguments_: readonly string[] = [],
-  ): Promise<unknown> {
+  async run(command: PythonCommand, arguments_: readonly string[] = []): Promise<unknown> {
     if (this.disposed) {
-      throw new PythonClientError(
-        "process_failed",
-        "Python client is no longer available.",
-      );
+      throw new PythonClientError("process_failed", "Python client is no longer available.");
     }
 
-    const invocation = getPythonInvocation(
-      command,
-      arguments_,
-    );
+    const invocation = getPythonInvocation(command, arguments_);
 
     return new Promise((resolve, reject) => {
-      const child = spawn(
-        invocation.executable,
-        invocation.arguments,
-        {
-          cwd: invocation.cwd,
-          windowsHide: true,
-          stdio: [
-            "ignore",
-            "pipe",
-            "pipe",
-          ],
-        },
-      );
+      const child = spawn(invocation.executable, invocation.arguments, {
+        cwd: invocation.cwd,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       this.activeChildren.add(child);
 
       let settled = false;
       let stdout = "";
       let stdoutBytes = 0;
-      const stdoutLimit = command === "upgrade-texture"
-        ? MAX_UPGRADE_TEXTURE_STDOUT_BYTES
-        : MAX_STDOUT_BYTES;
+      const stdoutLimit =
+        command === "upgrade-texture" ? MAX_UPGRADE_TEXTURE_STDOUT_BYTES : MAX_STDOUT_BYTES;
 
-      const timeoutMs = command === "upgrade-texture"
-        ? UPGRADE_TEXTURE_TIMEOUT_MS
-        : PYTHON_TIMEOUT_MS;
+      const timeoutMs =
+        command === "upgrade-texture" ? UPGRADE_TEXTURE_TIMEOUT_MS : PYTHON_TIMEOUT_MS;
       const timer = setTimeout(() => {
         child.kill();
-        fail(
-          new PythonClientError(
-            "process_timeout",
-            "Python command timed out.",
-          ),
-        );
+        fail(new PythonClientError("process_timeout", "Python command timed out."));
       }, timeoutMs);
 
       function finish(value: unknown): void {
@@ -216,50 +165,31 @@ class SpawnPythonClient implements PythonClient {
       child.stdout.setEncoding("utf8");
       child.stderr.setEncoding("utf8");
 
-      child.stdout.on(
-        "data",
-        (chunk: string) => {
-          stdoutBytes += Buffer.byteLength(
-            chunk,
-            "utf8",
+      child.stdout.on("data", (chunk: string) => {
+        stdoutBytes += Buffer.byteLength(chunk, "utf8");
+        if (stdoutBytes > stdoutLimit) {
+          child.kill();
+          fail(
+            new PythonClientError(
+              "malformed_response",
+              "Python response exceeded the protocol limit.",
+            ),
           );
-          if (
-            stdoutBytes > stdoutLimit
-          ) {
-            child.kill();
-            fail(
-              new PythonClientError(
-                "malformed_response",
-                "Python response exceeded the protocol limit.",
-              ),
-            );
-            return;
-          }
-          stdout += chunk;
-        },
-      );
+          return;
+        }
+        stdout += chunk;
+      });
 
-      child.stderr.on(
-        "data",
-        (chunk: string) => {
-          console.error(
-            `[python:${command}] ${chunk.trimEnd()}`,
-          );
-        },
-      );
+      child.stderr.on("data", (chunk: string) => {
+        console.error(`[python:${command}] ${chunk.trimEnd()}`);
+      });
 
       child.on("error", (error) => {
         this.activeChildren.delete(child);
-        const code =
-          "code" in error &&
-          typeof error.code === "string"
-            ? error.code
-            : undefined;
+        const code = "code" in error && typeof error.code === "string" ? error.code : undefined;
         fail(
           new PythonClientError(
-            code === "ENOENT"
-              ? "python_unavailable"
-              : "process_failed",
+            code === "ENOENT" ? "python_unavailable" : "process_failed",
             code === "ENOENT"
               ? "Python executable is unavailable."
               : "Python process could not be started.",
@@ -273,35 +203,20 @@ class SpawnPythonClient implements PythonClient {
           return;
         }
         if (code !== 0) {
-          fail(
-            new PythonClientError(
-              "process_failed",
-              "Python command failed.",
-            ),
-          );
+          fail(new PythonClientError("process_failed", "Python command failed."));
           return;
         }
 
         const output = stdout.trim();
         if (!output) {
-          fail(
-            new PythonClientError(
-              "empty_response",
-              "Python returned no response.",
-            ),
-          );
+          fail(new PythonClientError("empty_response", "Python returned no response."));
           return;
         }
 
         try {
           finish(JSON.parse(output));
         } catch {
-          fail(
-            new PythonClientError(
-              "malformed_response",
-              "Python returned malformed JSON.",
-            ),
-          );
+          fail(new PythonClientError("malformed_response", "Python returned malformed JSON."));
         }
       });
     });
@@ -313,15 +228,12 @@ class SpawnPythonClient implements PythonClient {
     onRecord: (record: unknown) => void | Promise<void>,
   ): Promise<unknown> {
     if (this.disposed) {
-      throw new PythonClientError(
-        "process_failed",
-        "Python client is no longer available.",
-      );
+      throw new PythonClientError("process_failed", "Python client is no longer available.");
     }
 
     if (
-      request.length > MAX_ASSET_PREPARATION_KEYS
-      || request.some((key) => Buffer.byteLength(key, "utf8") > MAX_ASSET_PREPARATION_KEY_BYTES)
+      request.length > MAX_ASSET_PREPARATION_KEYS ||
+      request.some((key) => Buffer.byteLength(key, "utf8") > MAX_ASSET_PREPARATION_KEY_BYTES)
     ) {
       throw new PythonClientError(
         "process_failed",
@@ -337,15 +249,11 @@ class SpawnPythonClient implements PythonClient {
     }
     const invocation = getPythonInvocation(command, []);
     return new Promise((resolve, reject) => {
-      const child = spawn(
-        invocation.executable,
-        invocation.arguments,
-        {
-          cwd: invocation.cwd,
-          windowsHide: true,
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      );
+      const child = spawn(invocation.executable, invocation.arguments, {
+        cwd: invocation.cwd,
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
       this.activeChildren.add(child);
 
       let settled = false;
@@ -355,12 +263,7 @@ class SpawnPythonClient implements PythonClient {
       let recordTail = Promise.resolve();
       const timer = setTimeout(() => {
         child.kill();
-        fail(
-          new PythonClientError(
-            "process_timeout",
-            "Python asset preparation timed out.",
-          ),
-        );
+        fail(new PythonClientError("process_timeout", "Python asset preparation timed out."));
       }, ASSET_PREPARATION_TIMEOUT_MS);
 
       function finish(value: unknown): void {
@@ -403,10 +306,10 @@ class SpawnPythonClient implements PythonClient {
           return;
         }
         if (
-          typeof record === "object"
-          && record !== null
-          && !Array.isArray(record)
-          && (record as Record<string, unknown>).type === "final"
+          typeof record === "object" &&
+          record !== null &&
+          !Array.isArray(record) &&
+          (record as Record<string, unknown>).type === "final"
         ) {
           if (finalRecord !== undefined) {
             child.kill();
@@ -532,5 +435,4 @@ class SpawnPythonClient implements PythonClient {
   }
 }
 
-export const pythonClient: PythonClient & PythonRecordClient =
-  new SpawnPythonClient();
+export const pythonClient: PythonClient & PythonRecordClient = new SpawnPythonClient();

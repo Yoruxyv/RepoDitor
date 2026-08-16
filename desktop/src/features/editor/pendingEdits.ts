@@ -55,20 +55,12 @@ export type CosmeticClearAllPresetsEdit = Extract<CosmeticChange, { field: "clea
 };
 
 export type CosmeticPendingEdit =
-  | CosmeticOwnershipEdit
-  | CosmeticUnlockAllEdit
-  | CosmeticLockAllEdit
-  | CosmeticClearAllPresetsEdit;
+  CosmeticOwnershipEdit | CosmeticUnlockAllEdit | CosmeticLockAllEdit | CosmeticClearAllPresetsEdit;
 
 export type RunSavePendingEdit =
-  | PlayerHealthEdit
-  | UpgradeValueEdit
-  | RunStatEdit
-  | AdvancedRefillEdit;
+  PlayerHealthEdit | UpgradeValueEdit | RunStatEdit | AdvancedRefillEdit;
 
-export type PendingEdit =
-  | RunSavePendingEdit
-  | CosmeticPendingEdit;
+export type PendingEdit = RunSavePendingEdit | CosmeticPendingEdit;
 
 export function toSaveChange(edit: RunSavePendingEdit): SaveChange {
   return {

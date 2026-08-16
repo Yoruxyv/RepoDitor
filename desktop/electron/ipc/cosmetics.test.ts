@@ -9,8 +9,10 @@ const require = createRequire(import.meta.url);
 const { getCosmetics, saveCosmetics } = require("../../dist-electron/ipc/cosmetics.cjs");
 
 const fingerprint = "a".repeat(64);
-const unknownReason = "Cosmetic ID is absent from the installed catalog and is preserved read-only.";
-const futureReason = "Cosmetic ID is outside the proven mutation trust boundary and is preserved read-only.";
+const unknownReason =
+  "Cosmetic ID is absent from the installed catalog and is preserved read-only.";
+const futureReason =
+  "Cosmetic ID is outside the proven mutation trust boundary and is preserved read-only.";
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
@@ -157,7 +159,10 @@ describe("cosmetics IPC", () => {
   it("accepts an explicit degraded catalog without fabricating installed metadata", async () => {
     const result = await getCosmetics(client({ ok: true, cosmetics: degradedView() }));
 
-    expect(result).toMatchObject({ ok: true, data: { ...degradedView(), cosmetics: expect.any(Array) } });
+    expect(result).toMatchObject({
+      ok: true,
+      data: { ...degradedView(), cosmetics: expect.any(Array) },
+    });
     expect(result.data.cosmetics[0]).not.toHaveProperty("iconKey");
     expect(result.data.cosmetics[0]).toMatchObject({
       id: 27,
@@ -201,9 +206,7 @@ describe("cosmetics IPC", () => {
       ok: true,
       result: { backupPath: "C:\\fixture\\MetaSave.es3.bak-1", cosmetics: updated },
     });
-    const changes = [
-      { feature: "cosmetics", entity: "2", field: "owned", after: true },
-    ];
+    const changes = [{ feature: "cosmetics", entity: "2", field: "owned", after: true }];
 
     await expect(saveCosmetics(fake, fingerprint, changes)).resolves.toMatchObject({
       ok: true,
@@ -307,24 +310,29 @@ describe("cosmetics IPC", () => {
 
     const wrongAvailability = view();
     wrongAvailability.catalogAvailable = false;
-    await expect(getCosmetics(client({ ok: true, cosmetics: wrongAvailability }))).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getCosmetics(client({ ok: true, cosmetics: wrongAvailability })),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 
     const fabricatedUnknown = degradedView();
     fabricatedUnknown.cosmetics[0]!.type = 7;
-    await expect(getCosmetics(client({ ok: true, cosmetics: fabricatedUnknown }))).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getCosmetics(client({ ok: true, cosmetics: fabricatedUnknown })),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 
     const writableFuture = view(548);
     writableFuture.cosmetics[547]!.mutationEligible = true;
     writableFuture.cosmetics[547]!.removalBlockedReason = null;
-    await expect(getCosmetics(client({ ok: true, cosmetics: writableFuture }))).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      getCosmetics(client({ ok: true, cosmetics: writableFuture })),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
 
     const traversal = view();
     Object.assign(traversal.cosmetics[0], { iconKey: "../secret.png" });
-    await expect(getCosmetics(client({ ok: true, cosmetics: traversal }))).resolves
-      .toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(getCosmetics(client({ ok: true, cosmetics: traversal }))).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_response" },
+    });
   });
 
   it("passes through supported MetaSave failures", async () => {

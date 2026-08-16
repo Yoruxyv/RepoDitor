@@ -59,7 +59,9 @@ export function PlayerAvatar({
       ) : null}
       {avatarUrl === null ? (
         <>
-          <span aria-hidden="true" data-testid={fallbackTestId}>{initials(name)}</span>
+          <span aria-hidden="true" data-testid={fallbackTestId}>
+            {initials(name)}
+          </span>
           <figcaption className="sr-only">{label}</figcaption>
         </>
       ) : null}

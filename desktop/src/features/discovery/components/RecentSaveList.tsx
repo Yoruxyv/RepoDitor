@@ -24,9 +24,7 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
       </div>
 
       {recentSaves.length === 0 ? (
-        <p className="mt-3 border-t border-line py-5 text-sm text-muted">
-          {t("saves.noEarlier")}
-        </p>
+        <p className="mt-3 border-t border-line py-5 text-sm text-muted">{t("saves.noEarlier")}</p>
       ) : (
         <ol className="mt-3 border-t border-line">
           {recentSaves.map((save) => (

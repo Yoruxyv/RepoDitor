@@ -13,21 +13,26 @@ export function UtilityCluster() {
 
   useEffect(() => {
     let active = true;
-    void window.repoditor.project.metadata().then((result) => {
-      if (active && result.ok) {
-        setStars(result.data.stars);
-      }
-    }).catch(() => undefined);
+    void window.repoditor.project
+      .metadata()
+      .then((result) => {
+        if (active && result.ok) {
+          setStars(result.data.stars);
+        }
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
 
-  const starLabel = stars === null
-    ? t("utility.githubUnavailable")
-    : t("utility.githubStars", { count: stars });
+  const starLabel =
+    stars === null ? t("utility.githubUnavailable") : t("utility.githubStars", { count: stars });
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label={t("utility.group")}>
+    <div
+      className="flex min-w-0 flex-wrap items-center justify-end gap-2"
+      aria-label={t("utility.group")}
+    >
       <a
         aria-label={t("utility.openGithub", { stars: starLabel })}
         className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"

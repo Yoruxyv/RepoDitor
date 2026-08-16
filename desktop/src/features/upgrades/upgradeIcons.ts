@@ -53,8 +53,10 @@ export function getItemUpgradeIcon(name: string): ReturnType<typeof getUpgradeIc
     .replace(/^Player\s+/, "");
   const semanticName = itemName.endsWith(" Upgrade") ? itemName.slice(0, -8) : itemName;
   const iconName = ITEM_UPGRADE_ALIASES[semanticName] ?? semanticName;
-  const suffix = iconName.match(/[A-Za-z0-9]+/g)
-    ?.map((part) => `${part[0]?.toUpperCase()}${part.slice(1)}`)
-    .join("") ?? "";
+  const suffix =
+    iconName
+      .match(/[A-Za-z0-9]+/g)
+      ?.map((part) => `${part[0]?.toUpperCase()}${part.slice(1)}`)
+      .join("") ?? "";
   return getUpgradeIcon(`playerUpgrade${suffix}`);
 }

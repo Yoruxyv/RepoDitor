@@ -95,7 +95,9 @@ export function PlayersView({
     "player-health-help",
     healthError ? "player-health-error" : null,
     pending ? "player-health-pending" : null,
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (loading && players.length === 0) {
     return <PlayersSkeleton label={t("players.loading")} />;
@@ -179,23 +181,24 @@ export function PlayersView({
                 onClick={() => onSelect(item.id)}
               >
                 <span className="block truncate text-sm font-semibold">{item.name}</span>
-                <span className="mt-1 block truncate font-mono text-xs text-muted">
-                  {item.id}
-                </span>
+                <span className="mt-1 block truncate font-mono text-xs text-muted">{item.id}</span>
               </button>
             );
           })}
         </div>
       </section>
 
-      <section className="min-w-0 border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0" aria-labelledby="player-detail-title">
+      <section
+        className="min-w-0 border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0"
+        aria-labelledby="player-detail-title"
+      >
         <SelectedPlayerIdentity
-            avatarUrl={avatarUrls[player.id]}
-            fallbackTestId="avatar-fallback"
-            headingId="player-detail-title"
-            player={player}
-            onRejectAvatar={() => onRejectAvatar(player.id)}
-          />
+          avatarUrl={avatarUrls[player.id]}
+          fallbackTestId="avatar-fallback"
+          headingId="player-detail-title"
+          player={player}
+          onRejectAvatar={() => onRejectAvatar(player.id)}
+        />
 
         <div className="mt-7 max-w-sm border-t border-line pt-6">
           <label className="text-sm font-semibold text-ink" htmlFor="player-health">
@@ -249,7 +252,11 @@ export function PlayersView({
             </p>
           ) : null}
           {pending ? (
-            <p className="mt-4 text-xs font-medium text-accent" data-testid="pending-health-edit" id="player-health-pending">
+            <p
+              className="mt-4 text-xs font-medium text-accent"
+              data-testid="pending-health-edit"
+              id="player-health-pending"
+            >
               {t("status.pending", { before: pending.before, after: pending.after })}
             </p>
           ) : (

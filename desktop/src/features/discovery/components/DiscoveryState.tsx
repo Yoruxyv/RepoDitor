@@ -5,10 +5,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 
-import type {
-  DesktopOperationError,
-  SaveRootStatus,
-} from "@electron/contracts";
+import type { DesktopOperationError, SaveRootStatus } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/translations";
 
@@ -51,9 +48,7 @@ export function DiscoveryState({ status }: DiscoveryStateProps) {
     <section className="rounded-sm border border-line bg-surface p-6 sm:p-8">
       <div className="mb-5 text-accent">{content.icon}</div>
       <h2 className="text-xl font-semibold text-ink">{content.title}</h2>
-      <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">
-        {content.description}
-      </p>
+      <p className="mt-2 max-w-[60ch] text-sm/6 text-secondary">{content.description}</p>
     </section>
   );
 }
@@ -62,12 +57,7 @@ export function DiscoveryFailure({ error, onRetry }: DiscoveryFailureProps) {
   const { t } = usePreferences();
   return (
     <section className="mx-auto max-w-2xl border-l-2 border-danger bg-surface px-6 py-8 sm:px-8">
-      <WarningCircleIcon
-        aria-hidden="true"
-        className="text-danger"
-        size={30}
-        weight="regular"
-      />
+      <WarningCircleIcon aria-hidden="true" className="text-danger" size={30} weight="regular" />
       <h1 className="font-display mt-3 text-4xl font-semibold uppercase leading-none text-ink sm:text-[2.5rem]">
         {t("discovery.failureTitle")}
       </h1>

@@ -27,14 +27,10 @@ const formatKiB = (bytes) => `${(bytes / 1024).toFixed(2)} KiB`;
 try {
   await access(assetsDirectory);
 } catch {
-  throw new Error(
-    `Build output was not found at ${assetsDirectory}. Run "npm run build" first.`,
-  );
+  throw new Error(`Build output was not found at ${assetsDirectory}. Run "npm run build" first.`);
 }
 
-const assetNames = (await readdir(assetsDirectory))
-  .filter((name) => name.endsWith(".js"))
-  .sort();
+const assetNames = (await readdir(assetsDirectory)).filter((name) => name.endsWith(".js")).sort();
 
 if (assetNames.length === 0) {
   throw new Error(`No JavaScript bundles were found in ${assetsDirectory}.`);

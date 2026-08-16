@@ -58,11 +58,15 @@ export const id: Record<keyof typeof en, string> = {
   "discovery.headline.unreadable": "Folder save tidak tersedia",
   "discovery.headline.ready": "Folder save siap",
   "discovery.summary.game": "RepoDitor menemukan instalasi game dan {saves} di PC ini.",
-  "discovery.summary.saves": "RepoDitor menemukan {saves}. Instalasi game tidak terdeteksi, tetapi penemuan save siap digunakan.",
-  "discovery.summary.empty": "Folder save standar tersedia, tetapi belum berisi slot save yang valid.",
+  "discovery.summary.saves":
+    "RepoDitor menemukan {saves}. Instalasi game tidak terdeteksi, tetapi penemuan save siap digunakan.",
+  "discovery.summary.empty":
+    "Folder save standar tersedia, tetapi belum berisi slot save yang valid.",
   "discovery.summary.missingGame": "Instalasi game siap. Folder save standar belum dibuat.",
-  "discovery.summary.missing": "RepoDitor memeriksa lokasi save standar, tetapi folder tidak terdeteksi.",
-  "discovery.summary.unreadable": "RepoDitor menemukan lokasi save tetapi tidak dapat membaca isinya.",
+  "discovery.summary.missing":
+    "RepoDitor memeriksa lokasi save standar, tetapi folder tidak terdeteksi.",
+  "discovery.summary.unreadable":
+    "RepoDitor menemukan lokasi save tetapi tidak dapat membaca isinya.",
   "discovery.save.one": "1 save",
   "discovery.save.many": "{count} save",
   "discovery.refreshFailed": "Penyegaran gagal. Menampilkan hasil penemuan terakhir. {error}",
@@ -70,11 +74,14 @@ export const id: Record<keyof typeof en, string> = {
   "discovery.loading": "Mencari save R.E.P.O. lokal",
   "discovery.loadingLive": "Sedang mencari save R.E.P.O. lokal.",
   "discovery.state.missingTitle": "Folder save standar tidak ditemukan",
-  "discovery.state.missingDescription": "RepoDitor memeriksa lokasi save R.E.P.O. standar. Folder dapat muncul setelah game membuat save pertamanya.",
+  "discovery.state.missingDescription":
+    "RepoDitor memeriksa lokasi save R.E.P.O. standar. Folder dapat muncul setelah game membuat save pertamanya.",
   "discovery.state.unreadableTitle": "Folder save tidak dapat dibaca",
-  "discovery.state.unreadableDescription": "Lokasi save ada, tetapi RepoDitor tidak dapat memeriksanya. Periksa akses folder, lalu segarkan penemuan.",
+  "discovery.state.unreadableDescription":
+    "Lokasi save ada, tetapi RepoDitor tidak dapat memeriksanya. Periksa akses folder, lalu segarkan penemuan.",
   "discovery.state.emptyTitle": "Belum ada save yang valid",
-  "discovery.state.emptyDescription": "Folder save siap, tetapi belum berisi slot save R.E.P.O. yang valid.",
+  "discovery.state.emptyDescription":
+    "Folder save siap, tetapi belum berisi slot save R.E.P.O. yang valid.",
   "discovery.failureTitle": "Penemuan lokal tidak tersedia",
   "discovery.failureDescription": "{error} RepoDitor tidak mengubah file save apa pun.",
   "environment.title": "Lingkungan lokal",
@@ -109,7 +116,8 @@ export const id: Record<keyof typeof en, string> = {
   "workspace.sections": "Bagian ruang kerja",
   "workspace.context": "Konteks save",
   "workspace.source": "Sumber",
-  "workspace.validated": "Divalidasi secara lokal. Data mentah yang didekripsi tetap berada di balik batas Python.",
+  "workspace.validated":
+    "Divalidasi secara lokal. Data mentah yang didekripsi tetap berada di balik batas Python.",
   "workspace.validatedShort": "Divalidasi secara lokal",
   "nav.overview": "Ringkasan",
   "nav.players": "Pemain",
@@ -151,7 +159,8 @@ export const id: Record<keyof typeof en, string> = {
   "run.loading": "Memuat status run…",
   "run.unavailable": "Run tidak tersedia",
   "run.expedition": "Ekspedisi saat ini",
-  "run.description": "Ubah nilai yang mudah dipahami di bawah ini dalam memori. Save terpilih belum ditulis.",
+  "run.description":
+    "Ubah nilai yang mudah dipahami di bawah ini dalam memori. Save terpilih belum ditulis.",
   "run.levelError": "Level harus berupa bilangan bulat satu atau lebih.",
   "run.valueError": "{label} harus berupa bilangan bulat.",
   "run.resumeLocation": "Lokasi lanjutan",
@@ -159,8 +168,10 @@ export const id: Record<keyof typeof en, string> = {
   "run.totalHaul": "Total hasil",
   "items.loading": "Memuat item…",
   "items.unavailable": "Item tidak tersedia",
-  "items.description": "Cari item dan isi ulang alat yang didukung. Perubahan tetap tertunda sampai Anda menyimpan.",
-  "items.safety": "Isi ulang hanya tampil untuk alat yang dapat diisi penuh dengan aman oleh RepoDitor.",
+  "items.description":
+    "Cari item dan isi ulang alat yang didukung. Perubahan tetap tertunda sampai Anda menyimpan.",
+  "items.safety":
+    "Isi ulang hanya tampil untuk alat yang dapat diisi penuh dengan aman oleh RepoDitor.",
   "items.instances": "Instance item",
   "items.missingContainer": "Item tidak tersedia untuk save ini.",
   "items.empty": "Save ini tidak berisi instance item.",
@@ -189,13 +200,16 @@ export const id: Record<keyof typeof en, string> = {
   "items.refillLabel": "Isi ulang {item}, alat {instance}",
   "maps.loading": "Mencari map yang terpasang…",
   "maps.unavailable": "Map tidak tersedia",
-  "maps.noGame": "Instalasi R.E.P.O. tervalidasi tidak ditemukan. Penemuan map tidak memengaruhi pengeditan save.",
+  "maps.noGame":
+    "Instalasi R.E.P.O. tervalidasi tidak ditemukan. Penemuan map tidak memengaruhi pengeditan save.",
   "maps.installed": "Konten terpasang",
-  "maps.description": "Penemuan hanya-baca dari katalog game yang terpasang. RepoDitor tidak memaksa map berikutnya.",
+  "maps.description":
+    "Penemuan hanya-baca dari katalog game yang terpasang. RepoDitor tidak memaksa map berikutnya.",
   "cosmetics.loading": "Membaca kosmetik MetaSave…",
   "cosmetics.unavailable": "Kosmetik tidak tersedia",
   "cosmetics.ownership": "Kepemilikan MetaSave",
-  "cosmetics.description": "Kelola katalog kosmetik yang dikenal tanpa menebak nama yang belum tersedia.",
+  "cosmetics.description":
+    "Kelola katalog kosmetik yang dikenal tanpa menebak nama yang belum tersedia.",
   "cosmetics.knownCatalog": "Katalog dikenal",
   "cosmetics.owned": "Dimiliki",
   "cosmetics.locked": "Terkunci",
@@ -209,14 +223,17 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "Hapus Semua Preset tertunda",
   "cosmetics.lockAll": "Kunci Semua Kosmetik",
   "cosmetics.lockPending": "Kunci Semua tertunda",
-  "cosmetics.lockUnavailable": "Kunci Semua tidak tersedia saat kosmetik yang dimiliki sedang dipakai atau digunakan oleh preset.",
+  "cosmetics.lockUnavailable":
+    "Kunci Semua tidak tersedia saat kosmetik yang dimiliki sedang dipakai atau digunakan oleh preset.",
   "cosmetics.context": "Konteks kosmetik",
   "cosmetics.validated": "MetaSave divalidasi dan ditulis secara terpisah dari save Run.",
   "cosmetics.validatedShort": "MetaSave tervalidasi",
   "cosmetics.catalog": "Katalog kosmetik",
-  "cosmetics.catalogDescription": "Nama terpasang dan metadata ditampilkan jika tersedia. ID numerik tetap menjadi identitas kanonis.",
+  "cosmetics.catalogDescription":
+    "Nama terpasang dan metadata ditampilkan jika tersedia. ID numerik tetap menjadi identitas kanonis.",
   "cosmetics.catalogCount": "{count} terpasang",
-  "cosmetics.catalogUnavailableMetadata": "Metadata kosmetik terpasang tidak tersedia. ID yang dimiliki di save tetap terlihat sebagai tidak dikenal dan hanya-baca.",
+  "cosmetics.catalogUnavailableMetadata":
+    "Metadata kosmetik terpasang tidak tersedia. ID yang dimiliki di save tetap terlihat sebagai tidak dikenal dan hanya-baca.",
   "cosmetics.catalogList": "Entri katalog kosmetik",
   "cosmetics.itemLabel": "{name}, ID {id}, {state}",
   "cosmetics.idLabel": "ID {id}",
@@ -225,7 +242,8 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.statusLabel": "Status {status}",
   "cosmetics.readOnly": "Hanya baca",
   "cosmetics.unknown": "Tidak dikenal",
-  "cosmetics.unknownPreserved": "Dipertahankan dari save; metadata terpasang untuk ID ini tidak tersedia.",
+  "cosmetics.unknownPreserved":
+    "Dipertahankan dari save; metadata terpasang untuk ID ini tidak tersedia.",
   "cosmetics.searchLabel": "Cari kosmetik",
   "cosmetics.searchPlaceholder": "Cari kosmetik...",
   "cosmetics.clearSearch": "Hapus pencarian kosmetik",
@@ -263,8 +281,10 @@ export const id: Record<keyof typeof en, string> = {
   "assets.progressLabel": "Progres persiapan aset game",
   "assets.progressCount": "{completed} / {total} aset",
   "assets.working": "Memproses",
-  "assets.slowHint": "Aset game lokal masih disiapkan. Pemindaian pertama dapat memerlukan waktu lebih lama.",
-  "assets.localOnlyHint": "Membaca instalasi lokal Anda. RepoDitor tidak membundel gambar dari game.",
+  "assets.slowHint":
+    "Aset game lokal masih disiapkan. Pemindaian pertama dapat memerlukan waktu lebih lama.",
+  "assets.localOnlyHint":
+    "Membaca instalasi lokal Anda. RepoDitor tidak membundel gambar dari game.",
   "assets.continueEditor": "Lanjut ke editor",
   "assets.installationFound": "Instalasi lokal • terdeteksi",
   "assets.installationPending": "Instalasi lokal • mencari",
@@ -272,15 +292,19 @@ export const id: Record<keyof typeof en, string> = {
   "assets.buildPending": "Build • memeriksa",
   "assets.notice.title": "Gambar game tidak tersedia.",
   "assets.notice.gameMissing": "R.E.P.O. tidak terdeteksi; ikon bawaan akan digunakan.",
-  "assets.notice.buildUnverified": "Build yang terpasang tidak dapat diverifikasi; ikon bawaan akan digunakan.",
-  "assets.notice.partial": "Sebagian gambar lokal tidak dapat disiapkan; ikon bawaan akan digunakan bila diperlukan.",
+  "assets.notice.buildUnverified":
+    "Build yang terpasang tidak dapat diverifikasi; ikon bawaan akan digunakan.",
+  "assets.notice.partial":
+    "Sebagian gambar lokal tidak dapat disiapkan; ikon bawaan akan digunakan bila diperlukan.",
   "assets.notice.preparingTitle": "Gambar game masih disiapkan.",
   "assets.notice.preparing": "Persiapan latar belakang berlanjut · {progress}.",
   "safety.label": "Keamanan save",
   "safety.runningTitle": "R.E.P.O. sedang berjalan",
   "safety.unknownTitle": "RepoDitor tidak dapat memastikan bahwa R.E.P.O. sudah ditutup.",
-  "safety.runningDescription": "Tutup game sebelum mengedit save. R.E.P.O. dapat menyimpan status save di memori dan menulisnya nanti, sehingga RepoDitor dapat membaca data lama atau menimpa perubahan tanpa sengaja.",
-  "safety.unknownDescription": "RepoDitor tidak dapat mengaktifkan pengeditan save dengan aman hingga dapat memastikan instalasi R.E.P.O. tervalidasi sudah ditutup.",
+  "safety.runningDescription":
+    "Tutup game sebelum mengedit save. R.E.P.O. dapat menyimpan status save di memori dan menulisnya nanti, sehingga RepoDitor dapat membaca data lama atau menimpa perubahan tanpa sengaja.",
+  "safety.unknownDescription":
+    "RepoDitor tidak dapat mengaktifkan pengeditan save dengan aman hingga dapat memastikan instalasi R.E.P.O. tervalidasi sudah ditutup.",
   "safety.checking": "Memeriksa…",
   "safety.checkAgain": "Periksa Lagi",
   "safety.exit": "Keluar dari RepoDitor",

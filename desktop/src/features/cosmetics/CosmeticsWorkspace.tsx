@@ -12,7 +12,11 @@ interface CosmeticsWorkspaceProps {
   readonly onPendingCountChange: (count: number) => void;
 }
 
-export function CosmeticsWorkspace({ hidden, recoveryGeneration, onPendingCountChange }: CosmeticsWorkspaceProps) {
+export function CosmeticsWorkspace({
+  hidden,
+  recoveryGeneration,
+  onPendingCountChange,
+}: CosmeticsWorkspaceProps) {
   const { t } = usePreferences();
   const cosmetics = useCosmetics(!hidden, recoveryGeneration);
 
@@ -53,7 +57,6 @@ export function CosmeticsWorkspace({ hidden, recoveryGeneration, onPendingCountC
             onUnlockCosmetic={cosmetics.unlockCosmetic}
           />
         </div>
-
       </div>
 
       <PendingChangesBar

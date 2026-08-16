@@ -19,10 +19,7 @@ const environment = {
 };
 
 test("official release signing fails closed when configuration is missing", () => {
-  assert.throws(
-    () => releaseConfig.createReleaseConfig({}),
-    /AZURE_ARTIFACT_SIGNING_ENDPOINT/,
-  );
+  assert.throws(() => releaseConfig.createReleaseConfig({}), /AZURE_ARTIFACT_SIGNING_ENDPOINT/);
   assert.throws(
     () => releaseConfig.createReleaseConfig({ ...environment, AZURE_CLIENT_SECRET: "" }),
     /AZURE_CLIENT_SECRET/,
@@ -63,10 +60,11 @@ test("official release signing accepts only Azure HTTPS signing endpoints", () =
     "not-a-url",
   ]) {
     assert.throws(
-      () => releaseConfig.createReleaseConfig({
-        ...environment,
-        AZURE_ARTIFACT_SIGNING_ENDPOINT: endpoint,
-      }),
+      () =>
+        releaseConfig.createReleaseConfig({
+          ...environment,
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: endpoint,
+        }),
       /AZURE_ARTIFACT_SIGNING_ENDPOINT/,
     );
   }

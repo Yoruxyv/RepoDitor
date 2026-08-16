@@ -57,10 +57,7 @@ function unknownCosmetic(id: number): CosmeticDto {
   };
 }
 
-function catalogView(
-  cosmetics: CosmeticDto[],
-  catalogAvailable = true,
-): CosmeticsViewDto {
+function catalogView(cosmetics: CosmeticDto[], catalogAvailable = true): CosmeticsViewDto {
   const knownCosmetics = cosmetics.filter((cosmetic) => cosmetic.known);
   if (catalogAvailable) {
     expect(knownCosmetics.map((cosmetic) => cosmetic.id)).toEqual(
@@ -71,8 +68,8 @@ function catalogView(
     }
   }
   const knownOwnedCount = knownCosmetics.filter((cosmetic) => cosmetic.owned).length;
-  const mutationAvailable = catalogAvailable
-    && knownCosmetics.some((cosmetic) => cosmetic.mutationEligible);
+  const mutationAvailable =
+    catalogAvailable && knownCosmetics.some((cosmetic) => cosmetic.mutationEligible);
   return {
     fingerprint,
     catalogAvailable,
@@ -115,31 +112,40 @@ describe("CosmeticsCatalog", () => {
   it("shows an accessible Unlock action only for eligible locked cosmetics", async () => {
     const user = userEvent.setup();
     const onUnlockCosmetic = vi.fn();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Locked Cosmetic"),
-      installedCosmetic(1, "Owned Cosmetic", { owned: true }),
-      ...Array.from({ length: 545 }, (_, offset) =>
-        installedCosmetic(offset + 2, `Installed Cosmetic ${offset + 2}`),
-      ),
-      installedCosmetic(547, "Future Cosmetic"),
-      unknownCosmetic(999),
-    ]), onUnlockCosmetic);
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Locked Cosmetic"),
+        installedCosmetic(1, "Owned Cosmetic", { owned: true }),
+        ...Array.from({ length: 545 }, (_, offset) =>
+          installedCosmetic(offset + 2, `Installed Cosmetic ${offset + 2}`),
+        ),
+        installedCosmetic(547, "Future Cosmetic"),
+        unknownCosmetic(999),
+      ]),
+      onUnlockCosmetic,
+    );
 
     const locked = screen.getByRole("listitem", { name: "Locked Cosmetic, ID 0, Locked" });
     const unlock = within(locked).getByRole("button", { name: "Unlock Locked Cosmetic" });
     expect(unlock.textContent).toBe("Unlock");
 
     expect(
-      within(screen.getByRole("listitem", { name: "Owned Cosmetic, ID 1, Owned" }))
-        .queryByRole("button", { name: /Unlock/ }),
+      within(screen.getByRole("listitem", { name: "Owned Cosmetic, ID 1, Owned" })).queryByRole(
+        "button",
+        { name: /Unlock/ },
+      ),
     ).toBeNull();
     expect(
-      within(screen.getByRole("listitem", { name: "Future Cosmetic, ID 547, Locked" }))
-        .queryByRole("button", { name: /Unlock/ }),
+      within(screen.getByRole("listitem", { name: "Future Cosmetic, ID 547, Locked" })).queryByRole(
+        "button",
+        { name: /Unlock/ },
+      ),
     ).toBeNull();
     expect(
-      within(screen.getByRole("listitem", { name: "Cosmetic #999, ID 999, Unknown" }))
-        .queryByRole("button", { name: /Unlock/ }),
+      within(screen.getByRole("listitem", { name: "Cosmetic #999, ID 999, Unknown" })).queryByRole(
+        "button",
+        { name: /Unlock/ },
+      ),
     ).toBeNull();
 
     await user.click(unlock);
@@ -147,28 +153,32 @@ describe("CosmeticsCatalog", () => {
     expect(onUnlockCosmetic).toHaveBeenCalledWith(0);
   });
   it("shows optional local thumbnails while preserving duplicate IDs and fallback", () => {
-    renderCatalog(catalogView([
-      { ...installedCosmetic(0, "Duplicate Name"), iconToken: "cosmetic-token" },
-      installedCosmetic(1, "Duplicate Name"),
-    ]));
+    renderCatalog(
+      catalogView([
+        { ...installedCosmetic(0, "Duplicate Name"), iconToken: "cosmetic-token" },
+        installedCosmetic(1, "Duplicate Name"),
+      ]),
+    );
 
     const local = screen.getByTestId("cosmetic-icon-0");
     expect(local.getAttribute("data-icon-source")).toBe("local");
-    expect(local.querySelector("img")?.getAttribute("src"))
-      .toBe("repoditor-icon://local/cosmetic-token");
+    expect(local.querySelector("img")?.getAttribute("src")).toBe(
+      "repoditor-icon://local/cosmetic-token",
+    );
     expect(local.querySelector("img")?.getAttribute("loading")).toBe("lazy");
-    expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source"))
-      .toBe("fallback");
+    expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source")).toBe("fallback");
     expect(screen.getByText("ID 0")).toBeTruthy();
     expect(screen.getByText("ID 1")).toBeTruthy();
   });
 
   it("keeps loaded thumbnail nodes mounted across filtering and sorting", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      { ...installedCosmetic(0, "Hat Cosmetic", { type: 0 }), iconToken: "hat-token" },
-      { ...installedCosmetic(1, "Ears Cosmetic", { type: 17 }), iconToken: "ears-token" },
-    ]));
+    renderCatalog(
+      catalogView([
+        { ...installedCosmetic(0, "Hat Cosmetic", { type: 0 }), iconToken: "hat-token" },
+        { ...installedCosmetic(1, "Ears Cosmetic", { type: 17 }), iconToken: "ears-token" },
+      ]),
+    );
 
     const thumbnail = screen.getByTestId("cosmetic-icon-0").querySelector("img");
     expect(thumbnail).not.toBeNull();
@@ -195,11 +205,13 @@ describe("CosmeticsCatalog", () => {
 
   it("searches installed cosmetics by name and canonical numeric ID", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Long Sleeve"),
-      installedCosmetic(1, "Short Sleeve"),
-      installedCosmetic(2, "Monkey"),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Long Sleeve"),
+        installedCosmetic(1, "Short Sleeve"),
+        installedCosmetic(2, "Monkey"),
+      ]),
+    );
 
     const search = screen.getByRole("searchbox", { name: "Search cosmetics" });
     await user.type(search, "mOnKeY");
@@ -217,10 +229,12 @@ describe("CosmeticsCatalog", () => {
   });
 
   it("keeps duplicate display names distinct by canonical integer ID", () => {
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Duplicate Name", { owned: true }),
-      installedCosmetic(1, "Duplicate Name"),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Duplicate Name", { owned: true }),
+        installedCosmetic(1, "Duplicate Name"),
+      ]),
+    );
 
     const first = screen.getByRole("listitem", { name: "Duplicate Name, ID 0, Owned" });
     const second = screen.getByRole("listitem", { name: "Duplicate Name, ID 1, Locked" });
@@ -231,11 +245,13 @@ describe("CosmeticsCatalog", () => {
 
   it("filters ownership without categorizing unknown entries as unlocked or locked", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Owned Cosmetic", { owned: true }),
-      installedCosmetic(1, "Locked Cosmetic"),
-      unknownCosmetic(999),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Owned Cosmetic", { owned: true }),
+        installedCosmetic(1, "Locked Cosmetic"),
+        unknownCosmetic(999),
+      ]),
+    );
 
     const ownership = screen.getByRole("combobox", { name: "Ownership" });
     expect(new Set(visibleIds())).toEqual(new Set([0, 1, 999]));
@@ -252,15 +268,19 @@ describe("CosmeticsCatalog", () => {
 
   it("generates type filters from present catalog values and preserves unknown type values", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Hat Cosmetic", { type: 0 }),
-      installedCosmetic(1, "Ears Cosmetic", { type: 17 }),
-      installedCosmetic(2, "Future Type", { type: 33 }),
-      unknownCosmetic(999),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Hat Cosmetic", { type: 0 }),
+        installedCosmetic(1, "Ears Cosmetic", { type: 17 }),
+        installedCosmetic(2, "Future Type", { type: 33 }),
+        unknownCosmetic(999),
+      ]),
+    );
 
     const typeFilter = screen.getByRole("combobox", { name: "Type" });
-    const options = within(typeFilter).getAllByRole("option").map((option) => option.textContent);
+    const options = within(typeFilter)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
     expect(options).toEqual(["All Types", "Hat", "Ears", "Type 33"]);
 
     await user.selectOptions(typeFilter, "17");
@@ -272,12 +292,14 @@ describe("CosmeticsCatalog", () => {
   });
 
   it("presents managed type and rarity while hiding lifecycle status metadata", () => {
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Common WIP Hat", { type: 0, rarity: 0, status: 0 }),
-      installedCosmetic(1, "Uncommon Ears", { type: 17, rarity: 1, status: 1 }),
-      installedCosmetic(2, "Rare Body", { type: 20, rarity: 2, status: 2 }),
-      installedCosmetic(3, "Ultra Face", { type: 32, rarity: 3, status: 3 }),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Common WIP Hat", { type: 0, rarity: 0, status: 0 }),
+        installedCosmetic(1, "Uncommon Ears", { type: 17, rarity: 1, status: 1 }),
+        installedCosmetic(2, "Rare Body", { type: 20, rarity: 2, status: 2 }),
+        installedCosmetic(3, "Ultra Face", { type: 32, rarity: 3, status: 3 }),
+      ]),
+    );
 
     expect(screen.getByText("Type: Hat")).toBeTruthy();
     expect(screen.getByText("Type: Ears")).toBeTruthy();
@@ -293,12 +315,14 @@ describe("CosmeticsCatalog", () => {
 
   it("sorts rarity ascending and keeps null rarity last", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Rare", { rarity: 2 }),
-      installedCosmetic(1, "Common", { rarity: 0 }),
-      installedCosmetic(2, "Ultra", { rarity: 3 }),
-      unknownCosmetic(999),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Rare", { rarity: 2 }),
+        installedCosmetic(1, "Common", { rarity: 0 }),
+        installedCosmetic(2, "Ultra", { rarity: 3 }),
+        unknownCosmetic(999),
+      ]),
+    );
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-asc");
     expect(visibleIds()).toEqual([1, 0, 2, 999]);
@@ -306,12 +330,14 @@ describe("CosmeticsCatalog", () => {
 
   it("sorts rarity descending and keeps null rarity last", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Rare", { rarity: 2 }),
-      installedCosmetic(1, "Common", { rarity: 0 }),
-      installedCosmetic(2, "Ultra", { rarity: 3 }),
-      unknownCosmetic(999),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Rare", { rarity: 2 }),
+        installedCosmetic(1, "Common", { rarity: 0 }),
+        installedCosmetic(2, "Ultra", { rarity: 3 }),
+        unknownCosmetic(999),
+      ]),
+    );
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
     expect(visibleIds()).toEqual([2, 0, 1, 999]);
@@ -320,12 +346,14 @@ describe("CosmeticsCatalog", () => {
   it("keeps future unknown rarity values last in both rarity directions", async () => {
     const user = userEvent.setup();
 
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Common", { rarity: 0 }),
-      installedCosmetic(1, "Ultra", { rarity: 3 }),
-      installedCosmetic(2, "Future", { rarity: 4 }),
-      unknownCosmetic(999),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Common", { rarity: 0 }),
+        installedCosmetic(1, "Ultra", { rarity: 3 }),
+        installedCosmetic(2, "Future", { rarity: 4 }),
+        unknownCosmetic(999),
+      ]),
+    );
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
 
@@ -337,11 +365,13 @@ describe("CosmeticsCatalog", () => {
   });
   it("uses display name then cosmetic ID as deterministic rarity tie-breakers", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Twin", { rarity: 1 }),
-      installedCosmetic(1, "Alpha", { rarity: 1 }),
-      installedCosmetic(2, "Twin", { rarity: 1 }),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Twin", { rarity: 1 }),
+        installedCosmetic(1, "Alpha", { rarity: 1 }),
+        installedCosmetic(2, "Twin", { rarity: 1 }),
+      ]),
+    );
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
     expect(visibleIds()).toEqual([1, 0, 2]);
@@ -365,11 +395,13 @@ describe("CosmeticsCatalog", () => {
 
   it("sorts IDs ascending and descending", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Zulu"),
-      installedCosmetic(1, "Alpha"),
-      installedCosmetic(2, "Mike"),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Zulu"),
+        installedCosmetic(1, "Alpha"),
+        installedCosmetic(2, "Mike"),
+      ]),
+    );
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
     await user.selectOptions(sort, "id-desc");
@@ -380,11 +412,13 @@ describe("CosmeticsCatalog", () => {
 
   it("sorts duplicate names deterministically by ID in both name directions", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Twin"),
-      installedCosmetic(1, "Alpha"),
-      installedCosmetic(2, "Twin"),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Twin"),
+        installedCosmetic(1, "Alpha"),
+        installedCosmetic(2, "Twin"),
+      ]),
+    );
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
     expect(visibleIds()).toEqual([1, 0, 2]);
@@ -393,13 +427,15 @@ describe("CosmeticsCatalog", () => {
   });
 
   it("renders future enum integers as numeric fallbacks without hiding the cosmetic", () => {
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Future Cosmetic", {
-        type: 33,
-        rarity: 4,
-        status: 4,
-      }),
-    ]));
+    renderCatalog(
+      catalogView([
+        installedCosmetic(0, "Future Cosmetic", {
+          type: 33,
+          rarity: 4,
+          status: 4,
+        }),
+      ]),
+    );
 
     const row = screen.getByRole("listitem", { name: "Future Cosmetic, ID 0, Locked" });
     expect(within(row).getByText("Type 33")).toBeTruthy();
@@ -409,10 +445,7 @@ describe("CosmeticsCatalog", () => {
 
   it("keeps a future installed ID visible but read-only", () => {
     const futureCatalog = Array.from({ length: 548 }, (_, id) =>
-      installedCosmetic(
-        id,
-        id === 547 ? "Future Installed Cosmetic" : `Installed Cosmetic ${id}`,
-      ),
+      installedCosmetic(id, id === 547 ? "Future Installed Cosmetic" : `Installed Cosmetic ${id}`),
     );
     renderCatalog(catalogView(futureCatalog));
 
@@ -444,10 +477,9 @@ describe("CosmeticsCatalog", () => {
 
   it("exposes accessible controls, a live result count, and an explicit no-results state", async () => {
     const user = userEvent.setup();
-    renderCatalog(catalogView([
-      installedCosmetic(0, "Long Sleeve"),
-      installedCosmetic(1, "Short Sleeve"),
-    ]));
+    renderCatalog(
+      catalogView([installedCosmetic(0, "Long Sleeve"), installedCosmetic(1, "Short Sleeve")]),
+    );
 
     expect(screen.getByRole("searchbox", { name: "Search cosmetics" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Ownership" })).toBeTruthy();

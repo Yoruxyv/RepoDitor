@@ -3,10 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AssetPreparationState } from "@electron/contracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
-import {
-  AssetPreparationNotice,
-  AssetPreparationView,
-} from "./AssetPreparationView";
+import { AssetPreparationNotice, AssetPreparationView } from "./AssetPreparationView";
 
 function state(overrides: Partial<AssetPreparationState> = {}): AssetPreparationState {
   return {
@@ -51,13 +48,15 @@ describe("AssetPreparationView", () => {
   });
 
   it("exposes real completed/total progress with progressbar semantics", () => {
-    renderView(state({
-      stage: "decoding",
-      installationFound: true,
-      buildVerified: true,
-      completed: 4,
-      total: 7,
-    }));
+    renderView(
+      state({
+        stage: "decoding",
+        installationFound: true,
+        buildVerified: true,
+        completed: 4,
+        total: 7,
+      }),
+    );
 
     const progress = screen.getByRole("progressbar", { name: "Game asset preparation progress" });
     expect(progress.getAttribute("aria-valuemin")).toBe("0");
@@ -68,11 +67,14 @@ describe("AssetPreparationView", () => {
   });
 
   it("describes save upgrade discovery without inventing a backend preparation stage", () => {
-    renderView(state({
-      stage: "ready",
-      installationFound: true,
-      buildVerified: true,
-    }), true);
+    renderView(
+      state({
+        stage: "ready",
+        installationFound: true,
+        buildVerified: true,
+      }),
+      true,
+    );
 
     expect(screen.getAllByText("Reading save upgrade identities").length).toBeGreaterThan(0);
     expect(screen.queryByRole("progressbar")).toBeNull();

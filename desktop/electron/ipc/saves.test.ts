@@ -58,13 +58,17 @@ describe("openSave", () => {
   });
 
   it("normalizes invalid protocol data", async () => {
-    await expect(openSave(client({ ok: true, session: { ...session, level: "5" } }), session.id))
-      .resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    await expect(
+      openSave(client({ ok: true, session: { ...session, level: "5" } }), session.id),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("rejects a session for a different save ID", async () => {
     await expect(
-      openSave(client({ ok: true, session: { ...session, id: "REPO_SAVE_2026_08_08_10_20_31" } }), session.id),
+      openSave(
+        client({ ok: true, session: { ...session, id: "REPO_SAVE_2026_08_08_10_20_31" } }),
+        session.id,
+      ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 

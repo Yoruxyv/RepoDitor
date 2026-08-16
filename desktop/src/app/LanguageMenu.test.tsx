@@ -27,8 +27,9 @@ describe("LanguageMenu", () => {
     expect(trigger.querySelector("img")?.getAttribute("src")).toBeTruthy();
     await user.click(trigger);
 
-    expect(screen.getByRole("option", { name: "English" }).getAttribute("aria-selected"))
-      .toBe("true");
+    expect(screen.getByRole("option", { name: "English" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
     for (const name of ["English", "日本語", "한국어", "中文", "Bahasa Indonesia"]) {
       const option = screen.getByRole("option", { name });
       expect(option.textContent).toBe(name);

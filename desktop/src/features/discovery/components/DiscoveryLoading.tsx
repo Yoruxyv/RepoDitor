@@ -36,7 +36,10 @@ export function DiscoveryLoading() {
             </div>
             <div className="mt-3 border-t border-line">
               {[0, 1].map((row) => (
-                <div className="flex items-center justify-between gap-4 border-b border-line py-5" key={row}>
+                <div
+                  className="flex items-center justify-between gap-4 border-b border-line py-5"
+                  key={row}
+                >
                   <div className="flex flex-1 items-center gap-3">
                     <Skeleton className="size-4 shrink-0" />
                     <Skeleton className="h-4 w-52 max-w-2/3" />
@@ -52,7 +55,10 @@ export function DiscoveryLoading() {
           <Skeleton className="h-6 w-32" />
           <Skeleton className="mt-2 h-3 w-44 max-w-full" />
           {[0, 1].map((row) => (
-            <div className="mt-5 flex gap-3 border-t border-line pt-5 first:border-0 first:pt-0" key={row}>
+            <div
+              className="mt-5 flex gap-3 border-t border-line pt-5 first:border-0 first:pt-0"
+              key={row}
+            >
               <Skeleton className="size-5 shrink-0" />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-24" />

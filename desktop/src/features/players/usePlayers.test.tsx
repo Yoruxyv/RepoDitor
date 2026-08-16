@@ -52,14 +52,16 @@ describe("usePlayers avatar requests", () => {
   it("suppresses duplicates and permits only one retry after the cooldown", async () => {
     let now = 1_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
-    let resolveFirst: ((value: {
-      ok: true;
-      data: { playerId: string; avatarUrl: null };
-    }) => void) | undefined;
-    const avatar = vi.fn()
-      .mockImplementationOnce(() => new Promise((resolve) => {
-        resolveFirst = resolve;
-      }))
+    let resolveFirst:
+      ((value: { ok: true; data: { playerId: string; avatarUrl: null } }) => void) | undefined;
+    const avatar = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
       .mockResolvedValue({ ok: true, data: { playerId, avatarUrl: null } });
     installBridge(avatar);
     const { result } = renderHook(() => usePlayers(saveId), { wrapper });

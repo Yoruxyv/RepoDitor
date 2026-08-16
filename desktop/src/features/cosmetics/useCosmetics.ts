@@ -18,10 +18,7 @@ interface State {
   loading: boolean;
 }
 
-type CosmeticBulkEdit =
-  | CosmeticUnlockAllEdit
-  | CosmeticLockAllEdit
-  | CosmeticClearAllPresetsEdit;
+type CosmeticBulkEdit = CosmeticUnlockAllEdit | CosmeticLockAllEdit | CosmeticClearAllPresetsEdit;
 
 const INITIAL_STATE: State = { view: null, loadError: null, loading: false };
 
@@ -128,63 +125,71 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
 
   function unlockAll(): void {
     if (!state.view || state.view.knownLockedCount === 0 || hasPending) return;
-    setPendingEdits([{
-      feature: "cosmetics",
-      entity: "known",
-      field: "unlockAll",
-      after: true,
-      before: state.view.knownOwnedCount,
-      label: "Known ownership",
-      subject: "Cosmetics",
-    }]);
+    setPendingEdits([
+      {
+        feature: "cosmetics",
+        entity: "known",
+        field: "unlockAll",
+        after: true,
+        before: state.view.knownOwnedCount,
+        label: "Known ownership",
+        subject: "Cosmetics",
+      },
+    ]);
   }
 
-  const lockAllBlockedReason = state.view?.cosmetics.find(
-    (cosmetic) => cosmetic.known && cosmetic.owned && cosmetic.removalBlockedReason,
-  )?.removalBlockedReason ?? null;
+  const lockAllBlockedReason =
+    state.view?.cosmetics.find(
+      (cosmetic) => cosmetic.known && cosmetic.owned && cosmetic.removalBlockedReason,
+    )?.removalBlockedReason ?? null;
 
   function lockAll(): void {
-    if (!state.view || state.view.knownOwnedCount === 0 || lockAllBlockedReason || hasPending) return;
-    setPendingEdits([{
-      feature: "cosmetics",
-      entity: "known",
-      field: "lockAll",
-      after: false,
-      before: state.view.knownOwnedCount,
-      label: "Known ownership",
-      subject: "Cosmetics",
-    }]);
+    if (!state.view || state.view.knownOwnedCount === 0 || lockAllBlockedReason || hasPending)
+      return;
+    setPendingEdits([
+      {
+        feature: "cosmetics",
+        entity: "known",
+        field: "lockAll",
+        after: false,
+        before: state.view.knownOwnedCount,
+        label: "Known ownership",
+        subject: "Cosmetics",
+      },
+    ]);
   }
 
   function clearAllPresets(): void {
     if (!state.view || state.view.savedPresetCount === 0 || hasPending) return;
-    setPendingEdits([{
-      feature: "cosmetics",
-      entity: "presets",
-      field: "clearAll",
-      after: true,
-      before: state.view.savedPresetCount,
-      label: "Saved presets",
-      subject: "Cosmetics",
-    }]);
+    setPendingEdits([
+      {
+        feature: "cosmetics",
+        entity: "presets",
+        field: "clearAll",
+        after: true,
+        before: state.view.savedPresetCount,
+        label: "Saved presets",
+        subject: "Cosmetics",
+      },
+    ]);
   }
 
   function unlockCosmetic(cosmeticId: number): void {
     if (
-      writeInFlight.current
-      || !state.view
-      || hasBulkPending
-      || !state.view.capabilities.canUnlockCosmetic
+      writeInFlight.current ||
+      !state.view ||
+      hasBulkPending ||
+      !state.view.capabilities.canUnlockCosmetic
     ) {
       return;
     }
     const cosmetic = state.view.cosmetics.find((entry) => entry.id === cosmeticId);
     if (
-      !cosmetic
-      || !cosmetic.known
-      || cosmetic.owned
-      || cosmetic.state !== "locked"
-      || !cosmetic.mutationEligible
+      !cosmetic ||
+      !cosmetic.known ||
+      cosmetic.owned ||
+      cosmetic.state !== "locked" ||
+      !cosmetic.mutationEligible
     ) {
       return;
     }
@@ -201,8 +206,8 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
     };
     setPendingEdits((current) => {
       if (
-        current.some(isBulkEdit)
-        || current.some((pending) => pending.field === "owned" && pending.entity === entity)
+        current.some(isBulkEdit) ||
+        current.some((pending) => pending.field === "owned" && pending.entity === entity)
       ) {
         return current;
       }
@@ -223,7 +228,8 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
     }
   }
   const knownLockedCount = state.view ? state.view.knownCatalogCount - knownOwnedCount : 0;
-  const savedPresetCount = bulkPending?.field === "clearAll" ? 0 : state.view?.savedPresetCount ?? 0;
+  const savedPresetCount =
+    bulkPending?.field === "clearAll" ? 0 : (state.view?.savedPresetCount ?? 0);
   const projectedView = projectIndividualOwnership(
     state.view,
     pendingEdits,
