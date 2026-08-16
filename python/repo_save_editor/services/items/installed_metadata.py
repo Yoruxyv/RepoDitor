@@ -267,14 +267,14 @@ def _classify_variants(
                 presentation.gameplay_cap,
             )
             continue
-        metadata = {result.battery_metadata for result in item_variants}
+        variant_battery_metadata = {result.battery_metadata for result in item_variants}
         exceptional = any(
             result.battery_metadata is None or result.battery_metadata[1] != 0
             for result in item_variants
         )
         capability = (
             ItemRechargeCapability.RECHARGEABLE
-            if len(metadata) == 1 and not exceptional
+            if len(variant_battery_metadata) == 1 and not exceptional
             else ItemRechargeCapability.UNKNOWN
         )
         results[item_name] = InstalledItemMetadata(

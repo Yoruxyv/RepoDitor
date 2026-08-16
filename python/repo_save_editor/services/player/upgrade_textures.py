@@ -385,8 +385,8 @@ def _resolve_upgrade_visual_from_indexes(
                 bounds = _front_uv_bounds(mesh)
             except (OSError, UnityMetadataError, UpgradeTextureError):
                 continue
-            framing = _VisualFraming(mesh.path_id, bounds, mesh_stream_path)
-            framings.setdefault(texture.path_id, {})[(mesh.path_id, bounds)] = framing
+            candidate_framing = _VisualFraming(mesh.path_id, bounds, mesh_stream_path)
+            framings.setdefault(texture.path_id, {})[(mesh.path_id, bounds)] = candidate_framing
 
     if len(textures) != 1:
         raise UnityMetadataError("Upgrade material Texture2D relationship is missing or ambiguous.")

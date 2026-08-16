@@ -62,9 +62,24 @@ indent-style = "space"
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "python"
+files = ["python/repo_save_editor"]
+strict = true
+warn_unreachable = true
+enable_error_code = ["ignore-without-code"]
+show_error_codes = true
+show_error_context = true
+pretty = true
+
 [dependency-groups]
 dev = [
+    "mypy==2.3.0",
     "ruff>=0.16.1",
+]
+test = [
+    "pytest>=8.3,<9",
 ]
 package = [
     "pyinstaller>=6,<7",
