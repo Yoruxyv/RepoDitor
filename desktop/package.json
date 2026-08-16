@@ -22,7 +22,7 @@
     "test:imports": "node --test scripts/normalize-imports.test.mjs",
     "test:theme": "node --test scripts/theme-contrast.test.mjs",
     "test:coverage": "tsc -p tsconfig.electron.json && npm run typecheck:electron-tests && vitest run --coverage",
-    "test:e2e": "tsc -p tsconfig.electron.json && npm run typecheck:e2e && playwright test e2e/open-save.spec.ts",
+    "test:e2e": "tsc -p tsconfig.electron.json && npm run typecheck:e2e && playwright test e2e/workspace.spec.ts e2e/cosmetics.spec.ts e2e/persistence.spec.ts e2e/game-safety.spec.ts",
     "test:e2e:packaged": "npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test e2e/package-smoke.spec.ts",
     "preview": "vite preview",
     "start": "electron .",
