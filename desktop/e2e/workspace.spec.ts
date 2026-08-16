@@ -1,78 +1,17 @@
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 
-import {
-  E2E_SAVE_ID,
-  EXPECTED_DESKTOP_VERSION,
-  REPO_ROOT,
-  getPythonExecutable,
-} from "./support/fixtureEnvironment";
+import { EXPECTED_DESKTOP_VERSION } from "./support/fixtureEnvironment";
 import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
 import {
   waitForDiscoveredSave,
-  waitForGameDialogClosed,
-  waitForGameRunningDialog,
-  waitForGameStatus,
   waitForSafeSave,
-  waitForStaleSave,
   waitForWorkspaceOrContinue,
 } from "./support/waits";
 
-const saveId = E2E_SAVE_ID;
 const expectedVersion = EXPECTED_DESKTOP_VERSION;
-
-async function waitForChildSpawn(child: ChildProcess, label: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const cleanup = () => {
-      child.off("spawn", onSpawn);
-      child.off("error", onError);
-      child.off("exit", onExit);
-    };
-    const onSpawn = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = (error: Error) => {
-      cleanup();
-      reject(new Error(`${label} failed to spawn.`, { cause: error }));
-    };
-    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-      cleanup();
-      reject(
-        new Error(
-          `${label} exited before spawn completed (code=${code ?? "null"}, signal=${signal ?? "none"}).`,
-        ),
-      );
-    };
-
-    child.once("spawn", onSpawn);
-    child.once("error", onError);
-    child.once("exit", onExit);
-  });
-}
-
-async function terminateChildProcess(child: ChildProcess, label: string): Promise<void> {
-  if (child.exitCode !== null) {
-    return;
-  }
-
-  const close = once(child, "close", {
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (!child.kill()) {
-    throw new Error(`${label} could not be terminated.`);
-  }
-
-  try {
-    await close;
-  } catch (error) {
-    throw new Error(`${label} did not close within 5 seconds.`, { cause: error });
-  }
-}
 
 async function imageNaturalWidth(locator: Locator): Promise<number> {
   return locator.evaluate((element) => {
@@ -82,40 +21,6 @@ async function imageNaturalWidth(locator: Locator): Promise<number> {
 
     return element.naturalWidth;
   });
-}
-
-function replaceFixtureCurrency(savePath: string, currency: number): void {
-  execFileSync(
-    getPythonExecutable(),
-    [
-      "-c",
-      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save,encrypt_save; from repo_save_editor.services.run import set_run_stat; p=Path(sys.argv[1]); d=decrypt_save(p.read_bytes()); set_run_stat(d,'currency',int(sys.argv[2])); p.write_bytes(encrypt_save(d))",
-      savePath,
-      String(currency),
-    ],
-    {
-      cwd: REPO_ROOT,
-      env: { ...process.env, PYTHONPATH: path.join(REPO_ROOT, "python") },
-      stdio: "inherit",
-    },
-  );
-}
-
-function replaceMetaTokens(metaPath: string, token: number): void {
-  execFileSync(
-    getPythonExecutable(),
-    [
-      "-c",
-      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save,encrypt_save; p=Path(sys.argv[1]); d=decrypt_save(p.read_bytes()); d['cosmeticTokens']['value']=[int(sys.argv[2])]; p.write_bytes(encrypt_save(d))",
-      metaPath,
-      String(token),
-    ],
-    {
-      cwd: REPO_ROOT,
-      env: { ...process.env, PYTHONPATH: path.join(REPO_ROOT, "python") },
-      stdio: "inherit",
-    },
-  );
 }
 
 async function setWindowSize(
@@ -151,22 +56,12 @@ async function layout(page: Page) {
   }));
 }
 
-test("safely writes changes with backup and stale-save protection", async () => {
+test("covers the source workspace, shell, and editor domains", async () => {
   let harness: SourceE2eHarness | undefined;
-  let repoProcess: ChildProcess | undefined;
 
   try {
     harness = await launchSourceE2eHarness();
-    const {
-      application,
-      page,
-      savePath,
-      metaPath,
-      gameRoot,
-      sourceBefore,
-      metaBefore,
-      launchStarted,
-    } = harness;
+    const { application, page, savePath, gameRoot, sourceBefore, launchStarted } = harness;
 
     const chrome = await application.evaluate(({ app, Menu }) => ({
       hasApplicationMenu: Menu.getApplicationMenu() !== null,
@@ -330,67 +225,6 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "Edit this save" })).toBeVisible();
     await expect(page.getByText("Normal")).toBeVisible();
 
-    await page.getByRole("button", { name: "Cosmetics" }).click();
-    await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
-    await expect(page.getByText("Known catalog")).toBeVisible();
-    await expect(page.getByText("Saved presets")).toBeVisible();
-    await expect(page.getByLabel("Search by cosmetic ID")).toHaveCount(0);
-    await expect(page.getByText("Cosmetic #27")).toHaveCount(0);
-    const cosmeticIcon = page.getByTestId("cosmetic-icon-27");
-    await expect(cosmeticIcon.locator("img")).toHaveAttribute("loading", "lazy");
-    expect(await imageNaturalWidth(cosmeticIcon.locator("img"))).toBe(0);
-    await cosmeticIcon.scrollIntoViewIfNeeded();
-    await expect(cosmeticIcon.locator("img")).toBeVisible();
-    await expect.poll(() => imageNaturalWidth(cosmeticIcon.locator("img"))).toBeGreaterThan(0);
-    await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
-    await cosmeticIcon.locator("img").evaluate((image) => {
-      image.dataset.loadedBeforeFilter = "true";
-    });
-    await page.getByRole("combobox", { name: "Type" }).selectOption("0");
-    await expect(cosmeticIcon).toBeHidden();
-    await page.getByRole("combobox", { name: "Type" }).selectOption("all");
-    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("missing cosmetic");
-    await expect(cosmeticIcon).toBeHidden();
-    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("");
-    await page.getByRole("combobox", { name: "Ownership" }).selectOption("locked");
-    await expect(cosmeticIcon).toBeHidden();
-    await page.getByRole("combobox", { name: "Ownership" }).selectOption("all");
-    await page.getByRole("combobox", { name: "Sort" }).selectOption("id-desc");
-    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
-    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
-    await expect(page.getByTestId("cosmetic-icon-26")).toHaveAttribute(
-      "data-icon-source",
-      "fallback",
-    );
-    await expect(page.getByRole("button", { name: "Clear All Presets" })).toBeDisabled();
-    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
-    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
-    await expect(page.locator("#cosmetics-pending")).toContainText("1 pending change");
-    expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
-    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
-    await page.getByRole("button", { name: "Run Saves" }).click();
-    await page.getByRole("button", { name: "Cosmetics" }).click();
-    await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
-    await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Lock All pending" })).toBeDisabled();
-    await page.getByRole("button", { name: "Revert all" }).click();
-    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
-    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("1 pending change");
-    await page.getByRole("button", { name: "Revert all" }).click();
-    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
-    await page.getByRole("button", { name: "Save Changes" }).click();
-    await waitForSafeSave(page, "cosmetics");
-    const metaBackups = (await readdir(path.dirname(metaPath))).filter((name) =>
-      name.startsWith(`${path.basename(metaPath)}.bak-`),
-    );
-    expect(metaBackups).toHaveLength(1);
-    expect(
-      (await readFile(path.join(path.dirname(metaPath), metaBackups[0]!))).equals(metaBefore),
-    ).toBe(true);
-    expect((await readFile(metaPath)).equals(metaBefore)).toBe(false);
-    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
-
-    await page.getByRole("button", { name: "Run Saves" }).click();
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
@@ -562,56 +396,25 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Revert all" }).click();
     await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
+    // Recreate the persisted state used by the original responsive checks without
+    // asserting persistence behavior here; persistence owns those assertions.
     await page.getByRole("tab", { name: "Players" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("0");
+    await page.getByRole("button", { name: /Beta/ }).click();
     await page.getByRole("button", { name: "Heal to Full" }).click();
     await page.getByRole("tab", { name: "Upgrades" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("0");
     await page.getByRole("spinbutton", { name: "Strength for Beta" }).fill("3");
     await page.getByRole("tab", { name: "Run" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
     await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
     await page.getByRole("tab", { name: "Items" }).click();
     await page.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }).click();
-    const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
-
     await waitForSafeSave(page, "workspace");
-    await expect(page.getByText(/\.bak-\d+$/)).toHaveCount(0);
-    const saveReadyMs = performance.now() - saveStarted;
-    const backups = (await readdir(path.dirname(savePath))).filter((name) =>
-      name.startsWith(`${path.basename(savePath)}.bak-`),
-    );
-    expect(backups).toHaveLength(1);
-    expect(
-      (await readFile(path.join(path.dirname(savePath), backups[0]!))).equals(sourceBefore),
-    ).toBe(true);
-    expect((await readFile(savePath)).equals(sourceBefore)).toBe(false);
-
     await page.getByRole("button", { name: "Change save" }).click();
     await waitForDiscoveredSave(page);
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await waitForWorkspaceOrContinue(page);
-
     await page.getByRole("tab", { name: "Players" }).click();
     await page.getByRole("button", { name: /Beta/ }).click();
-    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
-    await page.getByRole("tab", { name: "Upgrades" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
-    await page.getByRole("tab", { name: "Run" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
-    await page.getByRole("tab", { name: "Items" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Recharge appears only for tools RepoDitor can safely refill."),
-    ).toBeVisible();
-    const refilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
-    await expect(refilledHammer.getByText("Full")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Recharge .*tool/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Recharge All Tools" })).toBeDisabled();
-    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("No pending changes");
 
     for (const size of [
       { width: 1600, height: 900 },
@@ -652,6 +455,8 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     const minimumCurrency = page.getByRole("spinbutton", { name: "Currency" });
     await minimumCurrency.fill("21");
+    await page.getByTestId("workspace-action-bar").waitFor({ state: "visible" });
+    await minimumCurrency.blur();
     await minimumCurrency.focus();
     const focusClearOfSurface = await minimumCurrency.evaluate((control) => {
       const surface = document.querySelector<HTMLElement>("[data-pending-surface-active='true']");
@@ -662,134 +467,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect((await layout(page)).hasHorizontalOverflow).toBe(false);
     await page.getByRole("button", { name: "Revert all" }).click();
 
-    await page.getByRole("button", { name: "Cosmetics" }).click();
-    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
-    replaceMetaTokens(metaPath, 8);
-    const externalMetaBytes = await readFile(metaPath);
-    await page.getByRole("button", { name: "Save Changes" }).click();
-    await waitForStaleSave(page, "cosmetics");
-    expect((await readFile(metaPath)).equals(externalMetaBytes)).toBe(true);
-    expect(
-      (await readdir(path.dirname(metaPath))).filter((name) =>
-        name.startsWith(`${path.basename(metaPath)}.bak-`),
-      ),
-    ).toHaveLength(1);
-    await page.getByRole("button", { name: "Revert all" }).click();
-
-    await page.getByRole("button", { name: "Run Saves" }).click();
-    await page.getByRole("tab", { name: "Run" }).click();
-    await page.getByRole("spinbutton", { name: "Currency" }).fill("30");
-    replaceFixtureCurrency(savePath, 777);
-    const externalBytes = await readFile(savePath);
-    await page.getByRole("button", { name: "Save Changes" }).click();
-    await waitForStaleSave(page, "workspace");
-    expect((await readFile(savePath)).equals(externalBytes)).toBe(true);
-    expect(
-      (await readdir(path.dirname(savePath))).filter((name) =>
-        name.startsWith(`${path.basename(savePath)}.bak-`),
-      ),
-    ).toHaveLength(1);
-
-    if (process.platform === "win32") {
-      const repoExecutable = path.join(gameRoot, "REPO.exe");
-      repoProcess = spawn(repoExecutable, ["-e", "setInterval(() => {}, 1000)"], {
-        cwd: gameRoot,
-        stdio: "ignore",
-        windowsHide: true,
-      });
-      await waitForChildSpawn(repoProcess, "synthetic REPO.exe");
-      expect(repoProcess.exitCode).toBeNull();
-      await waitForGameStatus(page, "running");
-
-      await page.getByRole("button", { name: "Save Changes" }).focus();
-      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await waitForGameRunningDialog(page);
-      const checkAgain = page.getByRole("button", { name: "Check Again" });
-      const exitRepoDitor = page.getByRole("button", { name: "Exit RepoDitor" });
-      await expect(checkAgain).toBeFocused();
-      await page.keyboard.press("Shift+Tab");
-      await expect(exitRepoDitor).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(checkAgain).toBeFocused();
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("dialog")).toBeVisible();
-      await expect(checkAgain).toBeFocused();
-      const dialogOffset = await page.getByRole("dialog").evaluate((dialog) => {
-        const bounds = dialog.getBoundingClientRect();
-        return {
-          horizontal: Math.abs(
-            bounds.left + bounds.width / 2 - document.documentElement.clientWidth / 2,
-          ),
-          vertical: Math.abs(
-            bounds.top + bounds.height / 2 - document.documentElement.clientHeight / 2,
-          ),
-        };
-      });
-      expect(dialogOffset.horizontal).toBeLessThanOrEqual(1);
-      expect(dialogOffset.vertical).toBeLessThanOrEqual(1);
-
-      const runBeforeBlocked = await readFile(savePath);
-      const runBackupsBefore = (await readdir(path.dirname(savePath))).filter((name) =>
-        name.startsWith(`${path.basename(savePath)}.bak-`),
-      ).length;
-      const runBlocked = await page.evaluate(
-        async ({ id }) => {
-          const opened = await window.repoditor.saves.open(id);
-          if (!opened.ok) return opened;
-          return window.repoditor.saves.write(id, opened.data.fingerprint, [
-            { feature: "run", entity: "run", field: "currency", after: 778 },
-          ]);
-        },
-        { id: saveId },
-      );
-      expect(runBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
-      expect((await readFile(savePath)).equals(runBeforeBlocked)).toBe(true);
-      expect(
-        (await readdir(path.dirname(savePath))).filter((name) =>
-          name.startsWith(`${path.basename(savePath)}.bak-`),
-        ),
-      ).toHaveLength(runBackupsBefore);
-
-      const metaBeforeBlocked = await readFile(metaPath);
-      const metaBackupsBefore = (await readdir(path.dirname(metaPath))).filter((name) =>
-        name.startsWith(`${path.basename(metaPath)}.bak-`),
-      ).length;
-      const cosmeticsBlocked = await page.evaluate(async () => {
-        const opened = await window.repoditor.cosmetics.get();
-        if (!opened.ok) return opened;
-        return window.repoditor.cosmetics.write(opened.data.fingerprint, [
-          { feature: "cosmetics", entity: "known", field: "unlockAll", after: true },
-        ]);
-      });
-      expect(cosmeticsBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
-      expect((await readFile(metaPath)).equals(metaBeforeBlocked)).toBe(true);
-      expect(
-        (await readdir(path.dirname(metaPath))).filter((name) =>
-          name.startsWith(`${path.basename(metaPath)}.bak-`),
-        ),
-      ).toHaveLength(metaBackupsBefore);
-
-      await checkAgain.click();
-      await waitForGameRunningDialog(page);
-
-      await terminateChildProcess(repoProcess, "synthetic REPO.exe");
-      repoProcess = undefined;
-      await waitForGameStatus(page, "not_running");
-      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await waitForGameDialogClosed(page);
-      await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("1 pending change");
-    }
-
     console.info(
-      `Release timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, save=${saveReadyMs.toFixed(0)}`,
+      `Workspace timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}`,
     );
   } finally {
-    try {
-      if (repoProcess && repoProcess.exitCode === null) {
-        await terminateChildProcess(repoProcess, "synthetic REPO.exe");
-      }
-    } finally {
-      await harness?.dispose();
-    }
+    await harness?.dispose();
   }
 });
