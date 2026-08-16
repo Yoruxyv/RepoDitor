@@ -1,21 +1,17 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
+
+import { expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 
 import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-} from "@playwright/test";
-
+  E2E_SAVE_ID,
+  EXPECTED_DESKTOP_VERSION,
+  REPO_ROOT,
+  getPythonExecutable,
+} from "./support/fixtureEnvironment";
+import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
 import {
   waitForDiscoveredSave,
   waitForGameDialogClosed,
@@ -26,21 +22,8 @@ import {
   waitForWorkspaceOrContinue,
 } from "./support/waits";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = path.resolve(desktopRoot, "..");
-const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
-const metaFixturePath = path.join(desktopRoot, "e2e", "fixtures", "meta-save.json");
-const saveId = "REPO_SAVE_2026_08_08_10_20_30";
-const expectedVersion = JSON.parse(readFileSync(path.join(desktopRoot, "package.json"), "utf8"))
-  .version as string;
-
-function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(environment).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
-}
+const saveId = E2E_SAVE_ID;
+const expectedVersion = EXPECTED_DESKTOP_VERSION;
 
 async function waitForChildSpawn(child: ChildProcess, label: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -101,142 +84,6 @@ async function imageNaturalWidth(locator: Locator): Promise<number> {
   });
 }
 
-function getPythonExecutable(): string {
-  const executable = path.join(
-    repoRoot,
-    ".venv",
-    process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
-  );
-  if (!existsSync(executable)) {
-    throw new Error(`Python test environment is missing: ${executable}`);
-  }
-  return executable;
-}
-
-async function createFixture(home: string): Promise<{ savePath: string; metaPath: string }> {
-  const savePath = path.join(
-    home,
-    "AppData",
-    "LocalLow",
-    "semiwork",
-    "Repo",
-    "saves",
-    saveId,
-    `${saveId}.es3`,
-  );
-  await mkdir(path.dirname(savePath), { recursive: true });
-  const metaPath = path.join(home, "AppData", "LocalLow", "semiwork", "Repo", "MetaSave.es3");
-  execFileSync(
-    getPythonExecutable(),
-    [
-      "-c",
-      "import json,sys; from pathlib import Path; from repo_save_editor.core.crypto import encrypt_save; Path(sys.argv[2]).write_bytes(encrypt_save(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))))",
-      fixturePath,
-      savePath,
-    ],
-    {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
-      stdio: "inherit",
-    },
-  );
-  execFileSync(
-    getPythonExecutable(),
-    [
-      "-c",
-      "import json,sys; from pathlib import Path; from repo_save_editor.core.crypto import encrypt_save; Path(sys.argv[2]).write_bytes(encrypt_save(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))))",
-      metaFixturePath,
-      metaPath,
-    ],
-    {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
-      stdio: "inherit",
-    },
-  );
-  return { savePath, metaPath };
-}
-
-async function createGameFixture(home: string): Promise<string> {
-  const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "RepoDitor E2E Install");
-  const catalogPath = path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json");
-  await mkdir(path.dirname(catalogPath), { recursive: true });
-  const keyData = [
-    "Level/Arctic/Loading Graphics/a",
-    "Level/Manor/Loading Graphics/b",
-    "Level/Modded Moon/Loading Graphics/c",
-  ].join(" ");
-  await writeFile(
-    catalogPath,
-    JSON.stringify({ m_KeyDataString: Buffer.from(keyData).toString("base64") }),
-    "utf8",
-  );
-  execFileSync(
-    getPythonExecutable(),
-    [path.join(desktopRoot, "e2e", "helpers", "create-recharge-game-assets.py"), gameRoot],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
-  execFileSync(
-    getPythonExecutable(),
-    [path.join(desktopRoot, "e2e", "helpers", "create-cosmetic-game-assets.py"), gameRoot],
-    {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
-      stdio: "inherit",
-    },
-  );
-  if (process.platform === "win32") {
-    await copyFile(process.execPath, path.join(gameRoot, "REPO.exe"));
-  }
-  return gameRoot;
-}
-
-function crc32(data: Buffer): number {
-  let crc = 0xffff_ffff;
-  for (const byte of data) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb8_8320 : 0);
-    }
-  }
-  return (crc ^ 0xffff_ffff) >>> 0;
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const name = Buffer.from(type, "ascii");
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length);
-  const checksum = Buffer.alloc(4);
-  checksum.writeUInt32BE(crc32(Buffer.concat([name, data])));
-  return Buffer.concat([length, name, data, checksum]);
-}
-
-function syntheticPng(): Buffer {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(1, 0);
-  header.writeUInt32BE(1, 4);
-  header.set([8, 6, 0, 0, 0], 8);
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", header),
-    pngChunk("IDAT", deflateSync(Buffer.from([0, 224, 160, 72, 255]))),
-    pngChunk("IEND", Buffer.alloc(0)),
-  ]);
-}
-
-async function createIconFixture(home: string): Promise<string> {
-  const localLow = path.join(home, "AppData", "LocalLow");
-  const iconRoot = path.join(localLow, "semiwork", "Repo", "Cache", "Icons");
-  const items = path.join(iconRoot, "Items");
-  const cosmetics = path.join(iconRoot, "Cosmetics");
-  await mkdir(items, { recursive: true });
-  await mkdir(cosmetics, { recursive: true });
-  await writeFile(path.join(items, "item melee inflatable hammer.png"), syntheticPng());
-  await writeFile(path.join(items, "item walkietalkiebox.png"), syntheticPng());
-  await writeFile(path.join(cosmetics, "e2e cosmetic object 27.png"), syntheticPng());
-  return localLow;
-}
-
 function replaceFixtureCurrency(savePath: string, currency: number): void {
   execFileSync(
     getPythonExecutable(),
@@ -247,8 +94,8 @@ function replaceFixtureCurrency(savePath: string, currency: number): void {
       String(currency),
     ],
     {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONPATH: path.join(REPO_ROOT, "python") },
       stdio: "inherit",
     },
   );
@@ -264,8 +111,8 @@ function replaceMetaTokens(metaPath: string, token: number): void {
       String(token),
     ],
     {
-      cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "python") },
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONPATH: path.join(REPO_ROOT, "python") },
       stdio: "inherit",
     },
   );
@@ -305,47 +152,21 @@ async function layout(page: Page) {
 }
 
 test("safely writes changes with backup and stale-save protection", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
-  let application: ElectronApplication | undefined;
+  let harness: SourceE2eHarness | undefined;
   let repoProcess: ChildProcess | undefined;
 
   try {
-    const { savePath, metaPath } = await createFixture(home);
-    const gameRoot = await createGameFixture(home);
-    const localAppDataLow = await createIconFixture(home);
-    const sourceBefore = await readFile(savePath);
-    const metaBefore = await readFile(metaPath);
-    const applicationEnvironment: Record<string, string> = {
-      ...stringEnvironment(process.env),
-      APPDATA: path.join(home, "AppData", "Roaming"),
-      HOME: home,
-      LOCALAPPDATA: path.join(home, "AppData", "Local"),
-      REPODITOR_E2E: "1",
-      REPODITOR_E2E_LOCAL_APP_DATA_LOW: localAppDataLow,
-      REPODITOR_E2E_STEAM_ROOT: path.resolve(gameRoot, "..", "..", ".."),
-      REPODITOR_E2E_PROJECT_STARS: "321",
-      USERPROFILE: home,
-    };
-
-    delete applicationEnvironment["REPO_GAME_DIR"];
-    delete applicationEnvironment["VITE_DEV_SERVER_URL"];
-    const launchStarted = performance.now();
-    application = await electron.launch({
-      args: [".", "--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-      cwd: desktopRoot,
-      env: {
-        ...applicationEnvironment,
-        VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-      },
-    });
-    const page = await application.firstWindow();
-    await application.evaluate(({ BrowserWindow }) => {
-      const renderer = BrowserWindow.getAllWindows()[0];
-      if (!renderer || !renderer.webContents.isLoadingMainFrame()) return;
-      return new Promise<void>((resolve) => {
-        renderer.webContents.once("did-finish-load", () => resolve());
-      });
-    });
+    harness = await launchSourceE2eHarness();
+    const {
+      application,
+      page,
+      savePath,
+      metaPath,
+      gameRoot,
+      sourceBefore,
+      metaBefore,
+      launchStarted,
+    } = harness;
 
     const chrome = await application.evaluate(({ app, Menu }) => ({
       hasApplicationMenu: Menu.getApplicationMenu() !== null,
@@ -968,13 +789,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
         await terminateChildProcess(repoProcess, "synthetic REPO.exe");
       }
     } finally {
-      await application?.close();
-      await rm(home, {
-        recursive: true,
-        force: true,
-        maxRetries: 10,
-        retryDelay: 100,
-      });
+      await harness?.dispose();
     }
   }
 });
