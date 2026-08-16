@@ -58,9 +58,11 @@ export const ko: Record<keyof typeof en, string> = {
   "discovery.headline.unreadable": "세이브 폴더를 사용할 수 없음",
   "discovery.headline.ready": "세이브 폴더 준비 완료",
   "discovery.summary.game": "이 PC에서 게임 설치와 {saves}을(를) 찾았습니다.",
-  "discovery.summary.saves": "{saves}을(를) 찾았습니다. 게임 설치는 감지되지 않았지만 세이브 탐색을 사용할 수 있습니다.",
+  "discovery.summary.saves":
+    "{saves}을(를) 찾았습니다. 게임 설치는 감지되지 않았지만 세이브 탐색을 사용할 수 있습니다.",
   "discovery.summary.empty": "표준 세이브 폴더가 있지만 유효한 세이브 슬롯은 아직 없습니다.",
-  "discovery.summary.missingGame": "게임 설치가 준비되었습니다. 표준 세이브 폴더는 아직 생성되지 않았습니다.",
+  "discovery.summary.missingGame":
+    "게임 설치가 준비되었습니다. 표준 세이브 폴더는 아직 생성되지 않았습니다.",
   "discovery.summary.missing": "표준 세이브 위치를 확인했지만 폴더를 찾지 못했습니다.",
   "discovery.summary.unreadable": "세이브 위치를 찾았지만 내용을 읽을 수 없습니다.",
   "discovery.save.one": "세이브 1개",
@@ -70,11 +72,14 @@ export const ko: Record<keyof typeof en, string> = {
   "discovery.loading": "로컬 R.E.P.O. 세이브 탐색 중",
   "discovery.loadingLive": "로컬 R.E.P.O. 세이브를 탐색하고 있습니다.",
   "discovery.state.missingTitle": "표준 세이브 폴더를 찾을 수 없음",
-  "discovery.state.missingDescription": "일반 R.E.P.O. 세이브 위치를 확인했습니다. 게임이 첫 세이브를 만든 뒤 폴더가 나타날 수 있습니다.",
+  "discovery.state.missingDescription":
+    "일반 R.E.P.O. 세이브 위치를 확인했습니다. 게임이 첫 세이브를 만든 뒤 폴더가 나타날 수 있습니다.",
   "discovery.state.unreadableTitle": "세이브 폴더를 읽을 수 없음",
-  "discovery.state.unreadableDescription": "세이브 위치는 있지만 확인할 수 없습니다. 폴더 접근 권한을 확인한 뒤 새로 고치세요.",
+  "discovery.state.unreadableDescription":
+    "세이브 위치는 있지만 확인할 수 없습니다. 폴더 접근 권한을 확인한 뒤 새로 고치세요.",
   "discovery.state.emptyTitle": "유효한 세이브가 아직 없음",
-  "discovery.state.emptyDescription": "세이브 폴더는 준비되었지만 유효한 R.E.P.O. 세이브 슬롯이 없습니다.",
+  "discovery.state.emptyDescription":
+    "세이브 폴더는 준비되었지만 유효한 R.E.P.O. 세이브 슬롯이 없습니다.",
   "discovery.failureTitle": "로컬 탐색을 사용할 수 없음",
   "discovery.failureDescription": "{error} RepoDitor는 세이브 파일을 변경하지 않았습니다.",
   "environment.title": "로컬 환경",
@@ -109,7 +114,8 @@ export const ko: Record<keyof typeof en, string> = {
   "workspace.sections": "작업 공간 섹션",
   "workspace.context": "세이브 정보",
   "workspace.source": "소스",
-  "workspace.validated": "로컬에서 검증되었습니다. 복호화된 원시 데이터는 Python 경계 밖으로 노출되지 않습니다.",
+  "workspace.validated":
+    "로컬에서 검증되었습니다. 복호화된 원시 데이터는 Python 경계 밖으로 노출되지 않습니다.",
   "workspace.validatedShort": "로컬 검증 완료",
   "nav.overview": "개요",
   "nav.players": "플레이어",
@@ -134,7 +140,8 @@ export const ko: Record<keyof typeof en, string> = {
   "players.emptyDescription": "이 세이브에는 플레이어 기록이 없습니다.",
   "players.selected": "선택한 플레이어",
   "players.currentHealth": "현재 체력",
-  "players.healthHelper": "메모리에 대기 중인 변경 사항을 만듭니다. 세이브 파일에는 아직 쓰지 않습니다.",
+  "players.healthHelper":
+    "메모리에 대기 중인 변경 사항을 만듭니다. 세이브 파일에는 아직 쓰지 않습니다.",
   "players.maximumHealth": "최대 체력 {value}",
   "players.healFull": "완전히 회복",
   "players.healthError": "체력은 0 이상의 정수여야 합니다.",
@@ -151,7 +158,8 @@ export const ko: Record<keyof typeof en, string> = {
   "run.loading": "런 상태 불러오는 중…",
   "run.unavailable": "런을 사용할 수 없음",
   "run.expedition": "현재 원정",
-  "run.description": "아래의 읽기 쉬운 값을 메모리에서 조정합니다. 선택한 세이브에는 아직 쓰지 않습니다.",
+  "run.description":
+    "아래의 읽기 쉬운 값을 메모리에서 조정합니다. 선택한 세이브에는 아직 쓰지 않습니다.",
   "run.levelError": "레벨은 1 이상의 정수여야 합니다.",
   "run.valueError": "{label}은(는) 정수여야 합니다.",
   "run.resumeLocation": "재개 위치",
@@ -159,7 +167,8 @@ export const ko: Record<keyof typeof en, string> = {
   "run.totalHaul": "총 수익",
   "items.loading": "아이템 불러오는 중…",
   "items.unavailable": "아이템을 사용할 수 없음",
-  "items.description": "아이템을 검색하고 지원되는 도구를 충전하세요. 변경 사항은 저장할 때까지 대기합니다.",
+  "items.description":
+    "아이템을 검색하고 지원되는 도구를 충전하세요. 변경 사항은 저장할 때까지 대기합니다.",
   "items.safety": "RepoDitor가 안전하게 충전할 수 있는 도구에만 충전 기능이 표시됩니다.",
   "items.instances": "아이템 인스턴스",
   "items.missingContainer": "이 세이브에서는 아이템을 사용할 수 없습니다.",
@@ -189,13 +198,16 @@ export const ko: Record<keyof typeof en, string> = {
   "items.refillLabel": "{item} 도구 {instance} 충전",
   "maps.loading": "설치된 맵 탐색 중…",
   "maps.unavailable": "맵을 사용할 수 없음",
-  "maps.noGame": "검증된 R.E.P.O. 설치를 찾지 못했습니다. 맵 탐색은 세이브 편집에 영향을 주지 않습니다.",
+  "maps.noGame":
+    "검증된 R.E.P.O. 설치를 찾지 못했습니다. 맵 탐색은 세이브 편집에 영향을 주지 않습니다.",
   "maps.installed": "설치된 콘텐츠",
-  "maps.description": "설치된 게임 카탈로그에서 읽기 전용으로 탐색합니다. RepoDitor는 다음 맵을 강제하지 않습니다.",
+  "maps.description":
+    "설치된 게임 카탈로그에서 읽기 전용으로 탐색합니다. RepoDitor는 다음 맵을 강제하지 않습니다.",
   "cosmetics.loading": "MetaSave 코스메틱 읽는 중…",
   "cosmetics.unavailable": "코스메틱을 사용할 수 없음",
   "cosmetics.ownership": "MetaSave 보유 상태",
-  "cosmetics.description": "사용할 수 없는 이름을 추측하지 않고 알려진 코스메틱 카탈로그를 관리합니다.",
+  "cosmetics.description":
+    "사용할 수 없는 이름을 추측하지 않고 알려진 코스메틱 카탈로그를 관리합니다.",
   "cosmetics.knownCatalog": "알려진 카탈로그",
   "cosmetics.owned": "보유함",
   "cosmetics.locked": "잠김",
@@ -209,14 +221,17 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "모든 프리셋 지우기 대기 중",
   "cosmetics.lockAll": "모든 코스메틱 잠그기",
   "cosmetics.lockPending": "모두 잠그기 대기 중",
-  "cosmetics.lockUnavailable": "보유한 코스메틱이 장착 중이거나 프리셋에서 사용 중이면 모두 잠글 수 없습니다.",
+  "cosmetics.lockUnavailable":
+    "보유한 코스메틱이 장착 중이거나 프리셋에서 사용 중이면 모두 잠글 수 없습니다.",
   "cosmetics.context": "코스메틱 정보",
   "cosmetics.validated": "MetaSave는 런 세이브와 별도로 검증되고 기록됩니다.",
   "cosmetics.validatedShort": "검증된 MetaSave",
   "cosmetics.catalog": "코스메틱 카탈로그",
-  "cosmetics.catalogDescription": "사용 가능한 경우 설치된 이름과 메타데이터를 표시합니다. 숫자 ID가 기준 식별자입니다.",
+  "cosmetics.catalogDescription":
+    "사용 가능한 경우 설치된 이름과 메타데이터를 표시합니다. 숫자 ID가 기준 식별자입니다.",
   "cosmetics.catalogCount": "설치됨 {count}개",
-  "cosmetics.catalogUnavailableMetadata": "설치된 코스메틱 메타데이터를 사용할 수 없습니다. 세이브에 보유된 ID는 알 수 없음 및 읽기 전용으로 계속 표시됩니다.",
+  "cosmetics.catalogUnavailableMetadata":
+    "설치된 코스메틱 메타데이터를 사용할 수 없습니다. 세이브에 보유된 ID는 알 수 없음 및 읽기 전용으로 계속 표시됩니다.",
   "cosmetics.catalogList": "코스메틱 카탈로그 항목",
   "cosmetics.itemLabel": "{name}, ID {id}, {state}",
   "cosmetics.idLabel": "ID {id}",
@@ -225,7 +240,8 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.statusLabel": "상태 {status}",
   "cosmetics.readOnly": "읽기 전용",
   "cosmetics.unknown": "알 수 없음",
-  "cosmetics.unknownPreserved": "세이브의 ID를 보존합니다. 이 ID에 대한 설치된 메타데이터는 사용할 수 없습니다.",
+  "cosmetics.unknownPreserved":
+    "세이브의 ID를 보존합니다. 이 ID에 대한 설치된 메타데이터는 사용할 수 없습니다.",
   "cosmetics.searchLabel": "코스메틱 검색",
   "cosmetics.searchPlaceholder": "코스메틱 검색…",
   "cosmetics.clearSearch": "코스메틱 검색 지우기",
@@ -263,8 +279,10 @@ export const ko: Record<keyof typeof en, string> = {
   "assets.progressLabel": "게임 에셋 준비 진행률",
   "assets.progressCount": "{completed} / {total} 에셋",
   "assets.working": "처리 중",
-  "assets.slowHint": "로컬 게임 에셋을 계속 준비하고 있습니다. 첫 스캔은 조금 더 오래 걸릴 수 있습니다.",
-  "assets.localOnlyHint": "로컬 설치 파일을 읽고 있습니다. RepoDitor에는 게임 이미지가 포함되지 않습니다.",
+  "assets.slowHint":
+    "로컬 게임 에셋을 계속 준비하고 있습니다. 첫 스캔은 조금 더 오래 걸릴 수 있습니다.",
+  "assets.localOnlyHint":
+    "로컬 설치 파일을 읽고 있습니다. RepoDitor에는 게임 이미지가 포함되지 않습니다.",
   "assets.continueEditor": "에디터로 계속",
   "assets.installationFound": "로컬 설치 • 감지됨",
   "assets.installationPending": "로컬 설치 • 찾는 중",
@@ -273,14 +291,17 @@ export const ko: Record<keyof typeof en, string> = {
   "assets.notice.title": "게임 이미지를 사용할 수 없습니다.",
   "assets.notice.gameMissing": "R.E.P.O.가 감지되지 않아 내장 아이콘을 사용합니다.",
   "assets.notice.buildUnverified": "설치된 빌드를 검증할 수 없어 내장 아이콘을 사용합니다.",
-  "assets.notice.partial": "일부 로컬 이미지를 준비하지 못했습니다. 필요한 곳에서는 내장 아이콘을 사용합니다.",
+  "assets.notice.partial":
+    "일부 로컬 이미지를 준비하지 못했습니다. 필요한 곳에서는 내장 아이콘을 사용합니다.",
   "assets.notice.preparingTitle": "게임 이미지를 계속 준비하고 있습니다.",
   "assets.notice.preparing": "백그라운드 준비 계속 · {progress}.",
   "safety.label": "세이브 안전",
   "safety.runningTitle": "R.E.P.O.가 현재 실행 중입니다",
   "safety.unknownTitle": "RepoDitor가 R.E.P.O. 종료 여부를 확인할 수 없습니다.",
-  "safety.runningDescription": "세이브를 편집하기 전에 게임을 종료하세요. R.E.P.O.가 세이브 상태를 메모리에 보관했다가 나중에 기록하면 RepoDitor가 오래된 데이터를 읽거나 변경 사항을 덮어쓸 수 있습니다.",
-  "safety.unknownDescription": "검증된 R.E.P.O. 설치가 종료되었음을 확인할 때까지 세이브 편집을 안전하게 활성화할 수 없습니다.",
+  "safety.runningDescription":
+    "세이브를 편집하기 전에 게임을 종료하세요. R.E.P.O.가 세이브 상태를 메모리에 보관했다가 나중에 기록하면 RepoDitor가 오래된 데이터를 읽거나 변경 사항을 덮어쓸 수 있습니다.",
+  "safety.unknownDescription":
+    "검증된 R.E.P.O. 설치가 종료되었음을 확인할 때까지 세이브 편집을 안전하게 활성화할 수 없습니다.",
   "safety.checking": "확인 중…",
   "safety.checkAgain": "다시 확인",
   "safety.exit": "RepoDitor 종료",

@@ -58,10 +58,7 @@ export function replacePyprojectVersion(content, version) {
   const { bodyStart, bodyEnd } = projectSection(content);
   const body = content.slice(bodyStart, bodyEnd);
   readPyprojectVersion(content);
-  const updated = body.replace(
-    /^version[ \t]*=[ \t]*"[^"]+"[ \t]*$/mu,
-    `version = "${version}"`,
-  );
+  const updated = body.replace(/^version[ \t]*=[ \t]*"[^"]+"[ \t]*$/mu, `version = "${version}"`);
   return content.slice(0, bodyStart) + updated + content.slice(bodyEnd);
 }
 
@@ -75,24 +72,19 @@ export function readPythonVersion(content) {
 
 export function replacePythonVersion(content, version) {
   readPythonVersion(content);
-  return content.replace(
-    /^__version__[ \t]*=[ \t]*"[^"]+"[ \t]*$/mu,
-    `__version__ = "${version}"`,
-  );
+  return content.replace(/^__version__[ \t]*=[ \t]*"[^"]+"[ \t]*$/mu, `__version__ = "${version}"`);
 }
 
 export function readUvLockVersion(content) {
-  const blocks = content.split(/(?=^\[\[package\]\][ \t]*$)/gmu).filter((block) =>
-    /^name[ \t]*=[ \t]*"repo-save-editor"[ \t]*$/mu.test(block),
-  );
+  const blocks = content
+    .split(/(?=^\[\[package\]\][ \t]*$)/gmu)
+    .filter((block) => /^name[ \t]*=[ \t]*"repo-save-editor"[ \t]*$/mu.test(block));
   if (blocks.length !== 1) {
-    throw new Error(`Expected exactly one repo-save-editor package in uv.lock; found ${blocks.length}.`);
+    throw new Error(
+      `Expected exactly one repo-save-editor package in uv.lock; found ${blocks.length}.`,
+    );
   }
-  return uniqueVersion(
-    blocks[0],
-    /^version[ \t]*=[ \t]*"([^"]+)"[ \t]*$/gmu,
-    "uv.lock package",
-  );
+  return uniqueVersion(blocks[0], /^version[ \t]*=[ \t]*"([^"]+)"[ \t]*$/gmu, "uv.lock package");
 }
 
 export function readVersionSources(repoRoot) {
@@ -122,7 +114,9 @@ export function assertVersionAlignment(repoRoot) {
     const details = Object.entries(versions)
       .map(([source, version]) => `  ${source}: ${version ?? "missing"}`)
       .join("\n");
-    throw new Error(`Release versions differ; desktop/package.json expects ${expected}:\n${details}`);
+    throw new Error(
+      `Release versions differ; desktop/package.json expects ${expected}:\n${details}`,
+    );
   }
   return expected;
 }

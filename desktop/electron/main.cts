@@ -1,16 +1,8 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import {
-  app,
-  BrowserWindow,
-  Menu,
-  shell,
-} from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 
-import {
-  assetPreparationService,
-  registerAssetPreparationIpc,
-} from "./assets/preparation.cjs";
+import { assetPreparationService, registerAssetPreparationIpc } from "./assets/preparation.cjs";
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
 import { registerGameIpc } from "./ipc/game.cjs";
 import { registerCosmeticsIpc } from "./ipc/cosmetics.cjs";
@@ -19,13 +11,9 @@ import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerProjectIpc } from "./ipc/project.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
-import {
-  registerLocalIconProtocol,
-  registerLocalIconScheme,
-} from "./icons/protocol.cjs";
+import { registerLocalIconProtocol, registerLocalIconScheme } from "./icons/protocol.cjs";
 
-const developmentRendererUrl =
-  process.env.VITE_DEV_SERVER_URL;
+const developmentRendererUrl = process.env.VITE_DEV_SERVER_URL;
 const projectUrl = "https://github.com/Yoruxyv/RepoDitor";
 
 function getRendererUrl(): string {
@@ -33,14 +21,7 @@ function getRendererUrl(): string {
     return developmentRendererUrl;
   }
 
-  return pathToFileURL(
-    path.join(
-      __dirname,
-      "..",
-      "dist",
-      "index.html",
-    ),
-  ).href;
+  return pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
 }
 
 function normalizeNavigationUrl(url: string): string {
@@ -49,36 +30,22 @@ function normalizeNavigationUrl(url: string): string {
   return normalized.href;
 }
 
-function secureRendererNavigation(
-  window: BrowserWindow,
-  rendererUrl: string,
-): void {
-  const allowedUrl = normalizeNavigationUrl(
-    rendererUrl,
-  );
+function secureRendererNavigation(window: BrowserWindow, rendererUrl: string): void {
+  const allowedUrl = normalizeNavigationUrl(rendererUrl);
 
-  window.webContents.setWindowOpenHandler(
-    ({ url }) => {
-      if (url === projectUrl) {
-        void shell.openExternal(url).catch((error: unknown) => {
-          console.error("Unable to open the RepoDitor project page.", error);
-        });
-      }
-      return { action: "deny" };
-    },
-  );
-  window.webContents.on(
-    "will-navigate",
-    (event, navigationUrl) => {
-      if (
-        normalizeNavigationUrl(
-          navigationUrl,
-        ) !== allowedUrl
-      ) {
-        event.preventDefault();
-      }
-    },
-  );
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === projectUrl) {
+      void shell.openExternal(url).catch((error: unknown) => {
+        console.error("Unable to open the RepoDitor project page.", error);
+      });
+    }
+    return { action: "deny" };
+  });
+  window.webContents.on("will-navigate", (event, navigationUrl) => {
+    if (normalizeNavigationUrl(navigationUrl) !== allowedUrl) {
+      event.preventDefault();
+    }
+  });
 }
 
 function createWindow(): void {
@@ -94,19 +61,13 @@ function createWindow(): void {
     icon: path.join(__dirname, "..", app.isPackaged ? "dist" : "public", "icon.png"),
 
     webPreferences: {
-      preload: path.join(
-        __dirname,
-        "preload.cjs",
-      ),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   });
-  secureRendererNavigation(
-    window,
-    rendererUrl,
-  );
+  secureRendererNavigation(window, rendererUrl);
 
   window.once("ready-to-show", () => {
     window.show();
@@ -137,9 +98,7 @@ void app.whenReady().then(() => {
   void assetPreparationService.prepareStartup();
 
   app.on("activate", () => {
-    if (
-      BrowserWindow.getAllWindows().length === 0
-    ) {
+    if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });

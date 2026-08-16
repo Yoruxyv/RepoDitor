@@ -21,10 +21,7 @@ function getHeadline(environment: EnvironmentDiscovery, t: Translate): string {
   if (environment.saveRootStatus === "missing") {
     return t("discovery.headline.missing");
   }
-  if (
-    environment.saveRootStatus === "unreadable"
-    || environment.saveRootStatus === "unavailable"
-  ) {
+  if (environment.saveRootStatus === "unreadable" || environment.saveRootStatus === "unavailable") {
     return t("discovery.headline.unreadable");
   }
   return t("discovery.headline.ready");
@@ -56,13 +53,8 @@ interface DiscoveryHomeProps {
   readonly openError: string | null;
 }
 
-export function DiscoveryHome({
-  onOpenSave,
-  openingSaveId,
-  openError,
-}: DiscoveryHomeProps) {
-  const { data, error, isInitialLoading, isRefreshing, refresh } =
-    useEnvironmentDiscovery();
+export function DiscoveryHome({ onOpenSave, openingSaveId, openError }: DiscoveryHomeProps) {
+  const { data, error, isInitialLoading, isRefreshing, refresh } = useEnvironmentDiscovery();
   const { t } = usePreferences();
 
   if (isInitialLoading || (data === null && error === null)) {
@@ -92,9 +84,7 @@ export function DiscoveryHome({
           >
             {getHeadline(data, t)}
           </h1>
-          <p className="mt-4 max-w-[62ch] text-sm/6 text-secondary">
-            {getSummary(data, t)}
-          </p>
+          <p className="mt-4 max-w-[62ch] text-sm/6 text-secondary">{getSummary(data, t)}</p>
         </div>
 
         <button
@@ -114,18 +104,14 @@ export function DiscoveryHome({
       </header>
 
       {error !== null && (
-        <output
-          className="mt-5 flex items-start gap-3 border-l-2 border-warning bg-warning-muted px-4 py-3 text-sm text-secondary"
-        >
+        <output className="mt-5 flex items-start gap-3 border-l-2 border-warning bg-warning-muted px-4 py-3 text-sm text-secondary">
           <WarningCircleIcon
             aria-hidden="true"
             className="mt-0.5 shrink-0 text-warning"
             size={18}
             weight="fill"
           />
-          <p>
-            {t("discovery.refreshFailed", { error: t(operationErrorKey(error.code)) })}
-          </p>
+          <p>{t("discovery.refreshFailed", { error: t(operationErrorKey(error.code)) })}</p>
         </output>
       )}
 

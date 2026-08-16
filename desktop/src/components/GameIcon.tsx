@@ -30,10 +30,10 @@ export function GameIcon({
 }: GameIconProps) {
   const [failedToken, setFailedToken] = useState<string | null>(null);
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
-    token !== null && loadedIconTokens.has(token) ? token : null);
+    token !== null && loadedIconTokens.has(token) ? token : null,
+  );
   const failed = token !== null && failedToken === token;
-  const loaded = token !== null
-    && (loadedToken === token || loadedIconTokens.has(token));
+  const loaded = token !== null && (loadedToken === token || loadedIconTokens.has(token));
 
   if (token === null || failed) {
     return (
@@ -51,9 +51,7 @@ export function GameIcon({
       aria-hidden="true"
       aria-busy={!loaded}
       className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border ${
-        loaded || variant === "upgrade"
-          ? "border-transparent bg-transparent"
-          : "border-line bg-app"
+        loaded || variant === "upgrade" ? "border-transparent bg-transparent" : "border-line bg-app"
       }`}
       data-icon-source="local"
       data-testid={testId}

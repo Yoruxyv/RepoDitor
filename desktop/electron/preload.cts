@@ -1,8 +1,4 @@
-import {
-  contextBridge,
-  ipcRenderer,
-  type IpcRendererEvent,
-} from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 import {
   type AdvancedSaveDto,
@@ -51,25 +47,19 @@ const IPC_CHANNELS: IpcChannelMap = {
 const repoditorApi: RepoDitorApi = {
   project: {
     metadata: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.projectMetadata,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.projectMetadata) as Promise<
         DesktopOperationResult<ProjectMetadata>
       >,
   },
   environment: {
     detect: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.environmentDetect,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.environmentDetect) as Promise<
         DesktopOperationResult<EnvironmentDiscovery>
       >,
   },
   game: {
     status: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.gameStatus,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.gameStatus) as Promise<
         DesktopOperationResult<GameProcessState>
       >,
   },
@@ -88,99 +78,60 @@ const repoditorApi: RepoDitorApi = {
   },
   saves: {
     list: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.savesList,
-      ) as Promise<
-        DesktopOperationResult<SaveSummary[]>
-      >,
+      ipcRenderer.invoke(IPC_CHANNELS.savesList) as Promise<DesktopOperationResult<SaveSummary[]>>,
     open: (saveId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.savesOpen,
-        saveId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.savesOpen, saveId) as Promise<
         DesktopOperationResult<SaveSession>
       >,
     write: (saveId, fingerprint, changes: SaveChange[]) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.savesWrite,
-        saveId,
-        fingerprint,
-        changes,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.savesWrite, saveId, fingerprint, changes) as Promise<
         DesktopOperationResult<SaveWriteResult>
       >,
   },
   players: {
     list: (saveId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.playersList,
-        saveId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.playersList, saveId) as Promise<
         DesktopOperationResult<PlayerDto[]>
       >,
     avatar: (saveId, playerId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.playersAvatar,
-        saveId,
-        playerId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.playersAvatar, saveId, playerId) as Promise<
         DesktopOperationResult<PlayerAvatar>
-    >,
+      >,
   },
   upgrades: {
     list: (saveId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.upgradesList,
-        saveId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.upgradesList, saveId) as Promise<
         DesktopOperationResult<PlayerUpgradeDto[]>
       >,
   },
   run: {
     get: (saveId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.runGet,
-        saveId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.runGet, saveId) as Promise<
         DesktopOperationResult<RunStateDto>
       >,
   },
   advanced: {
     get: (saveId) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.advancedGet,
-        saveId,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.advancedGet, saveId) as Promise<
         DesktopOperationResult<AdvancedSaveDto>
       >,
   },
   cosmetics: {
     get: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.cosmeticsGet,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.cosmeticsGet) as Promise<
         DesktopOperationResult<CosmeticsViewDto>
       >,
     write: (fingerprint, changes: CosmeticChange[]) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.cosmeticsWrite,
-        fingerprint,
-        changes,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.cosmeticsWrite, fingerprint, changes) as Promise<
         DesktopOperationResult<CosmeticsWriteResult>
       >,
   },
   maps: {
     list: () =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.mapsList,
-      ) as Promise<
+      ipcRenderer.invoke(IPC_CHANNELS.mapsList) as Promise<
         DesktopOperationResult<InstalledMapsDto>
       >,
   },
 };
 
-contextBridge.exposeInMainWorld(
-  "repoditor",
-  repoditorApi,
-);
+contextBridge.exposeInMainWorld("repoditor", repoditorApi);

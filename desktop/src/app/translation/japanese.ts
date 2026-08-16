@@ -58,9 +58,11 @@ export const ja: Record<keyof typeof en, string> = {
   "discovery.headline.unreadable": "セーブフォルダーを利用できません",
   "discovery.headline.ready": "セーブフォルダーの準備完了",
   "discovery.summary.game": "この PC でゲームと {saves} が見つかりました。",
-  "discovery.summary.saves": "{saves} が見つかりました。ゲームは未検出ですが、セーブは利用できます。",
+  "discovery.summary.saves":
+    "{saves} が見つかりました。ゲームは未検出ですが、セーブは利用できます。",
   "discovery.summary.empty": "標準セーブフォルダーに有効なスロットがまだありません。",
-  "discovery.summary.missingGame": "ゲームは検出済みですが、標準セーブフォルダーはまだ作成されていません。",
+  "discovery.summary.missingGame":
+    "ゲームは検出済みですが、標準セーブフォルダーはまだ作成されていません。",
   "discovery.summary.missing": "標準セーブ場所を確認しましたが、フォルダーは見つかりませんでした。",
   "discovery.summary.unreadable": "セーブ場所は見つかりましたが、内容を読み取れませんでした。",
   "discovery.save.one": "セーブ 1 件",
@@ -70,11 +72,14 @@ export const ja: Record<keyof typeof en, string> = {
   "discovery.loading": "ローカル R.E.P.O. セーブを検索中",
   "discovery.loadingLive": "ローカル R.E.P.O. セーブを検索中です。",
   "discovery.state.missingTitle": "標準セーブフォルダーが見つかりません",
-  "discovery.state.missingDescription": "通常の R.E.P.O. セーブ場所を確認しました。最初のセーブ作成後に表示される場合があります。",
+  "discovery.state.missingDescription":
+    "通常の R.E.P.O. セーブ場所を確認しました。最初のセーブ作成後に表示される場合があります。",
   "discovery.state.unreadableTitle": "セーブフォルダーを読み取れません",
-  "discovery.state.unreadableDescription": "場所は存在しますが確認できません。アクセス権を確認して更新してください。",
+  "discovery.state.unreadableDescription":
+    "場所は存在しますが確認できません。アクセス権を確認して更新してください。",
   "discovery.state.emptyTitle": "有効なセーブはまだありません",
-  "discovery.state.emptyDescription": "フォルダーは準備済みですが、有効な R.E.P.O. セーブスロットがありません。",
+  "discovery.state.emptyDescription":
+    "フォルダーは準備済みですが、有効な R.E.P.O. セーブスロットがありません。",
   "discovery.failureTitle": "ローカル検出を利用できません",
   "discovery.failureDescription": "{error} セーブファイルは変更されていません。",
   "environment.title": "ローカル環境",
@@ -159,7 +164,8 @@ export const ja: Record<keyof typeof en, string> = {
   "run.totalHaul": "合計収益",
   "items.loading": "アイテムを読み込み中…",
   "items.unavailable": "アイテムを利用できません",
-  "items.description": "アイテムを検索し、対応するツールを充電できます。変更は保存するまで保留されます。",
+  "items.description":
+    "アイテムを検索し、対応するツールを充電できます。変更は保存するまで保留されます。",
   "items.safety": "充電は、RepoDitor が安全に満充電へ戻せるツールにのみ表示されます。",
   "items.instances": "アイテムインスタンス",
   "items.missingContainer": "このセーブではアイテムを利用できません。",
@@ -209,14 +215,17 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "全消去を保留中",
   "cosmetics.lockAll": "すべてのコスメティックをロック",
   "cosmetics.lockPending": "全ロックを保留中",
-  "cosmetics.lockUnavailable": "所有済みコスメティックが装備中またはプリセットで使用中のため、全ロックできません。",
+  "cosmetics.lockUnavailable":
+    "所有済みコスメティックが装備中またはプリセットで使用中のため、全ロックできません。",
   "cosmetics.context": "コスメティック情報",
   "cosmetics.validated": "MetaSave はランセーブとは別に検証・書き込みされます。",
   "cosmetics.validatedShort": "検証済み MetaSave",
   "cosmetics.catalog": "コスメティックカタログ",
-  "cosmetics.catalogDescription": "利用可能な場合は、インストール済みの名前とメタデータを表示します。数値 ID が基準の識別子です。",
+  "cosmetics.catalogDescription":
+    "利用可能な場合は、インストール済みの名前とメタデータを表示します。数値 ID が基準の識別子です。",
   "cosmetics.catalogCount": "インストール済み {count} 件",
-  "cosmetics.catalogUnavailableMetadata": "インストール済みコスメティックのメタデータを利用できません。セーブ内で所有済みの ID は不明・読み取り専用として表示されます。",
+  "cosmetics.catalogUnavailableMetadata":
+    "インストール済みコスメティックのメタデータを利用できません。セーブ内で所有済みの ID は不明・読み取り専用として表示されます。",
   "cosmetics.catalogList": "コスメティックカタログ項目",
   "cosmetics.itemLabel": "{name}、ID {id}、{state}",
   "cosmetics.idLabel": "ID {id}",
@@ -225,7 +234,8 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.statusLabel": "ステータス {status}",
   "cosmetics.readOnly": "読み取り専用",
   "cosmetics.unknown": "不明",
-  "cosmetics.unknownPreserved": "セーブ内の ID を保持しています。この ID のインストール済みメタデータは利用できません。",
+  "cosmetics.unknownPreserved":
+    "セーブ内の ID を保持しています。この ID のインストール済みメタデータは利用できません。",
   "cosmetics.searchLabel": "コスメティックを検索",
   "cosmetics.searchPlaceholder": "コスメティックを検索…",
   "cosmetics.clearSearch": "コスメティック検索をクリア",
@@ -263,8 +273,10 @@ export const ja: Record<keyof typeof en, string> = {
   "assets.progressLabel": "ゲームアセット準備の進捗",
   "assets.progressCount": "{completed} / {total} アセット",
   "assets.working": "処理中",
-  "assets.slowHint": "ローカルゲームアセットを準備しています。初回スキャンは少し時間がかかる場合があります。",
-  "assets.localOnlyHint": "ローカルインストールを読み取っています。RepoDitor にゲーム画像は同梱されていません。",
+  "assets.slowHint":
+    "ローカルゲームアセットを準備しています。初回スキャンは少し時間がかかる場合があります。",
+  "assets.localOnlyHint":
+    "ローカルインストールを読み取っています。RepoDitor にゲーム画像は同梱されていません。",
   "assets.continueEditor": "エディターへ進む",
   "assets.installationFound": "ローカルインストール • 検出済み",
   "assets.installationPending": "ローカルインストール • 検索中",
@@ -272,15 +284,19 @@ export const ja: Record<keyof typeof en, string> = {
   "assets.buildPending": "ビルド • 確認中",
   "assets.notice.title": "ゲーム画像を利用できません。",
   "assets.notice.gameMissing": "R.E.P.O. が検出されなかったため、内蔵アイコンを使用します。",
-  "assets.notice.buildUnverified": "インストール済みビルドを検証できなかったため、内蔵アイコンを使用します。",
-  "assets.notice.partial": "一部のローカル画像を準備できませんでした。必要な箇所では内蔵アイコンを使用します。",
+  "assets.notice.buildUnverified":
+    "インストール済みビルドを検証できなかったため、内蔵アイコンを使用します。",
+  "assets.notice.partial":
+    "一部のローカル画像を準備できませんでした。必要な箇所では内蔵アイコンを使用します。",
   "assets.notice.preparingTitle": "ゲーム画像を引き続き準備しています。",
   "assets.notice.preparing": "バックグラウンド準備を継続中 · {progress}。",
   "safety.label": "セーブ保護",
   "safety.runningTitle": "R.E.P.O. が実行中です",
   "safety.unknownTitle": "R.E.P.O. が終了していることを確認できません。",
-  "safety.runningDescription": "セーブ編集前にゲームを終了してください。ゲームが古い状態を後から書き込み、変更を上書きする可能性があります。",
-  "safety.unknownDescription": "検証済み R.E.P.O. の終了を確認するまでセーブ編集を安全に有効化できません。",
+  "safety.runningDescription":
+    "セーブ編集前にゲームを終了してください。ゲームが古い状態を後から書き込み、変更を上書きする可能性があります。",
+  "safety.unknownDescription":
+    "検証済み R.E.P.O. の終了を確認するまでセーブ編集を安全に有効化できません。",
   "safety.checking": "確認中…",
   "safety.checkAgain": "再確認",
   "safety.exit": "RepoDitor を終了",

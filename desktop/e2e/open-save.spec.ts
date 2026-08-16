@@ -7,7 +7,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
-import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 import {
   waitForDiscoveredSave,
@@ -24,9 +31,8 @@ const repoRoot = path.resolve(desktopRoot, "..");
 const fixturePath = path.join(desktopRoot, "e2e", "fixtures", "save.json");
 const metaFixturePath = path.join(desktopRoot, "e2e", "fixtures", "meta-save.json");
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
-const expectedVersion = JSON.parse(
-  readFileSync(path.join(desktopRoot, "package.json"), "utf8"),
-).version as string;
+const expectedVersion = JSON.parse(readFileSync(path.join(desktopRoot, "package.json"), "utf8"))
+  .version as string;
 
 function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(
@@ -36,10 +42,7 @@ function stringEnvironment(environment: NodeJS.ProcessEnv): Record<string, strin
   );
 }
 
-async function waitForChildSpawn(
-  child: ChildProcess,
-  label: string,
-): Promise<void> {
+async function waitForChildSpawn(child: ChildProcess, label: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       child.off("spawn", onSpawn);
@@ -69,10 +72,7 @@ async function waitForChildSpawn(
   });
 }
 
-async function terminateChildProcess(
-  child: ChildProcess,
-  label: string,
-): Promise<void> {
+async function terminateChildProcess(child: ChildProcess, label: string): Promise<void> {
   if (child.exitCode !== null) {
     return;
   }
@@ -158,20 +158,8 @@ async function createFixture(home: string): Promise<{ savePath: string; metaPath
 }
 
 async function createGameFixture(home: string): Promise<string> {
-  const gameRoot = path.join(
-    home,
-    "SteamLibrary",
-    "steamapps",
-    "common",
-    "RepoDitor E2E Install",
-  );
-  const catalogPath = path.join(
-    gameRoot,
-    "REPO_Data",
-    "StreamingAssets",
-    "aa",
-    "catalog.json",
-  );
+  const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "RepoDitor E2E Install");
+  const catalogPath = path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json");
   await mkdir(path.dirname(catalogPath), { recursive: true });
   const keyData = [
     "Level/Arctic/Loading Graphics/a",
@@ -369,12 +357,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Alt");
-    expect(await application.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null)).toBe(false);
+    expect(await application.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null)).toBe(
+      false,
+    );
     await expect(page).toHaveTitle("RepoDitor");
     const appIcon = page.locator('header img[src$="icon.png"]');
     await expect(appIcon).toHaveJSProperty("complete", true);
-    expect(await appIcon.evaluate((image) => (image as HTMLImageElement).naturalWidth))
-      .toBeGreaterThan(0);
+    expect(
+      await appIcon.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    ).toBeGreaterThan(0);
     await expect(page.getByLabel("About RepoDitor")).toContainText(`RepoDitor v${expectedVersion}`);
     await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
       "href",
@@ -398,16 +389,42 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("github-project-link")).toBeVisible();
     await expect(page.getByTestId("github-stars")).not.toBeVisible();
     for (const check of [
-      { trigger: "Language: English", option: "日本語", run: "ランセーブ", theme: "テーマ", refresh: "更新" },
-      { trigger: "言語: 日本語", option: "한국어", run: "런 세이브", theme: "테마", refresh: "새로 고침" },
+      {
+        trigger: "Language: English",
+        option: "日本語",
+        run: "ランセーブ",
+        theme: "テーマ",
+        refresh: "更新",
+      },
+      {
+        trigger: "言語: 日本語",
+        option: "한국어",
+        run: "런 세이브",
+        theme: "테마",
+        refresh: "새로 고침",
+      },
       { trigger: "언어: 한국어", option: "中文", run: "游戏存档", theme: "主题", refresh: "刷新" },
-      { trigger: "语言: 中文", option: "Bahasa Indonesia", run: "Save Run", theme: "Tema", refresh: "Segarkan" },
-      { trigger: "Bahasa: Bahasa Indonesia", option: "English", run: "Run Saves", theme: "Theme", refresh: "Refresh" },
+      {
+        trigger: "语言: 中文",
+        option: "Bahasa Indonesia",
+        run: "Save Run",
+        theme: "Tema",
+        refresh: "Segarkan",
+      },
+      {
+        trigger: "Bahasa: Bahasa Indonesia",
+        option: "English",
+        run: "Run Saves",
+        theme: "Theme",
+        refresh: "Refresh",
+      },
     ]) {
       await page.getByRole("button", { name: check.trigger }).click();
       await page.getByRole("option", { name: check.option }).click();
       await expect(page.getByRole("button", { name: check.run })).toBeVisible();
-      await expect(page.getByRole("button", { name: new RegExp(`^${check.theme}:`) })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: new RegExp(`^${check.theme}:`) }),
+      ).toBeVisible();
       await expect(page.getByRole("button", { name: check.refresh })).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
     }
@@ -419,15 +436,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.emulateMedia({ reducedMotion: "reduce" });
     const launchReadyMs = performance.now() - launchStarted;
     await page.getByRole("button", { name: "Refresh" }).hover();
-    const reducedFeedback = await page.getByRole("button", { name: "Refresh" }).evaluate(
-      (button) => ({
+    const reducedFeedback = await page
+      .getByRole("button", { name: "Refresh" })
+      .evaluate((button) => ({
         transform: getComputedStyle(button).transform,
         transitionDuration: getComputedStyle(button).transitionDuration,
-      }),
-    );
+      }));
     expect(
-      Number.parseFloat(reducedFeedback.transitionDuration)
-        / (reducedFeedback.transitionDuration.endsWith("ms") ? 1_000 : 1),
+      Number.parseFloat(reducedFeedback.transitionDuration) /
+        (reducedFeedback.transitionDuration.endsWith("ms") ? 1_000 : 1),
     ).toBeLessThanOrEqual(0.000_01);
     expect(reducedFeedback.transform).toBe("none");
     const boundary = await page.evaluate(() => ({
@@ -447,9 +464,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
       ),
       maps: Object.keys(window.repoditor.maps),
       requireType: typeof window.require,
-      saves: Object.keys(window.repoditor.saves).sort((left, right) =>
-        left.localeCompare(right),
-      ),
+      saves: Object.keys(window.repoditor.saves).sort((left, right) => left.localeCompare(right)),
     }));
     expect(boundary).toEqual({
       project: ["metadata"],
@@ -505,8 +520,7 @@ test("safely writes changes with backup and stale-save protection", async () => 
     expect(await imageNaturalWidth(cosmeticIcon.locator("img"))).toBe(0);
     await cosmeticIcon.scrollIntoViewIfNeeded();
     await expect(cosmeticIcon.locator("img")).toBeVisible();
-    await expect.poll(() => imageNaturalWidth(cosmeticIcon.locator("img")))
-      .toBeGreaterThan(0);
+    await expect.poll(() => imageNaturalWidth(cosmeticIcon.locator("img"))).toBeGreaterThan(0);
     await expect(cosmeticIcon.locator("img")).not.toHaveAttribute("src", /AppData|LocalLow|\.png/i);
     await cosmeticIcon.locator("img").evaluate((image) => {
       image.dataset.loadedBeforeFilter = "true";
@@ -545,11 +559,13 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
     await page.getByRole("button", { name: "Save Changes" }).click();
     await waitForSafeSave(page, "cosmetics");
-    const metaBackups = (await readdir(path.dirname(metaPath)))
-      .filter((name) => name.startsWith(`${path.basename(metaPath)}.bak-`));
+    const metaBackups = (await readdir(path.dirname(metaPath))).filter((name) =>
+      name.startsWith(`${path.basename(metaPath)}.bak-`),
+    );
     expect(metaBackups).toHaveLength(1);
-    expect((await readFile(path.join(path.dirname(metaPath), metaBackups[0]!))).equals(metaBefore))
-      .toBe(true);
+    expect(
+      (await readFile(path.join(path.dirname(metaPath), metaBackups[0]!))).equals(metaBefore),
+    ).toBe(true);
     expect((await readFile(metaPath)).equals(metaBefore)).toBe(false);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
 
@@ -558,12 +574,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
     await expect(hammerIcon.locator("img")).toBeVisible();
-    await expect.poll(() => imageNaturalWidth(hammerIcon.locator("img")))
-      .toBeGreaterThan(0);
-    await expect(page.getByTestId("item-icon-Item Cart Medium/1"))
-      .not.toHaveAttribute("data-icon-source", "local");
-    await expect(page.getByTestId("item-icon-Item WalkieTalkieBox/1"))
-      .not.toHaveAttribute("data-icon-source", "local");
+    await expect.poll(() => imageNaturalWidth(hammerIcon.locator("img"))).toBeGreaterThan(0);
+    await expect(page.getByTestId("item-icon-Item Cart Medium/1")).not.toHaveAttribute(
+      "data-icon-source",
+      "local",
+    );
+    await expect(page.getByTestId("item-icon-Item WalkieTalkieBox/1")).not.toHaveAttribute(
+      "data-icon-source",
+      "local",
+    );
     const iconBoundary = await page.evaluate(async () => {
       const [advancedResult, cosmeticsResult] = await Promise.all([
         window.repoditor.advanced.get("REPO_SAVE_2026_08_08_10_20_30"),
@@ -573,10 +592,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
     });
     expect(iconBoundary).toContain("iconToken");
     expect(iconBoundary).not.toMatch(/iconKey|AppData|LocalLow|\.png/);
-    await expect(page.getByText(
-      "Recharge appears only for tools RepoDitor can safely refill.",
-    ))
-      .toBeVisible();
+    await expect(
+      page.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+    ).toBeVisible();
     const cartGroup = page.getByTestId("item-group-Cart Medium");
     await expect(cartGroup.getByLabel("2 items")).toBeVisible();
     await expect(cartGroup.getByText(/^#\d+$/)).toHaveCount(0);
@@ -601,12 +619,15 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
     await itemFilter.selectOption("all");
     await page.getByRole("combobox", { name: "Sort" }).selectOption("quantity-desc");
-    await expect(page.getByRole("list", { name: "Item instances" }).locator(":scope > li").first())
-      .toHaveAttribute("data-testid", "item-group-Cart Medium");
+    await expect(
+      page.getByRole("list", { name: "Item instances" }).locator(":scope > li").first(),
+    ).toHaveAttribute("data-testid", "item-group-Cart Medium");
 
     const hammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
-    await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1"))
-      .toHaveAttribute("data-icon-source", "local");
+    await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1")).toHaveAttribute(
+      "data-icon-source",
+      "local",
+    );
     await expect(hammer.getByText("Current charge: 99")).toBeVisible();
     await expect(page.getByText("Item Melee Inflatable Hammer/1", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Recharge All Tools" }).click();
@@ -650,8 +671,10 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByTestId("upgrades-avatar-fallback")).toHaveText("B");
     await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
     await expect(page.getByTestId("selected-player-identity")).toContainText("222");
-    await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength"))
-      .toHaveAttribute("data-icon-source", "specific");
+    await expect(page.getByTestId("upgrade-icon-playerUpgradeStrength")).toHaveAttribute(
+      "data-icon-source",
+      "specific",
+    );
     await expect(page.getByText("playerUpgradeStrength", { exact: true })).toHaveCount(0);
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
     await strength.fill("3");
@@ -667,17 +690,21 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect(page.getByText("Headman Manor")).toBeVisible();
     await expect(page.getByText("Modded Moon")).toBeVisible();
     await expect(page.getByText("Arctic", { exact: true })).toHaveCount(0);
-    await expect(page.getByText(path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json"), { exact: true }))
-      .toHaveCount(0);
+    await expect(
+      page.getByText(path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json"), {
+        exact: true,
+      }),
+    ).toHaveCount(0);
     await expect(page.locator("details")).toHaveCount(1);
 
     await setWindowSize(application, page, 960, 640);
     const reviewScrollPosition = await page.evaluate(() => window.scrollY);
     const reviewButton = page.getByRole("button", { name: "Review" });
-    const reviewColors = () => reviewButton.evaluate((button) => ({
-      border: getComputedStyle(button).borderColor,
-      text: getComputedStyle(button).color,
-    }));
+    const reviewColors = () =>
+      reviewButton.evaluate((button) => ({
+        border: getComputedStyle(button).borderColor,
+        text: getComputedStyle(button).color,
+      }));
     const restingReviewColors = await reviewColors();
     await reviewButton.hover();
     await expect.poll(reviewColors).not.toEqual(restingReviewColors);
@@ -688,15 +715,23 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await expect.poll(reviewColors).toEqual(hoveredReviewColors);
     const review = page.getByTestId("workspace-review");
     await expect(review).toBeVisible();
-    expect(await page.getByTestId("workspace-action-bar").evaluate(
-      (actionBar, reviewId) => actionBar.contains(document.getElementById(reviewId)),
-      "workspace-review",
-    )).toBe(true);
+    expect(
+      await page
+        .getByTestId("workspace-action-bar")
+        .evaluate(
+          (actionBar, reviewId) => actionBar.contains(document.getElementById(reviewId)),
+          "workspace-review",
+        ),
+    ).toBe(true);
     expect(await page.evaluate(() => window.scrollY)).toBe(reviewScrollPosition);
-    expect(await review.evaluate((element) => getComputedStyle(element).overflowY))
-      .not.toMatch(/auto|scroll/);
-    expect(await page.evaluate(() => document.documentElement.scrollHeight
-      > document.documentElement.clientHeight)).toBe(true);
+    expect(await review.evaluate((element) => getComputedStyle(element).overflowY)).not.toMatch(
+      /auto|scroll/,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight > document.documentElement.clientHeight,
+      ),
+    ).toBe(true);
     expect((await layout(page)).hasHorizontalOverflow).toBe(false);
     await expect(page.getByText("Beta · Health")).toBeVisible();
     await expect(page.getByText("Beta · Strength")).toBeVisible();
@@ -723,11 +758,13 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await waitForSafeSave(page, "workspace");
     await expect(page.getByText(/\.bak-\d+$/)).toHaveCount(0);
     const saveReadyMs = performance.now() - saveStarted;
-    const backups = (await readdir(path.dirname(savePath)))
-      .filter((name) => name.startsWith(`${path.basename(savePath)}.bak-`));
+    const backups = (await readdir(path.dirname(savePath))).filter((name) =>
+      name.startsWith(`${path.basename(savePath)}.bak-`),
+    );
     expect(backups).toHaveLength(1);
-    expect((await readFile(path.join(path.dirname(savePath), backups[0]!))).equals(sourceBefore))
-      .toBe(true);
+    expect(
+      (await readFile(path.join(path.dirname(savePath), backups[0]!))).equals(sourceBefore),
+    ).toBe(true);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(false);
 
     await page.getByRole("button", { name: "Change save" }).click();
@@ -743,12 +780,12 @@ test("safely writes changes with backup and stale-save protection", async () => 
     await page.getByRole("tab", { name: "Run" }).click();
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
     await page.getByRole("tab", { name: "Items" }).click();
-    await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
-      .toBeVisible();
-    await expect(page.getByText(
-      "Recharge appears only for tools RepoDitor can safely refill.",
-    ))
-      .toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+    ).toBeVisible();
     const refilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
     await expect(refilledHammer.getByText("Full")).toBeVisible();
     await expect(page.getByRole("button", { name: /Recharge .*tool/ })).toHaveCount(0);
@@ -777,8 +814,9 @@ test("safely writes changes with backup and stale-save protection", async () => 
       await page.getByRole("tab", { name: "Run" }).click();
       await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
       await page.getByRole("tab", { name: "Items" }).click();
-      await expect(page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }))
-        .toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }),
+      ).toBeVisible();
       expect((await layout(page)).hasHorizontalOverflow).toBe(false);
       await page.getByRole("button", { name: "Cosmetics" }).click();
       await expect(page.getByRole("heading", { name: "Cosmetics" })).toBeVisible();
@@ -833,15 +871,11 @@ test("safely writes changes with backup and stale-save protection", async () => 
 
     if (process.platform === "win32") {
       const repoExecutable = path.join(gameRoot, "REPO.exe");
-      repoProcess = spawn(
-        repoExecutable,
-        ["-e", "setInterval(() => {}, 1000)"],
-        {
-          cwd: gameRoot,
-          stdio: "ignore",
-          windowsHide: true,
-        },
-        );
+      repoProcess = spawn(repoExecutable, ["-e", "setInterval(() => {}, 1000)"], {
+        cwd: gameRoot,
+        stdio: "ignore",
+        windowsHide: true,
+      });
       await waitForChildSpawn(repoProcess, "synthetic REPO.exe");
       expect(repoProcess.exitCode).toBeNull();
       await waitForGameStatus(page, "running");
@@ -877,18 +911,23 @@ test("safely writes changes with backup and stale-save protection", async () => 
       const runBackupsBefore = (await readdir(path.dirname(savePath))).filter((name) =>
         name.startsWith(`${path.basename(savePath)}.bak-`),
       ).length;
-      const runBlocked = await page.evaluate(async ({ id }) => {
-        const opened = await window.repoditor.saves.open(id);
-        if (!opened.ok) return opened;
-        return window.repoditor.saves.write(id, opened.data.fingerprint, [
-          { feature: "run", entity: "run", field: "currency", after: 778 },
-        ]);
-      }, { id: saveId });
+      const runBlocked = await page.evaluate(
+        async ({ id }) => {
+          const opened = await window.repoditor.saves.open(id);
+          if (!opened.ok) return opened;
+          return window.repoditor.saves.write(id, opened.data.fingerprint, [
+            { feature: "run", entity: "run", field: "currency", after: 778 },
+          ]);
+        },
+        { id: saveId },
+      );
       expect(runBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
       expect((await readFile(savePath)).equals(runBeforeBlocked)).toBe(true);
-      expect((await readdir(path.dirname(savePath))).filter((name) =>
-        name.startsWith(`${path.basename(savePath)}.bak-`),
-      )).toHaveLength(runBackupsBefore);
+      expect(
+        (await readdir(path.dirname(savePath))).filter((name) =>
+          name.startsWith(`${path.basename(savePath)}.bak-`),
+        ),
+      ).toHaveLength(runBackupsBefore);
 
       const metaBeforeBlocked = await readFile(metaPath);
       const metaBackupsBefore = (await readdir(path.dirname(metaPath))).filter((name) =>
@@ -903,9 +942,11 @@ test("safely writes changes with backup and stale-save protection", async () => 
       });
       expect(cosmeticsBlocked).toMatchObject({ ok: false, error: { code: "game_running" } });
       expect((await readFile(metaPath)).equals(metaBeforeBlocked)).toBe(true);
-      expect((await readdir(path.dirname(metaPath))).filter((name) =>
-        name.startsWith(`${path.basename(metaPath)}.bak-`),
-      )).toHaveLength(metaBackupsBefore);
+      expect(
+        (await readdir(path.dirname(metaPath))).filter((name) =>
+          name.startsWith(`${path.basename(metaPath)}.bak-`),
+        ),
+      ).toHaveLength(metaBackupsBefore);
 
       await checkAgain.click();
       await waitForGameRunningDialog(page);

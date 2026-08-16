@@ -1,0 +1,9 @@
+# Lychee exclusions for URLs the checker cannot evaluate faithfully.
+#
+# Vite serves /favicon.svg from desktop/public at runtime/build time,
+# while Lychee resolves that absolute path against the repository root.
+# Pixabay returns HTTP 403 to automated CI link checkers for these
+# attribution URLs even though they are the canonical source/license links.
+^file://.*/favicon\.svg$
+^https://pixabay\.com/service/license-summary/?$
+^https://pixabay\.com/sound-effects/film-special-effects-mouse-click-290204/?$

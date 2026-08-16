@@ -32,13 +32,7 @@ if (shouldWrite && shouldCheck) {
   process.exit(2);
 }
 
-const allowedFlags = new Set([
-  "--write",
-  "--check",
-  "--strict",
-  "--verbose",
-  "--help",
-]);
+const allowedFlags = new Set(["--write", "--check", "--strict", "--verbose", "--help"]);
 
 const unknownFlags = [...flags].filter((flag) => !allowedFlags.has(flag));
 
@@ -160,25 +154,12 @@ function resolveCandidate(basePath) {
     return path.resolve(basePath);
   }
 
-  const extensions = [
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".json",
-  ];
+  const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 
   for (const extension of extensions) {
     const fileCandidate = `${basePath}${extension}`;
 
-    if (
-      fs.existsSync(fileCandidate) &&
-      fs.statSync(fileCandidate).isFile()
-    ) {
+    if (fs.existsSync(fileCandidate) && fs.statSync(fileCandidate).isFile()) {
       return path.resolve(fileCandidate);
     }
   }
@@ -186,10 +167,7 @@ function resolveCandidate(basePath) {
   for (const extension of extensions) {
     const indexCandidate = path.join(basePath, `index${extension}`);
 
-    if (
-      fs.existsSync(indexCandidate) &&
-      fs.statSync(indexCandidate).isFile()
-    ) {
+    if (fs.existsSync(indexCandidate) && fs.statSync(indexCandidate).isFile()) {
       return path.resolve(indexCandidate);
     }
   }
@@ -218,9 +196,7 @@ function resolveModulePath(specifier, containingFile) {
   }
 
   if (specifier.startsWith(".")) {
-    return resolveCandidate(
-      path.resolve(path.dirname(containingFile), specifier),
-    );
+    return resolveCandidate(path.resolve(path.dirname(containingFile), specifier));
   }
 
   return null;
@@ -257,17 +233,13 @@ function architectureOwner(filePath) {
 }
 
 function buildAliasSpecifier(resolvedFilePath) {
-  const relativePath = toPosix(
-    path.relative(srcRoot, moduleStem(resolvedFilePath)),
-  );
+  const relativePath = toPosix(path.relative(srcRoot, moduleStem(resolvedFilePath)));
 
   return `@/${relativePath}`;
 }
 
 function buildElectronAliasSpecifier(resolvedFilePath) {
-  const relativePath = toPosix(
-    path.relative(electronRoot, moduleStem(resolvedFilePath)),
-  );
+  const relativePath = toPosix(path.relative(electronRoot, moduleStem(resolvedFilePath)));
 
   return `@electron/${relativePath}`;
 }
@@ -313,39 +285,26 @@ function preferredSpecifier(containingFile, resolvedFilePath) {
   }
 
   const aliasSpecifier = buildAliasSpecifier(resolvedFilePath);
-  const relativeSpecifier = buildRelativeSpecifier(
-    containingFile,
-    resolvedFilePath,
-  );
+  const relativeSpecifier = buildRelativeSpecifier(containingFile, resolvedFilePath);
   const sourceOwner = architectureOwner(containingFile);
   const targetOwner = architectureOwner(resolvedFilePath);
   const crossesArchitectureBoundary =
-    sourceOwner !== null &&
-    targetOwner !== null &&
-    sourceOwner !== targetOwner;
+    sourceOwner !== null && targetOwner !== null && sourceOwner !== targetOwner;
   const leavesCurrentDirectory = leadingParentCount(relativeSpecifier) >= 1;
 
   // Same-folder imports stay relative; every parent traversal uses @/.
-  return crossesArchitectureBoundary || leavesCurrentDirectory
-    ? aliasSpecifier
-    : relativeSpecifier;
+  return crossesArchitectureBoundary || leavesCurrentDirectory ? aliasSpecifier : relativeSpecifier;
 }
 
 function isStringModuleSpecifier(node) {
-  return (
-    ts.isStringLiteral(node) ||
-    ts.isNoSubstitutionTemplateLiteral(node)
-  );
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
 }
 
 function collectModuleSpecifierNodes(sourceFile) {
   const nodes = [];
 
   function visit(node) {
-    if (
-      ts.isImportDeclaration(node) &&
-      isStringModuleSpecifier(node.moduleSpecifier)
-    ) {
+    if (ts.isImportDeclaration(node) && isStringModuleSpecifier(node.moduleSpecifier)) {
       nodes.push(node.moduleSpecifier);
     } else if (
       ts.isExportDeclaration(node) &&
@@ -353,19 +312,11 @@ function collectModuleSpecifierNodes(sourceFile) {
       isStringModuleSpecifier(node.moduleSpecifier)
     ) {
       nodes.push(node.moduleSpecifier);
-    } else if (
-      ts.isCallExpression(node) &&
-      node.arguments.length === 1
-    ) {
+    } else if (ts.isCallExpression(node) && node.arguments.length === 1) {
       const argument = node.arguments[0];
-      const isDynamicImport =
-        node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
 
-      if (
-        argument !== undefined &&
-        isDynamicImport &&
-        isStringModuleSpecifier(argument)
-      ) {
+      if (argument !== undefined && isDynamicImport && isStringModuleSpecifier(argument)) {
         nodes.push(argument);
       }
     }
@@ -413,10 +364,7 @@ for (const filePath of files) {
     }
 
     // Alias normalization is monotonic: a valid renderer alias stays an alias.
-    if (
-      originalSpecifier.startsWith("@/") ||
-      originalSpecifier.startsWith("@electron/")
-    ) {
+    if (originalSpecifier.startsWith("@/") || originalSpecifier.startsWith("@electron/")) {
       continue;
     }
 
@@ -476,11 +424,7 @@ for (const filePath of files) {
 
   let updatedText = originalText;
 
-  for (
-    const replacement of replacements.sort(
-      (left, right) => right.start - left.start,
-    )
-  ) {
+  for (const replacement of replacements.sort((left, right) => right.start - left.start)) {
     updatedText =
       updatedText.slice(0, replacement.start) +
       replacement.text +

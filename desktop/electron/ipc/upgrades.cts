@@ -1,7 +1,4 @@
-import {
-  type DesktopOperationResult,
-  type PlayerUpgradeDto,
-} from "../contracts.cjs";
+import { type DesktopOperationResult, type PlayerUpgradeDto } from "../contracts.cjs";
 import type {
   AssetPreparationService,
   UpgradeVisualPreparationRequest,
@@ -40,8 +37,8 @@ function parseUpgrade(value: unknown): ParsedUpgrade {
   const presentationSource = readString(value.presentationSource, "upgrade presentation source");
   const gameplayCap = readNullableInteger(value.gameplayCap, "upgrade gameplay cap");
   if (
-    !["installed", "alias", "humanized"].includes(presentationSource)
-    || (gameplayCap !== null && gameplayCap < 0)
+    !["installed", "alias", "humanized"].includes(presentationSource) ||
+    (gameplayCap !== null && gameplayCap < 0)
   ) {
     throw new EditorProtocolError("Invalid upgrade presentation.");
   }

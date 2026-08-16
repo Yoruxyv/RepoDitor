@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import js from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier/flat";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import betterTailwindcss from "eslint-plugin-better-tailwindcss";
@@ -45,9 +46,7 @@ export default defineConfig([
       parserOptions: {
         ecmaFeatures: { jsx: true },
         projectService: {
-          allowDefaultProject: [
-            "playwright.config.ts",
-          ],
+          allowDefaultProject: ["playwright.config.ts"],
         },
         tsconfigRootDir: configDirectory,
       },
@@ -132,8 +131,7 @@ export default defineConfig([
           patterns: [
             {
               regex: "^\\.\\./",
-              message:
-                "Use a renderer alias instead of importing from a parent directory.",
+              message: "Use a renderer alias instead of importing from a parent directory.",
             },
           ],
         },
@@ -154,4 +152,5 @@ export default defineConfig([
       "better-tailwindcss/enforce-canonical-classes": "warn",
     },
   },
+  eslintConfigPrettier,
 ]);

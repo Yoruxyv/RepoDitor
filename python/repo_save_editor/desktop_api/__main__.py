@@ -92,9 +92,10 @@ def _advanced_save(args: argparse.Namespace) -> dict[str, object]:
 
 def _parse_changes(payload: str) -> object:
     try:
-        return json.loads(payload)
+        parsed: object = json.loads(payload)
     except json.JSONDecodeError:
         return _INVALID_JSON
+    return parsed
 
 
 def _save_changes(args: argparse.Namespace) -> dict[str, object]:

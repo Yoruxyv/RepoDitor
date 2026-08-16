@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import cast
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
@@ -31,7 +32,7 @@ def is_plausible_steam_id(player_id: str) -> bool:
 def _fetch_profile(url: str, timeout: float) -> bytes:
     request = Request(url, headers={"User-Agent": "RepoDitor/0.1"})
     with urlopen(request, timeout=timeout) as response:
-        body = response.read(MAX_PROFILE_BYTES + 1)
+        body = cast(bytes, response.read(MAX_PROFILE_BYTES + 1))
     if len(body) > MAX_PROFILE_BYTES:
         raise ValueError("Steam profile response exceeded the size limit.")
     return body

@@ -51,15 +51,19 @@ Run the desktop in development with `npm run dev` from `desktop/`.
 
 ## Checks
 
+Python formatting is enforced by Ruff. Desktop JavaScript, TypeScript, TSX, CTS, CSS, and JSON/config files are formatted with Prettier. Run `npm run format` from `desktop/` to apply desktop formatting before committing.
+
 Run the checks affected by your change. The full baseline is:
 
 ```powershell
 uv run ruff check python tests
 uv run ruff format --check python tests
-uv run --with "pytest>=8.3,<9" pytest
+uv run mypy
+uv run --locked --group test pytest
 
 Set-Location desktop
 npm run imports:check
+npm run format:check
 npm run lint
 npm run release:check
 npm run build

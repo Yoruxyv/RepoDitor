@@ -92,9 +92,7 @@ export function createProjectMetadataHandler(fetcher: ProjectFetcher) {
  *
  * @param fetcher - Optional test double; production uses Electron `net.fetch`.
  */
-export function registerProjectIpc(
-  fetcher?: ProjectFetcher,
-): void {
+export function registerProjectIpc(fetcher?: ProjectFetcher): void {
   const request = fetcher ?? ((url, options) => net.fetch(url, options));
   ipcMain.handle(IPC_CHANNELS.projectMetadata, createProjectMetadataHandler(request));
 }

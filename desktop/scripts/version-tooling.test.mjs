@@ -23,15 +23,19 @@ async function createFixture(version = "0.1.1") {
   );
   await writeFile(
     path.join(root, "desktop", "package-lock.json"),
-    `${JSON.stringify({
-      name: "repoditor-desktop",
-      version,
-      lockfileVersion: 3,
-      packages: {
-        "": { name: "repoditor-desktop", version },
-        "node_modules/example": { version: "0.1.1" },
+    `${JSON.stringify(
+      {
+        name: "repoditor-desktop",
+        version,
+        lockfileVersion: 3,
+        packages: {
+          "": { name: "repoditor-desktop", version },
+          "node_modules/example": { version: "0.1.1" },
+        },
       },
-    }, null, 2)}\n`,
+      null,
+      2,
+    )}\n`,
   );
   await writeFile(
     path.join(root, "pyproject.toml"),
@@ -97,15 +101,20 @@ test("release check reports each mismatched metadata source", async (context) =>
   for (const [name, mutate, expected] of [
     ["pyproject", (text) => text.replace('version = "0.1.1"', 'version = "0.1.2"'), "pyproject"],
     ["Python __version__", (text) => text.replace('"0.1.1"', '"0.1.2"'), "pythonInit"],
-    ["package lock", (text) => text.replace('"version": "0.1.1"', '"version": "0.1.2"'), "packageLock"],
+    [
+      "package lock",
+      (text) => text.replace('"version": "0.1.1"', '"version": "0.1.2"'),
+      "packageLock",
+    ],
   ]) {
     await context.test(name, async () => {
       await withFixture(async (root) => {
-        const file = name === "pyproject"
-          ? path.join(root, "pyproject.toml")
-          : name === "Python __version__"
-            ? path.join(root, "python", "repo_save_editor", "__init__.py")
-            : path.join(root, "desktop", "package-lock.json");
+        const file =
+          name === "pyproject"
+            ? path.join(root, "pyproject.toml")
+            : name === "Python __version__"
+              ? path.join(root, "python", "repo_save_editor", "__init__.py")
+              : path.join(root, "desktop", "package-lock.json");
         await writeFile(file, mutate(await readFile(file, "utf8")));
         assert.throws(() => assertVersionAlignment(root), new RegExp(expected, "u"));
       });

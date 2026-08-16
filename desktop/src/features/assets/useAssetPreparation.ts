@@ -21,13 +21,16 @@ export function useAssetPreparation(): AssetPreparationState {
       receivedEvent = true;
       if (mounted) setState(next);
     });
-    void window.repoditor.assets.state().then((next) => {
-      if (mounted && !receivedEvent) setState(next);
-    }).catch(() => {
-      if (mounted) {
-        setState((current) => ({ ...current, stage: "degraded", degraded: true }));
-      }
-    });
+    void window.repoditor.assets
+      .state()
+      .then((next) => {
+        if (mounted && !receivedEvent) setState(next);
+      })
+      .catch(() => {
+        if (mounted) {
+          setState((current) => ({ ...current, stage: "degraded", degraded: true }));
+        }
+      });
     return () => {
       mounted = false;
       unsubscribe();

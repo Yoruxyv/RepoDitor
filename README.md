@@ -201,10 +201,12 @@ E2E, package contents, packaged E2E without Vite, and installer structure.
 ```powershell
 uv run ruff check python tests
 uv run ruff format --check python tests
-uv run --with "pytest>=8.3,<9" pytest
+uv run mypy
+uv run --locked --no-dev --group test pytest
 
 Set-Location desktop
 npm run imports:check
+npm run format:check
 npm run lint
 npm run release:check
 npm run build

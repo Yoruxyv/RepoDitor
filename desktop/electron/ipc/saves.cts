@@ -11,11 +11,7 @@ import {
   type SaveSession,
   type SaveWriteResult,
 } from "../contracts.cjs";
-import {
-  PythonClientError,
-  pythonClient,
-  type PythonClient,
-} from "../python/client.cjs";
+import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
 
 const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
@@ -124,8 +120,9 @@ function parseOpenResponse(value: unknown): DesktopOperationResult<SaveSession> 
 
 function hasExactChangeKeys(value: Record<string, unknown>): boolean {
   return (
-    Object.keys(value).sort((left, right) => left.localeCompare(right)).join(",") ===
-    "after,entity,feature,field"
+    Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .join(",") === "after,entity,feature,field"
   );
 }
 
@@ -163,10 +160,10 @@ function parseChange(value: unknown): SaveChange {
     return { feature, entity, field, after: readString(value.after, "resume location") };
   }
   if (
-    feature === "advanced"
-    && /^Item .+\/\d+$/.test(entity)
-    && field === "refillToFull"
-    && value.after === true
+    feature === "advanced" &&
+    /^Item .+\/\d+$/.test(entity) &&
+    field === "refillToFull" &&
+    value.after === true
   ) {
     return { feature, entity, field, after: true };
   }
@@ -178,7 +175,9 @@ function parseChanges(value: unknown): SaveChange[] {
     throw new SaveProtocolError("Invalid pending changes.");
   }
   const changes = value.map(parseChange);
-  const signatures = new Set(changes.map((change) => `${change.feature}:${change.entity}:${change.field}`));
+  const signatures = new Set(
+    changes.map((change) => `${change.feature}:${change.entity}:${change.field}`),
+  );
   if (signatures.size !== changes.length) {
     throw new SaveProtocolError("Duplicate pending changes.");
   }
@@ -252,7 +251,10 @@ export async function saveChanges(
   changes: unknown,
 ): Promise<DesktopOperationResult<SaveWriteResult>> {
   if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
-    return { ok: false, error: { code: "invalid_request", message: "A valid save ID is required." } };
+    return {
+      ok: false,
+      error: { code: "invalid_request", message: "A valid save ID is required." },
+    };
   }
   let safeFingerprint: string;
   let safeChanges: SaveChange[];

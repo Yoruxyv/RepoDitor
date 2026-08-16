@@ -30,11 +30,11 @@ export function readIconKey(value: unknown): string | null {
     return null;
   }
   if (
-    typeof value !== "string"
-    || !SAFE_KEY_PATTERN.test(value)
-    || value !== value.toLowerCase()
-    || value === ".png"
-    || value === "..png"
+    typeof value !== "string" ||
+    !SAFE_KEY_PATTERN.test(value) ||
+    value !== value.toLowerCase() ||
+    value === ".png" ||
+    value === "..png"
   ) {
     throw new Error("Invalid local icon key.");
   }
@@ -44,11 +44,11 @@ export function readIconKey(value: unknown): string | null {
 export function readUpgradeVisualKey(value: unknown): string | null {
   if (value === null) return null;
   if (
-    typeof value !== "string"
-    || !value.startsWith("playerUpgrade")
-    || value === "playerUpgrade"
-    || Buffer.byteLength(value, "utf8") > MAX_UPGRADE_KEY_BYTES
-    || value.includes("\0")
+    typeof value !== "string" ||
+    !value.startsWith("playerUpgrade") ||
+    value === "playerUpgrade" ||
+    Buffer.byteLength(value, "utf8") > MAX_UPGRADE_KEY_BYTES ||
+    value.includes("\0")
   ) {
     throw new Error("Invalid upgrade visual key.");
   }
@@ -92,9 +92,7 @@ export class LocalIconRegistry {
   ): readonly (string | null)[] {
     const registrations = requests.map((request) => visualRegistration(domain, request));
     const wanted = new Set(
-      registrations
-        .filter((entry): entry is IconRegistration => entry !== null)
-        .map(signature),
+      registrations.filter((entry): entry is IconRegistration => entry !== null).map(signature),
     );
     const existing = new Map<string, string>();
     for (const [token, entry] of this.#entries) {

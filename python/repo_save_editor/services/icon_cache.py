@@ -38,9 +38,10 @@ def get_icon_cache_roots(
 
 def normalize_icon_cache_key(source: str) -> str | None:
     """Apply R.E.P.O.'s proven cache filename rule to one canonical identity."""
-    if not isinstance(source, str):
+    source_value: object = source
+    if not isinstance(source_value, str):
         return None
-    stem = source.replace("(Clone)", "").lower()
+    stem = source_value.replace("(Clone)", "").lower()
     if (
         not stem
         or len(stem) + 4 > MAX_ICON_KEY_LENGTH

@@ -66,10 +66,7 @@ function parseAdvancedCapabilities(
   const canAdd = readBoolean(value.canAdd, "advanced add capability");
   const canDelete = readBoolean(value.canDelete, "advanced delete capability");
   const canDuplicate = readBoolean(value.canDuplicate, "advanced duplicate capability");
-  const canRefillToFull = readBoolean(
-    value.canRefillToFull,
-    "advanced refill-to-full capability",
-  );
+  const canRefillToFull = readBoolean(value.canRefillToFull, "advanced refill-to-full capability");
   if (canEdit || canAdd || canDelete || canDuplicate) {
     throw new EditorProtocolError("Advanced mutation capabilities are not supported.");
   }
@@ -94,9 +91,9 @@ function parseAdvancedDomain(value: unknown): AdvancedDomainDto {
   const status = readString(value.status, "advanced evidence status");
   const entryCount = readNullableInteger(value.entryCount, "advanced entry count");
   if (
-    !ADVANCED_DOMAIN_KEYS.has(key as AdvancedDomainKey)
-    || !ADVANCED_STATUSES.has(status as AdvancedEvidenceStatus)
-    || (entryCount !== null && entryCount < 0)
+    !ADVANCED_DOMAIN_KEYS.has(key as AdvancedDomainKey) ||
+    !ADVANCED_STATUSES.has(status as AdvancedEvidenceStatus) ||
+    (entryCount !== null && entryCount < 0)
   ) {
     throw new EditorProtocolError("Invalid advanced domain.");
   }
@@ -122,30 +119,21 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
   const instanceId = readString(value.instanceId, "item instance ID");
   const storedCharge = readNullableInteger(value.storedCharge, "stored item charge");
   const chargeState = readString(value.chargeState, "item charge state");
-  const rechargeCapability = readString(
-    value.rechargeCapability,
-    "item recharge capability",
-  );
-  const canRefillToFull = readBoolean(
-    value.canRefillToFull,
-    "item refill-to-full eligibility",
-  );
+  const rechargeCapability = readString(value.rechargeCapability, "item recharge capability");
+  const canRefillToFull = readBoolean(value.canRefillToFull, "item refill-to-full eligibility");
   const isUpgrade = readBoolean(value.isUpgrade, "item upgrade classification");
   if (
-    !/^\d+$/.test(instanceId)
-    || !saveKey.startsWith("Item ")
-    || !saveKey.endsWith(`/${instanceId}`)
-    || !ADVANCED_ITEM_CHARGE_STATES.has(chargeState as AdvancedItemChargeState)
-    || !ADVANCED_ITEM_RECHARGE_CAPABILITIES.has(
+    !/^\d+$/.test(instanceId) ||
+    !saveKey.startsWith("Item ") ||
+    !saveKey.endsWith(`/${instanceId}`) ||
+    !ADVANCED_ITEM_CHARGE_STATES.has(chargeState as AdvancedItemChargeState) ||
+    !ADVANCED_ITEM_RECHARGE_CAPABILITIES.has(
       rechargeCapability as AdvancedItemRechargeCapability,
-    )
-    || ((chargeState === "stored") !== (storedCharge !== null))
-    || (chargeState === "default_full" && rechargeCapability !== "rechargeable")
-    || (chargeState === "not_applicable" && rechargeCapability !== "not_rechargeable")
-    || (
-      canRefillToFull
-      && (chargeState !== "stored" || rechargeCapability !== "rechargeable")
-    )
+    ) ||
+    (chargeState === "stored") !== (storedCharge !== null) ||
+    (chargeState === "default_full" && rechargeCapability !== "rechargeable") ||
+    (chargeState === "not_applicable" && rechargeCapability !== "not_rechargeable") ||
+    (canRefillToFull && (chargeState !== "stored" || rechargeCapability !== "rechargeable"))
   ) {
     throw new EditorProtocolError("Invalid advanced item.");
   }
@@ -189,9 +177,9 @@ function parseAdvanced(
     return parseError(value);
   }
   if (
-    !isRecord(value.advanced)
-    || !Array.isArray(value.advanced.domains)
-    || !Array.isArray(value.advanced.items)
+    !isRecord(value.advanced) ||
+    !Array.isArray(value.advanced.domains) ||
+    !Array.isArray(value.advanced.items)
   ) {
     throw new EditorProtocolError("Invalid advanced data.");
   }
@@ -202,10 +190,10 @@ function parseAdvanced(
     "unlinked charge entry count",
   );
   if (
-    domains.length !== ADVANCED_DOMAIN_KEYS.size
-    || domainKeys.size !== ADVANCED_DOMAIN_KEYS.size
-    || [...ADVANCED_DOMAIN_KEYS].some((key) => !domainKeys.has(key))
-    || unlinkedChargeEntryCount < 0
+    domains.length !== ADVANCED_DOMAIN_KEYS.size ||
+    domainKeys.size !== ADVANCED_DOMAIN_KEYS.size ||
+    [...ADVANCED_DOMAIN_KEYS].some((key) => !domainKeys.has(key)) ||
+    unlinkedChargeEntryCount < 0
   ) {
     throw new EditorProtocolError("Invalid advanced data.");
   }
@@ -221,10 +209,12 @@ function parseAdvanced(
     ok: true,
     data: {
       domains,
-      items: parsedItems.map(({ iconKey: _iconKey, upgradeVisualKey: _upgradeVisualKey, ...item }, index) => ({
-        ...item,
-        iconToken: tokens[index] ?? null,
-      })),
+      items: parsedItems.map(
+        ({ iconKey: _iconKey, upgradeVisualKey: _upgradeVisualKey, ...item }, index) => ({
+          ...item,
+          iconToken: tokens[index] ?? null,
+        }),
+      ),
       unlinkedChargeEntryCount,
     },
   };

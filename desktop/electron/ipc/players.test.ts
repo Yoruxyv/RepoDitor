@@ -74,11 +74,7 @@ describe("player IPC", () => {
   it("allows only a matching safe avatar contract", async () => {
     const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
     await expect(
-      getPlayerAvatar(
-        client({ ok: true, avatar: { playerId: "111", avatarUrl } }),
-        saveId,
-        "111",
-      ),
+      getPlayerAvatar(client({ ok: true, avatar: { playerId: "111", avatarUrl } }), saveId, "111"),
     ).resolves.toEqual({ ok: true, data: { playerId: "111", avatarUrl } });
 
     await expect(

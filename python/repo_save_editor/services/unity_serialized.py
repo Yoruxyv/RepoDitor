@@ -11,7 +11,7 @@ import struct
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Final
+from typing import Final, cast
 
 SERIALIZED_FILE_VERSION: Final = 22
 UNITY_VERSION: Final = "2022.3.67f2"
@@ -122,19 +122,19 @@ class _Reader:
         return self._take(1)[0]
 
     def i16(self) -> int:
-        return int(self.unpack("h")[0])
+        return int(cast(int, self.unpack("h")[0]))
 
     def i32(self) -> int:
-        return int(self.unpack("i")[0])
+        return int(cast(int, self.unpack("i")[0]))
 
     def u32(self) -> int:
-        return int(self.unpack("I")[0])
+        return int(cast(int, self.unpack("I")[0]))
 
     def i64(self) -> int:
-        return int(self.unpack("q")[0])
+        return int(cast(int, self.unpack("q")[0]))
 
     def u64(self) -> int:
-        return int(self.unpack("Q")[0])
+        return int(cast(int, self.unpack("Q")[0]))
 
     def bytes(self, size: int) -> bytes:
         return self._take(size)
@@ -388,16 +388,16 @@ class SerializedFileIndex:
         if not path_ids:
             return {}
         if self._has_sorted_path_ids():
-            found = {
+            sorted_found = {
                 path_id: record
                 for path_id in path_ids
                 if (record := self._find_sorted_record(path_id)) is not None
             }
-            if len(found) != len(path_ids):
+            if len(sorted_found) != len(path_ids):
                 raise UnityMetadataError(
                     "A required serialized object pointer could not be resolved."
                 )
-            return found
+            return sorted_found
 
         remaining = set(path_ids)
         found: dict[int, ObjectRecord] = {}

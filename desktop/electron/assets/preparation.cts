@@ -1,18 +1,9 @@
 import { BrowserWindow, ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";
-import type {
-  AssetPreparationStage,
-  AssetPreparationState,
-} from "../contracts.cjs";
-import {
-  decodedUpgradeTextureCache,
-  type DecodedUpgradeTextureCache,
-} from "../icons/protocol.cjs";
-import {
-  pythonClient,
-  type PythonRecordClient,
-} from "../python/client.cjs";
+import type { AssetPreparationStage, AssetPreparationState } from "../contracts.cjs";
+import { decodedUpgradeTextureCache, type DecodedUpgradeTextureCache } from "../icons/protocol.cjs";
+import { pythonClient, type PythonRecordClient } from "../python/client.cjs";
 
 const PREPARATION_STAGES = new Set<AssetPreparationStage>([
   "discovering",
@@ -90,17 +81,20 @@ function readCount(value: unknown, nullable: boolean): number | null {
 function parseProgress(value: Record<string, unknown>): ProgressRecord {
   const stage = value.stage;
   if (
-    typeof stage !== "string"
-    || !PREPARATION_STAGES.has(stage as AssetPreparationStage)
-    || typeof value.installationFound !== "boolean"
-    || typeof value.buildVerified !== "boolean"
-    || typeof value.degraded !== "boolean"
+    typeof stage !== "string" ||
+    !PREPARATION_STAGES.has(stage as AssetPreparationStage) ||
+    typeof value.installationFound !== "boolean" ||
+    typeof value.buildVerified !== "boolean" ||
+    typeof value.degraded !== "boolean"
   ) {
     throw new Error("Invalid asset preparation progress record.");
   }
   const completed = readCount(value.completed, true);
   const total = readCount(value.total, true);
-  if ((completed === null) !== (total === null) || (completed !== null && total !== null && completed > total)) {
+  if (
+    (completed === null) !== (total === null) ||
+    (completed !== null && total !== null && completed > total)
+  ) {
     throw new Error("Invalid asset preparation progress counts.");
   }
   return {
@@ -139,18 +133,21 @@ function parseRecord(value: unknown): PreparationRecord {
 
 function parseFinal(value: unknown): FinalRecord {
   if (
-    !isRecord(value)
-    || value.type !== "final"
-    || typeof value.ok !== "boolean"
-    || typeof value.installationFound !== "boolean"
-    || typeof value.buildVerified !== "boolean"
-    || typeof value.degraded !== "boolean"
+    !isRecord(value) ||
+    value.type !== "final" ||
+    typeof value.ok !== "boolean" ||
+    typeof value.installationFound !== "boolean" ||
+    typeof value.buildVerified !== "boolean" ||
+    typeof value.degraded !== "boolean"
   ) {
     throw new Error("Invalid asset preparation final record.");
   }
   const completed = readCount(value.completed, true);
   const total = readCount(value.total, true);
-  if ((completed === null) !== (total === null) || (completed !== null && total !== null && completed > total)) {
+  if (
+    (completed === null) !== (total === null) ||
+    (completed !== null && total !== null && completed > total)
+  ) {
     throw new Error("Invalid asset preparation final counts.");
   }
   return {
@@ -207,10 +204,7 @@ export class AssetPreparationService {
   #visualTail: Promise<void> = Promise.resolve();
   readonly #visualInFlight = new Map<string, Promise<void>>();
 
-  constructor(
-    client: PythonRecordClient,
-    cache: DecodedUpgradeTextureCache,
-  ) {
+  constructor(client: PythonRecordClient, cache: DecodedUpgradeTextureCache) {
     this.#client = client;
     this.#cache = cache;
   }
@@ -230,9 +224,7 @@ export class AssetPreparationService {
     return this.#startup;
   }
 
-  prepareUpgradeVisuals(
-    requests: readonly UpgradeVisualPreparationRequest[],
-  ): Promise<void> {
+  prepareUpgradeVisuals(requests: readonly UpgradeVisualPreparationRequest[]): Promise<void> {
     const unique = new Map<string, UpgradeVisualPreparationRequest>();
     for (const request of requests) unique.set(request.upgradeKey, request);
     const visuals = [...unique.values()];
@@ -270,9 +262,10 @@ export class AssetPreparationService {
     return task;
   }
 
-  #summarizeKnownVisuals(
-    visuals: readonly UpgradeVisualPreparationRequest[],
-  ): { completed: number; knownFailure: boolean } {
+  #summarizeKnownVisuals(visuals: readonly UpgradeVisualPreparationRequest[]): {
+    completed: number;
+    knownFailure: boolean;
+  } {
     let completed = 0;
     let knownFailure = false;
     for (const visual of visuals) {
@@ -291,9 +284,9 @@ export class AssetPreparationService {
   ): Promise<void> {
     for (const visual of visuals) {
       if (
-        visual.cacheKey !== null
-        || this.#failedUpgradeKeys.has(visual.upgradeKey)
-        || await this.#cache.hasPrepared(visual.upgradeKey)
+        visual.cacheKey !== null ||
+        this.#failedUpgradeKeys.has(visual.upgradeKey) ||
+        (await this.#cache.hasPrepared(visual.upgradeKey))
       ) {
         continue;
       }
@@ -309,10 +302,7 @@ export class AssetPreparationService {
     let completed = initialCompleted;
     const missing: string[] = [];
     for (const visual of visuals) {
-      if (
-        visual.cacheKey !== null
-        || this.#failedUpgradeKeys.has(visual.upgradeKey)
-      ) {
+      if (visual.cacheKey !== null || this.#failedUpgradeKeys.has(visual.upgradeKey)) {
         continue;
       }
       if (await this.#cache.hasPrepared(visual.upgradeKey)) {
@@ -338,10 +328,9 @@ export class AssetPreparationService {
       return;
     }
 
-    const installationUnavailable = this.#state.degraded
-      && (!this.#state.installationFound || !this.#state.buildVerified);
-    const { completed: initialCompleted, knownFailure } =
-      this.#summarizeKnownVisuals(visuals);
+    const installationUnavailable =
+      this.#state.degraded && (!this.#state.installationFound || !this.#state.buildVerified);
+    const { completed: initialCompleted, knownFailure } = this.#summarizeKnownVisuals(visuals);
     if (installationUnavailable) {
       await this.#rememberUnavailableVisuals(visuals);
       this.#finish(total, total, true);
@@ -356,11 +345,7 @@ export class AssetPreparationService {
       degraded: knownFailure,
     });
 
-    const { completed, missing } = await this.#findMissingVisuals(
-      visuals,
-      initialCompleted,
-      total,
-    );
+    const { completed, missing } = await this.#findMissingVisuals(visuals, initialCompleted, total);
     if (missing.length === 0) {
       this.#finish(completed, total, knownFailure);
       return;
@@ -383,17 +368,13 @@ export class AssetPreparationService {
       localFailure: false,
     };
     try {
-      const finalValue = await this.#client.runRecords(
-        "assets-prepare",
-        upgradeKeys,
-        (value) => this.#handleRecord(value, context),
+      const finalValue = await this.#client.runRecords("assets-prepare", upgradeKeys, (value) =>
+        this.#handleRecord(value, context),
       );
       const final = parseFinal(finalValue);
       validateFinalCounts(final, upgradeKeys.length, overallTotal);
-      const terminalDegraded = existingDegraded
-        || !final.ok
-        || final.degraded
-        || context.localFailure;
+      const terminalDegraded =
+        existingDegraded || !final.ok || final.degraded || context.localFailure;
       if (terminalDegraded) await this.#rememberBatchFailures(upgradeKeys);
       this.#set({
         stage: terminalDegraded ? "degraded" : "ready",
@@ -408,9 +389,7 @@ export class AssetPreparationService {
       this.#set({
         ...this.#state,
         stage: "degraded",
-        completed: overallTotal === null
-          ? null
-          : (this.#state.completed ?? completedOffset),
+        completed: overallTotal === null ? null : (this.#state.completed ?? completedOffset),
         total: overallTotal,
         degraded: true,
       });
@@ -429,9 +408,7 @@ export class AssetPreparationService {
         stage: record.stage,
         installationFound: record.installationFound,
         buildVerified: record.buildVerified,
-        completed: localCompleted === null
-          ? null
-          : context.completedOffset + localCompleted,
+        completed: localCompleted === null ? null : context.completedOffset + localCompleted,
         total: context.overallTotal,
         degraded: record.degraded,
       });
@@ -439,15 +416,16 @@ export class AssetPreparationService {
     }
 
     if (
-      !context.requested.has(record.upgradeKey)
-      || context.reported.has(record.upgradeKey)
-      || record.total !== context.upgradeKeys.length
+      !context.requested.has(record.upgradeKey) ||
+      context.reported.has(record.upgradeKey) ||
+      record.total !== context.upgradeKeys.length
     ) {
       throw new Error("Asset preparation returned an unexpected upgrade identity.");
     }
     context.reported.add(record.upgradeKey);
-    const stored = record.texture !== null
-      && await this.#cache.storePrepared(record.upgradeKey, record.texture);
+    const stored =
+      record.texture !== null &&
+      (await this.#cache.storePrepared(record.upgradeKey, record.texture));
     if (!stored) {
       context.localFailure = true;
       this.#failedUpgradeKeys.add(record.upgradeKey);
@@ -456,10 +434,7 @@ export class AssetPreparationService {
     if (context.overallTotal !== null) {
       this.#set({
         ...this.#state,
-        completed: Math.min(
-          context.overallTotal,
-          context.completedOffset + record.completed,
-        ),
+        completed: Math.min(context.overallTotal, context.completedOffset + record.completed),
         total: context.overallTotal,
       });
     }
@@ -467,7 +442,7 @@ export class AssetPreparationService {
 
   async #rememberBatchFailures(upgradeKeys: readonly string[]): Promise<void> {
     for (const key of upgradeKeys) {
-      if (!await this.#cache.hasPrepared(key)) this.#failedUpgradeKeys.add(key);
+      if (!(await this.#cache.hasPrepared(key))) this.#failedUpgradeKeys.add(key);
     }
   }
 

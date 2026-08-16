@@ -1,17 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 
-import {
-  PreferencesContext,
-  type ResolvedTheme,
-  type ThemePreference,
-} from "@/app/preferences";
+import { PreferencesContext, type ResolvedTheme, type ThemePreference } from "@/app/preferences";
 import {
   isLocale,
   TRANSLATIONS,
@@ -83,21 +72,27 @@ export function PreferencesProvider({ children }: { readonly children: ReactNode
     }
   }, [locale]);
 
-  const t = useCallback((key: TranslationKey, values: TranslationValues = {}) => {
-    return Object.entries(values).reduce(
-      (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
-      TRANSLATIONS[locale][key],
-    );
-  }, [locale]);
+  const t = useCallback(
+    (key: TranslationKey, values: TranslationValues = {}) => {
+      return Object.entries(values).reduce(
+        (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
+        TRANSLATIONS[locale][key],
+      );
+    },
+    [locale],
+  );
 
-  const preferences = useMemo(() => ({
-    locale,
-    theme,
-    resolvedTheme,
-    setLocale,
-    setTheme,
-    t,
-  }), [locale, resolvedTheme, t, theme]);
+  const preferences = useMemo(
+    () => ({
+      locale,
+      theme,
+      resolvedTheme,
+      setLocale,
+      setTheme,
+      t,
+    }),
+    [locale, resolvedTheme, t, theme],
+  );
 
   return <PreferencesContext value={preferences}>{children}</PreferencesContext>;
 }

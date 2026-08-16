@@ -22,12 +22,7 @@ export function Skeleton({ className, testId }: SkeletonProps) {
   );
 }
 
-export function SkeletonRegion({
-  children,
-  className = "",
-  label,
-  testId,
-}: SkeletonRegionProps) {
+export function SkeletonRegion({ children, className = "", label, testId }: SkeletonRegionProps) {
   return (
     <output
       aria-busy="true"

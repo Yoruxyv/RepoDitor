@@ -49,9 +49,10 @@ function StatusIcon({ tone }: { readonly tone: StatusTone }) {
 function getSaveStatus(status: SaveRootStatus, count: number, t: Translate) {
   if (status === "available") {
     return {
-      status: count === 0
-        ? t("environment.folderDetected")
-        : t("environment.savesFound", { saves: formatSaveCount(count, t) }),
+      status:
+        count === 0
+          ? t("environment.folderDetected")
+          : t("environment.savesFound", { saves: formatSaveCount(count, t) }),
       detail: count === 0 ? t("environment.noSlots") : t("environment.ready"),
       tone: "success" as const,
     };
@@ -99,13 +100,7 @@ function getGameStatus(status: GameDiscoveryStatus, t: Translate) {
   };
 }
 
-function EnvironmentRow({
-  icon,
-  label,
-  status,
-  detail,
-  tone,
-}: EnvironmentRowProps) {
+function EnvironmentRow({ icon, label, status, detail, tone }: EnvironmentRowProps) {
   return (
     <div className="border-t border-line py-5 first:border-t-0 first:pt-0 last:pb-0">
       <div className="flex items-start gap-3">

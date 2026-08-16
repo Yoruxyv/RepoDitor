@@ -89,7 +89,6 @@ test("asset preparation motion is opt-in and reduced-motion safe", () => {
   );
 });
 
-
 test("startup prepaint matches the authoritative dark application surface", () => {
   const startupBackground = token(themeBlock(":root"), "app");
   assert.equal(startupBackground.toLowerCase(), "#0d1110");

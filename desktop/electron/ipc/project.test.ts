@@ -4,9 +4,10 @@ import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { createProjectMetadataHandler, getProjectMetadata } = require(
-  "../../dist-electron/ipc/project.cjs",
-);
+const {
+  createProjectMetadataHandler,
+  getProjectMetadata,
+} = require("../../dist-electron/ipc/project.cjs");
 
 function response(body: unknown, ok = true) {
   return { ok, json: vi.fn().mockResolvedValue(body) };
@@ -19,10 +20,12 @@ describe("project metadata IPC", () => {
   });
 
   it("returns only the validated star count from the fixed repository endpoint", async () => {
-    const fetcher = vi.fn().mockResolvedValue(response({
-      stargazers_count: 42,
-      owner: { login: "private-unneeded-field" },
-    }));
+    const fetcher = vi.fn().mockResolvedValue(
+      response({
+        stargazers_count: 42,
+        owner: { login: "private-unneeded-field" },
+      }),
+    );
 
     await expect(getProjectMetadata(fetcher)).resolves.toEqual({
       ok: true,
@@ -36,13 +39,15 @@ describe("project metadata IPC", () => {
 
   it("rejects malformed responses", async () => {
     for (const body of [{}, { stargazers_count: -1 }, { stargazers_count: "42" }]) {
-      await expect(getProjectMetadata(vi.fn().mockResolvedValue(response(body))))
-        .resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+      await expect(
+        getProjectMetadata(vi.fn().mockResolvedValue(response(body))),
+      ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
     }
   });
 
   it("fails softly and caches only successful metadata for the session", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(response({}, false))
       .mockResolvedValueOnce(response({ stargazers_count: 43 }));
     const handler = createProjectMetadataHandler(fetcher);

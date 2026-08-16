@@ -180,7 +180,9 @@ describe("PendingChangesBar", () => {
 
   it("keeps long localized status text wrappable above the sticky actions", () => {
     localStorage.setItem("repoditor.locale", "id");
-    const error = "RepoDitor tidak dapat menyimpan perubahan karena file berubah di disk. ".repeat(4);
+    const error = "RepoDitor tidak dapat menyimpan perubahan karena file berubah di disk. ".repeat(
+      4,
+    );
     render(
       <PreferencesProvider>
         <PendingChangesBar

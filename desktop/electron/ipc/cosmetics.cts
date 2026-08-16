@@ -12,16 +12,8 @@ import {
   type DesktopOperationFailure,
   type DesktopOperationResult,
 } from "../contracts.cjs";
-import {
-  PythonClientError,
-  pythonClient,
-  type PythonClient,
-} from "../python/client.cjs";
-import {
-  localIconRegistry,
-  readIconKey,
-  type LocalIconRegistry,
-} from "../icons/registry.cjs";
+import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
+import { localIconRegistry, readIconKey, type LocalIconRegistry } from "../icons/registry.cjs";
 
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 // Mirrors the independently proven Python mutation trust boundary. This is not a
@@ -128,25 +120,25 @@ function readCosmetic(value: unknown): ParsedCosmetic {
 
   if (known) {
     if (
-      id < 0
-      || type === null
-      || rarity === null
-      || status === null
-      || state !== (owned ? "owned" : "locked")
-      || mutationEligible !== (id < PROVEN_MUTATION_ID_COUNT)
-      || (!mutationEligible && removalBlockedReason === null)
+      id < 0 ||
+      type === null ||
+      rarity === null ||
+      status === null ||
+      state !== (owned ? "owned" : "locked") ||
+      mutationEligible !== id < PROVEN_MUTATION_ID_COUNT ||
+      (!mutationEligible && removalBlockedReason === null)
     ) {
       throw new CosmeticsProtocolError("Invalid installed cosmetic projection.");
     }
   } else if (
-    !owned
-    || displayName !== `Cosmetic #${id}`
-    || type !== null
-    || rarity !== null
-    || status !== null
-    || state !== "unknown"
-    || mutationEligible
-    || removalBlockedReason === null
+    !owned ||
+    displayName !== `Cosmetic #${id}` ||
+    type !== null ||
+    rarity !== null ||
+    status !== null ||
+    state !== "unknown" ||
+    mutationEligible ||
+    removalBlockedReason === null
   ) {
     throw new CosmeticsProtocolError("Invalid unknown cosmetic projection.");
   }
@@ -168,9 +160,9 @@ function readCosmetic(value: unknown): ParsedCosmetic {
 
 function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
   if (
-    !isRecord(value)
-    || !Array.isArray(value.cosmetics)
-    || !Array.isArray(value.unknownOwnedIds)
+    !isRecord(value) ||
+    !Array.isArray(value.cosmetics) ||
+    !Array.isArray(value.unknownOwnedIds)
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics view.");
   }
@@ -190,27 +182,30 @@ function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
   const mutationAvailable = known.some((cosmetic) => cosmetic.mutationEligible);
 
   if (
-    knownCatalogCount < 0
-    || knownOwnedCount < 0
-    || knownLockedCount < 0
-    || savedPresetCount < 0
-    || knownOwnedCount + knownLockedCount !== knownCatalogCount
-    || known.length !== knownCatalogCount
-    || knownIds.some((id, position) => id !== position)
-    || known.filter((cosmetic) => cosmetic.owned).length !== knownOwnedCount
-    || known.filter((cosmetic) => !cosmetic.owned).length !== knownLockedCount
-    || allIds.size !== cosmetics.length
-    || new Set(unknownOwnedIds).size !== unknownOwnedIds.length
-    || projectedUnknownIds.join(",") !== unknownOwnedIds.join(",")
-    || catalogAvailable !== (knownCatalogCount > 0)
-    || !capabilities.canReadCosmetics
-    || capabilities.canUnlockCosmetic !== mutationAvailable
-    || capabilities.canUnlockAll !== mutationAvailable
-    || capabilities.canRemoveOwnership !== mutationAvailable
+    knownCatalogCount < 0 ||
+    knownOwnedCount < 0 ||
+    knownLockedCount < 0 ||
+    savedPresetCount < 0 ||
+    knownOwnedCount + knownLockedCount !== knownCatalogCount ||
+    known.length !== knownCatalogCount ||
+    knownIds.some((id, position) => id !== position) ||
+    known.filter((cosmetic) => cosmetic.owned).length !== knownOwnedCount ||
+    known.filter((cosmetic) => !cosmetic.owned).length !== knownLockedCount ||
+    allIds.size !== cosmetics.length ||
+    new Set(unknownOwnedIds).size !== unknownOwnedIds.length ||
+    projectedUnknownIds.join(",") !== unknownOwnedIds.join(",") ||
+    catalogAvailable !== knownCatalogCount > 0 ||
+    !capabilities.canReadCosmetics ||
+    capabilities.canUnlockCosmetic !== mutationAvailable ||
+    capabilities.canUnlockAll !== mutationAvailable ||
+    capabilities.canRemoveOwnership !== mutationAvailable
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics catalog projection.");
   }
-  const tokens = icons.replace("cosmetic", cosmetics.map((cosmetic) => cosmetic.iconKey));
+  const tokens = icons.replace(
+    "cosmetic",
+    cosmetics.map((cosmetic) => cosmetic.iconKey),
+  );
   return {
     fingerprint: readFingerprint(value.fingerprint),
     catalogAvailable,
@@ -251,12 +246,17 @@ function readGetResponse(
   if (!isRecord(value)) {
     throw new CosmeticsProtocolError("Invalid cosmetics response.");
   }
-  return value.ok === true ? { ok: true, data: readView(value.cosmetics, icons) } : readError(value);
+  return value.ok === true
+    ? { ok: true, data: readView(value.cosmetics, icons) }
+    : readError(value);
 }
 
 function hasExactChangeKeys(value: Record<string, unknown>): boolean {
-  return Object.keys(value).sort((left, right) => left.localeCompare(right)).join(",")
-    === "after,entity,feature,field";
+  return (
+    Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .join(",") === "after,entity,feature,field"
+  );
 }
 
 function readChange(value: unknown): CosmeticChange {
@@ -277,11 +277,11 @@ function readChange(value: unknown): CosmeticChange {
   }
   const id = Number(value.entity);
   if (
-    !Number.isSafeInteger(id)
-    || id < 0
-    || id >= PROVEN_MUTATION_ID_COUNT
-    || value.field !== "owned"
-    || typeof value.after !== "boolean"
+    !Number.isSafeInteger(id) ||
+    id < 0 ||
+    id >= PROVEN_MUTATION_ID_COUNT ||
+    value.field !== "owned" ||
+    typeof value.after !== "boolean"
   ) {
     throw new CosmeticsProtocolError("Unsupported cosmetic change.");
   }
@@ -294,9 +294,10 @@ function readChanges(value: unknown): CosmeticChange[] {
   }
   const changes = value.map(readChange);
   if (
-    changes.length > 1
-    && changes.some(
-      (change) => change.field === "unlockAll" || change.field === "lockAll" || change.field === "clearAll",
+    changes.length > 1 &&
+    changes.some(
+      (change) =>
+        change.field === "unlockAll" || change.field === "lockAll" || change.field === "clearAll",
     )
   ) {
     throw new CosmeticsProtocolError("Bulk cosmetic actions must be submitted alone.");
@@ -395,9 +396,7 @@ export async function saveCosmetics(
 
 export function registerCosmeticsIpc(client: PythonClient = pythonClient): void {
   ipcMain.handle(IPC_CHANNELS.cosmeticsGet, () => getCosmetics(client));
-  ipcMain.handle(
-    IPC_CHANNELS.cosmeticsWrite,
-    (_event, fingerprint: unknown, changes: unknown) =>
-      saveCosmetics(client, fingerprint, changes),
+  ipcMain.handle(IPC_CHANNELS.cosmeticsWrite, (_event, fingerprint: unknown, changes: unknown) =>
+    saveCosmetics(client, fingerprint, changes),
   );
 }

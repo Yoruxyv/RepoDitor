@@ -12,8 +12,5 @@
       "@electron/*": ["../electron/*.cts"]
     }
   },
-  "include": [
-    "./**/*.ts",
-    "../src/electron.d.ts"
-  ]
+  "include": ["./**/*.ts", "../src/electron.d.ts"]
 }

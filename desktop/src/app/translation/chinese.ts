@@ -70,9 +70,11 @@ export const zh: Record<keyof typeof en, string> = {
   "discovery.loading": "正在检测本地 R.E.P.O. 存档",
   "discovery.loadingLive": "正在检测本地 R.E.P.O. 存档。",
   "discovery.state.missingTitle": "未找到标准存档文件夹",
-  "discovery.state.missingDescription": "RepoDitor 已检查常规 R.E.P.O. 存档位置。游戏创建首个存档后，该文件夹可能会出现。",
+  "discovery.state.missingDescription":
+    "RepoDitor 已检查常规 R.E.P.O. 存档位置。游戏创建首个存档后，该文件夹可能会出现。",
   "discovery.state.unreadableTitle": "无法读取存档文件夹",
-  "discovery.state.unreadableDescription": "存档位置存在，但 RepoDitor 无法检查。请检查文件夹权限后刷新。",
+  "discovery.state.unreadableDescription":
+    "存档位置存在，但 RepoDitor 无法检查。请检查文件夹权限后刷新。",
   "discovery.state.emptyTitle": "尚无有效存档",
   "discovery.state.emptyDescription": "存档文件夹已就绪，但其中尚无有效的 R.E.P.O. 存档槽位。",
   "discovery.failureTitle": "本地检测不可用",
@@ -216,7 +218,8 @@ export const zh: Record<keyof typeof en, string> = {
   "cosmetics.catalog": "外观目录",
   "cosmetics.catalogDescription": "可用时显示已安装的名称和元数据。数字 ID 始终是规范标识。",
   "cosmetics.catalogCount": "已安装 {count} 项",
-  "cosmetics.catalogUnavailableMetadata": "已安装的外观元数据不可用。存档中已拥有的 ID 会继续显示为未知且只读。",
+  "cosmetics.catalogUnavailableMetadata":
+    "已安装的外观元数据不可用。存档中已拥有的 ID 会继续显示为未知且只读。",
   "cosmetics.catalogList": "外观目录条目",
   "cosmetics.itemLabel": "{name}，ID {id}，{state}",
   "cosmetics.idLabel": "ID {id}",
@@ -279,8 +282,10 @@ export const zh: Record<keyof typeof en, string> = {
   "safety.label": "存档安全",
   "safety.runningTitle": "R.E.P.O. 当前正在运行",
   "safety.unknownTitle": "RepoDitor 无法确认 R.E.P.O. 已关闭。",
-  "safety.runningDescription": "请在编辑存档前关闭游戏。R.E.P.O. 可能将存档状态保留在内存中并稍后写入，导致 RepoDitor 读取旧数据或意外覆盖更改。",
-  "safety.unknownDescription": "在确认已验证的 R.E.P.O. 安装已关闭之前，RepoDitor 无法安全启用存档编辑。",
+  "safety.runningDescription":
+    "请在编辑存档前关闭游戏。R.E.P.O. 可能将存档状态保留在内存中并稍后写入，导致 RepoDitor 读取旧数据或意外覆盖更改。",
+  "safety.unknownDescription":
+    "在确认已验证的 R.E.P.O. 安装已关闭之前，RepoDitor 无法安全启用存档编辑。",
   "safety.checking": "正在检查…",
   "safety.checkAgain": "再次检查",
   "safety.exit": "退出 RepoDitor",

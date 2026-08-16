@@ -9,11 +9,7 @@ import {
   type PlayerAvatar,
   type PlayerDto,
 } from "../contracts.cjs";
-import {
-  PythonClientError,
-  pythonClient,
-  type PythonClient,
-} from "../python/client.cjs";
+import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
 
 const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
@@ -209,8 +205,7 @@ export function registerPlayerIpc(client: PythonClient = pythonClient): void {
   ipcMain.handle(IPC_CHANNELS.playersList, (_event, saveId: unknown) =>
     listPlayers(client, saveId),
   );
-  ipcMain.handle(
-    IPC_CHANNELS.playersAvatar,
-    (_event, saveId: unknown, playerId: unknown) => getPlayerAvatar(client, saveId, playerId),
+  ipcMain.handle(IPC_CHANNELS.playersAvatar, (_event, saveId: unknown, playerId: unknown) =>
+    getPlayerAvatar(client, saveId, playerId),
   );
 }

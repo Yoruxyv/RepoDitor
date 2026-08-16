@@ -30,10 +30,10 @@ export function GameSafetyDialog({
     const modal = dialog.current;
     if (!modal) return;
     const fallbackFocus = fallbackFocusRef.current;
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      && document.activeElement !== document.body
-      ? document.activeElement
-      : null;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : null;
 
     if (!modal.open) modal.showModal();
     (checkButton.current?.disabled ? exitButton.current : checkButton.current)?.focus();
@@ -42,21 +42,18 @@ export function GameSafetyDialog({
       if (modal.open) modal.close();
       queueMicrotask(() => {
         if (modal.open) return;
-        const returnTarget = previouslyFocused?.isConnected
-          && !previouslyFocused.closest("[inert]")
-          ? previouslyFocused
-          : fallbackFocus;
+        const returnTarget =
+          previouslyFocused?.isConnected && !previouslyFocused.closest("[inert]")
+            ? previouslyFocused
+            : fallbackFocus;
         if (returnTarget?.isConnected && !returnTarget.closest("[inert]")) returnTarget.focus();
       });
     };
   }, [fallbackFocusRef]);
 
-  const title = status === "running"
-    ? t("safety.runningTitle")
-    : t("safety.unknownTitle");
-  const description = status === "running"
-    ? t("safety.runningDescription")
-    : t("safety.unknownDescription");
+  const title = status === "running" ? t("safety.runningTitle") : t("safety.unknownTitle");
+  const description =
+    status === "running" ? t("safety.runningDescription") : t("safety.unknownDescription");
 
   function containFocus(event: KeyboardEvent<HTMLDialogElement>): void {
     if (event.key !== "Tab") return;
@@ -87,8 +84,12 @@ export function GameSafetyDialog({
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-warning">
         {t("safety.label")}
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-ink" id={TITLE_ID}>{title}</h1>
-      <p className="mt-4 text-sm/6 text-secondary" id={DESCRIPTION_ID}>{description}</p>
+      <h1 className="mt-2 text-2xl font-semibold text-ink" id={TITLE_ID}>
+        {title}
+      </h1>
+      <p className="mt-4 text-sm/6 text-secondary" id={DESCRIPTION_ID}>
+        {description}
+      </p>
 
       <div className="mt-7 flex flex-wrap gap-3">
         <button

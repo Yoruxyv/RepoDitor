@@ -56,11 +56,16 @@ export const en = {
   "discovery.headline.unreadable": "Save folder unavailable",
   "discovery.headline.ready": "Save folder is ready",
   "discovery.summary.game": "RepoDitor found the game installation and {saves} on this PC.",
-  "discovery.summary.saves": "RepoDitor found {saves}. The game installation was not detected, but save discovery is ready.",
-  "discovery.summary.empty": "The standard save folder exists, but it does not contain a valid save slot yet.",
-  "discovery.summary.missingGame": "The game installation is ready. The standard save folder has not been created yet.",
-  "discovery.summary.missing": "RepoDitor checked the standard save location, but the folder was not detected.",
-  "discovery.summary.unreadable": "RepoDitor found the save location but could not read its contents.",
+  "discovery.summary.saves":
+    "RepoDitor found {saves}. The game installation was not detected, but save discovery is ready.",
+  "discovery.summary.empty":
+    "The standard save folder exists, but it does not contain a valid save slot yet.",
+  "discovery.summary.missingGame":
+    "The game installation is ready. The standard save folder has not been created yet.",
+  "discovery.summary.missing":
+    "RepoDitor checked the standard save location, but the folder was not detected.",
+  "discovery.summary.unreadable":
+    "RepoDitor found the save location but could not read its contents.",
   "discovery.save.one": "1 save",
   "discovery.save.many": "{count} saves",
   "discovery.refreshFailed": "Refresh failed. Showing the last discovery result. {error}",
@@ -68,11 +73,14 @@ export const en = {
   "discovery.loading": "Discovering local R.E.P.O. saves",
   "discovery.loadingLive": "Discovering local R.E.P.O. saves.",
   "discovery.state.missingTitle": "Standard save folder not found",
-  "discovery.state.missingDescription": "RepoDitor checked the normal R.E.P.O. save location. The folder may appear after the game creates its first save.",
+  "discovery.state.missingDescription":
+    "RepoDitor checked the normal R.E.P.O. save location. The folder may appear after the game creates its first save.",
   "discovery.state.unreadableTitle": "Save folder could not be read",
-  "discovery.state.unreadableDescription": "The save location exists, but RepoDitor could not inspect it. Check folder access, then refresh discovery.",
+  "discovery.state.unreadableDescription":
+    "The save location exists, but RepoDitor could not inspect it. Check folder access, then refresh discovery.",
   "discovery.state.emptyTitle": "No valid saves yet",
-  "discovery.state.emptyDescription": "The save folder is ready, but it does not contain a valid R.E.P.O. save slot yet.",
+  "discovery.state.emptyDescription":
+    "The save folder is ready, but it does not contain a valid R.E.P.O. save slot yet.",
   "discovery.failureTitle": "Local discovery is unavailable",
   "discovery.failureDescription": "{error} RepoDitor has not changed any save files.",
   "environment.title": "Local environment",
@@ -132,7 +140,8 @@ export const en = {
   "players.emptyDescription": "This save does not contain player records.",
   "players.selected": "Selected player",
   "players.currentHealth": "Current health",
-  "players.healthHelper": "This creates an in-memory pending edit. It does not write to the save file.",
+  "players.healthHelper":
+    "This creates an in-memory pending edit. It does not write to the save file.",
   "players.maximumHealth": "Maximum health {value}",
   "players.healFull": "Heal to Full",
   "players.healthError": "Health must be a whole number of zero or more.",
@@ -149,7 +158,8 @@ export const en = {
   "run.loading": "Loading run state…",
   "run.unavailable": "Run unavailable",
   "run.expedition": "Current expedition",
-  "run.description": "Adjust the friendly values below in memory. The selected save is not written yet.",
+  "run.description":
+    "Adjust the friendly values below in memory. The selected save is not written yet.",
   "run.levelError": "Level must be a whole number of one or more.",
   "run.valueError": "{label} must be a whole number.",
   "run.resumeLocation": "Resume location",
@@ -157,7 +167,8 @@ export const en = {
   "run.totalHaul": "Total haul",
   "items.loading": "Loading items…",
   "items.unavailable": "Items unavailable",
-  "items.description": "Search item instances and recharge supported tools. Changes stay pending until you save.",
+  "items.description":
+    "Search item instances and recharge supported tools. Changes stay pending until you save.",
   "items.safety": "Recharge appears only for tools RepoDitor can safely refill.",
   "items.instances": "Item instances",
   "items.missingContainer": "Items are unavailable for this save.",
@@ -187,9 +198,11 @@ export const en = {
   "items.refillLabel": "Recharge {item}, tool {instance}",
   "maps.loading": "Discovering installed maps…",
   "maps.unavailable": "Maps unavailable",
-  "maps.noGame": "No validated R.E.P.O. installation was found. Map discovery does not affect save editing.",
+  "maps.noGame":
+    "No validated R.E.P.O. installation was found. Map discovery does not affect save editing.",
   "maps.installed": "Installed content",
-  "maps.description": "Read-only discovery from the installed game's catalog. RepoDitor does not force the next map.",
+  "maps.description":
+    "Read-only discovery from the installed game's catalog. RepoDitor does not force the next map.",
   "cosmetics.loading": "Reading MetaSave cosmetics…",
   "cosmetics.unavailable": "Cosmetics unavailable",
   "cosmetics.ownership": "MetaSave ownership",
@@ -207,14 +220,17 @@ export const en = {
   "cosmetics.clearPending": "Clear All Presets pending",
   "cosmetics.lockAll": "Lock All Cosmetics",
   "cosmetics.lockPending": "Lock All pending",
-  "cosmetics.lockUnavailable": "Lock All is unavailable while an owned cosmetic is equipped or used by a preset.",
+  "cosmetics.lockUnavailable":
+    "Lock All is unavailable while an owned cosmetic is equipped or used by a preset.",
   "cosmetics.context": "Cosmetics context",
   "cosmetics.validated": "MetaSave is validated and written independently from Run saves.",
   "cosmetics.validatedShort": "Validated MetaSave",
   "cosmetics.catalog": "Cosmetic catalog",
-  "cosmetics.catalogDescription": "Installed names and metadata are shown when available. Numeric IDs remain the canonical identity.",
+  "cosmetics.catalogDescription":
+    "Installed names and metadata are shown when available. Numeric IDs remain the canonical identity.",
   "cosmetics.catalogCount": "{count} installed",
-  "cosmetics.catalogUnavailableMetadata": "Installed cosmetic metadata is unavailable. Save-owned IDs remain visible as unknown and read-only.",
+  "cosmetics.catalogUnavailableMetadata":
+    "Installed cosmetic metadata is unavailable. Save-owned IDs remain visible as unknown and read-only.",
   "cosmetics.catalogList": "Cosmetic catalog entries",
   "cosmetics.itemLabel": "{name}, ID {id}, {state}",
   "cosmetics.idLabel": "ID {id}",
@@ -223,7 +239,8 @@ export const en = {
   "cosmetics.statusLabel": "Status {status}",
   "cosmetics.readOnly": "Read only",
   "cosmetics.unknown": "Unknown",
-  "cosmetics.unknownPreserved": "Preserved from the save; no installed metadata is available for this ID.",
+  "cosmetics.unknownPreserved":
+    "Preserved from the save; no installed metadata is available for this ID.",
   "cosmetics.searchLabel": "Search cosmetics",
   "cosmetics.searchPlaceholder": "Search cosmetics...",
   "cosmetics.clearSearch": "Clear cosmetic search",
@@ -262,7 +279,8 @@ export const en = {
   "assets.progressCount": "{completed} / {total} assets",
   "assets.working": "Working",
   "assets.slowHint": "Still preparing local game assets. The first scan can take a little longer.",
-  "assets.localOnlyHint": "Reading your local installation. No game artwork is bundled with RepoDitor.",
+  "assets.localOnlyHint":
+    "Reading your local installation. No game artwork is bundled with RepoDitor.",
   "assets.continueEditor": "Continue to editor",
   "assets.installationFound": "Local install • detected",
   "assets.installationPending": "Local install • locating",
@@ -270,15 +288,19 @@ export const en = {
   "assets.buildPending": "Build • checking",
   "assets.notice.title": "Game artwork unavailable.",
   "assets.notice.gameMissing": "R.E.P.O. was not detected; built-in icons will be used.",
-  "assets.notice.buildUnverified": "The installed build could not be verified; built-in icons will be used.",
-  "assets.notice.partial": "Some local artwork could not be prepared; built-in icons will be used where needed.",
+  "assets.notice.buildUnverified":
+    "The installed build could not be verified; built-in icons will be used.",
+  "assets.notice.partial":
+    "Some local artwork could not be prepared; built-in icons will be used where needed.",
   "assets.notice.preparingTitle": "Game artwork is still preparing.",
   "assets.notice.preparing": "Background preparation continues · {progress}.",
   "safety.label": "Save safety",
   "safety.runningTitle": "R.E.P.O. is currently running",
   "safety.unknownTitle": "RepoDitor could not verify that R.E.P.O. is closed.",
-  "safety.runningDescription": "Close the game before editing saves. R.E.P.O. can keep save state in memory and write it later, which can make RepoDitor read stale data or overwrite changes unexpectedly.",
-  "safety.unknownDescription": "RepoDitor cannot safely enable save editing until it can confirm the validated R.E.P.O. installation is closed.",
+  "safety.runningDescription":
+    "Close the game before editing saves. R.E.P.O. can keep save state in memory and write it later, which can make RepoDitor read stale data or overwrite changes unexpectedly.",
+  "safety.unknownDescription":
+    "RepoDitor cannot safely enable save editing until it can confirm the validated R.E.P.O. installation is closed.",
   "safety.checking": "Checking…",
   "safety.checkAgain": "Check Again",
   "safety.exit": "Exit RepoDitor",

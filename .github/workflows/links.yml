@@ -1,0 +1,59 @@
+name: Links
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: links-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lychee:
+    name: Lychee
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            lychee-${{ runner.os }}-
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: >-
+            --cache
+            --max-cache-age 1d
+            --cache-exclude-status '429,500..=599'
+            --no-progress
+            --root-dir '${{ github.workspace }}'
+            --exclude-loopback
+            --exclude-private
+            --max-retries 2
+            --retry-wait-time 2
+            --timeout 10
+            --max-concurrency 8
+            './**/*.md'
+            './**/*.html'
+          fail: true
+          failIfEmpty: true
+          format: markdown
+          jobSummary: true
+          token: ${{ secrets.GITHUB_TOKEN }}

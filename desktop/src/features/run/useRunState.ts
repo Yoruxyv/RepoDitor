@@ -39,7 +39,9 @@ export function useRunState(saveId: string) {
   useEffect(() => {
     mounted.current = true;
     void load();
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+    };
   }, [load]);
 
   function updateStat(stat: RunStatDto, value: number): void {

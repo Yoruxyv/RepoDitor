@@ -44,7 +44,9 @@ export function AppShell({ children }: AppShellProps) {
           <div className="flex items-center gap-3 text-sm text-secondary">
             <HardDriveIcon aria-hidden="true" size={17} weight="regular" />
             <span className="hidden sm:inline">{t("app.localDesktop")}</span>
-            <span aria-hidden="true" className="text-line-strong">/</span>
+            <span aria-hidden="true" className="text-line-strong">
+              /
+            </span>
             <span className="font-mono text-xs">v{__APP_VERSION__}</span>
           </div>
         </div>

@@ -55,7 +55,6 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
             </div>
           </div>
         </button>
-
       </div>
     </section>
   );

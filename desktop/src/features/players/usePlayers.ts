@@ -50,13 +50,11 @@ export function usePlayers(saveId: string) {
     async (playerId: string) => {
       const previous = avatarAttempts.current.get(playerId);
       if (
-        avatarRequests.current.has(playerId)
-        || (previous?.requests ?? 0) >= MAX_AVATAR_REQUESTS
-        || previous?.failedAt === null
-        || (
-          previous?.failedAt !== undefined
-          && Date.now() - previous.failedAt < AVATAR_RETRY_COOLDOWN_MS
-        )
+        avatarRequests.current.has(playerId) ||
+        (previous?.requests ?? 0) >= MAX_AVATAR_REQUESTS ||
+        previous?.failedAt === null ||
+        (previous?.failedAt !== undefined &&
+          Date.now() - previous.failedAt < AVATAR_RETRY_COOLDOWN_MS)
       ) {
         return;
       }

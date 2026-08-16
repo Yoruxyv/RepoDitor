@@ -14,11 +14,8 @@ interface State {
 const INITIAL_STATE: State = { advanced: null, error: null, loading: true };
 
 function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
-  if (
-    !item.canRefillToFull
-    || item.chargeState !== "stored"
-    || item.storedCharge === null
-  ) return null;
+  if (!item.canRefillToFull || item.chargeState !== "stored" || item.storedCharge === null)
+    return null;
   return {
     feature: "advanced",
     entity: item.saveKey,

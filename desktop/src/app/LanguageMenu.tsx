@@ -94,11 +94,11 @@ export function LanguageMenu() {
     else if (event.key === "End") nextIndex = LANGUAGES.length - 1;
     else if (event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
       const query = event.key.toLocaleLowerCase();
-      const offset = LANGUAGES.slice(index + 1).findIndex(
-        (language) => language.label.toLocaleLowerCase().startsWith(query),
+      const offset = LANGUAGES.slice(index + 1).findIndex((language) =>
+        language.label.toLocaleLowerCase().startsWith(query),
       );
-      const wrappedOffset = LANGUAGES.slice(0, index + 1).findIndex(
-        (language) => language.label.toLocaleLowerCase().startsWith(query),
+      const wrappedOffset = LANGUAGES.slice(0, index + 1).findIndex((language) =>
+        language.label.toLocaleLowerCase().startsWith(query),
       );
       if (offset >= 0) nextIndex = index + 1 + offset;
       else if (wrappedOffset >= 0) nextIndex = wrappedOffset;
@@ -179,7 +179,9 @@ export function LanguageMenu() {
                       weight="bold"
                     />
                     <LanguageFlag src={language.flag} />
-                    <span className="whitespace-nowrap" lang={language.locale}>{language.label}</span>
+                    <span className="whitespace-nowrap" lang={language.locale}>
+                      {language.label}
+                    </span>
                   </button>
                 </div>
               );

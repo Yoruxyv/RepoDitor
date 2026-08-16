@@ -1,0 +1,14 @@
+# Dependencies and generated output
+node_modules/
+.vite-cache/
+coverage/
+build/
+dist/
+dist-electron/
+release/
+playwright-report/
+test-results/
+
+# Package-manager output is generated; docs stay outside the desktop formatter scope.
+package-lock.json
+README.md
