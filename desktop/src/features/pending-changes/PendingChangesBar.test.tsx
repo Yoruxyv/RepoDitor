@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PreferencesProvider } from "@/app/PreferencesProvider";
-import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
-import type { PendingEdit } from "@/features/editor/pendingEdits";
+import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
+import type { PendingEdit } from "@/features/pending-changes/pendingEdits";
 
 const edit: PendingEdit = {
   feature: "run",

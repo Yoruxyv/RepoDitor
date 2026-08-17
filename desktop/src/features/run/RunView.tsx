@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
-import type { RunStatEdit } from "@/features/editor/pendingEdits";
+import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
 
 interface RunViewProps {
   readonly run: RunStateDto | null;

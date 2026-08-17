@@ -5,8 +5,8 @@ import type { AdvancedItemDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 import { GameIcon } from "@/components/GameIcon";
-import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
-import { getItemUpgradeIcon } from "@/features/upgrades/upgradeIcons";
+import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
+import { getItemUpgradeIcon } from "@/components/game/upgradeIcons";
 import { getItemIcon } from "./itemIcons";
 
 interface ItemGroupsProps {

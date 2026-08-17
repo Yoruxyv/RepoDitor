@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
-import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
+import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
 
 interface PlayersState {
   players: PlayerDto[];

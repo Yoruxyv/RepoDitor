@@ -20,8 +20,8 @@ import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView, type OverviewDestination } from "@/features/editor/OverviewView";
-import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
-import { toSaveChange, type RunSavePendingEdit } from "@/features/editor/pendingEdits";
+import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
+import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-changes/pendingEdits";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 type WorkspaceSection = (typeof SECTIONS)[number];

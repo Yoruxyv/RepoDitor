@@ -3,7 +3,7 @@ import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
-import type { AdvancedRefillEdit } from "@/features/editor/pendingEdits";
+import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
 import { ItemGroups } from "./ItemGroups";
 
 interface ItemsViewProps {

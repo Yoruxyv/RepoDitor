@@ -1,6 +1,6 @@
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { PlayerAvatar } from "@/features/players/PlayerAvatar";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 interface SelectedPlayerIdentityProps {
   readonly player: PlayerDto;

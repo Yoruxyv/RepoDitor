@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
-import type { RunStatEdit } from "@/features/editor/pendingEdits";
+import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
 
 interface State {
   run: RunStateDto | null;
