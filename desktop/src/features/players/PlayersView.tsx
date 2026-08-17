@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
-import type { PlayerHealthEdit } from "@/features/editor/pendingEdits";
-import { SelectedPlayerIdentity } from "./SelectedPlayerIdentity";
+import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
+import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
 
 interface PlayersViewProps {
   readonly players: PlayerDto[];

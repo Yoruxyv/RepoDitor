@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePreferences } from "@/app/preferences";
 import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
 import { useCosmetics } from "@/features/cosmetics/useCosmetics";
-import { PendingChangesBar } from "@/features/editor/PendingChangesBar";
+import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 
 interface CosmeticsWorkspaceProps {
   readonly hidden: boolean;

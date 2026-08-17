@@ -10,7 +10,7 @@ import {
   type CosmeticOwnershipEdit,
   type CosmeticPendingEdit,
   type CosmeticUnlockAllEdit,
-} from "@/features/editor/pendingEdits";
+} from "@/features/pending-changes/pendingEdits";
 
 interface State {
   view: CosmeticsViewDto | null;

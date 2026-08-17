@@ -5,9 +5,9 @@ import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { GameIcon } from "@/components/GameIcon";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
-import type { UpgradeValueEdit } from "@/features/editor/pendingEdits";
-import { SelectedPlayerIdentity } from "@/features/players/SelectedPlayerIdentity";
-import { getUpgradeIcon } from "./upgradeIcons";
+import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
+import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
+import { getUpgradeIcon } from "@/components/game/upgradeIcons";
 
 interface UpgradesViewProps {
   readonly players: PlayerDto[];

@@ -116,10 +116,6 @@ describe("CosmeticsCatalog", () => {
       catalogView([
         installedCosmetic(0, "Locked Cosmetic"),
         installedCosmetic(1, "Owned Cosmetic", { owned: true }),
-        ...Array.from({ length: 545 }, (_, offset) =>
-          installedCosmetic(offset + 2, `Installed Cosmetic ${offset + 2}`),
-        ),
-        installedCosmetic(547, "Future Cosmetic"),
         unknownCosmetic(999),
       ]),
       onUnlockCosmetic,
@@ -131,12 +127,6 @@ describe("CosmeticsCatalog", () => {
 
     expect(
       within(screen.getByRole("listitem", { name: "Owned Cosmetic, ID 1, Owned" })).queryByRole(
-        "button",
-        { name: /Unlock/ },
-      ),
-    ).toBeNull();
-    expect(
-      within(screen.getByRole("listitem", { name: "Future Cosmetic, ID 547, Locked" })).queryByRole(
         "button",
         { name: /Unlock/ },
       ),
@@ -452,6 +442,7 @@ describe("CosmeticsCatalog", () => {
     const row = screen.getByRole("listitem", { name: "Future Installed Cosmetic, ID 547, Locked" });
     expect(row.getAttribute("data-cosmetic-id")).toBe("547");
     expect(within(row).getByText("Read only")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: /Unlock/ })).toBeNull();
   });
 
   it("keeps the degraded warning visible while filtering preserved unknown IDs", async () => {

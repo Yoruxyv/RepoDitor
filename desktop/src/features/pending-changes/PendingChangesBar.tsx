@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
-import type { PendingEdit } from "@/features/editor/pendingEdits";
+import type { PendingEdit } from "@/features/pending-changes/pendingEdits";
 
 interface PendingChangesBarProps {
   readonly edits: PendingEdit[];
