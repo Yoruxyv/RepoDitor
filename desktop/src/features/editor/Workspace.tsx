@@ -48,7 +48,7 @@ export function Workspace({
   onSave,
 }: WorkspaceProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
-  const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(false);
+  const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(backupPath !== null);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);

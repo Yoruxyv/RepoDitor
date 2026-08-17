@@ -10,6 +10,7 @@ import {
   players,
   saveId,
   session,
+  upgrades,
 } from "@/test/repoditorApiFixture";
 
 describe("run-save workspace integration", () => {
@@ -381,6 +382,60 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
+  });
+
+  it("keeps post-save upgrade reloads non-blocking after a successful write", async () => {
+    let finishUpgradeReload: ((value: { ok: true; data: typeof upgrades }) => void) | undefined;
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const upgradeList = vi.mocked(window.repoditor.upgrades.list);
+    upgradeList.mockResolvedValueOnce({ ok: true, data: upgrades }).mockImplementationOnce(
+      () =>
+        new Promise<{ ok: true; data: typeof upgrades }>((resolve) => {
+          finishUpgradeReload = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(screen.getByTestId("workspace")).toBeTruthy();
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    expect(screen.getByText("Currency", { selector: "dt" }).nextElementSibling?.textContent).toBe(
+      "20",
+    );
+    expect(screen.getByText(/Saved safely · Backup created/)).toBeTruthy();
+
+    await act(async () => {
+      finishUpgradeReload?.({ ok: true, data: upgrades });
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
   });
 
   it("keeps pending changes when a stale save is rejected", async () => {
