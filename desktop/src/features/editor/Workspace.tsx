@@ -24,30 +24,33 @@ import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar"
 import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-changes/pendingEdits";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
-type WorkspaceSection = (typeof SECTIONS)[number];
+export type WorkspaceSection = (typeof SECTIONS)[number];
 
 interface WorkspaceProps {
+  readonly activeSection: WorkspaceSection;
   readonly assetState: AssetPreparationState;
   readonly session: SaveSession;
   readonly saving: boolean;
   readonly saveError: string | null;
   readonly backupPath: string | null;
   readonly onPendingCountChange: (count: number) => void;
+  readonly onActiveSectionChange: (section: WorkspaceSection) => void;
   readonly onClose: () => void;
   readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
 }
 
 export function Workspace({
+  activeSection,
   assetState,
   session,
   saving,
   saveError,
   backupPath,
   onPendingCountChange,
+  onActiveSectionChange,
   onClose,
   onSave,
 }: WorkspaceProps) {
-  const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
   const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(backupPath !== null);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
@@ -121,12 +124,12 @@ export function Workspace({
     }
     event.preventDefault();
     const nextIndex = (index + offset + SECTIONS.length) % SECTIONS.length;
-    setActiveSection(SECTIONS[nextIndex]!);
+    onActiveSectionChange(SECTIONS[nextIndex]!);
     document.getElementById(`workspace-tab-${nextIndex}`)?.focus();
   }
 
   function openSection(section: OverviewDestination): void {
-    setActiveSection(section);
+    onActiveSectionChange(section);
     requestAnimationFrame(() => {
       document.getElementById(`workspace-tab-${SECTIONS.indexOf(section)}`)?.focus();
     });
@@ -202,7 +205,7 @@ export function Workspace({
                 role="tab"
                 tabIndex={active ? 0 : -1}
                 type="button"
-                onClick={() => setActiveSection(section)}
+                onClick={() => onActiveSectionChange(section)}
                 onKeyDown={(event) => moveTab(event, index)}
               >
                 {t(`nav.${section}`)}

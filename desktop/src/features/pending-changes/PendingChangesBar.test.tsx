@@ -178,6 +178,51 @@ describe("PendingChangesBar", () => {
     expect(document.querySelector("details")).toBeNull();
   });
 
+  it("shows indeterminate progress only while a save is active", () => {
+    const props = {
+      edits: [edit],
+      onRevert: vi.fn(),
+      onSave: vi.fn(),
+    };
+    const { rerender } = render(
+      <PreferencesProvider>
+        <PendingChangesBar {...props} backupPath={null} error={null} saving={false} />
+      </PreferencesProvider>,
+    );
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
+
+    rerender(
+      <PreferencesProvider>
+        <PendingChangesBar {...props} backupPath={null} error={null} saving />
+      </PreferencesProvider>,
+    );
+    const progress = screen.getByRole("progressbar", { name: "Saving safely…" });
+    expect(progress.hasAttribute("aria-valuenow")).toBe(false);
+    expect(progress.hasAttribute("aria-valuemin")).toBe(false);
+    expect(progress.hasAttribute("aria-valuemax")).toBe(false);
+    expect(screen.getByText("Saving safely…", { selector: "output" })).toBeTruthy();
+
+    rerender(
+      <PreferencesProvider>
+        <PendingChangesBar
+          {...props}
+          backupPath="C:\\fixture\\save.es3.bak"
+          error={null}
+          saving={false}
+        />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByRole("progressbar")).toBeNull();
+
+    rerender(
+      <PreferencesProvider>
+        <PendingChangesBar {...props} backupPath={null} error="Write failed" saving={false} />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
   it("keeps long localized status text wrappable above the sticky actions", () => {
     localStorage.setItem("repoditor.locale", "id");
     const error = "RepoDitor tidak dapat menyimpan perubahan karena file berubah di disk. ".repeat(

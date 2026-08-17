@@ -8,7 +8,7 @@ import { UtilityCluster } from "@/app/UtilityCluster";
 import { useAssetPreparation } from "@/features/assets/useAssetPreparation";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
 import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
-import { Workspace } from "@/features/editor/Workspace";
+import { Workspace, type WorkspaceSection } from "@/features/editor/Workspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
 import { GameSafetyDialog } from "@/features/safety/GameSafetyDialog";
 import { useGameSafety } from "@/features/safety/useGameSafety";
@@ -37,6 +37,7 @@ function AppContent() {
   const { t } = usePreferences();
   const editorContent = useRef<HTMLDivElement>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
+  const [activeRunSection, setActiveRunSection] = useState<WorkspaceSection>("overview");
   const [runPendingCount, setRunPendingCount] = useState(0);
   const [cosmeticsPendingCount, setCosmeticsPendingCount] = useState(0);
   const safetyRequired = save.session !== null || activeWorkspace === "cosmetics";
@@ -45,6 +46,12 @@ function AppContent() {
       ? gameSafety.status
       : null;
   const initialSafetyCheck = safetyRequired && gameSafety.status === null;
+
+  function closeRunSave(): void {
+    setActiveRunSection("overview");
+    save.close();
+  }
+
   return (
     <AppShell>
       <div
@@ -104,13 +111,15 @@ function AppContent() {
           ) : (
             <Workspace
               key={save.session.fingerprint}
+              activeSection={activeRunSection}
               assetState={assets}
               backupPath={save.lastBackupPath}
               saveError={save.saveError}
               saving={save.saving}
               session={save.session}
               onPendingCountChange={setRunPendingCount}
-              onClose={save.close}
+              onActiveSectionChange={setActiveRunSection}
+              onClose={closeRunSave}
               onSave={save.write}
             />
           )}

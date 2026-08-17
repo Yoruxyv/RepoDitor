@@ -8,6 +8,7 @@ import {
   createRepoDitorApi as bridge,
   maps,
   players,
+  runState,
   saveId,
   session,
   upgrades,
@@ -309,6 +310,70 @@ describe("run-save workspace integration", () => {
     );
   });
 
+  it("keeps Items selected while a successful save refreshes the workspace", async () => {
+    let finishWrite:
+      | ((value: { ok: true; data: { backupPath: string; session: typeof session } }) => void)
+      | undefined;
+    const write = vi.fn(
+      () =>
+        new Promise<{
+          ok: true;
+          data: { backupPath: string; session: typeof session };
+        }>((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Items" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    const itemsTab = screen.getByRole("tab", { name: "Items" });
+    expect(itemsTab.getAttribute("aria-selected")).toBe("true");
+    const progress = screen.getByRole("progressbar", { name: "Saving safely…" });
+    expect(progress.hasAttribute("aria-valuenow")).toBe(false);
+    expect(screen.getByText("Saving safely…", { selector: "output" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    await act(async () => {
+      finishWrite?.({
+        ok: true,
+        data: {
+          backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+          session: {
+            ...session,
+            fingerprint: "b".repeat(64),
+            name: "2026-08-08 10:21:00",
+            modifiedAt: "2026-08-08T10:21:00+00:00",
+          },
+        },
+      });
+    });
+
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(screen.queryByRole("progressbar", { name: "Saving safely…" })).toBeNull();
+    expect((await screen.findByRole("tab", { name: "Items" })).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("heading", { name: "2026-08-08 10:21:00" })).toBeTruthy();
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+  });
+
   it("summarizes, reverts, and safely submits pending changes", async () => {
     const write = vi.fn().mockResolvedValue({
       ok: true as const,
@@ -399,6 +464,16 @@ describe("run-save workspace integration", () => {
       undefined,
       write,
     );
+    const runGet = vi.mocked(window.repoditor.run.get);
+    runGet.mockResolvedValueOnce({ ok: true, data: runState }).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...runState,
+        stats: runState.stats.map((stat) =>
+          stat.key === "currency" ? { ...stat, value: 20 } : stat,
+        ),
+      },
+    });
     const upgradeList = vi.mocked(window.repoditor.upgrades.list);
     upgradeList.mockResolvedValueOnce({ ok: true, data: upgrades }).mockImplementationOnce(
       () =>
@@ -426,9 +501,11 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
-    expect(screen.getByText("Currency", { selector: "dt" }).nextElementSibling?.textContent).toBe(
-      "20",
-    );
+    await waitFor(() => expect(runGet).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
+    expect(
+      ((await screen.findByRole("spinbutton", { name: "Currency" })) as HTMLInputElement).value,
+    ).toBe("20");
     expect(screen.getByText(/Saved safely · Backup created/)).toBeTruthy();
 
     await act(async () => {
@@ -438,11 +515,18 @@ describe("run-save workspace integration", () => {
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
   });
 
-  it("keeps pending changes when a stale save is rejected", async () => {
-    const write = vi.fn().mockResolvedValue({
-      ok: false as const,
-      error: { code: "save_stale" as const, message: "Reopen it before saving edits." },
-    });
+  it("keeps the active tab and pending changes when a stale save is rejected", async () => {
+    let finishWrite:
+      ((value: { ok: false; error: { code: "save_stale"; message: string } }) => void) | undefined;
+    const write = vi.fn(
+      () =>
+        new Promise<{
+          ok: false;
+          error: { code: "save_stale"; message: string };
+        }>((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
     window.repoditor = bridge(
       vi.fn().mockResolvedValue({ ok: true, data: session }),
       players,
@@ -459,7 +543,19 @@ describe("run-save workspace integration", () => {
     await user.type(currency, "20");
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
+    expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("progressbar", { name: "Saving safely…" })).toBeTruthy();
+
+    await act(async () => {
+      finishWrite?.({
+        ok: false,
+        error: { code: "save_stale", message: "Reopen it before saving edits." },
+      });
+    });
+
     expect((await screen.findByRole("alert")).textContent).toContain("Reopen it");
+    expect(screen.queryByRole("progressbar", { name: "Saving safely…" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
   });
 
