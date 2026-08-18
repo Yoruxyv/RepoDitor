@@ -10,6 +10,7 @@ export interface IpcChannelMap {
   playersList: "players:list";
   playersAvatar: "players:avatar";
   upgradesList: "upgrades:list";
+  upgradesPrepareEntry: "upgrades:prepare-entry";
   runGet: "run:get";
   advancedGet: "advanced:get";
   cosmeticsGet: "cosmetics:get";
@@ -70,6 +71,14 @@ export interface SaveSession {
   currency: number;
   playerCount: number;
   resumeLocation: string;
+}
+
+export type SavePresentationReadiness = "ready" | "unresolved";
+
+export interface SaveOpenResult {
+  session: SaveSession;
+  requiredUpgradeVisualKeys: string[];
+  presentationReadiness: SavePresentationReadiness;
 }
 
 export interface PlayerDto {
@@ -401,7 +410,7 @@ export interface RepoDitorApi {
   };
   saves: {
     list: () => Promise<DesktopOperationResult<SaveSummary[]>>;
-    open: (saveId: string) => Promise<DesktopOperationResult<SaveSession>>;
+    open: (saveId: string) => Promise<DesktopOperationResult<SaveOpenResult>>;
     write: (
       saveId: string,
       fingerprint: string,
@@ -414,6 +423,10 @@ export interface RepoDitorApi {
   };
   upgrades: {
     list: (saveId: string) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>;
+    prepareEntry: (
+      saveId: string,
+      requiredVisualKeys: string[],
+    ) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>;
   };
   run: {
     get: (saveId: string) => Promise<DesktopOperationResult<RunStateDto>>;

@@ -1,19 +1,40 @@
 import { useRef, useState } from "react";
 
+import type {
+  DesktopOperationResult,
+  PlayerUpgradeDto,
+  SaveOpenResult,
+} from "@electron/contracts";
 import { AppShell } from "@/app/AppShell";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { usePreferences } from "@/app/preferences";
 import { useUiSound } from "@/app/useUiSound";
 import { UtilityCluster } from "@/app/UtilityCluster";
+import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { useAssetPreparation } from "@/features/assets/useAssetPreparation";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
 import { DiscoveryHome } from "@/features/discovery/components/DiscoveryHome";
+import { useEnvironmentDiscovery } from "@/features/discovery/useEnvironmentDiscovery";
 import { Workspace, type WorkspaceSection } from "@/features/editor/Workspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
 import { GameSafetyDialog } from "@/features/safety/GameSafetyDialog";
 import { useGameSafety } from "@/features/safety/useGameSafety";
 
 type AppWorkspace = "run-saves" | "cosmetics";
+
+interface PendingRunEntry {
+  readonly opened: SaveOpenResult;
+  readonly upgrades: Promise<DesktopOperationResult<PlayerUpgradeDto[]>>;
+  readonly requestId: number;
+}
+
+const ACTIVE_ASSET_STAGES = new Set([
+  "discovering",
+  "validating",
+  "indexing",
+  "resolving",
+  "decoding",
+]);
 
 function PendingDot({ count, id }: { readonly count: number; readonly id: string }) {
   const { t } = usePreferences();
@@ -40,14 +61,64 @@ function AppContent() {
   const [activeRunSection, setActiveRunSection] = useState<WorkspaceSection>("overview");
   const [runPendingCount, setRunPendingCount] = useState(0);
   const [cosmeticsPendingCount, setCosmeticsPendingCount] = useState(0);
-  const safetyRequired = save.session !== null || activeWorkspace === "cosmetics";
+  const [pendingRunEntry, setPendingRunEntry] = useState<PendingRunEntry | null>(null);
+  const [initialUpgradeLoad, setInitialUpgradeLoad] = useState<
+    Promise<DesktopOperationResult<PlayerUpgradeDto[]>> | null
+  >(null);
+  const runEntryRequest = useRef(0);
+  const discovery = useEnvironmentDiscovery(
+    save.session === null && pendingRunEntry === null,
+    gameSafety.recoveryGeneration,
+  );
+  const safetyRequired =
+    save.session !== null || pendingRunEntry !== null || activeWorkspace === "cosmetics";
   const dialogStatus =
     safetyRequired && (gameSafety.status === "running" || gameSafety.status === "unknown")
       ? gameSafety.status
       : null;
   const initialSafetyCheck = safetyRequired && gameSafety.status === null;
 
+  async function openRunSave(saveId: string): Promise<void> {
+    const opened = await save.open(saveId);
+    if (opened === null) return;
+
+    if (opened.presentationReadiness === "ready") {
+      setInitialUpgradeLoad(null);
+      save.enter(opened);
+      return;
+    }
+
+    const requestId = ++runEntryRequest.current;
+    const upgrades = window.repoditor.upgrades
+      .prepareEntry(opened.session.id, opened.requiredUpgradeVisualKeys)
+      .catch(() => ({
+        ok: false as const,
+        error: {
+          code: "internal_error" as const,
+          message: "The desktop upgrade bridge failed unexpectedly.",
+        },
+      }));
+    setPendingRunEntry({ opened, upgrades, requestId });
+    const result = await upgrades;
+    if (runEntryRequest.current !== requestId) return;
+
+    setPendingRunEntry(null);
+    setInitialUpgradeLoad(Promise.resolve(result));
+    save.enter(opened);
+  }
+
+  function continueRunEntry(): void {
+    if (pendingRunEntry === null) return;
+    runEntryRequest.current += 1;
+    setInitialUpgradeLoad(pendingRunEntry.upgrades);
+    save.enter(pendingRunEntry.opened);
+    setPendingRunEntry(null);
+  }
+
   function closeRunSave(): void {
+    runEntryRequest.current += 1;
+    setPendingRunEntry(null);
+    setInitialUpgradeLoad(null);
     setActiveRunSection("overview");
     save.close();
   }
@@ -101,18 +172,25 @@ function AppContent() {
         </nav>
 
         <div hidden={activeWorkspace !== "run-saves"}>
-          {save.session === null ? (
+          {pendingRunEntry !== null ? (
+            <AssetPreparationView
+              state={assets}
+              waitingForUpgradeDiscovery={!ACTIVE_ASSET_STAGES.has(assets.stage)}
+              onContinue={continueRunEntry}
+            />
+          ) : save.session === null ? (
             <DiscoveryHome
-              key={gameSafety.recoveryGeneration}
+              discovery={discovery}
               openError={save.error}
               openingSaveId={save.openingSaveId}
-              onOpenSave={(saveId) => void save.open(saveId)}
+              onOpenSave={(saveId) => void openRunSave(saveId)}
             />
           ) : (
             <Workspace
               activeSection={activeRunSection}
               assetState={assets}
               backupPath={save.lastBackupPath}
+              initialUpgradeLoad={initialUpgradeLoad}
               saveError={save.saveError}
               saving={save.saving}
               session={save.session}

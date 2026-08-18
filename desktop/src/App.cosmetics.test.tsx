@@ -6,6 +6,7 @@ import App from "@/App";
 import {
   cosmetics,
   createRepoDitorApi as bridge,
+  openResult,
   players,
   session,
 } from "@/test/repoditorApiFixture";
@@ -193,7 +194,7 @@ describe("cosmetics workspace integration", () => {
   }, 10_000);
 
   it("keeps Run and Cosmetics pending state independent across workspace navigation", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 

@@ -384,4 +384,123 @@ describe("AssetPreparationService", () => {
       visuals.map((visual) => visual.upgradeKey),
     );
   });
+
+  it(
+    "reports previously resolved source-valid visuals ready without another preparation batch",
+    async () => {
+      const fakeCache = cache();
+      const fakeClient = client(async (_command, request, onRecord) => {
+        await onRecord({
+          type: "texture",
+          upgradeKey: request[0],
+          texture: { opaque: true },
+          completed: 1,
+          total: 1,
+        });
+        return final({ completed: 1, total: 1 });
+      });
+      const service = new AssetPreparationService(fakeClient, fakeCache);
+      const visuals = [
+        { upgradeKey: "playerUpgradeCached", cacheKey: "item upgrade cached.png" },
+        { upgradeKey: "playerUpgradeDynamic", cacheKey: null },
+      ];
+
+      await service.prepareUpgradeVisuals(visuals);
+      expect(
+        await service.checkUpgradeVisualReadiness(visuals.map((visual) => visual.upgradeKey)),
+      ).toBe("ready");
+
+      expect(fakeClient.runRecords).toHaveBeenCalledTimes(1);
+      expect(fakeCache.hasPrepared).toHaveBeenLastCalledWith("playerUpgradeDynamic");
+    },
+  );
+
+  it(
+    "keeps valid cached visuals and prepares only a new requirement for another save",
+    async () => {
+      const fakeCache = cache();
+      const requests: string[][] = [];
+      const fakeClient = client(async (_command, request, onRecord) => {
+        const keys = [...request];
+        requests.push(keys);
+        for (const [index, key] of keys.entries()) {
+          await onRecord({
+            type: "texture",
+            upgradeKey: key,
+            texture: { opaque: true },
+            completed: index + 1,
+            total: keys.length,
+          });
+        }
+        return final({ completed: keys.length, total: keys.length });
+      });
+      const service = new AssetPreparationService(fakeClient, fakeCache);
+      const firstVisuals = ["A", "B", "C"].map((suffix) => ({
+        upgradeKey: `playerUpgrade${suffix}`,
+        cacheKey: null,
+      }));
+      const secondVisuals = [
+        ...firstVisuals,
+        { upgradeKey: "playerUpgradeD", cacheKey: null },
+      ];
+
+      await service.prepareUpgradeVisuals(firstVisuals);
+      expect(
+        await service.checkUpgradeVisualReadiness(
+          secondVisuals.map((visual) => visual.upgradeKey),
+        ),
+      ).toBe("unresolved");
+
+      await service.prepareUpgradeVisuals(secondVisuals);
+
+      expect(requests).toEqual([
+        ["playerUpgradeA", "playerUpgradeB", "playerUpgradeC"],
+        ["playerUpgradeD"],
+      ]);
+      expect(
+        await service.checkUpgradeVisualReadiness(
+          secondVisuals.map((visual) => visual.upgradeKey),
+        ),
+      ).toBe("ready");
+    },
+  );
+
+  it("rejects an invalidated cached source and reprepares only the affected visual", async () => {
+    const fakeCache = cache();
+    const requests: string[][] = [];
+    const fakeClient = client(async (_command, request, onRecord) => {
+      const keys = [...request];
+      requests.push(keys);
+      for (const [index, key] of keys.entries()) {
+        await onRecord({
+          type: "texture",
+          upgradeKey: key,
+          texture: { opaque: true },
+          completed: index + 1,
+          total: keys.length,
+        });
+      }
+      return final({ completed: keys.length, total: keys.length });
+    });
+    const service = new AssetPreparationService(fakeClient, fakeCache);
+    const visuals = ["A", "B", "C"].map((suffix) => ({
+      upgradeKey: `playerUpgrade${suffix}`,
+      cacheKey: null,
+    }));
+
+    await service.prepareUpgradeVisuals(visuals);
+    fakeCache.prepared.delete("playerUpgradeB");
+
+    expect(
+      await service.checkUpgradeVisualReadiness(visuals.map((visual) => visual.upgradeKey)),
+    ).toBe("unresolved");
+    await service.prepareUpgradeVisuals(visuals);
+
+    expect(requests).toEqual([
+      ["playerUpgradeA", "playerUpgradeB", "playerUpgradeC"],
+      ["playerUpgradeB"],
+    ]);
+    expect(fakeCache.prepared.has("playerUpgradeA")).toBe(true);
+    expect(fakeCache.prepared.has("playerUpgradeC")).toBe(true);
+  });
 });

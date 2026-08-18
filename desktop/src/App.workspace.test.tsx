@@ -7,6 +7,7 @@ import {
   advanced,
   createRepoDitorApi as bridge,
   maps,
+  openResult,
   players,
   runState,
   saveId,
@@ -20,7 +21,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("shows Overview and preserves typed pending player edits across navigation", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -87,7 +88,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("rejects invalid health without creating a pending edit", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -104,7 +105,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("heals to Python-provided max health through the existing pending edit", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -137,7 +138,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("disables Heal to Full when current health already equals max health", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), [
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), [
       { ...players[0]!, health: 100 },
     ]);
     const user = userEvent.setup();
@@ -155,7 +156,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("keeps advanced refill and other edits while navigating sections", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -224,7 +225,7 @@ describe("run-save workspace integration", () => {
   it("stages bulk recharge only for confirmed partial rechargeable tools and keeps it memory-only", async () => {
     const write = vi.fn();
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -322,7 +323,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -360,7 +361,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -438,7 +439,7 @@ describe("run-save workspace integration", () => {
         }),
     );
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -519,7 +520,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -598,7 +599,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -645,7 +646,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -686,7 +687,7 @@ describe("run-save workspace integration", () => {
       },
     });
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -734,7 +735,7 @@ describe("run-save workspace integration", () => {
         }),
     );
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       players,
       undefined,
       write,
@@ -778,7 +779,7 @@ describe("run-save workspace integration", () => {
         ),
     );
     window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      vi.fn().mockResolvedValue(openResult()),
       [players[0]!],
       avatar,
     );

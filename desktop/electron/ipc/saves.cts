@@ -1,6 +1,8 @@
 import { ipcMain } from "electron";
 
+import { assetPreparationService, type AssetPreparationService } from "../assets/preparation.cjs";
 import { IPC_CHANNELS } from "../channels.cjs";
+import { readUpgradeVisualKey } from "../icons/registry.cjs";
 import {
   type DesktopOperationError,
   type DesktopOperationErrorCode,
@@ -15,6 +17,7 @@ import {
   type SaveCanonicalRun,
   type SaveCanonicalRunStatValue,
   type SaveCanonicalUpgradeValue,
+  type SaveOpenResult,
   type SaveSession,
   type SaveWriteResult,
 } from "../contracts.cjs";
@@ -24,6 +27,7 @@ const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 const MAX_CHANGES = 512;
+const MAX_REQUIRED_VISUAL_KEYS = 512;
 const RUN_STAT_FIELDS = new Set(["level", "currency", "lives", "totalHaul"]);
 const SAVE_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
@@ -71,6 +75,21 @@ function readBoolean(value: unknown, field: string): boolean {
 function readNullableInteger(value: unknown, field: string): number | null {
   if (value === null) return null;
   return readInteger(value, field);
+}
+
+function readRequiredUpgradeVisualKeys(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > MAX_REQUIRED_VISUAL_KEYS) {
+    throw new SaveProtocolError("Invalid required upgrade visuals.");
+  }
+  const keys = value.map((entry) => {
+    const key = readUpgradeVisualKey(entry);
+    if (key === null) throw new SaveProtocolError("Invalid required upgrade visual key.");
+    return key;
+  });
+  if (new Set(keys).size !== keys.length) {
+    throw new SaveProtocolError("Duplicate required upgrade visual key.");
+  }
+  return keys;
 }
 
 function parseSession(value: unknown): SaveSession {
@@ -127,12 +146,23 @@ function parseError(value: Record<string, unknown>): DesktopOperationFailure {
   };
 }
 
-function parseOpenResponse(value: unknown): DesktopOperationResult<SaveSession> {
+interface ParsedOpenResponse {
+  readonly session: SaveSession;
+  readonly requiredUpgradeVisualKeys: string[];
+}
+
+function parseOpenResponse(value: unknown): DesktopOperationResult<ParsedOpenResponse> {
   if (!isRecord(value)) {
     throw new SaveProtocolError("Invalid save response.");
   }
   if (value.ok === true) {
-    return { ok: true, data: parseSession(value.session) };
+    return {
+      ok: true,
+      data: {
+        session: parseSession(value.session),
+        requiredUpgradeVisualKeys: readRequiredUpgradeVisualKeys(value.requiredUpgradeVisualKeys),
+      },
+    };
   }
   return parseError(value);
 }
@@ -461,7 +491,9 @@ function failure(error: unknown): DesktopOperationFailure {
 export async function openSave(
   client: PythonClient,
   saveId: unknown,
-): Promise<DesktopOperationResult<SaveSession>> {
+  preparation: Pick<AssetPreparationService, "checkUpgradeVisualReadiness"> =
+    assetPreparationService,
+): Promise<DesktopOperationResult<SaveOpenResult>> {
   if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
     return {
       ok: false,
@@ -471,10 +503,20 @@ export async function openSave(
 
   try {
     const result = parseOpenResponse(await client.run("saves-open", [saveId]));
-    if (result.ok && result.data.id !== saveId) {
+    if (result.ok && result.data.session.id !== saveId) {
       throw new SaveProtocolError("Save response ID did not match the request.");
     }
-    return result;
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      data: {
+        session: result.data.session,
+        requiredUpgradeVisualKeys: result.data.requiredUpgradeVisualKeys,
+        presentationReadiness: await preparation.checkUpgradeVisualReadiness(
+          result.data.requiredUpgradeVisualKeys,
+        ),
+      },
+    };
   } catch (error) {
     return failure(error);
   }
@@ -517,8 +559,14 @@ export async function saveChanges(
   }
 }
 
-export function registerSaveIpc(client: PythonClient = pythonClient): void {
-  ipcMain.handle(IPC_CHANNELS.savesOpen, (_event, saveId: unknown) => openSave(client, saveId));
+export function registerSaveIpc(
+  client: PythonClient = pythonClient,
+  preparation: Pick<AssetPreparationService, "checkUpgradeVisualReadiness"> =
+    assetPreparationService,
+): void {
+  ipcMain.handle(IPC_CHANNELS.savesOpen, (_event, saveId: unknown) =>
+    openSave(client, saveId, preparation),
+  );
   ipcMain.handle(
     IPC_CHANNELS.savesWrite,
     (_event, saveId: unknown, fingerprint: unknown, changes: unknown) =>

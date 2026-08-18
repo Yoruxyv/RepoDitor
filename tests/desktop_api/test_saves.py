@@ -44,6 +44,7 @@ def test_open_save_returns_renderer_safe_snapshot_without_mutating_source(
         "resumeLocation",
     }
     assert len(result["session"]["fingerprint"]) == 64
+    assert result["requiredUpgradeVisualKeys"] == ["playerUpgradeStrength"]
     assert save_path.read_bytes() == before
 
 

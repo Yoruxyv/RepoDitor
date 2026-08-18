@@ -197,6 +197,7 @@ function validateFinalCounts(
 export class AssetPreparationService {
   readonly #listeners = new Set<(state: AssetPreparationState) => void>();
   readonly #failedUpgradeKeys = new Set<string>();
+  readonly #resolvedVisuals = new Map<string, UpgradeVisualPreparationRequest>();
   readonly #client: PythonRecordClient;
   readonly #cache: DecodedUpgradeTextureCache;
   #state: AssetPreparationState = INITIAL_STATE;
@@ -224,10 +225,25 @@ export class AssetPreparationService {
     return this.#startup;
   }
 
+  async checkUpgradeVisualReadiness(
+    requiredUpgradeKeys: readonly string[],
+  ): Promise<"ready" | "unresolved"> {
+    for (const upgradeKey of new Set(requiredUpgradeKeys)) {
+      if (this.#failedUpgradeKeys.has(upgradeKey)) continue;
+      const resolved = this.#resolvedVisuals.get(upgradeKey);
+      if (resolved === undefined) return "unresolved";
+      if (resolved.cacheKey === null && !(await this.#cache.hasPrepared(upgradeKey))) {
+        return "unresolved";
+      }
+    }
+    return "ready";
+  }
+
   prepareUpgradeVisuals(requests: readonly UpgradeVisualPreparationRequest[]): Promise<void> {
     const unique = new Map<string, UpgradeVisualPreparationRequest>();
     for (const request of requests) unique.set(request.upgradeKey, request);
     const visuals = [...unique.values()];
+    for (const visual of visuals) this.#resolvedVisuals.set(visual.upgradeKey, visual);
     const signature = JSON.stringify(visuals);
     const existing = this.#visualInFlight.get(signature);
     if (existing !== undefined) return existing;

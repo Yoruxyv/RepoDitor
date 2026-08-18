@@ -22,6 +22,7 @@ const session = {
   playerCount: 2,
   resumeLocation: "Normal",
 };
+const requiredUpgradeVisualKeys = ["playerUpgradeHealth"];
 
 describe("openSave", () => {
   beforeEach(() => {
@@ -39,34 +40,60 @@ describe("openSave", () => {
   });
 
   it("parses the typed open contract", async () => {
-    const fake = client({ ok: true, session });
+    const fake = client({ ok: true, session, requiredUpgradeVisualKeys });
     await expect(openSave(fake, session.id)).resolves.toEqual({
       ok: true,
       data: {
-        id: session.id,
-        name: session.displayName,
-        path: session.path,
-        modifiedAt: session.lastModified,
-        fingerprint: session.fingerprint,
-        level: session.level,
-        currency: session.currency,
-        playerCount: session.playerCount,
-        resumeLocation: session.resumeLocation,
+        session: {
+          id: session.id,
+          name: session.displayName,
+          path: session.path,
+          modifiedAt: session.lastModified,
+          fingerprint: session.fingerprint,
+          level: session.level,
+          currency: session.currency,
+          playerCount: session.playerCount,
+          resumeLocation: session.resumeLocation,
+        },
+        requiredUpgradeVisualKeys,
+        presentationReadiness: "unresolved",
       },
     });
     expect(fake.run).toHaveBeenCalledWith("saves-open", [session.id]);
   });
 
+  it("uses the existing asset service readiness check for cached entry", async () => {
+    const fake = client({ ok: true, session, requiredUpgradeVisualKeys });
+    const preparation = {
+      checkUpgradeVisualReadiness: vi.fn().mockResolvedValue("ready"),
+    };
+
+    await expect(openSave(fake, session.id, preparation)).resolves.toMatchObject({
+      ok: true,
+      data: { presentationReadiness: "ready" },
+    });
+    expect(preparation.checkUpgradeVisualReadiness).toHaveBeenCalledWith(
+      requiredUpgradeVisualKeys,
+    );
+  });
+
   it("normalizes invalid protocol data", async () => {
     await expect(
-      openSave(client({ ok: true, session: { ...session, level: "5" } }), session.id),
+      openSave(
+        client({ ok: true, session: { ...session, level: "5" }, requiredUpgradeVisualKeys }),
+        session.id,
+      ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
   });
 
   it("rejects a session for a different save ID", async () => {
     await expect(
       openSave(
-        client({ ok: true, session: { ...session, id: "REPO_SAVE_2026_08_08_10_20_31" } }),
+        client({
+          ok: true,
+          session: { ...session, id: "REPO_SAVE_2026_08_08_10_20_31" },
+          requiredUpgradeVisualKeys,
+        }),
         session.id,
       ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });

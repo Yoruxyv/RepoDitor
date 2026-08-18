@@ -3,15 +3,14 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 
 import type {
   AssetPreparationState,
+  DesktopOperationResult,
+  PlayerUpgradeDto,
   SaveChange,
   SaveSession,
   SaveWriteResult,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import {
-  AssetPreparationNotice,
-  AssetPreparationView,
-} from "@/features/assets/AssetPreparationView";
+import { AssetPreparationNotice } from "@/features/assets/AssetPreparationView";
 import { PathDetails } from "@/components/PathDetails";
 import { ItemsView } from "@/features/items/ItemsView";
 import { useItems } from "@/features/items/useItems";
@@ -49,6 +48,7 @@ interface WorkspaceProps {
   readonly saving: boolean;
   readonly saveError: string | null;
   readonly backupPath: string | null;
+  readonly initialUpgradeLoad: Promise<DesktopOperationResult<PlayerUpgradeDto[]>> | null;
   readonly onPendingCountChange: (count: number) => void;
   readonly onActiveSectionChange: (section: WorkspaceSection) => void;
   readonly onClose: () => void;
@@ -62,17 +62,17 @@ export function Workspace({
   saving,
   saveError,
   backupPath,
+  initialUpgradeLoad,
   onPendingCountChange,
   onActiveSectionChange,
   onClose,
   onSave,
 }: WorkspaceProps) {
-  const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(backupPath !== null);
   const [postSaveRefreshing, setPostSaveRefreshing] = useState(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);
-  const upgrades = useUpgrades(session.id);
+  const upgrades = useUpgrades(session.id, initialUpgradeLoad);
   const run = useRunState(session.id);
   const items = useItems(session.id);
   const maps = useMaps();
@@ -104,16 +104,6 @@ export function Workspace({
     "resolving",
     "decoding",
   ].includes(assetState.stage);
-
-  if (!continueWithoutArtwork && (upgrades.loading || assetPreparationActive)) {
-    return (
-      <AssetPreparationView
-        state={assetState}
-        waitingForUpgradeDiscovery={upgrades.loading && !assetPreparationActive}
-        onContinue={() => setContinueWithoutArtwork(true)}
-      />
-    );
-  }
 
   function revertAll(): void {
     players.revertAll();
@@ -201,11 +191,8 @@ export function Workspace({
 
   return (
     <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
-      {assetState.degraded || (continueWithoutArtwork && assetPreparationActive) ? (
-        <AssetPreparationNotice
-          state={assetState}
-          showPreparing={continueWithoutArtwork && assetPreparationActive}
-        />
+      {assetState.degraded || assetPreparationActive ? (
+        <AssetPreparationNotice state={assetState} showPreparing={assetPreparationActive} />
       ) : null}
       <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">

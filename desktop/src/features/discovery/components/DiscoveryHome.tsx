@@ -4,7 +4,7 @@ import type { EnvironmentDiscovery } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/translations";
 import { formatSaveCount } from "@/features/discovery/formatters";
-import { useEnvironmentDiscovery } from "@/features/discovery/useEnvironmentDiscovery";
+import type { EnvironmentDiscoveryController } from "@/features/discovery/useEnvironmentDiscovery";
 import { DiscoveryFailure, DiscoveryState } from "./DiscoveryState";
 import { DiscoveryLoading } from "./DiscoveryLoading";
 import { EnvironmentStatus } from "./EnvironmentStatus";
@@ -48,13 +48,19 @@ function getSummary(environment: EnvironmentDiscovery, t: Translate): string {
 }
 
 interface DiscoveryHomeProps {
+  readonly discovery: EnvironmentDiscoveryController;
   readonly onOpenSave: (saveId: string) => void;
   readonly openingSaveId: string | null;
   readonly openError: string | null;
 }
 
-export function DiscoveryHome({ onOpenSave, openingSaveId, openError }: DiscoveryHomeProps) {
-  const { data, error, isInitialLoading, isRefreshing, refresh } = useEnvironmentDiscovery();
+export function DiscoveryHome({
+  discovery,
+  onOpenSave,
+  openingSaveId,
+  openError,
+}: DiscoveryHomeProps) {
+  const { data, error, isInitialLoading, isRefreshing, refresh } = discovery;
   const { t } = usePreferences();
 
   if (isInitialLoading || (data === null && error === null)) {

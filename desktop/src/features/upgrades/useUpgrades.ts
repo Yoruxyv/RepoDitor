@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlayerDto, PlayerUpgradeDto, SaveCanonicalUpgradeValue } from "@electron/contracts";
+import type {
+  DesktopOperationResult,
+  PlayerDto,
+  PlayerUpgradeDto,
+  SaveCanonicalUpgradeValue,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
@@ -48,24 +53,31 @@ function applyCanonicalUpgradeValues(
   }));
 }
 
-export function useUpgrades(saveId: string) {
+export function useUpgrades(
+  saveId: string,
+  initialLoad: Promise<DesktopOperationResult<PlayerUpgradeDto[]>> | null = null,
+) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(INITIAL_STATE);
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
+  const initialLoadRef = useRef(initialLoad);
 
   const load = useCallback(
-    async (preserveExisting = false): Promise<boolean> => {
+    async (preserveExisting = false, useInitial = false): Promise<boolean> => {
       try {
-        const result = await window.repoditor.upgrades.list(saveId);
-        if (!mounted.current) return result.ok;
-        if (result.ok) {
-          setState({ upgrades: result.data, error: null, loading: false });
+        const resolved =
+          useInitial && initialLoadRef.current !== null
+            ? await initialLoadRef.current
+            : await window.repoditor.upgrades.list(saveId);
+        if (!mounted.current) return resolved.ok;
+        if (resolved.ok) {
+          setState({ upgrades: resolved.data, error: null, loading: false });
           return true;
         }
         setState((current) => ({
           upgrades: preserveExisting ? current.upgrades : [],
-          error: operationErrorKey(result.error.code),
+          error: operationErrorKey(resolved.error.code),
           loading: false,
         }));
         return false;
@@ -85,7 +97,7 @@ export function useUpgrades(saveId: string) {
 
   useEffect(() => {
     mounted.current = true;
-    void load(false);
+    void load(false, true);
     return () => {
       mounted.current = false;
     };
