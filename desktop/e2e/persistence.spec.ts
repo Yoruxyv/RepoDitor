@@ -85,13 +85,20 @@ test("preserves safe writes, exact backups, and stale-save rejection", async () 
     await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("12");
     await page.getByRole("spinbutton", { name: "Currency" }).fill("20");
     await page.getByRole("tab", { name: "Items" }).click();
+    const itemSearch = page.getByRole("searchbox", { name: "Search items" });
+    await itemSearch.fill("hammer");
     await page.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }).click();
-    const saveStarted = performance.now();
     await page.getByRole("button", { name: "Save Changes" }).click();
 
     await waitForSafeSave(page, "workspace");
+    await expect(page.getByRole("tab", { name: "Items" })).toHaveAttribute("aria-selected", "true");
+    await expect(itemSearch).toHaveValue("hammer");
+    await expect(page.getByTestId("items-skeleton")).toHaveCount(0);
+    await expect(page.getByTestId("asset-preparation")).toHaveCount(0);
+    const inPlaceRefilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
+    await expect(inPlaceRefilledHammer.getByText("Full")).toBeVisible();
     await expect(page.getByText(/\.bak-\d+$/)).toHaveCount(0);
-    const saveReadyMs = performance.now() - saveStarted;
+
     const backups = (await readdir(path.dirname(savePath))).filter((name) =>
       name.startsWith(`${path.basename(savePath)}.bak-`),
     );
@@ -153,8 +160,6 @@ test("preserves safe writes, exact backups, and stale-save rejection", async () 
         name.startsWith(`${path.basename(savePath)}.bak-`),
       ),
     ).toHaveLength(1);
-
-    console.info(`Persistence save timing (ms): save=${saveReadyMs.toFixed(0)}`);
   } finally {
     await harness?.dispose();
   }

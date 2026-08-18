@@ -110,7 +110,6 @@ function AppContent() {
             />
           ) : (
             <Workspace
-              key={save.session.fingerprint}
               activeSection={activeRunSection}
               assetState={assets}
               backupPath={save.lastBackupPath}

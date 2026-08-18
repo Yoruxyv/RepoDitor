@@ -251,7 +251,7 @@ export const zh: Record<keyof typeof en, string> = {
   "cosmetics.typeManagedLabel": "类型：{type}",
   "cosmetics.rarityManagedLabel": "稀有度：{rarity}",
   "cosmetics.statusManagedLabel": "状态：{status}",
-  "assets.localPreparation": "本地游戏资源流程",
+  "assets.localPreparation": "资源准备",
   "assets.preparingGame": "正在准备游戏资源",
   "assets.preparingUpgrades": "正在准备升级图像",
   "assets.stage.idle": "正在启动资源准备",

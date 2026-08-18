@@ -82,6 +82,28 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
     )
 
     assert result["ok"] is True
+    canonical = result["result"]["canonical"]
+    assert canonical["fingerprint"] == result["result"]["session"]["fingerprint"]
+    assert canonical["players"] == [{"id": "222", "health": 100}]
+    assert canonical["upgrades"] == [
+        {"playerId": "222", "key": "playerUpgradeStrength", "value": 3}
+    ]
+    assert canonical["run"] == {
+        "stats": [{"key": "currency", "value": 20}],
+        "resumeLocation": "Shop / Service Station",
+    }
+    assert canonical["advanced"] == {
+        "items": [
+            {
+                "saveKey": "Item Gun Tranq/1",
+                "storedCharge": None,
+                "chargeState": "default_full",
+                "rechargeCapability": "rechargeable",
+                "canRefillToFull": False,
+            }
+        ],
+        "currentChargeEntryCount": 1,
+    }
     backup = Path(result["result"]["backupPath"])
     assert backup.read_bytes() == original
     reopened = SaveRepository.load(path)
@@ -106,6 +128,25 @@ def _fingerprint_from_bytes(source: bytes) -> str:
     from hashlib import sha256
 
     return sha256(source).hexdigest()
+
+
+def test_save_changes_returns_canonical_state_only_for_affected_domains(
+    tmp_path: Path, sample_save
+) -> None:
+    path = _write_fixture(tmp_path, sample_save)
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 41}],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+
+    assert result["ok"] is True
+    canonical = result["result"]["canonical"]
+    assert set(canonical) == {"fingerprint", "run"}
+    assert canonical["run"] == {"stats": [{"key": "currency", "value": 41}]}
 
 
 def test_validation_failure_does_not_create_backup_or_modify_source(tmp_path: Path, sample_save):

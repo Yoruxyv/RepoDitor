@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import type { PlayerDto, PlayerUpgradeDto, SaveCanonicalUpgradeValue } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
@@ -17,36 +17,75 @@ function editKey(playerId: string, upgradeKey: string): string {
   return `${playerId}:${upgradeKey}`;
 }
 
+function applyCanonicalUpgradeValues(
+  current: readonly PlayerUpgradeDto[],
+  values: readonly SaveCanonicalUpgradeValue[],
+): PlayerUpgradeDto[] | null {
+  const bySignature = new Map(
+    values.map((value) => [editKey(value.playerId, value.key), value.value]),
+  );
+
+  if (
+    bySignature.size !== values.length ||
+    values.some(
+      (value) =>
+        !current.some(
+          (upgrade) =>
+            upgrade.key === value.key &&
+            upgrade.values.some((entry) => entry.playerId === value.playerId),
+        ),
+    )
+  ) {
+    return null;
+  }
+
+  return current.map((upgrade) => ({
+    ...upgrade,
+    values: upgrade.values.map((entry) => {
+      const key = editKey(entry.playerId, upgrade.key);
+      return bySignature.has(key) ? { ...entry, value: bySignature.get(key)! } : entry;
+    }),
+  }));
+}
+
 export function useUpgrades(saveId: string) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(INITIAL_STATE);
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
 
-  const load = useCallback(async () => {
-    try {
-      const result = await window.repoditor.upgrades.list(saveId);
-      if (mounted.current) {
-        setState(
-          result.ok
-            ? { upgrades: result.data, error: null, loading: false }
-            : { upgrades: [], error: operationErrorKey(result.error.code), loading: false },
-        );
-      }
-    } catch {
-      if (mounted.current) {
-        setState({
-          upgrades: [],
-          error: "error.service",
+  const load = useCallback(
+    async (preserveExisting = false): Promise<boolean> => {
+      try {
+        const result = await window.repoditor.upgrades.list(saveId);
+        if (!mounted.current) return result.ok;
+        if (result.ok) {
+          setState({ upgrades: result.data, error: null, loading: false });
+          return true;
+        }
+        setState((current) => ({
+          upgrades: preserveExisting ? current.upgrades : [],
+          error: operationErrorKey(result.error.code),
           loading: false,
-        });
+        }));
+        return false;
+      } catch {
+        if (mounted.current) {
+          setState((current) => ({
+            upgrades: preserveExisting ? current.upgrades : [],
+            error: "error.service",
+            loading: false,
+          }));
+        }
+        return false;
       }
-    }
-  }, [saveId]);
+    },
+    [saveId],
+  );
 
   useEffect(() => {
     mounted.current = true;
-    void load();
+    void load(false);
     return () => {
       mounted.current = false;
     };
@@ -84,6 +123,14 @@ export function useUpgrades(saveId: string) {
     });
   }
 
+  function applyAfterSave(values: readonly SaveCanonicalUpgradeValue[]): boolean {
+    const nextUpgrades = applyCanonicalUpgradeValues(state.upgrades, values);
+    if (nextUpgrades === null) return false;
+
+    setState({ upgrades: nextUpgrades, error: null, loading: false });
+    return true;
+  }
+
   function revertAll(): void {
     setPendingByUpgrade({});
   }
@@ -96,6 +143,8 @@ export function useUpgrades(saveId: string) {
     update,
     revert,
     revertAll,
-    reload: load,
+    applyAfterSave,
+    reload: () => load(false),
+    refreshAfterSave: () => load(true),
   };
 }

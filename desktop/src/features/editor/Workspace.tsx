@@ -1,7 +1,12 @@
 import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 
-import type { AssetPreparationState, SaveChange, SaveSession } from "@electron/contracts";
+import type {
+  AssetPreparationState,
+  SaveChange,
+  SaveSession,
+  SaveWriteResult,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import {
   AssetPreparationNotice,
@@ -26,6 +31,17 @@ import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-change
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 export type WorkspaceSection = (typeof SECTIONS)[number];
 
+async function applyCanonicalOrRefresh<T>(
+  canonical: T | undefined,
+  apply: (value: T) => boolean,
+  refresh: () => Promise<boolean>,
+): Promise<boolean> {
+  if (canonical !== undefined && apply(canonical)) {
+    return true;
+  }
+  return refresh();
+}
+
 interface WorkspaceProps {
   readonly activeSection: WorkspaceSection;
   readonly assetState: AssetPreparationState;
@@ -36,7 +52,7 @@ interface WorkspaceProps {
   readonly onPendingCountChange: (count: number) => void;
   readonly onActiveSectionChange: (section: WorkspaceSection) => void;
   readonly onClose: () => void;
-  readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
+  readonly onSave: (changes: SaveChange[]) => Promise<SaveWriteResult | null>;
 }
 
 export function Workspace({
@@ -52,6 +68,7 @@ export function Workspace({
   onSave,
 }: WorkspaceProps) {
   const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(backupPath !== null);
+  const [postSaveRefreshing, setPostSaveRefreshing] = useState(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);
@@ -107,8 +124,55 @@ export function Workspace({
   }
 
   async function saveAll(): Promise<void> {
-    if (runSavePendingEdits.length > 0) {
-      await onSave(runSavePendingEdits.map(toSaveChange));
+    if (runSavePendingEdits.length === 0) return;
+
+    const editsToSave = [...runSavePendingEdits];
+    const affected = new Set(editsToSave.map((edit) => edit.feature));
+    setPostSaveRefreshing(true);
+
+    const saved = await onSave(editsToSave.map(toSaveChange));
+    if (saved === null) {
+      setPostSaveRefreshing(false);
+      return;
+    }
+
+    const canonical =
+      saved.canonical?.fingerprint === saved.session.fingerprint ? saved.canonical : undefined;
+
+    try {
+      await Promise.all([
+        affected.has("players")
+          ? applyCanonicalOrRefresh(
+              canonical?.players,
+              players.applyAfterSave,
+              players.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+        affected.has("upgrades")
+          ? applyCanonicalOrRefresh(
+              canonical?.upgrades,
+              upgrades.applyAfterSave,
+              upgrades.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+        affected.has("run")
+          ? applyCanonicalOrRefresh(canonical?.run, run.applyAfterSave, run.refreshAfterSave)
+          : Promise.resolve(true),
+        affected.has("advanced")
+          ? applyCanonicalOrRefresh(
+              canonical?.advanced,
+              items.applyAfterSave,
+              items.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+      ]);
+    } finally {
+      players.revertAll();
+      upgrades.revertAll();
+      run.revertAll();
+      items.revertAll();
+      setEditVersion((current) => current + 1);
+      setPostSaveRefreshing(false);
     }
   }
 
@@ -314,7 +378,7 @@ export function Workspace({
         backupPath={pendingEdits.length === 0 ? backupPath : null}
         edits={pendingEdits}
         error={saveError}
-        saving={saving}
+        saving={saving || postSaveRefreshing}
         onRevert={revertAll}
         onSave={() => void saveAll()}
       />

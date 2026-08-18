@@ -189,7 +189,7 @@ describe("AssetPreparationService", () => {
     });
   });
 
-  it("reuses successful session preparation without another Python batch", async () => {
+  it("reuses unchanged prepared visuals without restarting active preparation", async () => {
     const fakeCache = cache();
     const fakeClient = client(async (_command, request, onRecord) => {
       const [key] = request;
@@ -203,14 +203,21 @@ describe("AssetPreparationService", () => {
       return final({ completed: 1, total: 1 });
     });
     const service = new AssetPreparationService(fakeClient, fakeCache);
+    const stages: string[] = [];
+    service.subscribe((state: { stage: string }) => stages.push(state.stage));
     const visuals = [{ upgradeKey: "playerUpgradeHealth", cacheKey: null }];
 
     await service.prepareUpgradeVisuals(visuals);
+    const afterFirstPreparation = stages.length;
     await service.prepareUpgradeVisuals(visuals);
 
     expect(fakeClient.runRecords).toHaveBeenCalledTimes(1);
+    expect(stages.slice(afterFirstPreparation)).toEqual([]);
     expect(fakeCache.hasPrepared).toHaveBeenCalled();
     expect(service.getState()).toMatchObject({ stage: "ready", completed: 1, total: 1 });
+
+    await service.prepareUpgradeVisuals([{ upgradeKey: "playerUpgradeFuture", cacheKey: null }]);
+    expect(fakeClient.runRecords).toHaveBeenCalledTimes(2);
   });
 
   it("preserves actual completed progress when a batch process fails mid-stream", async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlayerDto } from "@electron/contracts";
+import type { PlayerDto, SaveCanonicalPlayerValue } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
@@ -86,33 +86,49 @@ export function usePlayers(saveId: string) {
     [markAvatarFailure, saveId],
   );
 
-  const loadPlayers = useCallback(async () => {
-    if (playerRequestInFlight.current) {
-      return;
-    }
-    playerRequestInFlight.current = true;
-    try {
-      const result = await window.repoditor.players.list(saveId);
-      if (mounted.current) {
+  const loadPlayers = useCallback(
+    async (preserveExisting = false): Promise<boolean> => {
+      if (playerRequestInFlight.current) {
+        return false;
+      }
+      playerRequestInFlight.current = true;
+      try {
+        const result = await window.repoditor.players.list(saveId);
+        if (!mounted.current) return result.ok;
         if (result.ok) {
           setState({ players: result.data, error: null, loading: false });
-          setSelectedPlayerId((current) => current ?? result.data[0]?.id ?? null);
-        } else {
-          setState({ players: [], error: operationErrorKey(result.error.code), loading: false });
+          setSelectedPlayerId((current) =>
+            current && result.data.some((player) => player.id === current)
+              ? current
+              : (result.data[0]?.id ?? null),
+          );
+          return true;
         }
+        setState((current) => ({
+          players: preserveExisting ? current.players : [],
+          error: operationErrorKey(result.error.code),
+          loading: false,
+        }));
+        return false;
+      } catch {
+        if (mounted.current) {
+          setState((current) => ({
+            players: preserveExisting ? current.players : [],
+            error: "error.service",
+            loading: false,
+          }));
+        }
+        return false;
+      } finally {
+        playerRequestInFlight.current = false;
       }
-    } catch {
-      if (mounted.current) {
-        setState({ players: [], error: "error.service", loading: false });
-      }
-    } finally {
-      playerRequestInFlight.current = false;
-    }
-  }, [saveId]);
+    },
+    [saveId],
+  );
 
   useEffect(() => {
     mounted.current = true;
-    const request = window.setTimeout(() => void loadPlayers());
+    const request = window.setTimeout(() => void loadPlayers(false));
     return () => {
       mounted.current = false;
       window.clearTimeout(request);
@@ -120,10 +136,12 @@ export function usePlayers(saveId: string) {
   }, [loadPlayers]);
 
   useEffect(() => {
-    if (selectedPlayerId && avatarUrls[selectedPlayerId] === undefined) {
-      void loadAvatar(selectedPlayerId);
+    for (const player of state.players) {
+      if (avatarUrls[player.id] === undefined) {
+        void loadAvatar(player.id);
+      }
     }
-  }, [avatarUrls, loadAvatar, selectedPlayerId]);
+  }, [avatarUrls, loadAvatar, state.players]);
 
   function updateHealth(player: PlayerDto, health: number): void {
     setPendingByPlayer((current) => {
@@ -168,7 +186,23 @@ export function usePlayers(saveId: string) {
 
   function reload(): void {
     setState((current) => ({ ...current, error: null, loading: true }));
-    void loadPlayers();
+    void loadPlayers(false);
+  }
+
+  function applyAfterSave(values: readonly SaveCanonicalPlayerValue[]): boolean {
+    const current = state.players;
+    const byId = new Map(values.map((value) => [value.id, value.health]));
+    if (
+      byId.size !== values.length ||
+      values.some((value) => !current.some((player) => player.id === value.id))
+    ) {
+      return false;
+    }
+    const nextPlayers = current.map((player) =>
+      byId.has(player.id) ? { ...player, health: byId.get(player.id)! } : player,
+    );
+    setState({ players: nextPlayers, error: null, loading: false });
+    return true;
   }
 
   function revertAll(): void {
@@ -188,6 +222,8 @@ export function usePlayers(saveId: string) {
     updateHealth,
     revertHealth,
     revertAll,
+    applyAfterSave,
     reload,
+    refreshAfterSave: () => loadPlayers(true),
   };
 }

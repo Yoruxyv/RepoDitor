@@ -264,7 +264,7 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.typeManagedLabel": "타입: {type}",
   "cosmetics.rarityManagedLabel": "희귀도: {rarity}",
   "cosmetics.statusManagedLabel": "상태: {status}",
-  "assets.localPreparation": "로컬 게임 에셋 파이프라인",
+  "assets.localPreparation": "에셋 준비",
   "assets.preparingGame": "게임 에셋 준비 중",
   "assets.preparingUpgrades": "업그레이드 이미지 준비 중",
   "assets.stage.idle": "에셋 준비 시작 중",

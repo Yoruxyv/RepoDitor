@@ -6,6 +6,7 @@ import { usePreferences } from "@/app/preferences";
 import type { TranslationKey } from "@/app/translations";
 
 const SEGMENT_COUNT = 18;
+const PROGRESS_REVEAL_DELAY_MS = 500;
 const SLOW_COPY_DELAY_MS = 6_000;
 
 const STAGE_KEYS: Record<AssetPreparationStage, TranslationKey> = {
@@ -49,15 +50,27 @@ export function AssetPreparationView({
     state.completed !== null && state.total !== null
       ? { completed: state.completed, total: state.total }
       : null;
+  const displayProgress = waitingForUpgradeDiscovery ? null : progress;
+  const hasDetailedProgress = displayProgress !== null;
   const [slow, setSlow] = useState(false);
+  const [showDetailedProgress, setShowDetailedProgress] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSlow(true), SLOW_COPY_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const displayProgress = waitingForUpgradeDiscovery ? null : progress;
-  const filledSegments = countFilledSegments(displayProgress);
+  useEffect(() => {
+    if (!hasDetailedProgress) {
+      setShowDetailedProgress(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowDetailedProgress(true), PROGRESS_REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasDetailedProgress]);
+
+  const visibleProgress = showDetailedProgress ? displayProgress : null;
+  const filledSegments = countFilledSegments(visibleProgress);
   const heading =
     waitingForUpgradeDiscovery || displayProgress !== null
       ? t("assets.preparingUpgrades")
@@ -102,25 +115,22 @@ export function AssetPreparationView({
               {heading}
             </p>
             <h1
+              aria-live="polite"
               className="font-display mt-1 text-4xl font-semibold uppercase leading-none tracking-[0.02em] text-ink sm:text-5xl"
               id="asset-preparation-title"
             >
               {t(stageKey)}
             </h1>
-            <p aria-live="polite" className="sr-only">
-              {t(stageKey)}
-            </p>
-
             <div className="mt-7">
               <div
-                {...(displayProgress !== null
+                {...(visibleProgress !== null
                   ? {
                       role: "progressbar",
                       "aria-label": t("assets.progressLabel"),
                       "aria-valuemin": 0,
-                      "aria-valuemax": displayProgress.total,
-                      "aria-valuenow": displayProgress.completed,
-                      "aria-valuetext": t("assets.progressCount", displayProgress),
+                      "aria-valuemax": visibleProgress.total,
+                      "aria-valuenow": visibleProgress.completed,
+                      "aria-valuetext": t("assets.progressCount", visibleProgress),
                     }
                   : {})}
                 className="relative overflow-hidden"
@@ -131,7 +141,7 @@ export function AssetPreparationView({
                     <span
                       aria-hidden="true"
                       className={`h-3 border border-line ${
-                        displayProgress !== null && index < filledSegments
+                        visibleProgress !== null && index < filledSegments
                           ? "bg-accent"
                           : "bg-surface-raised"
                       }`}
@@ -139,7 +149,7 @@ export function AssetPreparationView({
                     />
                   ))}
                 </div>
-                {displayProgress === null ? (
+                {visibleProgress === null ? (
                   <span
                     aria-hidden="true"
                     className="asset-preparation-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
@@ -147,15 +157,28 @@ export function AssetPreparationView({
                 ) : null}
               </div>
 
-              <div className="mt-3 flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-[0.12em] text-secondary">
-                <span>{t(stageKey)}</span>
-                {displayProgress !== null ? (
-                  <span data-testid="asset-progress-count">
-                    {t("assets.progressCount", displayProgress)}
+              <div
+                className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
+                data-testid="asset-progress-status"
+              >
+                <span className="relative grid min-w-32 text-right">
+                  <span
+                    className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${
+                      visibleProgress === null ? "visible opacity-100" : "invisible opacity-0"
+                    }`}
+                  >
+                    {t("assets.working")}
                   </span>
-                ) : (
-                  <span>{t("assets.working")}</span>
-                )}
+                  <span
+                    aria-hidden={visibleProgress === null}
+                    className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${
+                      visibleProgress !== null ? "visible opacity-100" : "invisible opacity-0"
+                    }`}
+                    data-testid={visibleProgress !== null ? "asset-progress-count" : undefined}
+                  >
+                    {visibleProgress !== null ? t("assets.progressCount", visibleProgress) : ""}
+                  </span>
+                </span>
               </div>
             </div>
 

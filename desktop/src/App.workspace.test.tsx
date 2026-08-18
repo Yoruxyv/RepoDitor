@@ -11,7 +11,6 @@ import {
   runState,
   saveId,
   session,
-  upgrades,
 } from "@/test/repoditorApiFixture";
 
 describe("run-save workspace integration", () => {
@@ -310,15 +309,130 @@ describe("run-save workspace integration", () => {
     );
   });
 
-  it("keeps Items selected while a successful save refreshes the workspace", async () => {
+  it("applies canonical Players state without a post-save players reread", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64) },
+        canonical: {
+          fingerprint: "b".repeat(64),
+          players: [{ id: "222", health: 100 }],
+        },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const playerList = vi.mocked(window.repoditor.players.list);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await waitFor(() => expect(playerList).toHaveBeenCalledTimes(1));
+
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    await user.click(screen.getByRole("button", { name: "Heal to Full" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(playerList).toHaveBeenCalledTimes(1);
+    expect(
+      (screen.getByRole("spinbutton", { name: "Current health" }) as HTMLInputElement).value,
+    ).toBe("100");
+  });
+
+  it("applies canonical Upgrades state without a post-save upgrades reread", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64) },
+        canonical: {
+          fingerprint: "b".repeat(64),
+          upgrades: [{ playerId: "222", key: "playerUpgradeStrength", value: 3 }],
+        },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const upgradeList = vi.mocked(window.repoditor.upgrades.list);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(1));
+
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    const strength = await screen.findByRole("spinbutton", { name: "Strength for Beta" });
+    await user.clear(strength);
+    await user.type(strength, "3");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(upgradeList).toHaveBeenCalledTimes(1);
+    expect(
+      (screen.getByRole("spinbutton", { name: "Strength for Beta" }) as HTMLInputElement).value,
+    ).toBe("3");
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+  });
+
+  it("applies canonical recharge state without a post-save advanced reread", async () => {
     let finishWrite:
-      | ((value: { ok: true; data: { backupPath: string; session: typeof session } }) => void)
+      | ((value: {
+          ok: true;
+          data: {
+            backupPath: string;
+            session: typeof session;
+            canonical: {
+              fingerprint: string;
+              advanced: {
+                items: Array<{
+                  saveKey: string;
+                  storedCharge: null;
+                  chargeState: "default_full";
+                  rechargeCapability: "rechargeable";
+                  canRefillToFull: false;
+                }>;
+                currentChargeEntryCount: number;
+              };
+            };
+          };
+        }) => void)
       | undefined;
     const write = vi.fn(
       () =>
         new Promise<{
           ok: true;
-          data: { backupPath: string; session: typeof session };
+          data: {
+            backupPath: string;
+            session: typeof session;
+            canonical: {
+              fingerprint: string;
+              advanced: {
+                items: Array<{
+                  saveKey: string;
+                  storedCharge: null;
+                  chargeState: "default_full";
+                  rechargeCapability: "rechargeable";
+                  canRefillToFull: false;
+                }>;
+                currentChargeEntryCount: number;
+              };
+            };
+          };
         }>((resolve) => {
           finishWrite = resolve;
         }),
@@ -329,24 +443,24 @@ describe("run-save workspace integration", () => {
       undefined,
       write,
     );
+    const advancedGet = vi.mocked(window.repoditor.advanced.get);
+    const upgradeList = vi.mocked(window.repoditor.upgrades.list);
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await user.click(await screen.findByRole("tab", { name: "Items" }));
-    await user.click(
-      await screen.findByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }),
-    );
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    const search = screen.getByRole("searchbox", { name: "Search items" });
+    await user.type(search, "hammer");
+    await user.click(screen.getByRole("button", { name: /Recharge .*tool 1/ }));
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
-    const itemsTab = screen.getByRole("tab", { name: "Items" });
-    expect(itemsTab.getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
     const progress = screen.getByRole("progressbar", { name: "Saving safely…" });
     expect(progress.hasAttribute("aria-valuenow")).toBe(false);
-    expect(screen.getByText("Saving safely…", { selector: "output" })).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(screen.queryByTestId("items-skeleton")).toBeNull();
+    expect((search as HTMLInputElement).value).toBe("hammer");
 
     await act(async () => {
       finishWrite?.({
@@ -359,16 +473,38 @@ describe("run-save workspace integration", () => {
             name: "2026-08-08 10:21:00",
             modifiedAt: "2026-08-08T10:21:00+00:00",
           },
+          canonical: {
+            fingerprint: "b".repeat(64),
+            advanced: {
+              items: [
+                {
+                  saveKey: "Item Melee Inflatable Hammer/1",
+                  storedCharge: null,
+                  chargeState: "default_full",
+                  rechargeCapability: "rechargeable",
+                  canRefillToFull: false,
+                },
+              ],
+              currentChargeEntryCount: 0,
+            },
+          },
         },
       });
     });
 
     expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(advancedGet).toHaveBeenCalledTimes(1);
+    expect(upgradeList).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("progressbar", { name: "Saving safely…" })).toBeNull();
-    expect((await screen.findByRole("tab", { name: "Items" })).getAttribute("aria-selected")).toBe(
-      "true",
-    );
-    expect(screen.getByRole("heading", { name: "2026-08-08 10:21:00" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Items" }).getAttribute("aria-selected")).toBe("true");
+    expect(
+      (screen.getByRole("searchbox", { name: "Search items" }) as HTMLInputElement).value,
+    ).toBe("hammer");
+    expect(screen.queryByTestId("items-skeleton")).toBeNull();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(
+      screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent,
+    ).toContain("Full");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
@@ -449,8 +585,99 @@ describe("run-save workspace integration", () => {
     );
   });
 
-  it("keeps post-save upgrade reloads non-blocking after a successful write", async () => {
-    let finishUpgradeReload: ((value: { ok: true; data: typeof upgrades }) => void) | undefined;
+  it("applies canonical Run state without a post-save run reread", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
+        canonical: {
+          fingerprint: "b".repeat(64),
+          run: { stats: [{ key: "currency" as const, value: 20 }] },
+        },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const runGet = vi.mocked(window.repoditor.run.get);
+    const upgradeList = vi.mocked(window.repoditor.upgrades.list);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(runGet).toHaveBeenCalledTimes(1);
+    expect(upgradeList).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(screen.queryByTestId("run-skeleton")).toBeNull();
+    expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
+    expect(
+      ((await screen.findByRole("spinbutton", { name: "Currency" })) as HTMLInputElement).value,
+    ).toBe("20");
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+  });
+
+  it("falls back to refreshAfterSave when the canonical fingerprint mismatches", async () => {
+    const write = vi.fn().mockResolvedValue({
+      ok: true as const,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
+        canonical: {
+          fingerprint: "c".repeat(64),
+          run: { stats: [{ key: "currency" as const, value: 20 }] },
+        },
+      },
+    });
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue({ ok: true, data: session }),
+      players,
+      undefined,
+      write,
+    );
+    const runGet = vi.mocked(window.repoditor.run.get);
+    runGet.mockResolvedValueOnce({ ok: true, data: runState }).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...runState,
+        stats: runState.stats.map((stat) =>
+          stat.key === "currency" ? { ...stat, value: 20 } : stat,
+        ),
+      },
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    await user.clear(currency);
+    await user.type(currency, "20");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(runGet).toHaveBeenCalledTimes(2);
+    expect(
+      ((await screen.findByRole("spinbutton", { name: "Currency" })) as HTMLInputElement).value,
+    ).toBe("20");
+  });
+
+  it("falls back to refreshAfterSave when a successful write omits canonical state", async () => {
     const write = vi.fn().mockResolvedValue({
       ok: true as const,
       data: {
@@ -474,45 +701,24 @@ describe("run-save workspace integration", () => {
         ),
       },
     });
-    const upgradeList = vi.mocked(window.repoditor.upgrades.list);
-    upgradeList.mockResolvedValueOnce({ ok: true, data: upgrades }).mockImplementationOnce(
-      () =>
-        new Promise<{ ok: true; data: typeof upgrades }>((resolve) => {
-          finishUpgradeReload = resolve;
-        }),
-    );
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(await screen.findByTestId("workspace")).toBeTruthy();
-    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(1));
-
-    await user.click(screen.getByRole("tab", { name: "Run" }));
+    await user.click(await screen.findByRole("tab", { name: "Run" }));
     const currency = await screen.findByRole("spinbutton", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "20");
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(upgradeList).toHaveBeenCalledTimes(2));
-    expect(screen.queryByTestId("asset-preparation")).toBeNull();
-    expect(screen.getByTestId("workspace")).toBeTruthy();
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
-      "No pending changes",
-    );
-    await waitFor(() => expect(runGet).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText(/Saved safely · Backup created/)).toBeTruthy();
+    expect(runGet).toHaveBeenCalledTimes(2);
     expect(
       ((await screen.findByRole("spinbutton", { name: "Currency" })) as HTMLInputElement).value,
     ).toBe("20");
-    expect(screen.getByText(/Saved safely · Backup created/)).toBeTruthy();
-
-    await act(async () => {
-      finishUpgradeReload?.({ ok: true, data: upgrades });
-      await Promise.resolve();
-    });
-    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
   });
 
   it("keeps the active tab and pending changes when a stale save is rejected", async () => {
