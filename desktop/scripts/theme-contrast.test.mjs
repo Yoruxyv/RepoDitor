@@ -89,6 +89,17 @@ test("asset preparation motion is opt-in and reduced-motion safe", () => {
   );
 });
 
+test("save progress motion is opt-in and reduced-motion safe", () => {
+  assert.match(
+    themeCss,
+    /prefers-reduced-motion:\s*no-preference[\s\S]*?\.save-progress-indicator\s*\{[^}]*animation:\s*save-progress-sweep/s,
+  );
+  assert.match(
+    themeCss,
+    /prefers-reduced-motion:\s*reduce[\s\S]*?\.save-progress-indicator\s*\{[^}]*animation:\s*none/s,
+  );
+});
+
 test("startup prepaint matches the authoritative dark application surface", () => {
   const startupBackground = token(themeBlock(":root"), "app");
   assert.equal(startupBackground.toLowerCase(), "#0d1110");

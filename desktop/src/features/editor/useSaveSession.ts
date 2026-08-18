@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import type { SaveChange, SaveSession } from "@electron/contracts";
+import type { SaveChange, SaveSession, SaveWriteResult } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 
@@ -43,9 +43,9 @@ export function useSaveSession() {
     }
   }
 
-  async function write(changes: SaveChange[]): Promise<boolean> {
+  async function write(changes: SaveChange[]): Promise<SaveWriteResult | null> {
     if (requestInFlight.current || session === null || changes.length === 0) {
-      return false;
+      return null;
     }
     requestInFlight.current = true;
     setSaving(true);
@@ -56,14 +56,14 @@ export function useSaveSession() {
       if (result.ok) {
         setLastBackupPath(result.data.backupPath);
         setSession(result.data.session);
-        return true;
+        return result.data;
       } else {
         setSaveError(operationErrorKey(result.error.code));
-        return false;
+        return null;
       }
     } catch {
       setSaveError("error.write");
-      return false;
+      return null;
     } finally {
       requestInFlight.current = false;
       setSaving(false);

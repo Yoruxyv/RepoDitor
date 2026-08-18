@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from typing import cast
 
 from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.types import SaveData
@@ -17,11 +19,13 @@ from repo_save_editor.desktop_api.run_save_changes import (
     requested_refill_item_types,
 )
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
-from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.items.discovery import discover_advanced_save
+from repo_save_editor.services.items.models import AdvancedSaveError, ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
     discover_installed_recharge_capabilities,
 )
-from repo_save_editor.services.player.state import get_players
+from repo_save_editor.services.player.state import get_player_health, get_players
+from repo_save_editor.services.player.upgrades import get_player_upgrade
 from repo_save_editor.services.run import get_resume_location_label, get_run_stat
 from repo_save_editor.services.saves.discovery import (
     DiscoveredSave,
@@ -116,6 +120,91 @@ def open_save(save_id: str, root: Path | None = None) -> dict[str, object]:
     return {"ok": True, "session": session}
 
 
+def _canonical_applied_state(
+    data: SaveData,
+    changes: object,
+    fingerprint: str,
+    recharge_capabilities: Mapping[str, ItemRechargeCapability],
+) -> dict[str, object]:
+    # Build narrow backend-authoritative state for domains changed by this successful write.
+    canonical: dict[str, object] = {"fingerprint": fingerprint}
+    safe_changes = cast(list[dict[str, object]], changes)
+
+    player_changes = [change for change in safe_changes if change["feature"] == "players"]
+    if player_changes:
+        with contextlib.suppress(KeyError, ValueError):
+            canonical["players"] = [
+                {
+                    "id": cast(str, change["entity"]),
+                    "health": get_player_health(data, cast(str, change["entity"])),
+                }
+                for change in player_changes
+            ]
+
+    upgrade_changes = [change for change in safe_changes if change["feature"] == "upgrades"]
+    if upgrade_changes:
+        with contextlib.suppress(KeyError, ValueError):
+            canonical["upgrades"] = [
+                {
+                    "playerId": cast(str, change["entity"]),
+                    "key": cast(str, change["field"]),
+                    "value": get_player_upgrade(
+                        data,
+                        cast(str, change["entity"]),
+                        cast(str, change["field"]),
+                    ),
+                }
+                for change in upgrade_changes
+            ]
+
+    run_changes = [change for change in safe_changes if change["feature"] == "run"]
+    if run_changes:
+        try:
+            run_state: dict[str, object] = {
+                "stats": [
+                    {
+                        "key": cast(str, change["field"]),
+                        "value": get_run_stat(data, cast(str, change["field"])),
+                    }
+                    for change in run_changes
+                    if change["field"] != "resumeLocation"
+                ]
+            }
+            if any(change["field"] == "resumeLocation" for change in run_changes):
+                run_state["resumeLocation"] = get_resume_location_label(data)
+            canonical["run"] = run_state
+        except (KeyError, ValueError):
+            pass
+
+    advanced_changes = [change for change in safe_changes if change["feature"] == "advanced"]
+    if advanced_changes:
+        try:
+            advanced = discover_advanced_save(data, recharge_capabilities)
+            items_by_key = {item.save_key: item for item in advanced.items}
+            selected = [items_by_key[cast(str, change["entity"])] for change in advanced_changes]
+            current_charge = next(
+                domain for domain in advanced.domains if domain.key == "currentCharge"
+            )
+            if current_charge.entry_count is not None:
+                canonical["advanced"] = {
+                    "items": [
+                        {
+                            "saveKey": item.save_key,
+                            "storedCharge": item.stored_charge,
+                            "chargeState": item.charge_state.value,
+                            "rechargeCapability": item.recharge_capability.value,
+                            "canRefillToFull": item.can_refill_to_full,
+                        }
+                        for item in selected
+                    ],
+                    "currentChargeEntryCount": current_charge.entry_count,
+                }
+        except (AdvancedSaveError, KeyError, StopIteration, ValueError):
+            pass
+
+    return canonical
+
+
 def save_changes(
     save_id: str,
     expected_fingerprint: str,
@@ -177,9 +266,16 @@ def save_changes(
             modified_at=modified_at,
             file_size=len(written),
         )
+        session = _session(updated_save, data, written)
         result = {
             "backupPath": str(backup),
-            "session": _session(updated_save, data, written),
+            "session": session,
+            "canonical": _canonical_applied_state(
+                data,
+                changes,
+                cast(str, session["fingerprint"]),
+                recharge_capabilities,
+            ),
         }
     except GameSafetyError as exc:
         return _failure(exc.code, exc.message)

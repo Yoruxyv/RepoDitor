@@ -258,7 +258,7 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.typeManagedLabel": "タイプ: {type}",
   "cosmetics.rarityManagedLabel": "レア度: {rarity}",
   "cosmetics.statusManagedLabel": "ステータス: {status}",
-  "assets.localPreparation": "ローカルゲームアセット処理",
+  "assets.localPreparation": "アセット準備",
   "assets.preparingGame": "ゲームアセットを準備中",
   "assets.preparingUpgrades": "アップグレード画像を準備中",
   "assets.stage.idle": "アセット準備を開始中",

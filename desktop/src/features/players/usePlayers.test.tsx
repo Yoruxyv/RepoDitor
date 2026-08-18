@@ -9,18 +9,24 @@ import { usePlayers } from "./usePlayers";
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const playerId = "76561197960287930";
 const player = { id: playerId, name: "Alpha", health: 80, maxHealth: 100 };
+const secondPlayer = {
+  id: "76561198000000001",
+  name: "Beta",
+  health: 90,
+  maxHealth: 100,
+};
 
 function wrapper({ children }: { readonly children: ReactNode }) {
   return <PreferencesProvider>{children}</PreferencesProvider>;
 }
 
-function installBridge(avatar: RepoDitorApi["players"]["avatar"]): void {
+function installBridge(avatar: RepoDitorApi["players"]["avatar"], playerList = [player]): void {
   Object.defineProperty(window, "repoditor", {
     configurable: true,
     value: {
       players: {
         avatar,
-        list: vi.fn().mockResolvedValue({ ok: true, data: [player] }),
+        list: vi.fn().mockResolvedValue({ ok: true, data: playerList }),
       },
     },
   });
@@ -47,6 +53,51 @@ describe("usePlayers avatar requests", () => {
     await act(async () => result.current.loadAvatar(playerId));
     act(() => result.current.setSelectedPlayerId(playerId));
     expect(avatar).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefetches all validated player avatars concurrently without blocking player readiness", async () => {
+    const resolvers = new Map<
+      string,
+      (value: { ok: true; data: { playerId: string; avatarUrl: string | null } }) => void
+    >();
+    const avatar = vi.fn(
+      (_saveId: string, requestedPlayerId: string) =>
+        new Promise<{ ok: true; data: { playerId: string; avatarUrl: string | null } }>(
+          (resolve) => {
+            resolvers.set(requestedPlayerId, resolve);
+          },
+        ),
+    );
+    installBridge(avatar, [player, secondPlayer]);
+    const { result } = renderHook(() => usePlayers(saveId), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(avatar).toHaveBeenCalledTimes(2));
+    expect(new Set(avatar.mock.calls.map((call) => call[1]))).toEqual(
+      new Set([player.id, secondPlayer.id]),
+    );
+    expect(result.current.avatarUrls[player.id]).toBeUndefined();
+    expect(result.current.avatarUrls[secondPlayer.id]).toBeUndefined();
+
+    const avatarUrl = "https://avatars.fastly.steamstatic.com/prefetched.jpg";
+    await act(async () => {
+      resolvers.get(player.id)?.({
+        ok: true,
+        data: { playerId: player.id, avatarUrl },
+      });
+      resolvers.get(secondPlayer.id)?.({
+        ok: true,
+        data: { playerId: secondPlayer.id, avatarUrl: null },
+      });
+    });
+
+    await waitFor(() => expect(result.current.avatarUrls[player.id]).toBe(avatarUrl));
+    await waitFor(() => expect(result.current.avatarUrls[secondPlayer.id]).toBeNull());
+
+    await act(async () => {
+      await result.current.refreshAfterSave();
+    });
+    expect(avatar).toHaveBeenCalledTimes(2);
   });
 
   it("suppresses duplicates and permits only one retry after the cooldown", async () => {

@@ -1,7 +1,12 @@
 import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 
-import type { AssetPreparationState, SaveChange, SaveSession } from "@electron/contracts";
+import type {
+  AssetPreparationState,
+  SaveChange,
+  SaveSession,
+  SaveWriteResult,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import {
   AssetPreparationNotice,
@@ -24,31 +29,46 @@ import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar"
 import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-changes/pendingEdits";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
-type WorkspaceSection = (typeof SECTIONS)[number];
+export type WorkspaceSection = (typeof SECTIONS)[number];
+
+async function applyCanonicalOrRefresh<T>(
+  canonical: T | undefined,
+  apply: (value: T) => boolean,
+  refresh: () => Promise<boolean>,
+): Promise<boolean> {
+  if (canonical !== undefined && apply(canonical)) {
+    return true;
+  }
+  return refresh();
+}
 
 interface WorkspaceProps {
+  readonly activeSection: WorkspaceSection;
   readonly assetState: AssetPreparationState;
   readonly session: SaveSession;
   readonly saving: boolean;
   readonly saveError: string | null;
   readonly backupPath: string | null;
   readonly onPendingCountChange: (count: number) => void;
+  readonly onActiveSectionChange: (section: WorkspaceSection) => void;
   readonly onClose: () => void;
-  readonly onSave: (changes: SaveChange[]) => Promise<boolean>;
+  readonly onSave: (changes: SaveChange[]) => Promise<SaveWriteResult | null>;
 }
 
 export function Workspace({
+  activeSection,
   assetState,
   session,
   saving,
   saveError,
   backupPath,
   onPendingCountChange,
+  onActiveSectionChange,
   onClose,
   onSave,
 }: WorkspaceProps) {
-  const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
   const [continueWithoutArtwork, setContinueWithoutArtwork] = useState(backupPath !== null);
+  const [postSaveRefreshing, setPostSaveRefreshing] = useState(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id);
@@ -104,8 +124,55 @@ export function Workspace({
   }
 
   async function saveAll(): Promise<void> {
-    if (runSavePendingEdits.length > 0) {
-      await onSave(runSavePendingEdits.map(toSaveChange));
+    if (runSavePendingEdits.length === 0) return;
+
+    const editsToSave = [...runSavePendingEdits];
+    const affected = new Set(editsToSave.map((edit) => edit.feature));
+    setPostSaveRefreshing(true);
+
+    const saved = await onSave(editsToSave.map(toSaveChange));
+    if (saved === null) {
+      setPostSaveRefreshing(false);
+      return;
+    }
+
+    const canonical =
+      saved.canonical?.fingerprint === saved.session.fingerprint ? saved.canonical : undefined;
+
+    try {
+      await Promise.all([
+        affected.has("players")
+          ? applyCanonicalOrRefresh(
+              canonical?.players,
+              players.applyAfterSave,
+              players.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+        affected.has("upgrades")
+          ? applyCanonicalOrRefresh(
+              canonical?.upgrades,
+              upgrades.applyAfterSave,
+              upgrades.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+        affected.has("run")
+          ? applyCanonicalOrRefresh(canonical?.run, run.applyAfterSave, run.refreshAfterSave)
+          : Promise.resolve(true),
+        affected.has("advanced")
+          ? applyCanonicalOrRefresh(
+              canonical?.advanced,
+              items.applyAfterSave,
+              items.refreshAfterSave,
+            )
+          : Promise.resolve(true),
+      ]);
+    } finally {
+      players.revertAll();
+      upgrades.revertAll();
+      run.revertAll();
+      items.revertAll();
+      setEditVersion((current) => current + 1);
+      setPostSaveRefreshing(false);
     }
   }
 
@@ -121,12 +188,12 @@ export function Workspace({
     }
     event.preventDefault();
     const nextIndex = (index + offset + SECTIONS.length) % SECTIONS.length;
-    setActiveSection(SECTIONS[nextIndex]!);
+    onActiveSectionChange(SECTIONS[nextIndex]!);
     document.getElementById(`workspace-tab-${nextIndex}`)?.focus();
   }
 
   function openSection(section: OverviewDestination): void {
-    setActiveSection(section);
+    onActiveSectionChange(section);
     requestAnimationFrame(() => {
       document.getElementById(`workspace-tab-${SECTIONS.indexOf(section)}`)?.focus();
     });
@@ -202,7 +269,7 @@ export function Workspace({
                 role="tab"
                 tabIndex={active ? 0 : -1}
                 type="button"
-                onClick={() => setActiveSection(section)}
+                onClick={() => onActiveSectionChange(section)}
                 onKeyDown={(event) => moveTab(event, index)}
               >
                 {t(`nav.${section}`)}
@@ -311,7 +378,7 @@ export function Workspace({
         backupPath={pendingEdits.length === 0 ? backupPath : null}
         edits={pendingEdits}
         error={saveError}
-        saving={saving}
+        saving={saving || postSaveRefreshing}
         onRevert={revertAll}
         onSave={() => void saveAll()}
       />

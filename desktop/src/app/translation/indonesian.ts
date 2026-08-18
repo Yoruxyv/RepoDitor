@@ -266,7 +266,7 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.typeManagedLabel": "Tipe: {type}",
   "cosmetics.rarityManagedLabel": "Kelangkaan: {rarity}",
   "cosmetics.statusManagedLabel": "Status: {status}",
-  "assets.localPreparation": "Pipeline aset game lokal",
+  "assets.localPreparation": "Persiapan aset",
   "assets.preparingGame": "Menyiapkan aset game",
   "assets.preparingUpgrades": "Menyiapkan gambar upgrade",
   "assets.stage.idle": "Memulai persiapan aset",

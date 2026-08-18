@@ -96,6 +96,19 @@ export function PendingChangesBar({
         data-pending-surface-active="true"
         data-testid={`${testIdPrefix}-action-bar`}
       >
+        {saving ? (
+          <div
+            aria-label={t("status.savingSafely")}
+            className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-accent-muted"
+            data-testid={`${testIdPrefix}-saving-progress`}
+            role="progressbar"
+          >
+            <span
+              aria-hidden="true"
+              className="save-progress-indicator block h-full w-1/3 bg-accent"
+            />
+          </div>
+        ) : null}
         <div className="mx-auto w-full max-w-[1280px]">
           {edits.length > 0 ? (
             <section

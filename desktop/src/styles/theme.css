@@ -176,3 +176,26 @@ html:has([data-pending-surface-active="true"]) {
     animation: asset-preparation-sweep 1.4s linear infinite;
   }
 }
+
+@keyframes save-progress-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(420%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .save-progress-indicator {
+    animation: save-progress-sweep 1.2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-progress-indicator {
+    width: 100%;
+    transform: none;
+    animation: none;
+  }
+}

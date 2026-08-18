@@ -297,7 +297,6 @@ export class AssetPreparationService {
   async #findMissingVisuals(
     visuals: readonly UpgradeVisualPreparationRequest[],
     initialCompleted: number,
-    total: number,
   ): Promise<{ completed: number; missing: string[] }> {
     let completed = initialCompleted;
     const missing: string[] = [];
@@ -307,11 +306,6 @@ export class AssetPreparationService {
       }
       if (await this.#cache.hasPrepared(visual.upgradeKey)) {
         completed += 1;
-        this.#set({
-          ...this.#state,
-          completed,
-          total,
-        });
       } else {
         missing.push(visual.upgradeKey);
       }
@@ -337,19 +331,27 @@ export class AssetPreparationService {
       return;
     }
 
+    const { completed, missing } = await this.#findMissingVisuals(visuals, initialCompleted);
+    if (missing.length === 0) {
+      const terminalStage = knownFailure ? "degraded" : "ready";
+      if (
+        this.#state.stage !== terminalStage ||
+        this.#state.completed !== completed ||
+        this.#state.total !== total ||
+        this.#state.degraded !== knownFailure
+      ) {
+        this.#finish(completed, total, knownFailure);
+      }
+      return;
+    }
+
     this.#set({
       ...this.#state,
       stage: "resolving",
-      completed: initialCompleted,
+      completed,
       total,
       degraded: knownFailure,
     });
-
-    const { completed, missing } = await this.#findMissingVisuals(visuals, initialCompleted, total);
-    if (missing.length === 0) {
-      this.#finish(completed, total, knownFailure);
-      return;
-    }
     await this.#prepare(missing, completed, total, knownFailure);
   }
 

@@ -112,7 +112,31 @@ describe("saveChanges", () => {
     };
     const fake = client({
       ok: true,
-      result: { backupPath: "C:\\fixture\\save.es3.bak-20260808-102100", session: updated },
+      result: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: updated,
+        canonical: {
+          fingerprint: updated.fingerprint,
+          players: [{ id: "222", health: 100 }],
+          upgrades: [{ playerId: "222", key: "playerUpgradeStrength", value: 3 }],
+          run: {
+            stats: [{ key: "currency", value: 20 }],
+            resumeLocation: "Shop / Service Station",
+          },
+          advanced: {
+            items: [
+              {
+                saveKey: "Item Gun Tranq/1",
+                storedCharge: null,
+                chargeState: "default_full",
+                rechargeCapability: "rechargeable",
+                canRefillToFull: false,
+              },
+            ],
+            currentChargeEntryCount: 1,
+          },
+        },
+      },
     });
     const changes = [
       { feature: "players", entity: "222", field: "health", after: 100 },
@@ -142,6 +166,27 @@ describe("saveChanges", () => {
           playerCount: updated.playerCount,
           resumeLocation: updated.resumeLocation,
         },
+        canonical: {
+          fingerprint: updated.fingerprint,
+          players: [{ id: "222", health: 100 }],
+          upgrades: [{ playerId: "222", key: "playerUpgradeStrength", value: 3 }],
+          run: {
+            stats: [{ key: "currency", value: 20 }],
+            resumeLocation: "Shop / Service Station",
+          },
+          advanced: {
+            items: [
+              {
+                saveKey: "Item Gun Tranq/1",
+                storedCharge: null,
+                chargeState: "default_full",
+                rechargeCapability: "rechargeable",
+                canRefillToFull: false,
+              },
+            ],
+            currentChargeEntryCount: 1,
+          },
+        },
       },
     });
     expect(fake.run).toHaveBeenCalledWith("saves-write", [
@@ -149,6 +194,72 @@ describe("saveChanges", () => {
       session.fingerprint,
       JSON.stringify(changes),
     ]);
+  });
+
+  it("keeps a successful write usable when canonical state is incomplete or mismatched", async () => {
+    const updated = { ...session, fingerprint: "b".repeat(64), currency: 20 };
+    const changes = [
+      { feature: "run" as const, entity: "run" as const, field: "currency" as const, after: 20 },
+      {
+        feature: "advanced" as const,
+        entity: "Item Gun Tranq/1",
+        field: "refillToFull" as const,
+        after: true as const,
+      },
+    ];
+
+    const result = await saveChanges(
+      client({
+        ok: true,
+        result: {
+          backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+          session: updated,
+          canonical: {
+            fingerprint: updated.fingerprint,
+            run: { stats: [{ key: "currency", value: 20 }] },
+            advanced: { items: [], currentChargeEntryCount: 0 },
+          },
+        },
+      }),
+      session.id,
+      session.fingerprint,
+      changes,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        session: { fingerprint: updated.fingerprint },
+        canonical: {
+          fingerprint: updated.fingerprint,
+          run: { stats: [{ key: "currency", value: 20 }] },
+        },
+      },
+    });
+    if (result.ok) {
+      expect(result.data.canonical?.advanced).toBeUndefined();
+    }
+
+    const mismatched = await saveChanges(
+      client({
+        ok: true,
+        result: {
+          backupPath: "C:\\fixture\\save.es3.bak-20260808-102101",
+          session: updated,
+          canonical: {
+            fingerprint: "c".repeat(64),
+            run: { stats: [{ key: "currency", value: 20 }] },
+          },
+        },
+      }),
+      session.id,
+      session.fingerprint,
+      [changes[0]],
+    );
+    expect(mismatched).toMatchObject({ ok: true });
+    if (mismatched.ok) {
+      expect(mismatched.data.canonical).toBeUndefined();
+    }
   });
 
   it("rejects malformed or duplicate changes before starting Python", async () => {

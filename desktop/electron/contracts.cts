@@ -122,9 +122,54 @@ export interface AdvancedRefillChange {
 export type SaveChange =
   PlayerHealthChange | UpgradeValueChange | RunStatChange | RunResumeChange | AdvancedRefillChange;
 
+export interface SaveCanonicalPlayerValue {
+  id: string;
+  health: number;
+}
+
+export interface SaveCanonicalUpgradeValue {
+  playerId: string;
+  key: string;
+  value: number;
+}
+
+export type SaveCanonicalRunStatKey = "level" | "currency" | "lives" | "totalHaul";
+
+export interface SaveCanonicalRunStatValue {
+  key: SaveCanonicalRunStatKey;
+  value: number;
+}
+
+export interface SaveCanonicalRun {
+  stats: SaveCanonicalRunStatValue[];
+  resumeLocation?: string;
+}
+
+export interface SaveCanonicalAdvancedItem {
+  saveKey: string;
+  storedCharge: number | null;
+  chargeState: AdvancedItemChargeState;
+  rechargeCapability: AdvancedItemRechargeCapability;
+  canRefillToFull: boolean;
+}
+
+export interface SaveCanonicalAdvanced {
+  items: SaveCanonicalAdvancedItem[];
+  currentChargeEntryCount: number;
+}
+
+export interface SaveCanonicalResult {
+  fingerprint: string;
+  players?: SaveCanonicalPlayerValue[];
+  upgrades?: SaveCanonicalUpgradeValue[];
+  run?: SaveCanonicalRun;
+  advanced?: SaveCanonicalAdvanced;
+}
+
 export interface SaveWriteResult {
   backupPath: string;
   session: SaveSession;
+  canonical?: SaveCanonicalResult;
 }
 
 export interface PlayerUpgradeValueDto {

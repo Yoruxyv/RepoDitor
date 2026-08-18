@@ -263,7 +263,7 @@ export const en = {
   "cosmetics.typeManagedLabel": "Type: {type}",
   "cosmetics.rarityManagedLabel": "Rarity: {rarity}",
   "cosmetics.statusManagedLabel": "Status: {status}",
-  "assets.localPreparation": "Local game asset pipeline",
+  "assets.localPreparation": "Asset preparation",
   "assets.preparingGame": "Preparing game assets",
   "assets.preparingUpgrades": "Preparing upgrade art",
   "assets.stage.idle": "Starting asset preparation",

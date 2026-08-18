@@ -8,6 +8,13 @@ import {
   type DesktopOperationResult,
   type SaveChange,
   type RunStatChange,
+  type SaveCanonicalAdvanced,
+  type SaveCanonicalAdvancedItem,
+  type SaveCanonicalPlayerValue,
+  type SaveCanonicalResult,
+  type SaveCanonicalRun,
+  type SaveCanonicalRunStatValue,
+  type SaveCanonicalUpgradeValue,
   type SaveSession,
   type SaveWriteResult,
 } from "../contracts.cjs";
@@ -52,6 +59,18 @@ function readInteger(value: unknown, field: string): number {
     throw new SaveProtocolError(`Invalid ${field}.`);
   }
   return value;
+}
+
+function readBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new SaveProtocolError(`Invalid ${field}.`);
+  }
+  return value;
+}
+
+function readNullableInteger(value: unknown, field: string): number | null {
+  if (value === null) return null;
+  return readInteger(value, field);
 }
 
 function parseSession(value: unknown): SaveSession {
@@ -184,15 +203,232 @@ function parseChanges(value: unknown): SaveChange[] {
   return changes;
 }
 
-function parseWriteResponse(value: unknown): DesktopOperationResult<SaveWriteResult> {
+const CANONICAL_CHARGE_STATES = new Set(["stored", "default_full", "not_applicable", "unknown"]);
+const CANONICAL_RECHARGE_CAPABILITIES = new Set(["rechargeable", "not_rechargeable", "unknown"]);
+
+function exactStrings(actual: readonly string[], expected: readonly string[]): boolean {
+  if (actual.length !== expected.length) return false;
+  const actualSet = new Set(actual);
+  const expectedSet = new Set(expected);
+  return (
+    actualSet.size === actual.length && [...actualSet].every((value) => expectedSet.has(value))
+  );
+}
+
+function parseCanonicalPlayers(
+  value: unknown,
+  changes: readonly SaveChange[],
+): SaveCanonicalPlayerValue[] | undefined {
+  const expected = changes
+    .filter((change) => change.feature === "players")
+    .map((change) => change.entity);
+  if (expected.length === 0 || !Array.isArray(value) || value.length !== expected.length) {
+    return undefined;
+  }
+  try {
+    const parsed = value.map((entry) => {
+      if (!isRecord(entry)) throw new SaveProtocolError("Invalid canonical player value.");
+      const id = readString(entry.id, "canonical player ID");
+      const health = readInteger(entry.health, "canonical player health");
+      if (!PLAYER_ID_PATTERN.test(id) || health < 0) {
+        throw new SaveProtocolError("Invalid canonical player value.");
+      }
+      return { id, health };
+    });
+    return exactStrings(
+      parsed.map((entry) => entry.id),
+      expected,
+    )
+      ? parsed
+      : undefined;
+  } catch (error) {
+    if (error instanceof SaveProtocolError) return undefined;
+    throw error;
+  }
+}
+
+function parseCanonicalUpgrades(
+  value: unknown,
+  changes: readonly SaveChange[],
+): SaveCanonicalUpgradeValue[] | undefined {
+  const expected = changes
+    .filter((change) => change.feature === "upgrades")
+    .map((change) => `${change.entity}:${change.field}`);
+  if (expected.length === 0 || !Array.isArray(value) || value.length !== expected.length) {
+    return undefined;
+  }
+  try {
+    const parsed = value.map((entry) => {
+      if (!isRecord(entry)) throw new SaveProtocolError("Invalid canonical upgrade value.");
+      const playerId = readString(entry.playerId, "canonical upgrade player ID");
+      const key = readString(entry.key, "canonical upgrade key");
+      const upgradeValue = readInteger(entry.value, "canonical upgrade value");
+      if (
+        !PLAYER_ID_PATTERN.test(playerId) ||
+        !key.startsWith("playerUpgrade") ||
+        upgradeValue < 0
+      ) {
+        throw new SaveProtocolError("Invalid canonical upgrade value.");
+      }
+      return { playerId, key, value: upgradeValue };
+    });
+    return exactStrings(
+      parsed.map((entry) => `${entry.playerId}:${entry.key}`),
+      expected,
+    )
+      ? parsed
+      : undefined;
+  } catch (error) {
+    if (error instanceof SaveProtocolError) return undefined;
+    throw error;
+  }
+}
+
+function parseCanonicalRun(
+  value: unknown,
+  changes: readonly SaveChange[],
+): SaveCanonicalRun | undefined {
+  const expectedRun = changes.filter((change) => change.feature === "run");
+  if (expectedRun.length === 0 || !isRecord(value) || !Array.isArray(value.stats)) {
+    return undefined;
+  }
+  const expectedStats = expectedRun
+    .filter((change) => change.field !== "resumeLocation")
+    .map((change) => change.field);
+  const expectsResume = expectedRun.some((change) => change.field === "resumeLocation");
+  try {
+    const stats: SaveCanonicalRunStatValue[] = value.stats.map((entry) => {
+      if (!isRecord(entry)) throw new SaveProtocolError("Invalid canonical run stat.");
+      const key = readString(entry.key, "canonical run key");
+      const statValue = readInteger(entry.value, "canonical run value");
+      if (!RUN_STAT_FIELDS.has(key) || (key === "level" && statValue < 1)) {
+        throw new SaveProtocolError("Invalid canonical run stat.");
+      }
+      return { key: key as SaveCanonicalRunStatValue["key"], value: statValue };
+    });
+    if (
+      !exactStrings(
+        stats.map((entry) => entry.key),
+        expectedStats,
+      )
+    )
+      return undefined;
+    const hasResume = Object.prototype.hasOwnProperty.call(value, "resumeLocation");
+    if (hasResume !== expectsResume) return undefined;
+    return {
+      stats,
+      ...(expectsResume
+        ? { resumeLocation: readString(value.resumeLocation, "canonical resume location") }
+        : {}),
+    };
+  } catch (error) {
+    if (error instanceof SaveProtocolError) return undefined;
+    throw error;
+  }
+}
+
+function parseCanonicalAdvanced(
+  value: unknown,
+  changes: readonly SaveChange[],
+): SaveCanonicalAdvanced | undefined {
+  const expected = changes
+    .filter((change) => change.feature === "advanced")
+    .map((change) => change.entity);
+  if (
+    expected.length === 0 ||
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    value.items.length !== expected.length
+  ) {
+    return undefined;
+  }
+  try {
+    const currentChargeEntryCount = readInteger(
+      value.currentChargeEntryCount,
+      "canonical current-charge entry count",
+    );
+    if (currentChargeEntryCount < 0) return undefined;
+    const items: SaveCanonicalAdvancedItem[] = value.items.map((entry) => {
+      if (!isRecord(entry)) throw new SaveProtocolError("Invalid canonical advanced item.");
+      const saveKey = readString(entry.saveKey, "canonical item save key");
+      const storedCharge = readNullableInteger(entry.storedCharge, "canonical stored charge");
+      const chargeState = readString(entry.chargeState, "canonical charge state");
+      const rechargeCapability = readString(
+        entry.rechargeCapability,
+        "canonical recharge capability",
+      );
+      const canRefillToFull = readBoolean(entry.canRefillToFull, "canonical refill eligibility");
+      if (
+        !CANONICAL_CHARGE_STATES.has(chargeState) ||
+        !CANONICAL_RECHARGE_CAPABILITIES.has(rechargeCapability) ||
+        (storedCharge !== null && storedCharge < 0) ||
+        (chargeState === "stored") !== (storedCharge !== null) ||
+        (chargeState === "default_full" && rechargeCapability !== "rechargeable") ||
+        (chargeState === "not_applicable" && rechargeCapability !== "not_rechargeable") ||
+        (canRefillToFull && (chargeState !== "stored" || rechargeCapability !== "rechargeable"))
+      ) {
+        throw new SaveProtocolError("Invalid canonical advanced item.");
+      }
+      return {
+        saveKey,
+        storedCharge,
+        chargeState: chargeState as SaveCanonicalAdvancedItem["chargeState"],
+        rechargeCapability: rechargeCapability as SaveCanonicalAdvancedItem["rechargeCapability"],
+        canRefillToFull,
+      };
+    });
+    return exactStrings(
+      items.map((item) => item.saveKey),
+      expected,
+    )
+      ? { items, currentChargeEntryCount }
+      : undefined;
+  } catch (error) {
+    if (error instanceof SaveProtocolError) return undefined;
+    throw error;
+  }
+}
+
+function parseCanonicalResult(
+  value: unknown,
+  fingerprint: string,
+  changes: readonly SaveChange[],
+): SaveCanonicalResult | undefined {
+  if (!isRecord(value)) return undefined;
+  try {
+    const canonicalFingerprint = readFingerprint(value.fingerprint);
+    if (canonicalFingerprint !== fingerprint) return undefined;
+    const canonical: SaveCanonicalResult = { fingerprint: canonicalFingerprint };
+    const players = parseCanonicalPlayers(value.players, changes);
+    const upgrades = parseCanonicalUpgrades(value.upgrades, changes);
+    const run = parseCanonicalRun(value.run, changes);
+    const advanced = parseCanonicalAdvanced(value.advanced, changes);
+    if (players !== undefined) canonical.players = players;
+    if (upgrades !== undefined) canonical.upgrades = upgrades;
+    if (run !== undefined) canonical.run = run;
+    if (advanced !== undefined) canonical.advanced = advanced;
+    return canonical;
+  } catch (error) {
+    if (error instanceof SaveProtocolError) return undefined;
+    throw error;
+  }
+}
+
+function parseWriteResponse(
+  value: unknown,
+  changes: readonly SaveChange[],
+): DesktopOperationResult<SaveWriteResult> {
   if (!isRecord(value)) throw new SaveProtocolError("Invalid save response.");
   if (value.ok !== true) return parseError(value);
   if (!isRecord(value.result)) throw new SaveProtocolError("Invalid save result.");
+  const session = parseSession(value.result.session);
+  const canonical = parseCanonicalResult(value.result.canonical, session.fingerprint, changes);
   return {
     ok: true,
     data: {
       backupPath: readString(value.result.backupPath, "backup path"),
-      session: parseSession(value.result.session),
+      session,
+      ...(canonical === undefined ? {} : { canonical }),
     },
   };
 }
@@ -270,6 +506,7 @@ export async function saveChanges(
   try {
     const result = parseWriteResponse(
       await client.run("saves-write", [saveId, safeFingerprint, JSON.stringify(safeChanges)]),
+      safeChanges,
     );
     if (result.ok && result.data.session.id !== saveId) {
       throw new SaveProtocolError("Save response ID did not match the request.");

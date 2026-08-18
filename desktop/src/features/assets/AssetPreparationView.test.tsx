@@ -47,7 +47,8 @@ describe("AssetPreparationView", () => {
     expect(screen.getByTestId("asset-preparation").getAttribute("aria-busy")).toBe("true");
   });
 
-  it("exposes real completed/total progress with progressbar semantics", () => {
+  it("reveals real completed/total progress only after the visual threshold", () => {
+    vi.useFakeTimers();
     renderView(
       state({
         stage: "decoding",
@@ -58,12 +59,54 @@ describe("AssetPreparationView", () => {
       }),
     );
 
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByTestId("asset-progress-count")).toBeNull();
+    expect(screen.getByTestId("asset-progress-status").textContent).toContain("Working");
+
+    act(() => vi.advanceTimersByTime(500));
+
     const progress = screen.getByRole("progressbar", { name: "Game asset preparation progress" });
     expect(progress.getAttribute("aria-valuemin")).toBe("0");
     expect(progress.getAttribute("aria-valuemax")).toBe("7");
     expect(progress.getAttribute("aria-valuenow")).toBe("4");
     expect(progress.getAttribute("aria-valuetext")).toBe("4 / 7 assets");
     expect(screen.getByTestId("asset-progress-count").textContent).toBe("4 / 7 assets");
+  });
+
+  it("does not flash detailed progress for an ultra-short preparation stage", () => {
+    vi.useFakeTimers();
+    const { rerender } = renderView(
+      state({
+        stage: "decoding",
+        installationFound: true,
+        buildVerified: true,
+        completed: 1,
+        total: 2,
+      }),
+    );
+    const progressRegion = screen.getByTestId("asset-progress");
+    const statusRegion = screen.getByTestId("asset-progress-status");
+
+    act(() => vi.advanceTimersByTime(250));
+    rerender(
+      <PreferencesProvider>
+        <AssetPreparationView
+          state={state({
+            stage: "ready",
+            installationFound: true,
+            buildVerified: true,
+            completed: null,
+            total: null,
+          })}
+        />
+      </PreferencesProvider>,
+    );
+    act(() => vi.advanceTimersByTime(500));
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByTestId("asset-progress-count")).toBeNull();
+    expect(screen.getByTestId("asset-progress")).toBe(progressRegion);
+    expect(screen.getByTestId("asset-progress-status")).toBe(statusRegion);
   });
 
   it("describes save upgrade discovery without inventing a backend preparation stage", () => {
@@ -76,7 +119,9 @@ describe("AssetPreparationView", () => {
       true,
     );
 
-    expect(screen.getAllByText("Reading save upgrade identities").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Reading save upgrade identities" })).toBeTruthy();
+    expect(screen.getAllByText("Reading save upgrade identities")).toHaveLength(1);
+    expect(screen.getByTestId("asset-progress-status").textContent).toContain("Working");
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 

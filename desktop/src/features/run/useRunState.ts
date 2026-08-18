@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { RunStateDto, RunStatDto } from "@electron/contracts";
+import type { RunStateDto, RunStatDto, SaveCanonicalRun } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
@@ -19,26 +19,38 @@ export function useRunState(saveId: string) {
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
 
-  const load = useCallback(async () => {
-    try {
-      const result = await window.repoditor.run.get(saveId);
-      if (mounted.current) {
-        setState(
-          result.ok
-            ? { run: result.data, error: null, loading: false }
-            : { run: null, error: operationErrorKey(result.error.code), loading: false },
-        );
+  const load = useCallback(
+    async (preserveExisting = false): Promise<boolean> => {
+      try {
+        const result = await window.repoditor.run.get(saveId);
+        if (!mounted.current) return result.ok;
+        if (result.ok) {
+          setState({ run: result.data, error: null, loading: false });
+          return true;
+        }
+        setState((current) => ({
+          run: preserveExisting ? current.run : null,
+          error: operationErrorKey(result.error.code),
+          loading: false,
+        }));
+        return false;
+      } catch {
+        if (mounted.current) {
+          setState((current) => ({
+            run: preserveExisting ? current.run : null,
+            error: "error.service",
+            loading: false,
+          }));
+        }
+        return false;
       }
-    } catch {
-      if (mounted.current) {
-        setState({ run: null, error: "error.service", loading: false });
-      }
-    }
-  }, [saveId]);
+    },
+    [saveId],
+  );
 
   useEffect(() => {
     mounted.current = true;
-    void load();
+    void load(false);
     return () => {
       mounted.current = false;
     };
@@ -92,6 +104,32 @@ export function useRunState(saveId: string) {
     });
   }
 
+  function applyAfterSave(value: SaveCanonicalRun): boolean {
+    const current = state.run;
+    if (current === null) return false;
+    const byKey = new Map(value.stats.map((stat) => [stat.key, stat.value]));
+    if (value.stats.some((stat) => !current.stats.some((entry) => entry.key === stat.key))) {
+      return false;
+    }
+    const resumeLocation =
+      value.resumeLocation === undefined
+        ? current.resumeLocation
+        : {
+            value: value.resumeLocation,
+            options: current.resumeLocation.options.includes(value.resumeLocation)
+              ? current.resumeLocation.options
+              : [...current.resumeLocation.options, value.resumeLocation],
+          };
+    const nextRun = {
+      stats: current.stats.map((stat) =>
+        byKey.has(stat.key) ? { ...stat, value: byKey.get(stat.key)! } : stat,
+      ),
+      resumeLocation,
+    };
+    setState({ run: nextRun, error: null, loading: false });
+    return true;
+  }
+
   function revertAll(): void {
     setPendingByField({});
   }
@@ -105,6 +143,8 @@ export function useRunState(saveId: string) {
     updateResume,
     revert,
     revertAll,
-    reload: load,
+    applyAfterSave,
+    reload: () => load(false),
+    refreshAfterSave: () => load(true),
   };
 }
