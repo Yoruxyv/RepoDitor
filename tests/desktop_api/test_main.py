@@ -85,6 +85,82 @@ def test_saves_write_cli_preserves_positional_payload_contract(monkeypatch, caps
     assert calls == [("save-id", "f" * 64, changes)]
 
 
+def test_saves_write_cli_passes_optional_recharge_evidence(monkeypatch, capsys) -> None:
+    captured: dict[str, object] = {}
+    changes = [
+        {
+            "feature": "advanced",
+            "entity": "Item Gun Tranq/1",
+            "field": "refillToFull",
+            "after": True,
+        }
+    ]
+    evidence = {"version": 1, "capabilities": []}
+
+    def fake(
+        save_id: str, fingerprint: str, payload: object, **kwargs: object
+    ) -> dict[str, object]:
+        captured.update(
+            save_id=save_id,
+            fingerprint=fingerprint,
+            payload=payload,
+            recharge_evidence=kwargs.get("recharge_evidence"),
+        )
+        return {"ok": True}
+
+    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "repo_save_editor.desktop_api",
+            "saves-write",
+            "save-id",
+            "f" * 64,
+            json.dumps(changes),
+            json.dumps(evidence),
+        ],
+    )
+
+    desktop_main.main()
+
+    assert json.loads(capsys.readouterr().out) == {"ok": True}
+    assert captured == {
+        "save_id": "save-id",
+        "fingerprint": "f" * 64,
+        "payload": changes,
+        "recharge_evidence": evidence,
+    }
+
+
+def test_saves_write_cli_ignores_malformed_optional_recharge_evidence(monkeypatch, capsys) -> None:
+    calls: list[tuple[object, ...]] = []
+    changes = [{"feature": "run", "entity": "run", "field": "currency", "after": 4}]
+
+    def fake(*args: object) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "repo_save_editor.desktop_api",
+            "saves-write",
+            "save-id",
+            "f" * 64,
+            json.dumps(changes),
+            "not-json",
+        ],
+    )
+
+    desktop_main.main()
+
+    assert json.loads(capsys.readouterr().out) == {"ok": True}
+    assert calls == [("save-id", "f" * 64, changes)]
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

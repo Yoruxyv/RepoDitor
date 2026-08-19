@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const require = createRequire(import.meta.url);
 const { PythonClientError } = require("../../dist-electron/python/client.cjs");
 const { openSave, saveChanges } = require("../../dist-electron/ipc/saves.cjs");
+const { RechargeEvidenceStore } = require("../../dist-electron/items/rechargeEvidence.cjs");
 
 function client(response: unknown) {
   return { run: vi.fn().mockResolvedValue(response), dispose: vi.fn() };
@@ -23,6 +24,30 @@ const session = {
   resumeLocation: "Normal",
 };
 const requiredUpgradeVisualKeys = ["playerUpgradeHealth"];
+
+function rechargeEvidence(capability = "rechargeable") {
+  return {
+    version: 1,
+    installationRoot: "C:/Steam/steamapps/common/REPO",
+    manifestPath: "C:/Steam/steamapps/appmanifest_3241660.acf",
+    buildId: "23363152",
+    resources: {
+      path: "C:/Steam/steamapps/common/REPO/REPO_Data/resources.assets",
+      size: "100",
+      mtimeNs: "200",
+      device: "1",
+      inode: "2",
+    },
+    globalManagers: {
+      path: "C:/Steam/steamapps/common/REPO/REPO_Data/globalgamemanagers.assets",
+      size: "300",
+      mtimeNs: "400",
+      device: "1",
+      inode: "3",
+    },
+    capabilities: [{ itemName: "Item Gun Tranq", capability }],
+  };
+}
 
 describe("openSave", () => {
   beforeEach(() => {
@@ -219,6 +244,93 @@ describe("saveChanges", () => {
       session.fingerprint,
       JSON.stringify(changes),
     ]);
+  });
+
+  it("passes exact private cached recharge evidence to Python and reuses it", async () => {
+    const updated = { ...session, fingerprint: "b".repeat(64) };
+    const fake = client({
+      ok: true,
+      result: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: updated,
+        canonical: { fingerprint: updated.fingerprint },
+      },
+    });
+    const store = new RechargeEvidenceStore();
+    expect(store.remember(rechargeEvidence())).toBe(true);
+    const changes = [
+      {
+        feature: "advanced",
+        entity: "Item Gun Tranq/1",
+        field: "refillToFull",
+        after: true,
+      },
+    ];
+
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, changes, store),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, changes, store),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(fake.run).toHaveBeenCalledTimes(2);
+    for (const call of fake.run.mock.calls) {
+      expect(call[0]).toBe("saves-write");
+      expect(call[1]).toHaveLength(4);
+      expect(JSON.parse(call[1][3])).toMatchObject({
+        capabilities: [{ itemName: "Item Gun Tranq", capability: "rechargeable" }],
+      });
+    }
+  });
+
+  it("avoids recharge evidence lookup for non-Recharge saves", async () => {
+    const updated = { ...session, fingerprint: "b".repeat(64), currency: 20 };
+    const fake = client({
+      ok: true,
+      result: {
+        backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
+        session: updated,
+        canonical: {
+          fingerprint: updated.fingerprint,
+          run: { stats: [{ key: "currency", value: 20 }] },
+        },
+      },
+    });
+    const evidence = { forRequestedItems: vi.fn(() => rechargeEvidence()) };
+
+    await expect(
+      saveChanges(
+        fake,
+        session.id,
+        session.fingerprint,
+        [{ feature: "run", entity: "run", field: "currency", after: 20 }],
+        evidence,
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(evidence.forRequestedItems).not.toHaveBeenCalled();
+    expect(fake.run).toHaveBeenCalledWith("saves-write", [
+      session.id,
+      session.fingerprint,
+      JSON.stringify([{ feature: "run", entity: "run", field: "currency", after: 20 }]),
+    ]);
+  });
+
+  it("does not let renderer changes smuggle trusted recharge evidence", async () => {
+    const fake = client({});
+    await expect(
+      saveChanges(fake, session.id, session.fingerprint, [
+        {
+          feature: "advanced",
+          entity: "Item Gun Tranq/1",
+          field: "refillToFull",
+          after: true,
+          rechargeEvidence: rechargeEvidence(),
+        },
+      ]),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    expect(fake.run).not.toHaveBeenCalled();
   });
 
   it("keeps a successful write usable when canonical state is incomplete or mismatched", async () => {

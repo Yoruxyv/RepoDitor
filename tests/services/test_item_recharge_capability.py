@@ -19,7 +19,7 @@ from tests.unity_serialized_fixture import (
 )
 
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.items import recharge_capability
+from repo_save_editor.services.items import recharge_evidence
 from repo_save_editor.services.items.installed_metadata import (
     _parse_game_object,
     _read_game_object_name,
@@ -28,6 +28,7 @@ from repo_save_editor.services.items.installed_metadata import (
 )
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_item_metadata_with_evidence,
     discover_installed_recharge_capabilities,
 )
 from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
@@ -267,12 +268,16 @@ def test_steam_discovery_requires_the_validated_game_build(
     )
 
     monkeypatch.setattr(
-        recharge_capability,
+        recharge_evidence,
         "discover_game_installation",
         lambda _game_dir: discover_game_installation(steam_roots=(tmp_path,), environment={}),
     )
     result = discover_installed_recharge_capabilities(("Item Rechargeable",))
     assert result == {"Item Rechargeable": ItemRechargeCapability.RECHARGEABLE}
+    metadata, evidence = discover_installed_item_metadata_with_evidence(("Item Rechargeable",))
+    assert metadata["Item Rechargeable"].recharge_capability is ItemRechargeCapability.RECHARGEABLE
+    assert evidence is not None
+    assert evidence.capabilities == (("Item Rechargeable", ItemRechargeCapability.RECHARGEABLE),)
 
     manifest.write_text(
         '"AppState" { "appid" "3241660" "installdir" "REPO" "buildid" "99999999" }',

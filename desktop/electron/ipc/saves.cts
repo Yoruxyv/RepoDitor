@@ -2,6 +2,10 @@ import { ipcMain } from "electron";
 
 import { assetPreparationService, type AssetPreparationService } from "../assets/preparation.cjs";
 import { IPC_CHANNELS } from "../channels.cjs";
+import {
+  rechargeEvidenceStore,
+  type RechargeEvidenceProvider,
+} from "../items/rechargeEvidence.cjs";
 import { readUpgradeVisualKey } from "../icons/registry.cjs";
 import {
   type DesktopOperationError,
@@ -28,6 +32,7 @@ const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 const MAX_CHANGES = 512;
 const MAX_REQUIRED_VISUAL_KEYS = 512;
+const MAX_RECHARGE_EVIDENCE_ARG_BYTES = 16 * 1024;
 const RUN_STAT_FIELDS = new Set(["level", "currency", "lives", "totalHaul"]);
 const SAVE_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
@@ -212,7 +217,8 @@ function parseChange(value: unknown): SaveChange {
     feature === "advanced" &&
     /^Item .+\/\d+$/.test(entity) &&
     field === "refillToFull" &&
-    value.after === true
+    typeof value.after === "boolean" &&
+    value.after
   ) {
     return { feature, entity, field, after: true };
   }
@@ -231,6 +237,35 @@ function parseChanges(value: unknown): SaveChange[] {
     throw new SaveProtocolError("Duplicate pending changes.");
   }
   return changes;
+}
+
+function requestedRechargeItemTypes(changes: readonly SaveChange[]): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const change of changes) {
+    if (change.feature !== "advanced") continue;
+    const separator = change.entity.lastIndexOf("/");
+    if (separator <= 0) continue;
+    const itemName = change.entity.slice(0, separator);
+    if (!seen.has(itemName)) {
+      seen.add(itemName);
+      names.push(itemName);
+    }
+  }
+  return names;
+}
+
+function rechargeEvidenceArgument(
+  changes: readonly SaveChange[],
+  evidence: RechargeEvidenceProvider,
+): string | null {
+  const itemTypes = requestedRechargeItemTypes(changes);
+  if (itemTypes.length === 0) return null;
+  const payload = evidence.forRequestedItems(itemTypes);
+  if (payload === null) return null;
+  const encoded: string | undefined = JSON.stringify(payload);
+  if (typeof encoded !== "string") return null;
+  return Buffer.byteLength(encoded, "utf8") <= MAX_RECHARGE_EVIDENCE_ARG_BYTES ? encoded : null;
 }
 
 const CANONICAL_CHARGE_STATES = new Set(["stored", "default_full", "not_applicable", "unknown"]);
@@ -529,6 +564,7 @@ export async function saveChanges(
   saveId: unknown,
   fingerprint: unknown,
   changes: unknown,
+  evidence: RechargeEvidenceProvider = rechargeEvidenceStore,
 ): Promise<DesktopOperationResult<SaveWriteResult>> {
   if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
     return {
@@ -548,10 +584,10 @@ export async function saveChanges(
     };
   }
   try {
-    const result = parseWriteResponse(
-      await client.run("saves-write", [saveId, safeFingerprint, JSON.stringify(safeChanges)]),
-      safeChanges,
-    );
+    const arguments_ = [saveId, safeFingerprint, JSON.stringify(safeChanges)];
+    const cachedEvidence = rechargeEvidenceArgument(safeChanges, evidence);
+    if (cachedEvidence !== null) arguments_.push(cachedEvidence);
+    const result = parseWriteResponse(await client.run("saves-write", arguments_), safeChanges);
     if (result.ok && result.data.session.id !== saveId) {
       throw new SaveProtocolError("Save response ID did not match the request.");
     }
@@ -567,6 +603,7 @@ export function registerSaveIpc(
     AssetPreparationService,
     "checkUpgradeVisualReadiness"
   > = assetPreparationService,
+  evidence: RechargeEvidenceProvider = rechargeEvidenceStore,
 ): void {
   ipcMain.handle(IPC_CHANNELS.savesOpen, (_event, saveId: unknown) =>
     openSave(client, saveId, preparation),
@@ -574,6 +611,6 @@ export function registerSaveIpc(
   ipcMain.handle(
     IPC_CHANNELS.savesWrite,
     (_event, saveId: unknown, fingerprint: unknown, changes: unknown) =>
-      saveChanges(client, saveId, fingerprint, changes),
+      saveChanges(client, saveId, fingerprint, changes, evidence),
   );
 }

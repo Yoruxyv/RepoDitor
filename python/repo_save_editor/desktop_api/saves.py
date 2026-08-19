@@ -24,6 +24,7 @@ from repo_save_editor.services.items.models import AdvancedSaveError, ItemRechar
 from repo_save_editor.services.items.recharge_capability import (
     discover_installed_recharge_capabilities,
 )
+from repo_save_editor.services.items.recharge_evidence import verify_recharge_evidence
 from repo_save_editor.services.player.state import get_player_health, get_players
 from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
 from repo_save_editor.services.run import get_resume_location_label, get_run_stat
@@ -44,6 +45,10 @@ from repo_save_editor.storage.repository import (
 RechargeCapabilityLoader = Callable[
     [tuple[str, ...]],
     Mapping[str, ItemRechargeCapability],
+]
+RechargeEvidenceVerifier = Callable[
+    [object, tuple[str, ...]],
+    Mapping[str, ItemRechargeCapability] | None,
 ]
 
 
@@ -219,6 +224,8 @@ def save_changes(
     recharge_capability_loader: RechargeCapabilityLoader = (
         discover_installed_recharge_capabilities
     ),
+    recharge_evidence: object | None = None,
+    recharge_evidence_verifier: RechargeEvidenceVerifier = verify_recharge_evidence,
 ) -> dict[str, object]:
     """Validate and safely persist one typed set of pending changes.
 
@@ -251,9 +258,20 @@ def save_changes(
                 "The save changed after it was opened. Reopen it before saving edits.",
             )
         refill_item_types = requested_refill_item_types(changes)
-        recharge_capabilities = (
-            recharge_capability_loader(refill_item_types) if refill_item_types else {}
-        )
+        recharge_capabilities: Mapping[str, ItemRechargeCapability]
+        if refill_item_types:
+            verified_evidence = (
+                recharge_evidence_verifier(recharge_evidence, refill_item_types)
+                if recharge_evidence is not None
+                else None
+            )
+            recharge_capabilities = (
+                verified_evidence
+                if verified_evidence is not None
+                else recharge_capability_loader(refill_item_types)
+            )
+        else:
+            recharge_capabilities = {}
         apply_run_save_changes(data, changes, recharge_capabilities)
         backup, written = SaveRepository(save.path.parent).overwrite(
             save.path,

@@ -15,6 +15,7 @@ import {
   readUpgradeVisualKey,
   type LocalIconRegistry,
 } from "../icons/registry.cjs";
+import { rechargeEvidenceStore, type RechargeEvidenceStore } from "../items/rechargeEvidence.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {
   EditorProtocolError,
@@ -224,12 +225,18 @@ export async function getAdvancedSave(
   client: PythonClient,
   saveId: unknown,
   icons: LocalIconRegistry = localIconRegistry,
+  evidenceStore: Pick<RechargeEvidenceStore, "remember"> = rechargeEvidenceStore,
 ): Promise<DesktopOperationResult<AdvancedSaveDto>> {
   if (!validSaveId(saveId)) {
     return invalidSaveId();
   }
   try {
-    return parseAdvanced(await client.run("advanced-get", [saveId]), icons);
+    const response = await client.run("advanced-get", [saveId]);
+    const result = parseAdvanced(response, icons);
+    if (result.ok && isRecord(response)) {
+      evidenceStore.remember(response.rechargeEvidence);
+    }
+    return result;
   } catch (error) {
     return failure("advanced data", error);
   }

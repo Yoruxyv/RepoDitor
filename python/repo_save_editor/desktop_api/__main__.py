@@ -104,7 +104,17 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
     changes = _parse_changes(args.payload)
     if changes is _INVALID_JSON:
         return _invalid_request("The pending changes payload is invalid.")
-    return save_changes(args.save_id, args.fingerprint, changes)
+    if args.recharge_evidence is None:
+        return save_changes(args.save_id, args.fingerprint, changes)
+    parsed_evidence = _parse_changes(args.recharge_evidence)
+    if parsed_evidence is _INVALID_JSON:
+        return save_changes(args.save_id, args.fingerprint, changes)
+    return save_changes(
+        args.save_id,
+        args.fingerprint,
+        changes,
+        recharge_evidence=parsed_evidence,
+    )
 
 
 def _save_cosmetics(args: argparse.Namespace) -> dict[str, object]:
@@ -134,6 +144,7 @@ def _parser() -> argparse.ArgumentParser:
     saves_write.add_argument("save_id", nargs="?")
     saves_write.add_argument("fingerprint", nargs="?")
     saves_write.add_argument("payload", nargs="?")
+    saves_write.add_argument("recharge_evidence", nargs="?")
     saves_write.set_defaults(handler=_save_changes)
 
     players_list = commands.add_parser("players-list")

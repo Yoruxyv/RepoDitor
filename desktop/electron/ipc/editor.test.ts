@@ -130,6 +130,49 @@ describe("editor data IPC", () => {
     ]);
   });
 
+  it("stores authoritative recharge evidence privately without exposing it to the renderer", async () => {
+    const evidence = {
+      version: 1,
+      installationRoot: "C:/REPO",
+      manifestPath: "C:/Steam/appmanifest_3241660.acf",
+      buildId: "23363152",
+      resources: {
+        path: "C:/REPO/resources.assets",
+        size: "1",
+        mtimeNs: "2",
+        device: "3",
+        inode: "4",
+      },
+      globalManagers: {
+        path: "C:/REPO/globalgamemanagers.assets",
+        size: "5",
+        mtimeNs: "6",
+        device: "7",
+        inode: "8",
+      },
+      capabilities: [{ itemName: "Item Gun Tranq", capability: "rechargeable" }],
+    };
+    const owner = { remember: vi.fn().mockReturnValue(true) };
+
+    const result = await getAdvancedSave(
+      client({
+        ok: true,
+        advanced: { domains: advancedDomains, items: [], unlinkedChargeEntryCount: 0 },
+        rechargeEvidence: evidence,
+      }),
+      saveId,
+      new LocalIconRegistry(),
+      owner,
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: { domains: advancedDomains, items: [], unlinkedChargeEntryCount: 0 },
+    });
+    expect(owner.remember).toHaveBeenCalledWith(evidence);
+    expect(result).not.toHaveProperty("rechargeEvidence");
+  });
+
   it("rejects invalid save IDs before starting Python", async () => {
     const fake = client({});
     await expect(listUpgrades(fake, "C:\\save.es3")).resolves.toMatchObject({

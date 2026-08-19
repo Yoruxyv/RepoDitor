@@ -8,6 +8,10 @@ from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
+from repo_save_editor.services.items.recharge_evidence import (
+    InstalledFileIdentity,
+    RechargeEvidence,
+)
 from repo_save_editor.services.player.upgrades import (
     UpgradePresentation,
     UpgradePresentationSource,
@@ -241,6 +245,58 @@ def test_advanced_read_marks_matching_upgrade_item_for_internal_visual_resolutio
             "upgradeVisualKey": "playerUpgradeStrength",
         }
     ]
+
+
+def test_advanced_read_returns_private_recharge_evidence_from_authoritative_metadata(
+    tmp_path: Path, sample_save
+) -> None:
+    sample_save["dictionaryOfDictionaries"]["value"]["item"] = {"Item Gun Tranq/1": 15}
+    save_path = _write_save(tmp_path, sample_save)
+    source = InstalledFileIdentity("C:/REPO/resources.assets", 10, 20, 30, 40)
+    evidence = RechargeEvidence(
+        version=1,
+        installation_root="C:/REPO",
+        manifest_path="C:/Steam/appmanifest_3241660.acf",
+        build_id="23363152",
+        resources=source,
+        global_managers=InstalledFileIdentity("C:/REPO/globalgamemanagers.assets", 11, 21, 31, 41),
+        capabilities=(("Item Gun Tranq", ItemRechargeCapability.RECHARGEABLE),),
+    )
+
+    result = get_advanced_save(
+        save_path.parent.name,
+        tmp_path,
+        metadata_evidence_loader=lambda names: (
+            {
+                name: InstalledItemMetadata(ItemRechargeCapability.RECHARGEABLE, None)
+                for name in names
+            },
+            evidence,
+        ),
+    )
+
+    assert result["ok"] is True
+    assert result["rechargeEvidence"] == {
+        "version": 1,
+        "installationRoot": "C:/REPO",
+        "manifestPath": "C:/Steam/appmanifest_3241660.acf",
+        "buildId": "23363152",
+        "resources": {
+            "path": "C:/REPO/resources.assets",
+            "size": "10",
+            "mtimeNs": "20",
+            "device": "30",
+            "inode": "40",
+        },
+        "globalManagers": {
+            "path": "C:/REPO/globalgamemanagers.assets",
+            "size": "11",
+            "mtimeNs": "21",
+            "device": "31",
+            "inode": "41",
+        },
+        "capabilities": [{"itemName": "Item Gun Tranq", "capability": "rechargeable"}],
+    }
 
 
 def test_advanced_read_enriches_only_currently_available_canonical_item_icons(
