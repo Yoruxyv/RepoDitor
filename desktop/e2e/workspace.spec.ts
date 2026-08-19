@@ -187,7 +187,7 @@ test("covers the source workspace, shell, and editor domains", async () => {
       environment: ["detect"],
       game: ["status"],
       players: ["avatar", "list"],
-      upgrades: ["list"],
+      upgrades: ["list", "prepareEntry"],
       run: ["get"],
       advanced: ["get"],
       cosmetics: ["get", "write"],
