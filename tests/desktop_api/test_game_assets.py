@@ -129,6 +129,7 @@ def test_preparation_emits_indeterminate_start_then_real_completed_total(
         *,
         on_stage,
         on_texture,
+        on_decode_start,
     ) -> UpgradeTextureBatchResult:
         assert requested == keys
         assert passed_installation is installation
@@ -139,6 +140,7 @@ def test_preparation_emits_indeterminate_start_then_real_completed_total(
         textures = []
         for key in requested:
             decoded = _decoded(key, tmp_path)
+            on_decode_start(key, decoded.texture.name)
             on_texture(key, decoded)
             textures.append((key, decoded))
         return UpgradeTextureBatchResult(True, True, True, tuple(textures))
@@ -148,17 +150,25 @@ def test_preparation_emits_indeterminate_start_then_real_completed_total(
 
     prepare_game_assets(keys, records.append)
 
-    assert [record["stage"] for record in records if record["type"] == "progress"] == [
-        "indexing",
-        "resolving",
-        "decoding",
-    ]
+    progress_stages = [record["stage"] for record in records if record["type"] == "progress"]
+    assert progress_stages[:3] == ["indexing", "resolving", "decoding"]
+    assert progress_stages[3:] == ["decoding", "decoding", "decoding"]
     assert all(
         record["installationFound"] is True and record["buildVerified"] is True
         for record in records
         if record["type"] == "progress"
     )
     assert [record["completed"] for record in records if record["type"] == "texture"] == [1, 2, 3]
+    decoding_details = [
+        record["currentAsset"]
+        for record in records
+        if record["type"] == "progress" and record["stage"] == "decoding"
+    ]
+    assert decoding_details[-3:] == [
+        "Upgrade_Health_Albedo",
+        "Upgrade_Health_Albedo",
+        "Upgrade_Health_Albedo",
+    ]
     assert records[-1] == {
         "type": "final",
         "ok": True,
@@ -260,11 +270,12 @@ def test_partial_decode_failure_finishes_all_real_units_and_degrades(
     )
     monkeypatch.setattr(game_assets, "validated_installed_build", lambda _installation: build)
 
-    def prepare(requested, _installation, _build, *, on_stage, on_texture):
+    def prepare(requested, _installation, _build, *, on_stage, on_texture, on_decode_start):
         on_stage(UpgradePreparationStage.INDEXING, True, True)
         on_stage(UpgradePreparationStage.RESOLVING, True, True)
         on_stage(UpgradePreparationStage.DECODING, True, True)
         first = _decoded(requested[0], tmp_path)
+        on_decode_start(requested[0], first.texture.name)
         on_texture(requested[0], first)
         on_texture(requested[1], None)
         return UpgradeTextureBatchResult(

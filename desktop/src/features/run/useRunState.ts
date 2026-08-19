@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { RunStateDto, RunStatDto, SaveCanonicalRun } from "@electron/contracts";
+import type {
+  DesktopOperationResult,
+  RunStateDto,
+  RunStatDto,
+  SaveCanonicalRun,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
@@ -13,9 +18,20 @@ interface State {
 
 const INITIAL_STATE: State = { run: null, error: null, loading: true };
 
-export function useRunState(saveId: string) {
+function initialState(result: DesktopOperationResult<RunStateDto> | null): State {
+  if (result === null) return INITIAL_STATE;
+  return result.ok
+    ? { run: result.data, error: null, loading: false }
+    : { run: null, error: operationErrorKey(result.error.code), loading: false };
+}
+
+export function useRunState(
+  saveId: string,
+  initialResult: DesktopOperationResult<RunStateDto> | null = null,
+) {
   const { t } = usePreferences();
-  const [state, setState] = useState<State>(INITIAL_STATE);
+  const [state, setState] = useState<State>(() => initialState(initialResult));
+  const initialResultRef = useRef(initialResult);
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
 
@@ -50,7 +66,7 @@ export function useRunState(saveId: string) {
 
   useEffect(() => {
     mounted.current = true;
-    void load(false);
+    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };

@@ -256,6 +256,7 @@ export const readyAssets: AssetPreparationState = {
   buildVerified: true,
   completed: null,
   total: null,
+  currentAsset: null,
   degraded: false,
 };
 

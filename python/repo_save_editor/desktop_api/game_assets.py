@@ -62,6 +62,7 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
         stage: UpgradePreparationStage,
         installation_found: bool,
         build_verified: bool,
+        current_asset: str | None = None,
     ) -> None:
         emit(
             {
@@ -71,8 +72,17 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
                 "buildVerified": build_verified,
                 "completed": completed if total else None,
                 "total": total if total else None,
+                "currentAsset": current_asset,
                 "degraded": False,
             }
+        )
+
+    def emit_decode_start(_key: str, texture_name: str) -> None:
+        emit_progress(
+            UpgradePreparationStage.DECODING,
+            True,
+            True,
+            texture_name,
         )
 
     def emit_texture(key: str, decoded: DecodedUpgradeTexture | None) -> None:
@@ -147,6 +157,7 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
         build,
         on_stage=emit_progress,
         on_texture=emit_texture,
+        on_decode_start=emit_decode_start,
     )
     if total and completed < total:
         failures += total - completed

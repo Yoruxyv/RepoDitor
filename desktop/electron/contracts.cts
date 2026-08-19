@@ -43,6 +43,7 @@ export interface AssetPreparationState {
   buildVerified: boolean;
   completed: number | null;
   total: number | null;
+  currentAsset: string | null;
   degraded: boolean;
 }
 

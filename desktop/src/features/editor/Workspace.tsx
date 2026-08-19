@@ -3,8 +3,6 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 
 import type {
   AssetPreparationState,
-  DesktopOperationResult,
-  PlayerUpgradeDto,
   SaveChange,
   SaveSession,
   SaveWriteResult,
@@ -24,6 +22,7 @@ import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView, type OverviewDestination } from "@/features/editor/OverviewView";
+import type { RunEntryData } from "@/features/editor/runEntryPreparation";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-changes/pendingEdits";
 
@@ -48,7 +47,7 @@ interface WorkspaceProps {
   readonly saving: boolean;
   readonly saveError: string | null;
   readonly backupPath: string | null;
-  readonly initialUpgradeLoad: Promise<DesktopOperationResult<PlayerUpgradeDto[]>> | null;
+  readonly initialEntryData: RunEntryData | null;
   readonly onPendingCountChange: (count: number) => void;
   readonly onActiveSectionChange: (section: WorkspaceSection) => void;
   readonly onClose: () => void;
@@ -62,7 +61,7 @@ export function Workspace({
   saving,
   saveError,
   backupPath,
-  initialUpgradeLoad,
+  initialEntryData,
   onPendingCountChange,
   onActiveSectionChange,
   onClose,
@@ -71,11 +70,15 @@ export function Workspace({
   const [postSaveRefreshing, setPostSaveRefreshing] = useState(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
-  const players = usePlayers(session.id);
-  const upgrades = useUpgrades(session.id, initialUpgradeLoad);
-  const run = useRunState(session.id);
-  const items = useItems(session.id);
-  const maps = useMaps();
+  const players = usePlayers(
+    session.id,
+    initialEntryData?.players ?? null,
+    initialEntryData?.avatarUrls ?? {},
+  );
+  const upgrades = useUpgrades(session.id, initialEntryData?.upgrades ?? null);
+  const run = useRunState(session.id, initialEntryData?.run ?? null);
+  const items = useItems(session.id, initialEntryData?.items ?? null);
+  const maps = useMaps(initialEntryData?.maps ?? null);
   const runSavePendingEdits: RunSavePendingEdit[] = [
     ...players.pendingEdits,
     ...upgrades.pendingEdits,

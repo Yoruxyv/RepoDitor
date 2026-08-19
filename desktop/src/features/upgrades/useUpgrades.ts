@@ -55,21 +55,23 @@ function applyCanonicalUpgradeValues(
 
 export function useUpgrades(
   saveId: string,
-  initialLoad: Promise<DesktopOperationResult<PlayerUpgradeDto[]>> | null = null,
+  initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
 ) {
   const { t } = usePreferences();
-  const [state, setState] = useState<UpgradesState>(INITIAL_STATE);
+  const [state, setState] = useState<UpgradesState>(() => {
+    if (initialResult === null) return INITIAL_STATE;
+    return initialResult.ok
+      ? { upgrades: initialResult.data, error: null, loading: false }
+      : { upgrades: [], error: operationErrorKey(initialResult.error.code), loading: false };
+  });
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
-  const initialLoadRef = useRef(initialLoad);
+  const initialResultRef = useRef(initialResult);
 
   const load = useCallback(
-    async (preserveExisting = false, useInitial = false): Promise<boolean> => {
+    async (preserveExisting = false): Promise<boolean> => {
       try {
-        const resolved =
-          useInitial && initialLoadRef.current !== null
-            ? await initialLoadRef.current
-            : await window.repoditor.upgrades.list(saveId);
+        const resolved = await window.repoditor.upgrades.list(saveId);
         if (!mounted.current) return resolved.ok;
         if (resolved.ok) {
           setState({ upgrades: resolved.data, error: null, loading: false });
@@ -97,7 +99,7 @@ export function useUpgrades(
 
   useEffect(() => {
     mounted.current = true;
-    void load(false, true);
+    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { AdvancedItemDto, AdvancedSaveDto, SaveCanonicalAdvanced } from "@electron/contracts";
+import type {
+  AdvancedItemDto,
+  AdvancedSaveDto,
+  DesktopOperationResult,
+  SaveCanonicalAdvanced,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
@@ -12,6 +17,13 @@ interface State {
 }
 
 const INITIAL_STATE: State = { advanced: null, error: null, loading: true };
+
+function initialState(result: DesktopOperationResult<AdvancedSaveDto> | null): State {
+  if (result === null) return INITIAL_STATE;
+  return result.ok
+    ? { advanced: result.data, error: null, loading: false }
+    : { advanced: null, error: operationErrorKey(result.error.code), loading: false };
+}
 
 function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
   if (!item.canRefillToFull || item.chargeState !== "stored" || item.storedCharge === null)
@@ -27,9 +39,13 @@ function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
   };
 }
 
-export function useItems(saveId: string) {
+export function useItems(
+  saveId: string,
+  initialResult: DesktopOperationResult<AdvancedSaveDto> | null = null,
+) {
   const { t } = usePreferences();
-  const [state, setState] = useState<State>(INITIAL_STATE);
+  const [state, setState] = useState<State>(() => initialState(initialResult));
+  const initialResultRef = useRef(initialResult);
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});
   const mounted = useRef(false);
 
@@ -64,7 +80,7 @@ export function useItems(saveId: string) {
 
   useEffect(() => {
     mounted.current = true;
-    void load(false);
+    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };

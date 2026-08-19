@@ -19,7 +19,12 @@ function final(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function progress(stage: string, completed: number | null, total: number | null) {
+function progress(
+  stage: string,
+  completed: number | null,
+  total: number | null,
+  currentAsset: string | null = null,
+) {
   return {
     type: "progress",
     stage,
@@ -27,6 +32,7 @@ function progress(stage: string, completed: number | null, total: number | null)
     buildVerified: !["discovering", "validating"].includes(stage),
     completed,
     total,
+    currentAsset,
     degraded: false,
   };
 }
@@ -84,8 +90,36 @@ describe("AssetPreparationService", () => {
       buildVerified: true,
       completed: null,
       total: null,
+      currentAsset: null,
       degraded: false,
     });
+  });
+
+  it("surfaces the actual texture currently being decoded", async () => {
+    const fakeCache = cache();
+    const fakeClient = client(async (_command, request, onRecord) => {
+      const [key] = request;
+      await onRecord(progress("decoding", 0, 1, "Upgrade_Health_Albedo"));
+      await onRecord({
+        type: "texture",
+        upgradeKey: key,
+        texture: { opaque: true },
+        completed: 1,
+        total: 1,
+      });
+      return final({ completed: 1, total: 1 });
+    });
+    const service = new AssetPreparationService(fakeClient, fakeCache);
+    const currentAssets: Array<string | null> = [];
+    service.subscribe((state: { currentAsset: string | null }) => {
+      currentAssets.push(state.currentAsset);
+    });
+
+    await service.prepareUpgradeVisuals([{ upgradeKey: "playerUpgradeHealth", cacheKey: null }]);
+
+    expect(fakeCache.storePrepared).toHaveBeenCalledTimes(1);
+    expect(currentAssets).toContain("Upgrade_Health_Albedo");
+    expect(service.getState()).toMatchObject({ currentAsset: null, stage: "ready" });
   });
 
   it("reuses a degraded startup capability result without spawning a save batch", async () => {
@@ -115,6 +149,7 @@ describe("AssetPreparationService", () => {
       buildVerified: false,
       completed: 2,
       total: 2,
+      currentAsset: null,
       degraded: true,
     });
   });
@@ -317,11 +352,20 @@ describe("AssetPreparationService", () => {
         buildVerified,
         completed: 2,
         total: 2,
+        currentAsset: null,
         degraded: true,
       });
       expect(
         Object.keys(service.getState()).sort((left, right) => left.localeCompare(right)),
-      ).toEqual(["buildVerified", "completed", "degraded", "installationFound", "stage", "total"]);
+      ).toEqual([
+        "buildVerified",
+        "completed",
+        "currentAsset",
+        "degraded",
+        "installationFound",
+        "stage",
+        "total",
+      ]);
     },
   );
 

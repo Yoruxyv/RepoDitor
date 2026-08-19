@@ -12,6 +12,7 @@ function state(overrides: Partial<AssetPreparationState> = {}): AssetPreparation
     buildVerified: false,
     completed: null,
     total: null,
+    currentAsset: null,
     degraded: false,
     ...overrides,
   };
@@ -19,14 +20,16 @@ function state(overrides: Partial<AssetPreparationState> = {}): AssetPreparation
 
 function renderView(
   value: AssetPreparationState,
-  waitingForUpgradeDiscovery = false,
+  mode: "save" | "artwork" = "artwork",
+  saveDetail?: string,
   onContinue?: () => void,
 ) {
   return render(
     <PreferencesProvider>
       <AssetPreparationView
+        mode={mode}
         state={value}
-        waitingForUpgradeDiscovery={waitingForUpgradeDiscovery}
+        {...(saveDetail === undefined ? {} : { saveDetail })}
         {...(onContinue === undefined ? {} : { onContinue })}
       />
     </PreferencesProvider>,
@@ -42,7 +45,10 @@ describe("AssetPreparationView", () => {
     renderView(state({ stage: "validating", installationFound: true }));
 
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Validating installed build" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Validating installed build",
+    );
     expect(screen.getByText("Working")).toBeTruthy();
     expect(screen.getByTestId("asset-preparation").getAttribute("aria-busy")).toBe("true");
   });
@@ -109,26 +115,42 @@ describe("AssetPreparationView", () => {
     expect(screen.getByTestId("asset-progress-status")).toBe(statusRegion);
   });
 
-  it("describes save upgrade discovery without inventing a backend preparation stage", () => {
+  it("uses an informative indeterminate shell for save-specific editor loading", () => {
     renderView(
-      state({
-        stage: "ready",
-        installationFound: true,
-        buildVerified: true,
-      }),
-      true,
+      state({ stage: "ready", installationFound: true, buildVerified: true }),
+      "save",
+      "Loading item data…",
     );
 
-    expect(screen.getByRole("heading", { name: "Reading save upgrade identities" })).toBeTruthy();
-    expect(screen.getAllByText("Reading save upgrade identities")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe("Loading item data…");
+    expect(screen.getByTestId("asset-preparation").getAttribute("data-entry-mode")).toBe("save");
     expect(screen.getByTestId("asset-progress-status").textContent).toContain("Working");
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("shows the actual decoded texture name without duplicating the big title", () => {
+    renderView(
+      state({
+        stage: "decoding",
+        installationFound: true,
+        buildVerified: true,
+        completed: 1,
+        total: 3,
+        currentAsset: "Upgrade_Health_Albedo",
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Decoding Upgrade_Health_Albedo…",
+    );
   });
 
   it("offers a bounded editor escape after the slow threshold without inventing progress", () => {
     vi.useFakeTimers();
     const onContinue = vi.fn();
-    renderView(state(), false, onContinue);
+    renderView(state(), "artwork", undefined, onContinue);
 
     expect(screen.getByText(/Reading your local installation/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue to editor" })).toBeNull();

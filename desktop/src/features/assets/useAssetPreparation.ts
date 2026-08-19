@@ -8,6 +8,7 @@ const INITIAL_STATE: AssetPreparationState = {
   buildVerified: false,
   completed: null,
   total: null,
+  currentAsset: null,
   degraded: false,
 };
 
