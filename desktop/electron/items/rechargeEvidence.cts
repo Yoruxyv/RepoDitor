@@ -53,10 +53,7 @@ function readDecimalString(value: unknown): string | null {
 }
 
 function parseSourceIdentity(value: unknown): SourceIdentity | null {
-  if (
-    !isRecord(value) ||
-    !hasExactKeys(value, ["path", "size", "mtimeNs", "device", "inode"])
-  ) {
+  if (!isRecord(value) || !hasExactKeys(value, ["path", "size", "mtimeNs", "device", "inode"])) {
     return null;
   }
   const path = readString(value.path, MAX_PATH_CHARS);
@@ -64,11 +61,7 @@ function parseSourceIdentity(value: unknown): SourceIdentity | null {
   const mtimeNs = readDecimalString(value.mtimeNs);
   const device = readDecimalString(value.device);
   const inode = readDecimalString(value.inode);
-  return path !== null &&
-    size !== null &&
-    mtimeNs !== null &&
-    device !== null &&
-    inode !== null
+  return path !== null && size !== null && mtimeNs !== null && device !== null && inode !== null
     ? { path, size, mtimeNs, device, inode }
     : null;
 }
@@ -109,10 +102,7 @@ function parseEvidence(value: unknown): ParsedEvidence | null {
 
   const capabilities = new Map<string, RechargeCapability>();
   for (const rawCapability of value.capabilities) {
-    if (
-      !isRecord(rawCapability) ||
-      !hasExactKeys(rawCapability, ["itemName", "capability"])
-    ) {
+    if (!isRecord(rawCapability) || !hasExactKeys(rawCapability, ["itemName", "capability"])) {
       return null;
     }
     const itemName = readString(rawCapability.itemName, MAX_ITEM_NAME_CHARS);

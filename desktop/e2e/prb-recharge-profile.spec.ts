@@ -76,7 +76,10 @@ async function cloneSave(home: string, sourcePath: string): Promise<void> {
 }
 
 async function openThroughUi(page: Page, saveId: string): Promise<void> {
-  await page.getByRole("button").filter({ hasText: displayName(saveId) }).click();
+  await page
+    .getByRole("button")
+    .filter({ hasText: displayName(saveId) })
+    .click();
   await page.getByTestId("workspace").waitFor({ state: "visible", timeout: 60_000 });
 }
 
@@ -87,11 +90,9 @@ async function directRecharge(page: Page, scenario: string, saveId: string): Pro
   record("scenario_start", { scenario });
   const result = await page.evaluate(
     async ({ id, fingerprint, change }) =>
-      window.repoditor.saves.write(
-        id,
-        fingerprint,
-        [change] as Parameters<typeof window.repoditor.saves.write>[2],
-      ),
+      window.repoditor.saves.write(id, fingerprint, [change] as Parameters<
+        typeof window.repoditor.saves.write
+      >[2]),
     { id: saveId, fingerprint: opened.data.session.fingerprint, change: RECHARGE_CHANGE },
   );
   record("scenario_end", { scenario });
