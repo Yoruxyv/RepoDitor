@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import Mock
 
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
@@ -224,6 +225,176 @@ def test_unverified_refill_capability_blocks_write_before_backup(
     assert result["error"]["code"] == "save_validation_failed"
     assert path.read_bytes() == original
     assert not list(path.parent.glob("*.bak-*"))
+
+
+def _prepare_recharge_fixture(tmp_path: Path, sample_save) -> tuple[Path, bytes]:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["item"] = {"Item Gun Tranq/1": 15}
+    dictionaries["itemStatBattery"] = {"Item Gun Tranq/1": 5}
+    path = _write_fixture(tmp_path, sample_save)
+    return path, path.read_bytes()
+
+
+def _recharge_change() -> list[dict[str, object]]:
+    return [
+        {
+            "feature": "advanced",
+            "entity": "Item Gun Tranq/1",
+            "field": "refillToFull",
+            "after": True,
+        }
+    ]
+
+
+def test_valid_recharge_evidence_skips_full_capability_discovery_and_preserves_backup(
+    tmp_path: Path, sample_save
+) -> None:
+    path, original = _prepare_recharge_fixture(tmp_path, sample_save)
+    full_discovery = Mock(side_effect=AssertionError("full discovery should be skipped"))
+    verifier = Mock(return_value={"Item Gun Tranq": ItemRechargeCapability.RECHARGEABLE})
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        _recharge_change(),
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=full_discovery,
+        recharge_evidence={"version": 1},
+        recharge_evidence_verifier=verifier,
+    )
+
+    assert result["ok"] is True
+    verifier.assert_called_once_with({"version": 1}, ("Item Gun Tranq",))
+    full_discovery.assert_not_called()
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+
+
+def test_missing_recharge_evidence_falls_back_to_full_discovery(
+    tmp_path: Path, sample_save
+) -> None:
+    path, _original = _prepare_recharge_fixture(tmp_path, sample_save)
+    full_discovery = Mock(return_value={"Item Gun Tranq": ItemRechargeCapability.RECHARGEABLE})
+    verifier = Mock(side_effect=AssertionError("missing evidence must not invoke verifier"))
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        _recharge_change(),
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=full_discovery,
+        recharge_evidence_verifier=verifier,
+    )
+
+    assert result["ok"] is True
+    verifier.assert_not_called()
+    full_discovery.assert_called_once_with(("Item Gun Tranq",))
+
+
+def test_missing_or_invalid_recharge_evidence_falls_back_to_full_discovery(
+    tmp_path: Path, sample_save
+) -> None:
+    path, _original = _prepare_recharge_fixture(tmp_path, sample_save)
+    full_discovery = Mock(return_value={"Item Gun Tranq": ItemRechargeCapability.RECHARGEABLE})
+    verifier = Mock(return_value=None)
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        _recharge_change(),
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=full_discovery,
+        recharge_evidence={"malformed": True},
+        recharge_evidence_verifier=verifier,
+    )
+
+    assert result["ok"] is True
+    verifier.assert_called_once()
+    full_discovery.assert_called_once_with(("Item Gun Tranq",))
+
+
+def test_unknown_or_not_rechargeable_evidence_never_authorizes_refill(
+    tmp_path: Path, sample_save
+) -> None:
+    for capability in (
+        ItemRechargeCapability.UNKNOWN,
+        ItemRechargeCapability.NOT_RECHARGEABLE,
+    ):
+        case = deepcopy(sample_save)
+        path, original = _prepare_recharge_fixture(tmp_path, case)
+        full_discovery = Mock(side_effect=AssertionError("verified evidence must not rescan"))
+
+        result = save_changes(
+            path.parent.name,
+            _fingerprint(tmp_path),
+            _recharge_change(),
+            tmp_path,
+            game_status_loader=_game_closed,
+            recharge_capability_loader=full_discovery,
+            recharge_evidence={"version": 1},
+            recharge_evidence_verifier=lambda _value, _names, capability=capability: {
+                "Item Gun Tranq": capability
+            },
+        )
+
+        assert result["error"]["code"] == "save_validation_failed"
+        assert path.read_bytes() == original
+        assert not list(path.parent.glob("*.bak-*"))
+        full_discovery.assert_not_called()
+
+
+def test_non_recharge_save_avoids_recharge_evidence_machinery(tmp_path: Path, sample_save) -> None:
+    path = _write_fixture(tmp_path, sample_save)
+    verifier = Mock(side_effect=AssertionError("non-Recharge save must not verify evidence"))
+    full_discovery = Mock(
+        side_effect=AssertionError("non-Recharge save must not discover evidence")
+    )
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 41}],
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=full_discovery,
+        recharge_evidence={"version": 1},
+        recharge_evidence_verifier=verifier,
+    )
+
+    assert result["ok"] is True
+    verifier.assert_not_called()
+    full_discovery.assert_not_called()
+
+
+def test_stale_recharge_save_is_rejected_before_cached_evidence_is_considered(
+    tmp_path: Path, sample_save
+) -> None:
+    path, _original = _prepare_recharge_fixture(tmp_path, sample_save)
+    opened_fingerprint = _fingerprint(tmp_path)
+    external = deepcopy(sample_save)
+    external["dictionaryOfDictionaries"]["value"]["runStats"]["currency"] = 777
+    SaveRepository(tmp_path).save_as(path, external)
+    external_bytes = path.read_bytes()
+    verifier = Mock(
+        side_effect=AssertionError("stale saves must fail before evidence verification")
+    )
+
+    result = save_changes(
+        path.parent.name,
+        opened_fingerprint,
+        _recharge_change(),
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_evidence={"version": 1},
+        recharge_evidence_verifier=verifier,
+    )
+
+    assert result["error"]["code"] == "save_stale"
+    assert path.read_bytes() == external_bytes
+    assert not list(path.parent.glob("*.bak-*"))
+    verifier.assert_not_called()
 
 
 def test_backup_failure_blocks_replacement(tmp_path: Path, sample_save, monkeypatch):

@@ -17,7 +17,13 @@ from repo_save_editor.services.items.models import (
     InstalledItemMetadata,
     ItemRechargeCapability,
 )
-from repo_save_editor.services.items.recharge_capability import discover_installed_item_metadata
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_item_metadata_with_evidence,
+)
+from repo_save_editor.services.items.recharge_evidence import (
+    RechargeEvidence,
+    serialize_recharge_evidence,
+)
 from repo_save_editor.services.player.installed_upgrades import match_upgrade_items
 from repo_save_editor.services.player.upgrades import discover_player_upgrades
 
@@ -26,6 +32,10 @@ RechargeCapabilityLoader = Callable[
     Mapping[str, ItemRechargeCapability],
 ]
 ItemMetadataLoader = Callable[[tuple[str, ...]], Mapping[str, InstalledItemMetadata]]
+ItemMetadataEvidenceLoader = Callable[
+    [tuple[str, ...]],
+    tuple[Mapping[str, InstalledItemMetadata], RechargeEvidence | None],
+]
 IconAvailabilityLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
@@ -34,7 +44,10 @@ def get_advanced_save(
     root: Path | None = None,
     *,
     capability_loader: RechargeCapabilityLoader | None = None,
-    metadata_loader: ItemMetadataLoader = discover_installed_item_metadata,
+    metadata_loader: ItemMetadataLoader | None = None,
+    metadata_evidence_loader: ItemMetadataEvidenceLoader = (
+        discover_installed_item_metadata_with_evidence
+    ),
     icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
 ) -> dict[str, object]:
     """Return evidence-backed advanced data without exposing the decrypted save."""
@@ -43,12 +56,16 @@ def get_advanced_save(
         item_type_names = discover_item_type_names(data)
         upgrade_keys = tuple(upgrade.key for upgrade in discover_player_upgrades(data))
         upgrade_visual_keys = match_upgrade_items(upgrade_keys, item_type_names)
-        metadata = metadata_loader(item_type_names) if capability_loader is None else {}
-        capabilities = (
-            {name: value.recharge_capability for name, value in metadata.items()}
-            if capability_loader is None
-            else capability_loader(item_type_names)
-        )
+        evidence: RechargeEvidence | None = None
+        if capability_loader is not None:
+            metadata: Mapping[str, InstalledItemMetadata] = {}
+            capabilities = capability_loader(item_type_names)
+        elif metadata_loader is not None:
+            metadata = metadata_loader(item_type_names)
+            capabilities = {name: value.recharge_capability for name, value in metadata.items()}
+        else:
+            metadata, evidence = metadata_evidence_loader(item_type_names)
+            capabilities = {name: value.recharge_capability for name, value in metadata.items()}
         icon_keys = {
             value.icon_cache_key for value in metadata.values() if value.icon_cache_key is not None
         }
@@ -67,7 +84,7 @@ def get_advanced_save(
             "The selected save contains malformed advanced item data.",
         )
 
-    return {
+    result: dict[str, object] = {
         "ok": True,
         "advanced": {
             "domains": [
@@ -109,3 +126,6 @@ def get_advanced_save(
             "unlinkedChargeEntryCount": advanced.unlinked_charge_entry_count,
         },
     }
+    if evidence is not None:
+        result["rechargeEvidence"] = serialize_recharge_evidence(evidence)
+    return result

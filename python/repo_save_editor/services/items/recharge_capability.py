@@ -6,15 +6,15 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
-from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.game.installed_build import validated_installed_build
 from repo_save_editor.services.items.installed_metadata import (
     discover_installed_item_metadata as discover_installed_item_metadata_from_assets,
 )
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
-
-RESOURCES_RELATIVE_PATH = Path("REPO_Data/resources.assets")
-GLOBAL_MANAGERS_RELATIVE_PATH = Path("REPO_Data/globalgamemanagers.assets")
+from repo_save_editor.services.items.recharge_evidence import (
+    RechargeEvidence,
+    build_recharge_evidence,
+    resolve_recharge_source_context,
+)
 
 
 def discover_installed_recharge_capabilities(
@@ -33,43 +33,50 @@ def discover_installed_recharge_capabilities(
     }
 
 
+def discover_installed_item_metadata_with_evidence(
+    item_names: Iterable[str],
+    game_dir: Path | None = None,
+) -> tuple[dict[str, InstalledItemMetadata], RechargeEvidence | None]:
+    """Return installed metadata plus reusable backend-authoritative Recharge evidence."""
+    names = tuple(dict.fromkeys(name for name in item_names if isinstance(name, str) and name))
+    unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
+    if not names:
+        return {}, None
+
+    context = resolve_recharge_source_context(game_dir)
+    if context is None:
+        return unknown, None
+
+    discovered = dict(
+        _cached_item_metadata(
+            context.resources_path,
+            context.resources.size,
+            context.resources.mtime_ns,
+            context.resources.device,
+            context.resources.inode,
+            context.global_managers_path,
+            context.global_managers.size,
+            context.global_managers.mtime_ns,
+            context.global_managers.device,
+            context.global_managers.inode,
+            names,
+        )
+    )
+    metadata = {name: discovered.get(name, unknown[name]) for name in names}
+    evidence = build_recharge_evidence(
+        context,
+        {name: value.recharge_capability for name, value in metadata.items()},
+    )
+    return metadata, evidence
+
+
 def discover_installed_item_metadata(
     item_names: Iterable[str],
     game_dir: Path | None = None,
 ) -> dict[str, InstalledItemMetadata]:
     """Return conservative installed icon and recharge metadata for item types."""
-    names = tuple(dict.fromkeys(name for name in item_names if isinstance(name, str) and name))
-    unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
-    if not names:
-        return {}
-    discovery = discover_game_installation(game_dir)
-    installation = discovery.installation
-    if installation is None or validated_installed_build(installation) is None:
-        return unknown
-    resources_path = installation.root / RESOURCES_RELATIVE_PATH
-    global_managers_path = installation.root / GLOBAL_MANAGERS_RELATIVE_PATH
-    try:
-        if not resources_path.is_file() or not global_managers_path.is_file():
-            return unknown
-    except OSError:
-        return unknown
-    try:
-        resources_stat = resources_path.stat()
-        globals_stat = global_managers_path.stat()
-    except OSError:
-        return unknown
-    discovered = dict(
-        _cached_item_metadata(
-            resources_path,
-            resources_stat.st_size,
-            resources_stat.st_mtime_ns,
-            global_managers_path,
-            globals_stat.st_size,
-            globals_stat.st_mtime_ns,
-            names,
-        )
-    )
-    return {name: discovered.get(name, unknown[name]) for name in names}
+    metadata, _evidence = discover_installed_item_metadata_with_evidence(item_names, game_dir)
+    return metadata
 
 
 @lru_cache(maxsize=16)
@@ -77,9 +84,13 @@ def _cached_item_metadata(
     resources_path: Path,
     _resources_size: int,
     _resources_mtime_ns: int,
+    _resources_device: int,
+    _resources_inode: int,
     global_managers_path: Path,
     _globals_size: int,
     _globals_mtime_ns: int,
+    _globals_device: int,
+    _globals_inode: int,
     names: tuple[str, ...],
 ) -> tuple[tuple[str, InstalledItemMetadata], ...]:
     """Cache derived metadata by requested identities and installed file identity."""
@@ -90,4 +101,8 @@ def _cached_item_metadata(
     )
 
 
-__all__ = ["discover_installed_item_metadata", "discover_installed_recharge_capabilities"]
+__all__ = [
+    "discover_installed_item_metadata",
+    "discover_installed_item_metadata_with_evidence",
+    "discover_installed_recharge_capabilities",
+]
