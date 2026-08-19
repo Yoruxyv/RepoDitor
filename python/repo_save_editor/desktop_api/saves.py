@@ -25,7 +25,7 @@ from repo_save_editor.services.items.recharge_capability import (
     discover_installed_recharge_capabilities,
 )
 from repo_save_editor.services.player.state import get_player_health, get_players
-from repo_save_editor.services.player.upgrades import get_player_upgrade
+from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
 from repo_save_editor.services.run import get_resume_location_label, get_run_stat
 from repo_save_editor.services.saves.discovery import (
     DiscoveredSave,
@@ -117,7 +117,11 @@ def open_save(save_id: str, root: Path | None = None) -> dict[str, object]:
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
-    return {"ok": True, "session": session}
+    return {
+        "ok": True,
+        "session": session,
+        "requiredUpgradeVisualKeys": [upgrade.key for upgrade in discover_player_upgrades(data)],
+    }
 
 
 def _canonical_applied_state(

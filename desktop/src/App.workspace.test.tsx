@@ -7,6 +7,7 @@ import {
   advanced,
   createRepoDitorApi as bridge,
   maps,
+  openResult,
   players,
   runState,
   saveId,
@@ -20,7 +21,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("shows Overview and preserves typed pending player edits across navigation", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -87,7 +88,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("rejects invalid health without creating a pending edit", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -104,7 +105,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("heals to Python-provided max health through the existing pending edit", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -137,7 +138,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("disables Heal to Full when current health already equals max health", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), [
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), [
       { ...players[0]!, health: 100 },
     ]);
     const user = userEvent.setup();
@@ -155,7 +156,7 @@ describe("run-save workspace integration", () => {
   });
 
   it("keeps advanced refill and other edits while navigating sections", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     render(<App />);
 
@@ -223,12 +224,7 @@ describe("run-save workspace integration", () => {
 
   it("stages bulk recharge only for confirmed partial rechargeable tools and keeps it memory-only", async () => {
     const write = vi.fn();
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     window.repoditor.advanced.get = vi.fn().mockResolvedValue({
       ok: true,
       data: {
@@ -321,12 +317,7 @@ describe("run-save workspace integration", () => {
         },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const playerList = vi.mocked(window.repoditor.players.list);
     const user = userEvent.setup();
     render(<App />);
@@ -359,12 +350,7 @@ describe("run-save workspace integration", () => {
         },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const upgradeList = vi.mocked(window.repoditor.upgrades.list);
     const user = userEvent.setup();
     render(<App />);
@@ -437,12 +423,7 @@ describe("run-save workspace integration", () => {
           finishWrite = resolve;
         }),
     );
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const advancedGet = vi.mocked(window.repoditor.advanced.get);
     const upgradeList = vi.mocked(window.repoditor.upgrades.list);
     const user = userEvent.setup();
@@ -518,12 +499,7 @@ describe("run-save workspace integration", () => {
         session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const user = userEvent.setup();
     render(<App />);
 
@@ -597,12 +573,7 @@ describe("run-save workspace integration", () => {
         },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const runGet = vi.mocked(window.repoditor.run.get);
     const upgradeList = vi.mocked(window.repoditor.upgrades.list);
     const user = userEvent.setup();
@@ -644,12 +615,7 @@ describe("run-save workspace integration", () => {
         },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const runGet = vi.mocked(window.repoditor.run.get);
     runGet.mockResolvedValueOnce({ ok: true, data: runState }).mockResolvedValueOnce({
       ok: true,
@@ -685,12 +651,7 @@ describe("run-save workspace integration", () => {
         session: { ...session, fingerprint: "b".repeat(64), currency: 20 },
       },
     });
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const runGet = vi.mocked(window.repoditor.run.get);
     runGet.mockResolvedValueOnce({ ok: true, data: runState }).mockResolvedValueOnce({
       ok: true,
@@ -733,12 +694,7 @@ describe("run-save workspace integration", () => {
           finishWrite = resolve;
         }),
     );
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      players,
-      undefined,
-      write,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
     const user = userEvent.setup();
     render(<App />);
 
@@ -765,7 +721,7 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
   });
 
-  it("keeps editing available while an avatar loads and falls back if the image fails", async () => {
+  it("waits for avatar warmup before entry and falls back if the image fails", async () => {
     let finishAvatar:
       | ((value: { ok: true; data: { playerId: string; avatarUrl: string | null } }) => void)
       | undefined;
@@ -777,29 +733,33 @@ describe("run-save workspace integration", () => {
           },
         ),
     );
-    window.repoditor = bridge(
-      vi.fn().mockResolvedValue({ ok: true, data: session }),
-      [players[0]!],
-      avatar,
-    );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), [players[0]!], avatar);
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(await screen.findByTestId("workspace")).toBeTruthy();
     await waitFor(() => {
       expect(avatar).toHaveBeenCalledWith(saveId, "111");
     });
+    await waitFor(() => {
+      expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+        "Loading player avatars…",
+      );
+    });
+    expect(screen.queryByTestId("workspace")).toBeNull();
+
+    const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
+    await act(async () => {
+      finishAvatar?.({ ok: true, data: { playerId: "111", avatarUrl } });
+    });
+
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
     await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
     await user.type(health, "95");
     expect(screen.getByTestId("pending-health-edit")).toBeTruthy();
 
-    const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
-    await act(async () => {
-      finishAvatar?.({ ok: true, data: { playerId: "111", avatarUrl } });
-    });
     const image = await waitFor(() => {
       const element = document.querySelector<HTMLImageElement>(`img[src="${avatarUrl}"]`);
       expect(element).toBeTruthy();

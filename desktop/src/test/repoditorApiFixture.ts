@@ -40,6 +40,7 @@ export const session: SaveSession = {
   playerCount: 2,
   resumeLocation: "Normal",
 };
+export const requiredUpgradeVisualKeys = ["playerUpgradeStrength", "playerUpgradeMoonBoots"];
 export const players: PlayerDto[] = [
   { id: "111", name: "Alpha", health: 80, maxHealth: 100 },
   { id: "222", name: "Beta", health: 0, maxHealth: 100 },
@@ -68,6 +69,16 @@ export const upgrades: PlayerUpgradeDto[] = [
     ],
   },
 ];
+export function openResult(
+  value: SaveSession = session,
+  presentationReadiness: "ready" | "unresolved" = "ready",
+) {
+  return {
+    ok: true as const,
+    data: { session: value, requiredUpgradeVisualKeys, presentationReadiness },
+  };
+}
+
 export const runState: RunStateDto = {
   stats: [
     { key: "level", label: "Level", value: 5 },
@@ -245,6 +256,8 @@ export const readyAssets: AssetPreparationState = {
   buildVerified: true,
   completed: null,
   total: null,
+  currentAsset: null,
+  currentAssetLabel: null,
   degraded: false,
 };
 
@@ -287,7 +300,10 @@ export function createRepoDitorApi(
       list: vi.fn().mockResolvedValue({ ok: true, data: playerList }),
       avatar,
     },
-    upgrades: { list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }) },
+    upgrades: {
+      list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }),
+      prepareEntry: vi.fn().mockResolvedValue({ ok: true, data: upgrades }),
+    },
     run: { get: vi.fn().mockResolvedValue({ ok: true, data: runState }) },
     advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
     cosmetics: {

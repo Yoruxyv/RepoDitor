@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { InstalledMapsDto } from "@electron/contracts";
+import type { DesktopOperationResult, InstalledMapsDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 
@@ -12,9 +12,17 @@ interface State {
 
 const INITIAL_STATE: State = { discovery: null, error: null, loading: true };
 
-export function useMaps() {
+function initialState(result: DesktopOperationResult<InstalledMapsDto> | null): State {
+  if (result === null) return INITIAL_STATE;
+  return result.ok
+    ? { discovery: result.data, error: null, loading: false }
+    : { discovery: null, error: operationErrorKey(result.error.code), loading: false };
+}
+
+export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> | null = null) {
   const { t } = usePreferences();
-  const [state, setState] = useState<State>(INITIAL_STATE);
+  const [state, setState] = useState<State>(() => initialState(initialResult));
+  const initialResultRef = useRef(initialResult);
   const mounted = useRef(false);
   const load = useCallback(async () => {
     try {
@@ -32,7 +40,7 @@ export function useMaps() {
   }, []);
   useEffect(() => {
     mounted.current = true;
-    void load();
+    if (initialResultRef.current === null) void load();
     return () => {
       mounted.current = false;
     };

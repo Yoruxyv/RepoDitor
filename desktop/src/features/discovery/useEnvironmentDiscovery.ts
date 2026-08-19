@@ -9,7 +9,7 @@ interface DiscoveryState {
   pending: boolean;
 }
 
-interface EnvironmentDiscoveryController {
+export interface EnvironmentDiscoveryController {
   data: EnvironmentDiscovery | null;
   error: DesktopOperationError | null;
   isInitialLoading: boolean;
@@ -23,38 +23,51 @@ const INITIAL_STATE: DiscoveryState = {
   pending: false,
 };
 
-export function useEnvironmentDiscovery(): EnvironmentDiscoveryController {
+export function useEnvironmentDiscovery(
+  active: boolean,
+  refreshGeneration: number,
+): EnvironmentDiscoveryController {
   const [state, setState] = useState<DiscoveryState>(INITIAL_STATE);
   const mounted = useRef(false);
+  const activeRef = useRef(active);
   const requestInFlight = useRef(false);
+  const refreshQueued = useRef(false);
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) {
+      refreshQueued.current = true;
       return;
     }
 
     requestInFlight.current = true;
-    setState((current) => ({ ...current, error: null, pending: true }));
-    const result = await detectEnvironment();
+    do {
+      refreshQueued.current = false;
+      setState((current) => ({ ...current, error: null, pending: true }));
+      const result = await detectEnvironment();
 
-    if (mounted.current) {
-      setState((current) =>
-        result.ok
-          ? { data: result.data, error: null, pending: false }
-          : { data: current.data, error: result.error, pending: false },
-      );
-    }
+      if (mounted.current) {
+        setState((current) =>
+          result.ok
+            ? { data: result.data, error: null, pending: false }
+            : { data: current.data, error: result.error, pending: false },
+        );
+      }
+    } while (mounted.current && activeRef.current && refreshQueued.current);
 
     requestInFlight.current = false;
   }, []);
 
   useEffect(() => {
     mounted.current = true;
-    void refresh();
     return () => {
       mounted.current = false;
     };
-  }, [refresh]);
+  }, []);
+
+  useEffect(() => {
+    activeRef.current = active;
+    if (active) void refresh();
+  }, [active, refresh, refreshGeneration]);
 
   return {
     data: state.data,

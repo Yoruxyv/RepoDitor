@@ -14,6 +14,7 @@ const {
   getRunState,
   listMaps,
   listUpgrades,
+  prepareUpgradesForEntry,
   registerEditorIpc,
 } = require("../../dist-electron/ipc/editor.cjs");
 
@@ -88,6 +89,7 @@ describe("editor data IPC", () => {
 
     expect(registrar.handle.mock.calls.map(([channel]) => channel)).toEqual([
       IPC_CHANNELS.upgradesList,
+      IPC_CHANNELS.upgradesPrepareEntry,
       IPC_CHANNELS.runGet,
       IPC_CHANNELS.advancedGet,
       IPC_CHANNELS.mapsList,
@@ -232,6 +234,77 @@ describe("editor data IPC", () => {
     finishPreparation?.();
   });
 
+  it("awaits required artwork preparation for pre-entry upgrade discovery", async () => {
+    const response = {
+      ok: true,
+      upgrades: [
+        {
+          key: "playerUpgradeHealth",
+          label: "Health",
+          presentationSource: "humanized",
+          gameplayCap: null,
+          iconKey: null,
+          values: [{ playerId: "111", value: 2 }],
+        },
+      ],
+    };
+    let finishPreparation: (() => void) | undefined;
+    const preparation = {
+      prepareUpgradeVisuals: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishPreparation = resolve;
+          }),
+      ),
+    };
+    const pending = prepareUpgradesForEntry(
+      client(response),
+      saveId,
+      ["playerUpgradeHealth"],
+      preparation,
+      new LocalIconRegistry(),
+    );
+
+    await vi.waitFor(() => expect(preparation.prepareUpgradeVisuals).toHaveBeenCalledTimes(1));
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    finishPreparation?.();
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      data: [{ key: "playerUpgradeHealth" }],
+    });
+  });
+
+  it("rejects pre-entry presentation data that does not match the opened save", async () => {
+    const preparation = { prepareUpgradeVisuals: vi.fn().mockResolvedValue(undefined) };
+    await expect(
+      prepareUpgradesForEntry(
+        client({
+          ok: true,
+          upgrades: [
+            {
+              key: "playerUpgradeHealth",
+              label: "Health",
+              presentationSource: "humanized",
+              gameplayCap: null,
+              iconKey: null,
+              values: [],
+            },
+          ],
+        }),
+        saveId,
+        ["playerUpgradeStrength"],
+        preparation,
+        new LocalIconRegistry(),
+      ),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    expect(preparation.prepareUpgradeVisuals).not.toHaveBeenCalled();
+  });
   it("keeps upgrade reads available when optional artwork preparation degrades", async () => {
     const response = {
       ok: true,

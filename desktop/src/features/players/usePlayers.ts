@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlayerDto, SaveCanonicalPlayerValue } from "@electron/contracts";
+import type {
+  DesktopOperationResult,
+  PlayerDto,
+  SaveCanonicalPlayerValue,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
@@ -21,15 +25,31 @@ const INITIAL_STATE: PlayersState = {
   error: null,
   loading: true,
 };
+
+function initialState(result: DesktopOperationResult<PlayerDto[]> | null): PlayersState {
+  if (result === null) return INITIAL_STATE;
+  return result.ok
+    ? { players: result.data, error: null, loading: false }
+    : { players: [], error: operationErrorKey(result.error.code), loading: false };
+}
 const AVATAR_RETRY_COOLDOWN_MS = 30_000;
 const MAX_AVATAR_REQUESTS = 2;
 
-export function usePlayers(saveId: string) {
+export function usePlayers(
+  saveId: string,
+  initialResult: DesktopOperationResult<PlayerDto[]> | null = null,
+  initialAvatarUrls: Readonly<Record<string, string | null>> = {},
+) {
   const { t } = usePreferences();
-  const [state, setState] = useState<PlayersState>(INITIAL_STATE);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [state, setState] = useState<PlayersState>(() => initialState(initialResult));
+  const initialResultRef = useRef(initialResult);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(() =>
+    initialResult?.ok ? (initialResult.data[0]?.id ?? null) : null,
+  );
   const [pendingByPlayer, setPendingByPlayer] = useState<Record<string, PlayerHealthEdit>>({});
-  const [avatarUrls, setAvatarUrls] = useState<Record<string, string | null>>({});
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string | null>>(() => ({
+    ...initialAvatarUrls,
+  }));
   const mounted = useRef(false);
   const playerRequestInFlight = useRef(false);
   const avatarRequests = useRef(new Set<string>());
@@ -128,10 +148,13 @@ export function usePlayers(saveId: string) {
 
   useEffect(() => {
     mounted.current = true;
-    const request = window.setTimeout(() => void loadPlayers(false));
+    const request =
+      initialResultRef.current === null
+        ? window.setTimeout(() => void loadPlayers(false))
+        : undefined;
     return () => {
       mounted.current = false;
-      window.clearTimeout(request);
+      if (request !== undefined) window.clearTimeout(request);
     };
   }, [loadPlayers]);
 

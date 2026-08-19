@@ -12,6 +12,7 @@ export const IPC_CHANNELS: IpcChannelMap = {
   playersList: "players:list",
   playersAvatar: "players:avatar",
   upgradesList: "upgrades:list",
+  upgradesPrepareEntry: "upgrades:prepare-entry",
   runGet: "run:get",
   advancedGet: "advanced:get",
   cosmeticsGet: "cosmetics:get",

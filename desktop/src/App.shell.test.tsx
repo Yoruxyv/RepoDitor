@@ -1,17 +1,33 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AssetPreparationState } from "@electron/contracts";
+import type {
+  AdvancedSaveDto,
+  AssetPreparationState,
+  DesktopOperationResult,
+  PlayerUpgradeDto,
+} from "@electron/contracts";
 import App from "@/App";
 import { TRANSLATIONS, type Locale } from "@/app/translations";
 import {
   createRepoDitorApi as bridge,
+  advanced,
   environment,
   players,
   readyAssets,
+  openResult,
+  upgrades,
   session,
 } from "@/test/repoditorApiFixture";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
 
 const localeCases: ReadonlyArray<readonly [Locale, string]> = [
   ["en", "English"],
@@ -47,20 +63,37 @@ describe("app shell integration", () => {
     expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
   });
 
-  it("shows the preparation view only after a save is opened", async () => {
+  it("prepares every editor domain before first entry and reports the decoded game asset", async () => {
     let assetListener: ((state: AssetPreparationState) => void) | undefined;
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    const preparation = deferred<DesktopOperationResult<PlayerUpgradeDto[]>>();
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue(openResult(session, "unresolved")),
+      players,
+    );
+    window.repoditor.upgrades.prepareEntry = vi.fn(() => preparation.promise);
     window.repoditor.assets.onState = vi.fn((listener) => {
       assetListener = listener;
       listener(readyAssets);
       return () => undefined;
     });
+    const user = userEvent.setup();
 
     render(<App />);
-    const openButton = await screen.findByRole("button", { name: /Open workspace/ });
-    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
 
-    fireEvent.click(openButton);
+    const preload = await screen.findByTestId("asset-preparation");
+    expect(preload.getAttribute("data-entry-mode")).toBe("save");
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toContain(
+      "Loading upgrade data",
+    );
+    expect(screen.queryByTestId("workspace")).toBeNull();
+    expect(window.repoditor.players.list).toHaveBeenCalledTimes(1);
+    expect(window.repoditor.run.get).toHaveBeenCalledTimes(1);
+    expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(1);
+    expect(window.repoditor.maps.list).toHaveBeenCalledTimes(1);
+    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(players.length);
+
     act(() =>
       assetListener?.({
         stage: "decoding",
@@ -68,65 +101,207 @@ describe("app shell integration", () => {
         buildVerified: true,
         completed: 0,
         total: 3,
+        currentAsset: "Upgrade_Health_Albedo",
+        currentAssetLabel: "Health",
         degraded: false,
       }),
     );
+    expect(preload.getAttribute("data-entry-mode")).toBe("artwork");
+    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Decoding Health upgrade artwork…",
+    );
+    expect(screen.queryByTestId("workspace")).toBeNull();
 
-    expect(await screen.findByTestId("asset-preparation")).toBeTruthy();
+    act(() => assetListener?.(readyAssets));
+    await act(async () => {
+      preparation.resolve({ ok: true, data: upgrades });
+    });
+
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.queryByTestId("players-skeleton")).toBeNull();
+    expect(screen.queryByTestId("player-avatar-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(screen.queryByTestId("upgrades-skeleton")).toBeNull();
+    expect(screen.getByText("Strength")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    expect(screen.queryByTestId("run-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    expect(screen.queryByTestId("items-skeleton")).toBeNull();
+    expect(screen.getByText("Melee Inflatable Hammer")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    expect(screen.queryByTestId("maps-skeleton")).toBeNull();
+    expect(window.repoditor.upgrades.list).not.toHaveBeenCalled();
   });
 
-  it("allows entering the editor after the slow threshold while artwork continues in background", async () => {
-    let assetListener: ((state: AssetPreparationState) => void) | undefined;
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
-    window.repoditor.assets.onState = vi.fn((listener) => {
-      assetListener = listener;
-      listener(readyAssets);
-      return () => undefined;
-    });
+  it("reopens the same source-valid save directly from the app-session entry cache", async () => {
+    const preparation = deferred<DesktopOperationResult<PlayerUpgradeDto[]>>();
+    const open = vi
+      .fn()
+      .mockResolvedValueOnce(openResult(session, "unresolved"))
+      .mockResolvedValueOnce(openResult(session, "ready"));
+    window.repoditor = bridge(open, players);
+    window.repoditor.upgrades.prepareEntry = vi.fn(() => preparation.promise);
+    const user = userEvent.setup();
+
     render(<App />);
-    const openButton = await screen.findByRole("button", { name: /Open workspace/ });
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("asset-preparation")).toBeTruthy();
+    await act(async () => {
+      preparation.resolve({ ok: true, data: upgrades });
+    });
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
 
-    vi.useFakeTimers();
+    const playerCalls = vi.mocked(window.repoditor.players.list).mock.calls.length;
+    const avatarCalls = vi.mocked(window.repoditor.players.avatar).mock.calls.length;
+    const runCalls = vi.mocked(window.repoditor.run.get).mock.calls.length;
+    const itemCalls = vi.mocked(window.repoditor.advanced.get).mock.calls.length;
+    const mapCalls = vi.mocked(window.repoditor.maps.list).mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+
+    let preloadObserved = false;
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-testid="asset-preparation"]') !== null) {
+        preloadObserved = true;
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     try {
-      act(() =>
-        assetListener?.({
-          stage: "decoding",
-          installationFound: true,
-          buildVerified: true,
-          completed: 2,
-          total: 7,
-          degraded: false,
-        }),
-      );
-      fireEvent.click(openButton);
-      await act(async () => undefined);
-      expect(screen.getByTestId("asset-preparation")).toBeTruthy();
+      await user.click(screen.getByRole("button", { name: /Open workspace/ }));
+      expect(await screen.findByTestId("workspace")).toBeTruthy();
+      expect(preloadObserved).toBe(false);
+      expect(screen.queryByTestId("asset-preparation")).toBeNull();
+      expect(window.repoditor.players.list).toHaveBeenCalledTimes(playerCalls);
+      expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(avatarCalls);
+      expect(window.repoditor.run.get).toHaveBeenCalledTimes(runCalls);
+      expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(itemCalls);
+      expect(window.repoditor.maps.list).toHaveBeenCalledTimes(mapCalls);
+      expect(window.repoditor.upgrades.prepareEntry).toHaveBeenCalledTimes(1);
 
-      act(() => vi.advanceTimersByTime(6_000));
-      fireEvent.click(screen.getByRole("button", { name: "Continue to editor" }));
-      await act(async () => undefined);
-
-      expect(screen.getByRole("heading", { name: session.name })).toBeTruthy();
-      expect(screen.getByTestId("asset-preparation-notice").textContent).toContain("2 / 7 assets");
+      await user.click(screen.getByRole("tab", { name: "Players" }));
+      expect(screen.queryByTestId("players-skeleton")).toBeNull();
+      expect(screen.queryByTestId("player-avatar-skeleton")).toBeNull();
+      await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+      expect(screen.queryByTestId("upgrades-skeleton")).toBeNull();
+      await user.click(screen.getByRole("tab", { name: "Run" }));
+      expect(screen.queryByTestId("run-skeleton")).toBeNull();
+      await user.click(screen.getByRole("tab", { name: "Items" }));
+      expect(screen.queryByTestId("items-skeleton")).toBeNull();
+      await user.click(screen.getByRole("tab", { name: "Maps" }));
+      expect(screen.queryByTestId("maps-skeleton")).toBeNull();
     } finally {
-      vi.useRealTimers();
+      observer.disconnect();
     }
   });
 
+  it("uses save-specific loading for a different save when game artwork is already ready", async () => {
+    const secondSave = {
+      ...environment.saves[0]!,
+      id: "REPO_SAVE_2026_08_08_10_20_31",
+      name: "2026-08-08 10:20:31",
+      path: "C:\\fixture\\saves\\REPO_SAVE_2026_08_08_10_20_31\\REPO_SAVE_2026_08_08_10_20_31.es3",
+      modifiedAt: "2026-08-08T10:20:31+00:00",
+    };
+    const secondSession = { ...session, ...secondSave, fingerprint: "b".repeat(64) };
+    const environmentWithTwoSaves = { ...environment, saves: [environment.saves[0]!, secondSave] };
+    const secondItems = deferred<DesktopOperationResult<AdvancedSaveDto>>();
+    window.repoditor = bridge(
+      vi.fn((saveId: string) =>
+        Promise.resolve(
+          saveId === session.id ? openResult(session, "ready") : openResult(secondSession, "ready"),
+        ),
+      ),
+      players,
+    );
+    window.repoditor.environment.detect = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: environmentWithTwoSaves });
+    window.repoditor.advanced.get = vi.fn((saveId: string) =>
+      saveId === secondSession.id
+        ? secondItems.promise
+        : Promise.resolve({ ok: true as const, data: advanced }),
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+
+    const secondButton = (await screen.findByText(secondSave.name)).closest("button");
+    expect(secondButton).not.toBeNull();
+    await user.click(secondButton!);
+
+    const preload = await screen.findByTestId("asset-preparation");
+    expect(preload.getAttribute("data-entry-mode")).toBe("save");
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toContain("Loading item data");
+    expect(screen.queryByRole("heading", { name: "Decoding game assets" })).toBeNull();
+    expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();
+
+    await act(async () => {
+      secondItems.resolve({ ok: true, data: advanced });
+    });
+    expect(await screen.findByRole("heading", { name: secondSession.name })).toBeTruthy();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+  });
+
+  it("keeps slow cached-artwork upgrade loading inside the save-specific pre-entry phase", async () => {
+    const upgradeLoad = deferred<DesktopOperationResult<PlayerUpgradeDto[]>>();
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult(session, "ready")), players);
+    window.repoditor.upgrades.list = vi.fn(() => upgradeLoad.promise);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+
+    const preload = await screen.findByTestId("asset-preparation");
+    expect(preload.getAttribute("data-entry-mode")).toBe("save");
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toContain(
+      "Loading upgrade data",
+    );
+    expect(screen.queryByRole("heading", { name: "Decoding game assets" })).toBeNull();
+    expect(screen.queryByTestId("workspace")).toBeNull();
+    expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();
+
+    await act(async () => {
+      upgradeLoad.resolve({ ok: true, data: upgrades });
+    });
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(screen.queryByTestId("upgrades-skeleton")).toBeNull();
+    expect(window.repoditor.upgrades.list).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps save editing available when optional game artwork preparation is degraded", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(
+      vi.fn().mockResolvedValue(openResult(session, "unresolved")),
+      players,
+    );
     const degradedAssets: AssetPreparationState = {
       stage: "degraded",
       installationFound: false,
       buildVerified: false,
       completed: null,
       total: null,
+      currentAsset: null,
+      currentAssetLabel: null,
       degraded: true,
     };
     window.repoditor.assets.state = vi.fn().mockResolvedValue(degradedAssets);
     window.repoditor.assets.onState = vi.fn((listener) => {
       listener(degradedAssets);
       return () => undefined;
+    });
+    window.repoditor.upgrades.prepareEntry = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: "backend_unavailable", message: "offline" },
     });
     const user = userEvent.setup();
 
@@ -233,7 +408,7 @@ describe("app shell integration", () => {
   );
 
   it("switches and restores UI language while preserving game-derived strings", async () => {
-    window.repoditor = bridge(vi.fn().mockResolvedValue({ ok: true, data: session }), players);
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 

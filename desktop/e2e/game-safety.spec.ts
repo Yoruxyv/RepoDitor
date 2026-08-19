@@ -126,7 +126,7 @@ test("blocks save writes while the R.E.P.O. process is running", async () => {
         async ({ id }) => {
           const opened = await window.repoditor.saves.open(id);
           if (!opened.ok) return opened;
-          return window.repoditor.saves.write(id, opened.data.fingerprint, [
+          return window.repoditor.saves.write(id, opened.data.session.fingerprint, [
             { feature: "run", entity: "run", field: "currency", after: 778 },
           ]);
         },

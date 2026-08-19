@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SaveSession } from "@electron/contracts";
+import type { SaveOpenResult } from "@electron/contracts";
 import App from "@/App";
-import { createRepoDitorApi as bridge, environment, session } from "@/test/repoditorApiFixture";
+import { createRepoDitorApi as bridge, environment, openResult } from "@/test/repoditorApiFixture";
 
 describe("save discovery integration", () => {
   beforeEach(() => {
@@ -62,10 +62,10 @@ describe("save discovery integration", () => {
   });
 
   it("shows opening state and transitions into the workspace", async () => {
-    let finishOpen: ((value: { ok: true; data: SaveSession }) => void) | undefined;
+    let finishOpen: ((value: { ok: true; data: SaveOpenResult }) => void) | undefined;
     const open = vi.fn(
       () =>
-        new Promise<{ ok: true; data: SaveSession }>((resolve) => {
+        new Promise<{ ok: true; data: SaveOpenResult }>((resolve) => {
           finishOpen = resolve;
         }),
     );
@@ -74,10 +74,9 @@ describe("save discovery integration", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(screen.getByRole("button", { name: /Opening save/ }).hasAttribute("disabled")).toBe(
-      true,
-    );
-    finishOpen?.({ ok: true, data: session });
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.queryByTestId("workspace")).toBeNull();
+    finishOpen?.(openResult());
 
     expect(await screen.findByTestId("workspace")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe(
@@ -86,6 +85,117 @@ describe("save discovery integration", () => {
     screen.getByRole("tab", { name: "Overview" }).focus();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("restores the previous discovery snapshot immediately and refreshes in background", async () => {
+    let finishRefresh:
+      | ((value: Awaited<ReturnType<typeof window.repoditor.environment.detect>>) => void)
+      | undefined;
+    const detect = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRefresh = resolve;
+          }),
+      );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()));
+    window.repoditor.environment.detect = detect;
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
+    expect(screen.getByRole("button", { name: "Refreshing" })).toBeTruthy();
+    expect(detect).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      finishRefresh?.({ ok: true, data: environment });
+    });
+  });
+
+  it("replaces the retained discovery snapshot after a successful return refresh", async () => {
+    let finishRefresh:
+      | ((value: Awaited<ReturnType<typeof window.repoditor.environment.detect>>) => void)
+      | undefined;
+    const updated = {
+      ...environment,
+      saves: [
+        {
+          ...environment.saves[0]!,
+          id: "REPO_SAVE_2026_08_08_10_20_31",
+          name: "2026-08-08 10:20:31",
+          path: "C:\\fixture\\saves\\REPO_SAVE_2026_08_08_10_20_31\\REPO_SAVE_2026_08_08_10_20_31.es3",
+        },
+      ],
+    };
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()));
+    window.repoditor.environment.detect = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRefresh = resolve;
+          }),
+      );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Change save" }));
+    expect(screen.getByText(environment.saves[0]!.name)).toBeTruthy();
+
+    await act(async () => {
+      finishRefresh?.({ ok: true, data: updated });
+    });
+
+    expect(await screen.findByText(updated.saves[0]!.name)).toBeTruthy();
+    expect(screen.queryByText(environment.saves[0]!.name)).toBeNull();
+  });
+
+  it("keeps the retained discovery snapshot when the return refresh fails", async () => {
+    const detect = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: {
+          code: "discovery_failed" as const,
+          message: "The save folder is temporarily busy.",
+        },
+      });
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()));
+    window.repoditor.environment.detect = detect;
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Change save" }));
+
+    expect(await screen.findByText(/Refresh failed/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
+    expect(detect).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not rediscover merely when switching between Run Saves and Cosmetics", async () => {
+    const detect = vi.fn().mockResolvedValue({ ok: true, data: environment });
+    window.repoditor.environment.detect = detect;
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(detect).toHaveBeenCalledTimes(1);
   });
 
   it.each([

@@ -22,7 +22,8 @@ const STAGE_KEYS: Record<AssetPreparationStage, TranslationKey> = {
 
 interface AssetPreparationViewProps {
   readonly state: AssetPreparationState;
-  readonly waitingForUpgradeDiscovery?: boolean;
+  readonly mode?: "save" | "artwork";
+  readonly saveDetail?: string;
   readonly onContinue?: () => void;
 }
 
@@ -39,19 +40,16 @@ function countFilledSegments(progress: PreparationProgress | null): number {
 
 export function AssetPreparationView({
   state,
-  waitingForUpgradeDiscovery = false,
+  mode = "artwork",
+  saveDetail,
   onContinue,
 }: AssetPreparationViewProps) {
   const { t } = usePreferences();
-  const stageKey: TranslationKey = waitingForUpgradeDiscovery
-    ? "assets.stage.saveUpgrades"
-    : STAGE_KEYS[state.stage];
   const progress =
-    state.completed !== null && state.total !== null
+    mode === "artwork" && state.completed !== null && state.total !== null
       ? { completed: state.completed, total: state.total }
       : null;
-  const displayProgress = waitingForUpgradeDiscovery ? null : progress;
-  const hasDetailedProgress = displayProgress !== null;
+  const hasDetailedProgress = progress !== null;
   const [slow, setSlow] = useState(false);
   const [showDetailedProgress, setShowDetailedProgress] = useState(false);
 
@@ -69,18 +67,23 @@ export function AssetPreparationView({
     return () => window.clearTimeout(timer);
   }, [hasDetailedProgress]);
 
-  const visibleProgress = showDetailedProgress ? displayProgress : null;
+  const visibleProgress = showDetailedProgress ? progress : null;
   const filledSegments = countFilledSegments(visibleProgress);
-  const heading =
-    waitingForUpgradeDiscovery || displayProgress !== null
-      ? t("assets.preparingUpgrades")
-      : t("assets.preparingGame");
+  const detail =
+    mode === "save"
+      ? (saveDetail ?? t("entry.detail.finalizing"))
+      : state.currentAssetLabel !== null
+        ? t("entry.detail.upgradeArtwork", { asset: state.currentAssetLabel })
+        : state.currentAsset !== null
+          ? t("entry.detail.asset", { asset: state.currentAsset })
+          : t(STAGE_KEYS[state.stage]);
 
   return (
     <section
       aria-busy={true}
       aria-labelledby="asset-preparation-title"
       className="mx-auto grid min-h-96 max-w-4xl place-items-center px-2 py-8"
+      data-entry-mode={mode}
       data-testid="asset-preparation"
     >
       <div className="asset-preparation-panel relative w-full overflow-hidden border border-line-strong bg-surface p-5 shadow-2xl sm:p-7">
@@ -94,7 +97,7 @@ export function AssetPreparationView({
               RepoDitor
             </p>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
-              {t("assets.localPreparation")}
+              {t(mode === "save" ? "entry.localPreparation" : "assets.localPreparation")}
             </p>
           </div>
           <div aria-hidden="true" className="text-muted">
@@ -112,15 +115,23 @@ export function AssetPreparationView({
 
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-secondary">
-              {heading}
+              {t(mode === "save" ? "entry.preparingEditor" : "assets.preparingUpgrades")}
             </p>
             <h1
               aria-live="polite"
               className="font-display mt-1 text-4xl font-semibold uppercase leading-none tracking-[0.02em] text-ink sm:text-5xl"
               id="asset-preparation-title"
             >
-              {t(stageKey)}
+              {t(mode === "save" ? "entry.readingPreparingSave" : "entry.decodingGameAssets")}
             </h1>
+            <p
+              aria-live="polite"
+              className="mt-3 min-h-6 text-sm font-medium text-secondary"
+              data-testid="entry-loading-detail"
+            >
+              {detail}
+            </p>
+
             <div className="mt-7">
               <div
                 {...(visibleProgress !== null
@@ -183,9 +194,11 @@ export function AssetPreparationView({
             </div>
 
             <p className="mt-5 max-w-[58ch] text-sm/6 text-secondary">
-              {slow ? t("assets.slowHint") : t("assets.localOnlyHint")}
+              {mode === "save"
+                ? t(slow ? "entry.slowHint" : "entry.localOnlyHint")
+                : t(slow ? "assets.slowHint" : "assets.localOnlyHint")}
             </p>
-            {slow && onContinue !== undefined ? (
+            {mode === "artwork" && slow && onContinue !== undefined ? (
               <button
                 className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-accent bg-accent-muted px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised"
                 type="button"
@@ -198,14 +211,23 @@ export function AssetPreparationView({
         </div>
 
         <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          <span>
-            {state.installationFound
-              ? t("assets.installationFound")
-              : t("assets.installationPending")}
-          </span>
-          <span className={state.buildVerified ? "text-success" : undefined}>
-            {state.buildVerified ? t("assets.buildVerified") : t("assets.buildPending")}
-          </span>
+          {mode === "save" ? (
+            <>
+              <span>{t("entry.localSave")}</span>
+              <span>{t("entry.editorPreparing")}</span>
+            </>
+          ) : (
+            <>
+              <span>
+                {state.installationFound
+                  ? t("assets.installationFound")
+                  : t("assets.installationPending")}
+              </span>
+              <span className={state.buildVerified ? "text-success" : undefined}>
+                {state.buildVerified ? t("assets.buildVerified") : t("assets.buildPending")}
+              </span>
+            </>
+          )}
         </footer>
       </div>
     </section>

@@ -107,6 +107,7 @@ class UpgradeTextureBatchResult:
 
 PreparationStageCallback = Callable[[UpgradePreparationStage, bool, bool], None]
 PreparationTextureCallback = Callable[[str, DecodedUpgradeTexture | None], None]
+PreparationDecodeCallback = Callable[[str, str], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -626,6 +627,7 @@ def prepare_installed_upgrade_textures(
     *,
     on_stage: PreparationStageCallback | None = None,
     on_texture: PreparationTextureCallback | None = None,
+    on_decode_start: PreparationDecodeCallback | None = None,
 ) -> UpgradeTextureBatchResult:
     """Prepare one bounded upgrade set from an already validated installation.
 
@@ -686,6 +688,8 @@ def prepare_installed_upgrade_textures(
             png_bytes = 0
             budget_exhausted = False
             for key, visual in pending:
+                if on_decode_start is not None:
+                    on_decode_start(key, visual.texture.name)
                 decoded: DecodedUpgradeTexture | None = None
                 if not budget_exhausted:
                     try:

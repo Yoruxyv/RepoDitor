@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import type { SaveChange, SaveSession, SaveWriteResult } from "@electron/contracts";
+import type { SaveChange, SaveOpenResult, SaveSession, SaveWriteResult } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/translations";
 
@@ -19,9 +19,9 @@ export function useSaveSession() {
   const [lastBackupPath, setLastBackupPath] = useState<string | null>(null);
   const requestInFlight = useRef(false);
 
-  async function open(saveId: string): Promise<void> {
+  async function open(saveId: string): Promise<SaveOpenResult | null> {
     if (requestInFlight.current) {
-      return;
+      return null;
     }
     requestInFlight.current = true;
     setOpeningSaveId(saveId);
@@ -31,16 +31,23 @@ export function useSaveSession() {
     try {
       const result = await window.repoditor.saves.open(saveId);
       if (result.ok) {
-        setSession(result.data);
-      } else {
-        setError(operationErrorKey(result.error.code));
+        return result.data;
       }
+      setError(operationErrorKey(result.error.code));
     } catch {
       setError("error.service");
     } finally {
       requestInFlight.current = false;
       setOpeningSaveId(null);
     }
+    return null;
+  }
+
+  function enter(opened: SaveOpenResult): void {
+    setSession(opened.session);
+    setError(null);
+    setSaveError(null);
+    setLastBackupPath(null);
   }
 
   async function write(changes: SaveChange[]): Promise<SaveWriteResult | null> {
@@ -84,6 +91,7 @@ export function useSaveSession() {
     saving,
     lastBackupPath,
     open,
+    enter,
     write,
     close,
   };

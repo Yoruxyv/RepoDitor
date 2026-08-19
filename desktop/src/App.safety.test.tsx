@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
-import { createRepoDitorApi as bridge, session } from "@/test/repoditorApiFixture";
+import { createRepoDitorApi as bridge, openResult } from "@/test/repoditorApiFixture";
 
 describe("game safety integration", () => {
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe("game safety integration", () => {
 
   it("blocks the editor while R.E.P.O. is running until Check Again confirms it closed", async () => {
     const gameStatus = vi.mocked(window.repoditor.game.status);
-    window.repoditor.saves.open = vi.fn().mockResolvedValue({ ok: true, data: session });
+    window.repoditor.saves.open = vi.fn().mockResolvedValue(openResult());
     gameStatus
       .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
       .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
@@ -51,7 +51,7 @@ describe("game safety integration", () => {
   });
 
   it("fails closed on an open workspace when game process status is unknown", async () => {
-    window.repoditor.saves.open = vi.fn().mockResolvedValue({ ok: true, data: session });
+    window.repoditor.saves.open = vi.fn().mockResolvedValue(openResult());
     window.repoditor.game.status = vi.fn().mockResolvedValue({
       ok: true,
       data: { status: "unknown", running: false },
@@ -152,5 +152,58 @@ describe("game safety integration", () => {
 
     expect(getCosmetics).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Unlock All pending" })).toBeTruthy();
+  });
+
+  it("reconciles discovery after game-safety recovery without remounting its prior data", async () => {
+    const detect = vi.mocked(window.repoditor.environment.detect);
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    gameStatus
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } });
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    await waitFor(() => expect(detect).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(1));
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(gameStatus).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(detect).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
+  });
+
+  it("defers discovery reconciliation while a Run save workspace is open", async () => {
+    const detect = vi.mocked(window.repoditor.environment.detect);
+    const gameStatus = vi.mocked(window.repoditor.game.status);
+    window.repoditor.saves.open = vi.fn().mockResolvedValue(openResult());
+    gameStatus
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "running", running: true } })
+      .mockResolvedValueOnce({ ok: true, data: { status: "not_running", running: false } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    expect(detect).toHaveBeenCalledTimes(1);
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(
+      await screen.findByRole("heading", { name: "R.E.P.O. is currently running" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Check Again" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(detect).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await waitFor(() => expect(detect).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
   });
 });

@@ -19,6 +19,8 @@ const INITIAL_STATE: AssetPreparationState = {
   buildVerified: false,
   completed: null,
   total: null,
+  currentAsset: null,
+  currentAssetLabel: null,
   degraded: false,
 };
 
@@ -34,6 +36,8 @@ interface ProgressRecord {
   readonly buildVerified: boolean;
   readonly completed: number | null;
   readonly total: number | null;
+  readonly currentAsset: string | null;
+  readonly currentAssetLabel: string | null;
   readonly degraded: boolean;
 }
 
@@ -97,6 +101,17 @@ function parseProgress(value: Record<string, unknown>): ProgressRecord {
   ) {
     throw new Error("Invalid asset preparation progress counts.");
   }
+  const currentAsset = value.currentAsset ?? null;
+  if (currentAsset !== null && (typeof currentAsset !== "string" || currentAsset.length > 512)) {
+    throw new Error("Invalid asset preparation current asset.");
+  }
+  const currentAssetLabel = value.currentAssetLabel ?? null;
+  if (
+    currentAssetLabel !== null &&
+    (typeof currentAssetLabel !== "string" || currentAssetLabel.length > 512)
+  ) {
+    throw new Error("Invalid asset preparation current asset label.");
+  }
   return {
     type: "progress",
     stage: stage as ProgressRecord["stage"],
@@ -104,6 +119,8 @@ function parseProgress(value: Record<string, unknown>): ProgressRecord {
     buildVerified: value.buildVerified,
     completed,
     total,
+    currentAsset,
+    currentAssetLabel,
     degraded: value.degraded,
   };
 }
@@ -197,6 +214,7 @@ function validateFinalCounts(
 export class AssetPreparationService {
   readonly #listeners = new Set<(state: AssetPreparationState) => void>();
   readonly #failedUpgradeKeys = new Set<string>();
+  readonly #resolvedVisuals = new Map<string, UpgradeVisualPreparationRequest>();
   readonly #client: PythonRecordClient;
   readonly #cache: DecodedUpgradeTextureCache;
   #state: AssetPreparationState = INITIAL_STATE;
@@ -224,10 +242,25 @@ export class AssetPreparationService {
     return this.#startup;
   }
 
+  async checkUpgradeVisualReadiness(
+    requiredUpgradeKeys: readonly string[],
+  ): Promise<"ready" | "unresolved"> {
+    for (const upgradeKey of new Set(requiredUpgradeKeys)) {
+      if (this.#failedUpgradeKeys.has(upgradeKey)) continue;
+      const resolved = this.#resolvedVisuals.get(upgradeKey);
+      if (resolved === undefined) return "unresolved";
+      if (resolved.cacheKey === null && !(await this.#cache.hasPrepared(upgradeKey))) {
+        return "unresolved";
+      }
+    }
+    return "ready";
+  }
+
   prepareUpgradeVisuals(requests: readonly UpgradeVisualPreparationRequest[]): Promise<void> {
     const unique = new Map<string, UpgradeVisualPreparationRequest>();
     for (const request of requests) unique.set(request.upgradeKey, request);
     const visuals = [...unique.values()];
+    for (const visual of visuals) this.#resolvedVisuals.set(visual.upgradeKey, visual);
     const signature = JSON.stringify(visuals);
     const existing = this.#visualInFlight.get(signature);
     if (existing !== undefined) return existing;
@@ -350,6 +383,8 @@ export class AssetPreparationService {
       stage: "resolving",
       completed,
       total,
+      currentAsset: null,
+      currentAssetLabel: null,
       degraded: knownFailure,
     });
     await this.#prepare(missing, completed, total, knownFailure);
@@ -384,6 +419,8 @@ export class AssetPreparationService {
         buildVerified: final.buildVerified,
         completed: overallTotal,
         total: overallTotal,
+        currentAsset: null,
+        currentAssetLabel: null,
         degraded: terminalDegraded,
       });
     } catch {
@@ -393,6 +430,8 @@ export class AssetPreparationService {
         stage: "degraded",
         completed: overallTotal === null ? null : (this.#state.completed ?? completedOffset),
         total: overallTotal,
+        currentAsset: null,
+        currentAssetLabel: null,
         degraded: true,
       });
     }
@@ -412,6 +451,8 @@ export class AssetPreparationService {
         buildVerified: record.buildVerified,
         completed: localCompleted === null ? null : context.completedOffset + localCompleted,
         total: context.overallTotal,
+        currentAsset: record.currentAsset,
+        currentAssetLabel: record.currentAssetLabel,
         degraded: record.degraded,
       });
       return;
@@ -454,6 +495,8 @@ export class AssetPreparationService {
       stage: degraded ? "degraded" : "ready",
       completed,
       total,
+      currentAsset: null,
+      currentAssetLabel: null,
       degraded,
     });
   }

@@ -18,7 +18,7 @@ import {
   type RepoDitorApi,
   type RunStateDto,
   type SaveChange,
-  type SaveSession,
+  type SaveOpenResult,
   type SaveSummary,
   type SaveWriteResult,
 } from "./contracts.cjs";
@@ -37,6 +37,7 @@ const IPC_CHANNELS: IpcChannelMap = {
   playersList: "players:list",
   playersAvatar: "players:avatar",
   upgradesList: "upgrades:list",
+  upgradesPrepareEntry: "upgrades:prepare-entry",
   runGet: "run:get",
   advancedGet: "advanced:get",
   cosmeticsGet: "cosmetics:get",
@@ -81,7 +82,7 @@ const repoditorApi: RepoDitorApi = {
       ipcRenderer.invoke(IPC_CHANNELS.savesList) as Promise<DesktopOperationResult<SaveSummary[]>>,
     open: (saveId) =>
       ipcRenderer.invoke(IPC_CHANNELS.savesOpen, saveId) as Promise<
-        DesktopOperationResult<SaveSession>
+        DesktopOperationResult<SaveOpenResult>
       >,
     write: (saveId, fingerprint, changes: SaveChange[]) =>
       ipcRenderer.invoke(IPC_CHANNELS.savesWrite, saveId, fingerprint, changes) as Promise<
@@ -101,6 +102,10 @@ const repoditorApi: RepoDitorApi = {
   upgrades: {
     list: (saveId) =>
       ipcRenderer.invoke(IPC_CHANNELS.upgradesList, saveId) as Promise<
+        DesktopOperationResult<PlayerUpgradeDto[]>
+      >,
+    prepareEntry: (saveId, requiredVisualKeys) =>
+      ipcRenderer.invoke(IPC_CHANNELS.upgradesPrepareEntry, saveId, requiredVisualKeys) as Promise<
         DesktopOperationResult<PlayerUpgradeDto[]>
       >,
   },
