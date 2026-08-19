@@ -20,6 +20,7 @@ const INITIAL_STATE: AssetPreparationState = {
   completed: null,
   total: null,
   currentAsset: null,
+  currentAssetLabel: null,
   degraded: false,
 };
 
@@ -36,6 +37,7 @@ interface ProgressRecord {
   readonly completed: number | null;
   readonly total: number | null;
   readonly currentAsset: string | null;
+  readonly currentAssetLabel: string | null;
   readonly degraded: boolean;
 }
 
@@ -103,6 +105,13 @@ function parseProgress(value: Record<string, unknown>): ProgressRecord {
   if (currentAsset !== null && (typeof currentAsset !== "string" || currentAsset.length > 512)) {
     throw new Error("Invalid asset preparation current asset.");
   }
+  const currentAssetLabel = value.currentAssetLabel ?? null;
+  if (
+    currentAssetLabel !== null &&
+    (typeof currentAssetLabel !== "string" || currentAssetLabel.length > 512)
+  ) {
+    throw new Error("Invalid asset preparation current asset label.");
+  }
   return {
     type: "progress",
     stage: stage as ProgressRecord["stage"],
@@ -111,6 +120,7 @@ function parseProgress(value: Record<string, unknown>): ProgressRecord {
     completed,
     total,
     currentAsset,
+    currentAssetLabel,
     degraded: value.degraded,
   };
 }
@@ -374,6 +384,7 @@ export class AssetPreparationService {
       completed,
       total,
       currentAsset: null,
+      currentAssetLabel: null,
       degraded: knownFailure,
     });
     await this.#prepare(missing, completed, total, knownFailure);
@@ -409,6 +420,7 @@ export class AssetPreparationService {
         completed: overallTotal,
         total: overallTotal,
         currentAsset: null,
+        currentAssetLabel: null,
         degraded: terminalDegraded,
       });
     } catch {
@@ -419,6 +431,7 @@ export class AssetPreparationService {
         completed: overallTotal === null ? null : (this.#state.completed ?? completedOffset),
         total: overallTotal,
         currentAsset: null,
+        currentAssetLabel: null,
         degraded: true,
       });
     }
@@ -439,6 +452,7 @@ export class AssetPreparationService {
         completed: localCompleted === null ? null : context.completedOffset + localCompleted,
         total: context.overallTotal,
         currentAsset: record.currentAsset,
+        currentAssetLabel: record.currentAssetLabel,
         degraded: record.degraded,
       });
       return;
@@ -482,6 +496,7 @@ export class AssetPreparationService {
       completed,
       total,
       currentAsset: null,
+      currentAssetLabel: null,
       degraded,
     });
   }

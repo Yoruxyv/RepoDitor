@@ -32,7 +32,6 @@ export function useEnvironmentDiscovery(
   const activeRef = useRef(active);
   const requestInFlight = useRef(false);
   const refreshQueued = useRef(false);
-  activeRef.current = active;
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) {
@@ -66,6 +65,7 @@ export function useEnvironmentDiscovery(
   }, []);
 
   useEffect(() => {
+    activeRef.current = active;
     if (active) void refresh();
   }, [active, refresh, refreshGeneration]);
 

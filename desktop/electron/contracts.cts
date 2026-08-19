@@ -44,6 +44,7 @@ export interface AssetPreparationState {
   completed: number | null;
   total: number | null;
   currentAsset: string | null;
+  currentAssetLabel: string | null;
   degraded: boolean;
 }
 

@@ -4,12 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SaveOpenResult } from "@electron/contracts";
 import App from "@/App";
-import {
-  createRepoDitorApi as bridge,
-  environment,
-  openResult,
-  session,
-} from "@/test/repoditorApiFixture";
+import { createRepoDitorApi as bridge, environment, openResult } from "@/test/repoditorApiFixture";
 
 describe("save discovery integration", () => {
   beforeEach(() => {
@@ -79,9 +74,8 @@ describe("save discovery integration", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(screen.getByRole("button", { name: /Opening save/ }).hasAttribute("disabled")).toBe(
-      true,
-    );
+    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.queryByTestId("workspace")).toBeNull();
     finishOpen?.(openResult());
 
     expect(await screen.findByTestId("workspace")).toBeTruthy();
@@ -93,40 +87,37 @@ describe("save discovery integration", () => {
     expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-selected")).toBe("true");
   });
 
-  it(
-    "restores the previous discovery snapshot immediately and refreshes in background",
-    async () => {
-      let finishRefresh:
-        | ((value: Awaited<ReturnType<typeof window.repoditor.environment.detect>>) => void)
-        | undefined;
-      const detect = vi
-        .fn()
-        .mockResolvedValueOnce({ ok: true, data: environment })
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              finishRefresh = resolve;
-            }),
-        );
-      window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()));
-      window.repoditor.environment.detect = detect;
-      const user = userEvent.setup();
-      render(<App />);
+  it("restores the previous discovery snapshot immediately and refreshes in background", async () => {
+    let finishRefresh:
+      | ((value: Awaited<ReturnType<typeof window.repoditor.environment.detect>>) => void)
+      | undefined;
+    const detect = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRefresh = resolve;
+          }),
+      );
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()));
+    window.repoditor.environment.detect = detect;
+    const user = userEvent.setup();
+    render(<App />);
 
-      await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-      expect(await screen.findByTestId("workspace")).toBeTruthy();
-      await user.click(screen.getByRole("button", { name: "Change save" }));
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Change save" }));
 
-      expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
-      expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
-      expect(screen.getByRole("button", { name: "Refreshing" })).toBeTruthy();
-      expect(detect).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("discovery-skeleton")).toBeNull();
+    expect(screen.getByRole("button", { name: "Refreshing" })).toBeTruthy();
+    expect(detect).toHaveBeenCalledTimes(2);
 
-      await act(async () => {
-        finishRefresh?.({ ok: true, data: environment });
-      });
-    },
-  );
+    await act(async () => {
+      finishRefresh?.({ ok: true, data: environment });
+    });
+  });
 
   it("replaces the retained discovery snapshot after a successful return refresh", async () => {
     let finishRefresh:
@@ -139,8 +130,7 @@ describe("save discovery integration", () => {
           ...environment.saves[0]!,
           id: "REPO_SAVE_2026_08_08_10_20_31",
           name: "2026-08-08 10:20:31",
-          path:
-            "C:\\fixture\\saves\\REPO_SAVE_2026_08_08_10_20_31\\REPO_SAVE_2026_08_08_10_20_31.es3",
+          path: "C:\\fixture\\saves\\REPO_SAVE_2026_08_08_10_20_31\\REPO_SAVE_2026_08_08_10_20_31.es3",
         },
       ],
     };

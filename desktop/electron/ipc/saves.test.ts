@@ -72,9 +72,7 @@ describe("openSave", () => {
       ok: true,
       data: { presentationReadiness: "ready" },
     });
-    expect(preparation.checkUpgradeVisualReadiness).toHaveBeenCalledWith(
-      requiredUpgradeVisualKeys,
-    );
+    expect(preparation.checkUpgradeVisualReadiness).toHaveBeenCalledWith(requiredUpgradeVisualKeys);
   });
 
   it("normalizes invalid protocol data", async () => {

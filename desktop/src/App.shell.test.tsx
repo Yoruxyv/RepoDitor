@@ -18,7 +18,6 @@ import {
   readyAssets,
   openResult,
   upgrades,
-  requiredUpgradeVisualKeys,
   session,
 } from "@/test/repoditorApiFixture";
 
@@ -103,13 +102,14 @@ describe("app shell integration", () => {
         completed: 0,
         total: 3,
         currentAsset: "Upgrade_Health_Albedo",
+        currentAssetLabel: "Health",
         degraded: false,
       }),
     );
     expect(preload.getAttribute("data-entry-mode")).toBe("artwork");
     expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
-      "Decoding Upgrade_Health_Albedo…",
+      "Decoding Health upgrade artwork…",
     );
     expect(screen.queryByTestId("workspace")).toBeNull();
 
@@ -291,6 +291,7 @@ describe("app shell integration", () => {
       completed: null,
       total: null,
       currentAsset: null,
+      currentAssetLabel: null,
       degraded: true,
     };
     window.repoditor.assets.state = vi.fn().mockResolvedValue(degradedAssets);
@@ -298,12 +299,10 @@ describe("app shell integration", () => {
       listener(degradedAssets);
       return () => undefined;
     });
-    window.repoditor.upgrades.prepareEntry = vi
-      .fn()
-      .mockResolvedValue({
-        ok: false,
-        error: { code: "backend_unavailable", message: "offline" },
-      });
+    window.repoditor.upgrades.prepareEntry = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: "backend_unavailable", message: "offline" },
+    });
     const user = userEvent.setup();
 
     render(<App />);

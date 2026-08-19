@@ -182,7 +182,7 @@ function AppContent() {
 
   const currentRunEntryTask =
     pendingRunEntry?.phase === "preparing-entry"
-      ? RUN_ENTRY_TASK_PRIORITY.find((task) => pendingRunEntry.pendingTasks.has(task)) ?? null
+      ? (RUN_ENTRY_TASK_PRIORITY.find((task) => pendingRunEntry.pendingTasks.has(task)) ?? null)
       : null;
   const realAssetPreparation =
     pendingRunEntry?.phase === "preparing-entry" &&

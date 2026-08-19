@@ -27,13 +27,7 @@ export function registerEditorIpc(
   registrar.handle(
     IPC_CHANNELS.upgradesPrepareEntry,
     (_event, saveId: unknown, requiredVisualKeys: unknown) =>
-      prepareUpgradesForEntry(
-        client,
-        saveId,
-        requiredVisualKeys,
-        preparation,
-        localIconRegistry,
-      ),
+      prepareUpgradesForEntry(client, saveId, requiredVisualKeys, preparation, localIconRegistry),
   );
   registrar.handle(IPC_CHANNELS.runGet, (_event, saveId: unknown) => getRunState(client, saveId));
   registrar.handle(IPC_CHANNELS.advancedGet, (_event, saveId: unknown) =>

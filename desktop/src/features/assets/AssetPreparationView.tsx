@@ -72,9 +72,11 @@ export function AssetPreparationView({
   const detail =
     mode === "save"
       ? (saveDetail ?? t("entry.detail.finalizing"))
-      : state.currentAsset !== null
-        ? t("entry.detail.asset", { asset: state.currentAsset })
-        : t(STAGE_KEYS[state.stage]);
+      : state.currentAssetLabel !== null
+        ? t("entry.detail.upgradeArtwork", { asset: state.currentAssetLabel })
+        : state.currentAsset !== null
+          ? t("entry.detail.asset", { asset: state.currentAsset })
+          : t(STAGE_KEYS[state.stage]);
 
   return (
     <section

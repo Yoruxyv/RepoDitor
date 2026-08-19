@@ -24,6 +24,7 @@ function progress(
   completed: number | null,
   total: number | null,
   currentAsset: string | null = null,
+  currentAssetLabel: string | null = null,
 ) {
   return {
     type: "progress",
@@ -33,6 +34,7 @@ function progress(
     completed,
     total,
     currentAsset,
+    currentAssetLabel,
     degraded: false,
   };
 }
@@ -91,6 +93,7 @@ describe("AssetPreparationService", () => {
       completed: null,
       total: null,
       currentAsset: null,
+      currentAssetLabel: null,
       degraded: false,
     });
   });
@@ -99,7 +102,7 @@ describe("AssetPreparationService", () => {
     const fakeCache = cache();
     const fakeClient = client(async (_command, request, onRecord) => {
       const [key] = request;
-      await onRecord(progress("decoding", 0, 1, "Upgrade_Health_Albedo"));
+      await onRecord(progress("decoding", 0, 1, "Upgrade_Health_Albedo", "Health"));
       await onRecord({
         type: "texture",
         upgradeKey: key,
@@ -111,15 +114,24 @@ describe("AssetPreparationService", () => {
     });
     const service = new AssetPreparationService(fakeClient, fakeCache);
     const currentAssets: Array<string | null> = [];
-    service.subscribe((state: { currentAsset: string | null }) => {
-      currentAssets.push(state.currentAsset);
-    });
+    const currentAssetLabels: Array<string | null> = [];
+    service.subscribe(
+      (state: { currentAsset: string | null; currentAssetLabel: string | null }) => {
+        currentAssets.push(state.currentAsset);
+        currentAssetLabels.push(state.currentAssetLabel);
+      },
+    );
 
     await service.prepareUpgradeVisuals([{ upgradeKey: "playerUpgradeHealth", cacheKey: null }]);
 
     expect(fakeCache.storePrepared).toHaveBeenCalledTimes(1);
     expect(currentAssets).toContain("Upgrade_Health_Albedo");
-    expect(service.getState()).toMatchObject({ currentAsset: null, stage: "ready" });
+    expect(currentAssetLabels).toContain("Health");
+    expect(service.getState()).toMatchObject({
+      currentAsset: null,
+      currentAssetLabel: null,
+      stage: "ready",
+    });
   });
 
   it("reuses a degraded startup capability result without spawning a save batch", async () => {
@@ -150,6 +162,7 @@ describe("AssetPreparationService", () => {
       completed: 2,
       total: 2,
       currentAsset: null,
+      currentAssetLabel: null,
       degraded: true,
     });
   });
@@ -353,6 +366,7 @@ describe("AssetPreparationService", () => {
         completed: 2,
         total: 2,
         currentAsset: null,
+        currentAssetLabel: null,
         degraded: true,
       });
       expect(
@@ -361,6 +375,7 @@ describe("AssetPreparationService", () => {
         "buildVerified",
         "completed",
         "currentAsset",
+        "currentAssetLabel",
         "degraded",
         "installationFound",
         "stage",
@@ -429,85 +444,72 @@ describe("AssetPreparationService", () => {
     );
   });
 
-  it(
-    "reports previously resolved source-valid visuals ready without another preparation batch",
-    async () => {
-      const fakeCache = cache();
-      const fakeClient = client(async (_command, request, onRecord) => {
+  it("reports previously resolved source-valid visuals ready without another preparation batch", async () => {
+    const fakeCache = cache();
+    const fakeClient = client(async (_command, request, onRecord) => {
+      await onRecord({
+        type: "texture",
+        upgradeKey: request[0],
+        texture: { opaque: true },
+        completed: 1,
+        total: 1,
+      });
+      return final({ completed: 1, total: 1 });
+    });
+    const service = new AssetPreparationService(fakeClient, fakeCache);
+    const visuals = [
+      { upgradeKey: "playerUpgradeCached", cacheKey: "item upgrade cached.png" },
+      { upgradeKey: "playerUpgradeDynamic", cacheKey: null },
+    ];
+
+    await service.prepareUpgradeVisuals(visuals);
+    expect(
+      await service.checkUpgradeVisualReadiness(visuals.map((visual) => visual.upgradeKey)),
+    ).toBe("ready");
+
+    expect(fakeClient.runRecords).toHaveBeenCalledTimes(1);
+    expect(fakeCache.hasPrepared).toHaveBeenLastCalledWith("playerUpgradeDynamic");
+  });
+
+  it("keeps valid cached visuals and prepares only a new requirement for another save", async () => {
+    const fakeCache = cache();
+    const requests: string[][] = [];
+    const fakeClient = client(async (_command, request, onRecord) => {
+      const keys = [...request];
+      requests.push(keys);
+      for (const [index, key] of keys.entries()) {
         await onRecord({
           type: "texture",
-          upgradeKey: request[0],
+          upgradeKey: key,
           texture: { opaque: true },
-          completed: 1,
-          total: 1,
+          completed: index + 1,
+          total: keys.length,
         });
-        return final({ completed: 1, total: 1 });
-      });
-      const service = new AssetPreparationService(fakeClient, fakeCache);
-      const visuals = [
-        { upgradeKey: "playerUpgradeCached", cacheKey: "item upgrade cached.png" },
-        { upgradeKey: "playerUpgradeDynamic", cacheKey: null },
-      ];
+      }
+      return final({ completed: keys.length, total: keys.length });
+    });
+    const service = new AssetPreparationService(fakeClient, fakeCache);
+    const firstVisuals = ["A", "B", "C"].map((suffix) => ({
+      upgradeKey: `playerUpgrade${suffix}`,
+      cacheKey: null,
+    }));
+    const secondVisuals = [...firstVisuals, { upgradeKey: "playerUpgradeD", cacheKey: null }];
 
-      await service.prepareUpgradeVisuals(visuals);
-      expect(
-        await service.checkUpgradeVisualReadiness(visuals.map((visual) => visual.upgradeKey)),
-      ).toBe("ready");
+    await service.prepareUpgradeVisuals(firstVisuals);
+    expect(
+      await service.checkUpgradeVisualReadiness(secondVisuals.map((visual) => visual.upgradeKey)),
+    ).toBe("unresolved");
 
-      expect(fakeClient.runRecords).toHaveBeenCalledTimes(1);
-      expect(fakeCache.hasPrepared).toHaveBeenLastCalledWith("playerUpgradeDynamic");
-    },
-  );
+    await service.prepareUpgradeVisuals(secondVisuals);
 
-  it(
-    "keeps valid cached visuals and prepares only a new requirement for another save",
-    async () => {
-      const fakeCache = cache();
-      const requests: string[][] = [];
-      const fakeClient = client(async (_command, request, onRecord) => {
-        const keys = [...request];
-        requests.push(keys);
-        for (const [index, key] of keys.entries()) {
-          await onRecord({
-            type: "texture",
-            upgradeKey: key,
-            texture: { opaque: true },
-            completed: index + 1,
-            total: keys.length,
-          });
-        }
-        return final({ completed: keys.length, total: keys.length });
-      });
-      const service = new AssetPreparationService(fakeClient, fakeCache);
-      const firstVisuals = ["A", "B", "C"].map((suffix) => ({
-        upgradeKey: `playerUpgrade${suffix}`,
-        cacheKey: null,
-      }));
-      const secondVisuals = [
-        ...firstVisuals,
-        { upgradeKey: "playerUpgradeD", cacheKey: null },
-      ];
-
-      await service.prepareUpgradeVisuals(firstVisuals);
-      expect(
-        await service.checkUpgradeVisualReadiness(
-          secondVisuals.map((visual) => visual.upgradeKey),
-        ),
-      ).toBe("unresolved");
-
-      await service.prepareUpgradeVisuals(secondVisuals);
-
-      expect(requests).toEqual([
-        ["playerUpgradeA", "playerUpgradeB", "playerUpgradeC"],
-        ["playerUpgradeD"],
-      ]);
-      expect(
-        await service.checkUpgradeVisualReadiness(
-          secondVisuals.map((visual) => visual.upgradeKey),
-        ),
-      ).toBe("ready");
-    },
-  );
+    expect(requests).toEqual([
+      ["playerUpgradeA", "playerUpgradeB", "playerUpgradeC"],
+      ["playerUpgradeD"],
+    ]);
+    expect(
+      await service.checkUpgradeVisualReadiness(secondVisuals.map((visual) => visual.upgradeKey)),
+    ).toBe("ready");
+  });
 
   it("rejects an invalidated cached source and reprepares only the affected visual", async () => {
     const fakeCache = cache();

@@ -13,6 +13,7 @@ function state(overrides: Partial<AssetPreparationState> = {}): AssetPreparation
     completed: null,
     total: null,
     currentAsset: null,
+    currentAssetLabel: null,
     degraded: false,
     ...overrides,
   };
@@ -138,12 +139,13 @@ describe("AssetPreparationView", () => {
         completed: 1,
         total: 3,
         currentAsset: "Upgrade_Health_Albedo",
+        currentAssetLabel: "Health",
       }),
     );
 
     expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
-      "Decoding Upgrade_Health_Albedo…",
+      "Decoding Health upgrade artwork…",
     );
   });
 

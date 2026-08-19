@@ -491,8 +491,10 @@ function failure(error: unknown): DesktopOperationFailure {
 export async function openSave(
   client: PythonClient,
   saveId: unknown,
-  preparation: Pick<AssetPreparationService, "checkUpgradeVisualReadiness"> =
-    assetPreparationService,
+  preparation: Pick<
+    AssetPreparationService,
+    "checkUpgradeVisualReadiness"
+  > = assetPreparationService,
 ): Promise<DesktopOperationResult<SaveOpenResult>> {
   if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
     return {
@@ -561,8 +563,10 @@ export async function saveChanges(
 
 export function registerSaveIpc(
   client: PythonClient = pythonClient,
-  preparation: Pick<AssetPreparationService, "checkUpgradeVisualReadiness"> =
-    assetPreparationService,
+  preparation: Pick<
+    AssetPreparationService,
+    "checkUpgradeVisualReadiness"
+  > = assetPreparationService,
 ): void {
   ipcMain.handle(IPC_CHANNELS.savesOpen, (_event, saveId: unknown) =>
     openSave(client, saveId, preparation),

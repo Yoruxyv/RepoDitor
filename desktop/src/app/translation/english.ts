@@ -276,8 +276,10 @@ export const en = {
   "entry.detail.maps": "Loading map data…",
   "entry.detail.finalizing": "Finalizing editor state…",
   "entry.detail.asset": "Decoding {asset}…",
+  "entry.detail.upgradeArtwork": "Decoding {asset} upgrade artwork…",
   "entry.localOnlyHint": "Preparing this save locally. Save data stays on this PC.",
-  "entry.slowHint": "Still preparing this save for the editor. Some local data can take longer to read.",
+  "entry.slowHint":
+    "Still preparing this save for the editor. Some local data can take longer to read.",
   "entry.localSave": "Local save • reading",
   "entry.editorPreparing": "Editor data • preparing",
   "assets.localPreparation": "Asset preparation",

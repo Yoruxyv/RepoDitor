@@ -264,6 +264,7 @@ export const zh: Record<keyof typeof en, string> = {
   "entry.detail.maps": "正在加载地图数据…",
   "entry.detail.finalizing": "正在完成编辑器状态…",
   "entry.detail.asset": "正在解码 {asset}…",
+  "entry.detail.upgradeArtwork": "正在解码 {asset} 升级图像…",
   "entry.localOnlyHint": "正在本地准备此存档。存档数据不会离开这台电脑。",
   "entry.slowHint": "仍在为编辑器准备此存档。某些本地数据可能需要更长时间读取。",
   "entry.localSave": "本地存档 • 正在读取",

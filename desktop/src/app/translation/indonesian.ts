@@ -279,8 +279,10 @@ export const id: Record<keyof typeof en, string> = {
   "entry.detail.maps": "Memuat data map…",
   "entry.detail.finalizing": "Menyelesaikan status editor…",
   "entry.detail.asset": "Mendekode {asset}…",
+  "entry.detail.upgradeArtwork": "Mendekode gambar upgrade {asset}…",
   "entry.localOnlyHint": "Menyiapkan save ini secara lokal. Data save tetap berada di PC ini.",
-  "entry.slowHint": "Masih menyiapkan save ini untuk editor. Sebagian data lokal dapat memerlukan waktu lebih lama untuk dibaca.",
+  "entry.slowHint":
+    "Masih menyiapkan save ini untuk editor. Sebagian data lokal dapat memerlukan waktu lebih lama untuk dibaca.",
   "entry.localSave": "Save lokal • membaca",
   "entry.editorPreparing": "Data editor • menyiapkan",
   "assets.localPreparation": "Persiapan aset",

@@ -169,6 +169,12 @@ def test_preparation_emits_indeterminate_start_then_real_completed_total(
         "Upgrade_Health_Albedo",
         "Upgrade_Health_Albedo",
     ]
+    decoding_labels = [
+        record["currentAssetLabel"]
+        for record in records
+        if record["type"] == "progress" and record["stage"] == "decoding"
+    ]
+    assert decoding_labels[-3:] == ["Health", "Strength", "Moon Boots"]
     assert records[-1] == {
         "type": "final",
         "ok": True,

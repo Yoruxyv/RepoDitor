@@ -9,6 +9,7 @@ const INITIAL_STATE: AssetPreparationState = {
   completed: null,
   total: null,
   currentAsset: null,
+  currentAssetLabel: null,
   degraded: false,
 };
 

@@ -105,7 +105,10 @@ export async function prepareRunEntryData({
   }
 
   const playersPromise = tracked("players", () =>
-    safeResult(() => window.repoditor.players.list(saveId), "The player bridge failed unexpectedly."),
+    safeResult(
+      () => window.repoditor.players.list(saveId),
+      "The player bridge failed unexpectedly.",
+    ),
   );
   const upgradesPromise = tracked("upgrades", () =>
     safeResult(

@@ -271,8 +271,11 @@ export const ja: Record<keyof typeof en, string> = {
   "entry.detail.maps": "マップデータを読み込み中…",
   "entry.detail.finalizing": "エディター状態を仕上げています…",
   "entry.detail.asset": "{asset} をデコード中…",
-  "entry.localOnlyHint": "このセーブをローカルで準備しています。セーブデータはこの PC から送信されません。",
-  "entry.slowHint": "エディター用にこのセーブを準備しています。一部のローカルデータは読み込みに時間がかかる場合があります。",
+  "entry.detail.upgradeArtwork": "{asset} のアップグレード画像をデコード中…",
+  "entry.localOnlyHint":
+    "このセーブをローカルで準備しています。セーブデータはこの PC から送信されません。",
+  "entry.slowHint":
+    "エディター用にこのセーブを準備しています。一部のローカルデータは読み込みに時間がかかる場合があります。",
   "entry.localSave": "ローカルセーブ • 読み込み中",
   "entry.editorPreparing": "エディターデータ • 準備中",
   "assets.localPreparation": "アセット準備",

@@ -277,8 +277,11 @@ export const ko: Record<keyof typeof en, string> = {
   "entry.detail.maps": "맵 데이터 불러오는 중…",
   "entry.detail.finalizing": "에디터 상태 마무리 중…",
   "entry.detail.asset": "{asset} 디코딩 중…",
-  "entry.localOnlyHint": "이 세이브를 로컬에서 준비하고 있습니다. 세이브 데이터는 이 PC에만 유지됩니다.",
-  "entry.slowHint": "에디터용 세이브를 계속 준비하고 있습니다. 일부 로컬 데이터는 읽는 데 더 오래 걸릴 수 있습니다.",
+  "entry.detail.upgradeArtwork": "{asset} 업그레이드 이미지를 디코딩하는 중…",
+  "entry.localOnlyHint":
+    "이 세이브를 로컬에서 준비하고 있습니다. 세이브 데이터는 이 PC에만 유지됩니다.",
+  "entry.slowHint":
+    "에디터용 세이브를 계속 준비하고 있습니다. 일부 로컬 데이터는 읽는 데 더 오래 걸릴 수 있습니다.",
   "entry.localSave": "로컬 세이브 • 읽는 중",
   "entry.editorPreparing": "에디터 데이터 • 준비 중",
   "assets.localPreparation": "에셋 준비",

@@ -8,7 +8,6 @@ import {
   createRepoDitorApi as bridge,
   openResult,
   players,
-  session,
 } from "@/test/repoditorApiFixture";
 
 describe("cosmetics workspace integration", () => {

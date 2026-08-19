@@ -17,6 +17,7 @@ from repo_save_editor.services.player.upgrade_textures import (
     prepare_installed_upgrade_textures,
     validate_upgrade_texture_key,
 )
+from repo_save_editor.services.player.upgrades import get_upgrade_label
 
 MAX_PREPARATION_PAYLOAD_BYTES: Final = 64 * 1024
 PreparationEmitter = Callable[[dict[str, object]], None]
@@ -63,6 +64,7 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
         installation_found: bool,
         build_verified: bool,
         current_asset: str | None = None,
+        current_asset_label: str | None = None,
     ) -> None:
         emit(
             {
@@ -73,16 +75,18 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
                 "completed": completed if total else None,
                 "total": total if total else None,
                 "currentAsset": current_asset,
+                "currentAssetLabel": current_asset_label,
                 "degraded": False,
             }
         )
 
-    def emit_decode_start(_key: str, texture_name: str) -> None:
+    def emit_decode_start(key: str, texture_name: str) -> None:
         emit_progress(
             UpgradePreparationStage.DECODING,
             True,
             True,
             texture_name,
+            get_upgrade_label(key),
         )
 
     def emit_texture(key: str, decoded: DecodedUpgradeTexture | None) -> None:
