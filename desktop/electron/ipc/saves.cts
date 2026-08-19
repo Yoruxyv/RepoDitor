@@ -26,7 +26,6 @@ import {
   type SaveWriteResult,
 } from "../contracts.cjs";
 import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
-import { rechargeProfileEvent } from "../prbProfile.cjs";
 
 const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
@@ -218,7 +217,8 @@ function parseChange(value: unknown): SaveChange {
     feature === "advanced" &&
     /^Item .+\/\d+$/.test(entity) &&
     field === "refillToFull" &&
-    value.after === true
+    typeof value.after === "boolean" &&
+    value.after
   ) {
     return { feature, entity, field, after: true };
   }
@@ -263,8 +263,8 @@ function rechargeEvidenceArgument(
   if (itemTypes.length === 0) return null;
   const payload = evidence.forRequestedItems(itemTypes);
   if (payload === null) return null;
-  const encoded = JSON.stringify(payload);
-  if (encoded === undefined) return null;
+  const encoded: string | undefined = JSON.stringify(payload);
+  if (typeof encoded !== "string") return null;
   return Buffer.byteLength(encoded, "utf8") <= MAX_RECHARGE_EVIDENCE_ARG_BYTES ? encoded : null;
 }
 
@@ -587,10 +587,7 @@ export async function saveChanges(
     const arguments_ = [saveId, safeFingerprint, JSON.stringify(safeChanges)];
     const cachedEvidence = rechargeEvidenceArgument(safeChanges, evidence);
     if (cachedEvidence !== null) arguments_.push(cachedEvidence);
-    const started = performance.now();
-    const response = await client.run("saves-write", arguments_);
-    rechargeProfileEvent("electron_saves_write_total", { durationMs: performance.now() - started });
-    const result = parseWriteResponse(response, safeChanges);
+    const result = parseWriteResponse(await client.run("saves-write", arguments_), safeChanges);
     if (result.ok && result.data.session.id !== saveId) {
       throw new SaveProtocolError("Save response ID did not match the request.");
     }

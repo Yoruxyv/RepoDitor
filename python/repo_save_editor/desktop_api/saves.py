@@ -18,8 +18,6 @@ from repo_save_editor.desktop_api.run_save_changes import (
     apply_run_save_changes,
     requested_refill_item_types,
 )
-from repo_save_editor.prb_profile import emit as prb_emit
-from repo_save_editor.prb_profile import timed as prb_timed
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.items.discovery import discover_advanced_save
 from repo_save_editor.services.items.models import AdvancedSaveError, ItemRechargeCapability
@@ -262,30 +260,24 @@ def save_changes(
         refill_item_types = requested_refill_item_types(changes)
         recharge_capabilities: Mapping[str, ItemRechargeCapability]
         if refill_item_types:
-            with prb_timed(
-                "recharge_evidence_validation", evidencePresent=recharge_evidence is not None
-            ):
-                verified_evidence = (
-                    recharge_evidence_verifier(recharge_evidence, refill_item_types)
-                    if recharge_evidence is not None
-                    else None
-                )
-            if verified_evidence is not None:
-                prb_emit("recharge_authorization_source", sourceKind="validated_evidence")
-                recharge_capabilities = verified_evidence
-            else:
-                prb_emit("recharge_authorization_source", sourceKind="full_discovery")
-                with prb_timed("full_recharge_capability_discovery"):
-                    recharge_capabilities = recharge_capability_loader(refill_item_types)
+            verified_evidence = (
+                recharge_evidence_verifier(recharge_evidence, refill_item_types)
+                if recharge_evidence is not None
+                else None
+            )
+            recharge_capabilities = (
+                verified_evidence
+                if verified_evidence is not None
+                else recharge_capability_loader(refill_item_types)
+            )
         else:
             recharge_capabilities = {}
         apply_run_save_changes(data, changes, recharge_capabilities)
-        with prb_timed("safe_persistence_total"):
-            backup, written = SaveRepository(save.path.parent).overwrite(
-                save.path,
-                data,
-                expected_source=source,
-            )
+        backup, written = SaveRepository(save.path.parent).overwrite(
+            save.path,
+            data,
+            expected_source=source,
+        )
         try:
             metadata = save.path.stat()
             modified_at = datetime.fromtimestamp(metadata.st_mtime, tz=UTC)
@@ -297,17 +289,15 @@ def save_changes(
             file_size=len(written),
         )
         session = _session(updated_save, data, written)
-        with prb_timed("canonical_post_write_projection"):
-            canonical = _canonical_applied_state(
+        result = {
+            "backupPath": str(backup),
+            "session": session,
+            "canonical": _canonical_applied_state(
                 data,
                 changes,
                 cast(str, session["fingerprint"]),
                 recharge_capabilities,
-            )
-        result = {
-            "backupPath": str(backup),
-            "session": session,
-            "canonical": canonical,
+            ),
         }
     except GameSafetyError as exc:
         return _failure(exc.code, exc.message)

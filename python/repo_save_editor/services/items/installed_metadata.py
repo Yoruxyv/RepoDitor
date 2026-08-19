@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from repo_save_editor.prb_profile import emit as prb_emit
 from repo_save_editor.services.icon_cache import normalize_icon_cache_key
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.unity_serialized import (
@@ -309,7 +308,6 @@ def discover_installed_item_metadata(
     item_names: Iterable[str],
 ) -> dict[str, InstalledItemMetadata]:
     """Read optional icon and recharge metadata from installed item prefabs."""
-    prb_emit("unity_metadata_scan")
     try:
         names, by_identity = _normalize_item_names(item_names)
     except UnityMetadataError:

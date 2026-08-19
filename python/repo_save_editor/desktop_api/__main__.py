@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from time import perf_counter
 
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
@@ -21,8 +20,6 @@ from repo_save_editor.desktop_api.player.players import get_player_avatar, list_
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
-from repo_save_editor.prb_profile import emit as prb_emit
-from repo_save_editor.prb_profile import enabled as prb_enabled
 
 _INVALID_JSON = object()
 
@@ -187,14 +184,10 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     """Execute one bounded desktop command and emit its declared JSON protocol."""
-    command = sys.argv[1] if len(sys.argv) > 1 else "unknown"
-    started = perf_counter() if prb_enabled() and command == "saves-write" else None
     args = _parser().parse_args()
     result = args.handler(args)
     if not getattr(args, "streaming", False):
         print(json.dumps(result))
-    if started is not None:
-        prb_emit("python_saves_write_total", durationMs=(perf_counter() - started) * 1000.0)
 
 
 if __name__ == "__main__":

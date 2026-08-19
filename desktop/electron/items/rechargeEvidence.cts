@@ -25,8 +25,21 @@ interface ParsedEvidence {
   readonly capabilities: Map<string, RechargeCapability>;
 }
 
+interface RechargeEvidencePayload {
+  readonly version: 1;
+  readonly installationRoot: string;
+  readonly manifestPath: string;
+  readonly buildId: string;
+  readonly resources: SourceIdentity;
+  readonly globalManagers: SourceIdentity;
+  readonly capabilities: ReadonlyArray<{
+    readonly itemName: string;
+    readonly capability: RechargeCapability;
+  }>;
+}
+
 export interface RechargeEvidenceProvider {
-  forRequestedItems(itemNames: readonly string[]): unknown | null;
+  forRequestedItems(itemNames: readonly string[]): RechargeEvidencePayload | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -179,7 +192,7 @@ export class RechargeEvidenceStore implements RechargeEvidenceProvider {
     this.evidence = null;
   }
 
-  forRequestedItems(itemNames: readonly string[]): unknown | null {
+  forRequestedItems(itemNames: readonly string[]): RechargeEvidencePayload | null {
     if (
       this.evidence === null ||
       itemNames.length === 0 ||
