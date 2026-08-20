@@ -10,8 +10,8 @@ import {
   type PlayerDto,
 } from "../contracts.cjs";
 import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
+import { validSaveId } from "./protocol.cjs";
 
-const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 const STEAM_AVATAR_HOSTS = new Set([
   "avatars.akamai.steamstatic.com",
@@ -152,10 +152,6 @@ function publicError(error: unknown): DesktopOperationError {
 function failure(label: string, error: unknown): DesktopOperationFailure {
   console.error(`${label} failed.`, error);
   return { ok: false, error: publicError(error) };
-}
-
-function validSaveId(saveId: unknown): saveId is string {
-  return typeof saveId === "string" && SAVE_ID_PATTERN.test(saveId);
 }
 
 function validPlayerId(playerId: unknown): playerId is string {
