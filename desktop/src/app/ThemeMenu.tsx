@@ -2,7 +2,11 @@ import { CheckIcon, DesktopIcon, MoonIcon, SunIcon, type Icon } from "@phosphor-
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { usePreferences, type ThemePreference } from "@/app/preferences";
-import { menuSurfaceClassName, utilityTriggerClassName } from "@/app/utilityMenuChrome";
+import {
+  menuSurfaceClassName,
+  utilityMenuItemStateClassName,
+  utilityTriggerClassName,
+} from "@/app/utilityMenuStyles";
 
 const THEMES = [
   { value: "system", labelKey: "utility.theme.system", icon: DesktopIcon },
@@ -128,13 +132,7 @@ export function ThemeMenu() {
                       options.current[index] = element;
                     }}
                     aria-selected={selected}
-                    className={`ui-feedback grid w-full grid-cols-[1rem_1rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${
-                      selected
-                        ? "bg-accent-muted text-accent"
-                        : index === activeIndex
-                          ? "bg-surface text-ink"
-                          : "text-secondary hover:bg-surface hover:text-ink"
-                    }`}
+                    className={`ui-feedback grid w-full grid-cols-[1rem_1rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${utilityMenuItemStateClassName(selected, index === activeIndex)}`}
                     role="option"
                     tabIndex={index === activeIndex ? 0 : -1}
                     type="button"

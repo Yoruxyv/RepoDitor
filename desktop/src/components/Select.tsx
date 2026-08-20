@@ -1,10 +1,7 @@
 import { CheckIcon } from "@phosphor-icons/react";
 
-import {
-  menuOptionClassName,
-  menuSurfaceClassName,
-  UtilityMenuCaret,
-} from "@/app/utilityMenuChrome";
+import { UtilityMenuCaret } from "@/app/UtilityMenuCaret";
+import { menuOptionClassName, menuSurfaceClassName } from "@/app/utilityMenuStyles";
 import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 
 export type SelectValue = string | number;
@@ -152,49 +149,52 @@ export function Select<T extends SelectValue>({
       </button>
 
       {open ? (
-        <div
-          aria-label={ariaLabel}
-          className={`${menuSurfaceClassName} absolute left-0 z-30 mt-1.5 max-h-60 w-full min-w-0 max-w-full overflow-y-auto`}
-          id={listboxId}
-          role="listbox"
-        >
-          {options.map((option, index) => {
-            const selected = option.value === value;
-            const active = index === activeIndex;
-            return (
-              <div key={`${typeof option.value}:${String(option.value)}`}>
-                {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
-                <button
-                  ref={(element) => {
-                    optionRefs.current[index] = element;
-                  }}
-                  aria-selected={selected}
-                  className={`${menuOptionClassName(
-                    selected,
-                    active,
-                  )} grid-cols-[minmax(0,1fr)_1rem]`}
-                  data-value={String(option.value)}
-                  role="option"
-                  tabIndex={active ? 0 : -1}
-                  type="button"
-                  onClick={() => choose(index)}
-                  onFocus={() => setActiveIndex(index)}
-                  onKeyDown={(event) => moveOption(event, index)}
-                >
-                  <span className="min-w-0 truncate" title={option.label}>
-                    {option.label}
-                  </span>
-                  <CheckIcon
-                    aria-hidden="true"
-                    className={`justify-self-end ${selected ? "opacity-100" : "opacity-0"}`}
-                    size={14}
-                    weight="bold"
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+          <div
+            aria-label={ariaLabel}
+            className={`${menuSurfaceClassName} absolute left-0 z-30 mt-1.5 max-h-60 w-full min-w-0 max-w-full overflow-y-auto`}
+            id={listboxId}
+            role="listbox"
+          >
+            {options.map((option, index) => {
+              const selected = option.value === value;
+              const active = index === activeIndex;
+              return (
+                <div key={`${typeof option.value}:${String(option.value)}`}>
+                  {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+                  <button
+                    ref={(element) => {
+                      optionRefs.current[index] = element;
+                    }}
+                    aria-selected={selected}
+                    className={`${menuOptionClassName(
+                      selected,
+                      active,
+                    )} grid-cols-[minmax(0,1fr)_1rem]`}
+                    data-value={String(option.value)}
+                    role="option"
+                    tabIndex={active ? 0 : -1}
+                    type="button"
+                    onClick={() => choose(index)}
+                    onFocus={() => setActiveIndex(index)}
+                    onKeyDown={(event) => moveOption(event, index)}
+                  >
+                    <span className="min-w-0 truncate" title={option.label}>
+                      {option.label}
+                    </span>
+                    <CheckIcon
+                      aria-hidden="true"
+                      className={`justify-self-end ${selected ? "opacity-100" : "opacity-0"}`}
+                      size={14}
+                      weight="bold"
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : null}
     </div>
   );

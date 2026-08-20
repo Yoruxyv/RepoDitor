@@ -269,7 +269,6 @@ test("covers the source workspace, shell, and editor domains", async () => {
     await expect(page.getByText("2 matching items")).toBeVisible();
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
     await page.getByRole("button", { name: "Clear item search" }).click();
-    const itemFilter = page.getByRole("combobox", { name: "Filter" });
     await selectCustomOption(page, "Filter", "rechargeable");
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toBeVisible();
     await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);

@@ -2,7 +2,7 @@ import { GithubLogoIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { LanguageMenu } from "@/app/LanguageMenu";
-import { utilityTriggerClassName } from "@/app/utilityMenuChrome";
+import { utilityTriggerClassName } from "@/app/utilityMenuStyles";
 import { usePreferences } from "@/app/preferences";
 import { ThemeMenu } from "@/app/ThemeMenu";
 
