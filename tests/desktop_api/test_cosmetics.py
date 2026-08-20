@@ -1,6 +1,7 @@
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
+from unittest.mock import Mock
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.desktop_api import cosmetics as cosmetics_api
@@ -306,6 +307,32 @@ def test_game_running_blocks_cosmetics_write_before_backup_or_source_change(tmp_
     )
 
     assert result["error"]["code"] == "game_running"
+    assert meta_path.read_bytes() == original
+    assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
+
+
+def test_game_start_after_early_check_blocks_cosmetics_write_before_persistence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    save_root, meta_path = _write_fixture(tmp_path)
+    original = meta_path.read_bytes()
+    status_loader = Mock(side_effect=[GameProcessStatus.NOT_RUNNING, GameProcessStatus.RUNNING])
+    overwrite = Mock(side_effect=AssertionError("overwrite must not be reached"))
+    monkeypatch.setattr(cosmetics_api.EncryptedSaveRepository, "overwrite", overwrite)
+
+    result = save_cosmetics(
+        sha256(original).hexdigest(),
+        [{"feature": "cosmetics", "entity": "known", "field": "unlockAll", "after": True}],
+        save_root,
+        game_status_loader=status_loader,
+        catalog_loader=_catalog_loader,
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "game_running"
+    assert "result" not in result
+    assert status_loader.call_count == 2
+    overwrite.assert_not_called()
     assert meta_path.read_bytes() == original
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 

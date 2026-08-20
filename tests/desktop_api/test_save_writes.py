@@ -530,6 +530,32 @@ def test_game_running_blocks_run_write_before_backup_or_source_change(tmp_path: 
     assert not list(path.parent.glob("*.bak-*"))
 
 
+def test_game_start_after_early_check_blocks_run_write_before_persistence(
+    tmp_path: Path, sample_save, monkeypatch
+) -> None:
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+    status_loader = Mock(side_effect=[GameProcessStatus.NOT_RUNNING, GameProcessStatus.RUNNING])
+    overwrite = Mock(side_effect=AssertionError("overwrite must not be reached"))
+    monkeypatch.setattr(SaveRepository, "overwrite", overwrite)
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
+        tmp_path,
+        game_status_loader=status_loader,
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "game_running"
+    assert "result" not in result
+    assert status_loader.call_count == 2
+    overwrite.assert_not_called()
+    assert path.read_bytes() == original
+    assert not list(path.parent.glob("*.bak-*"))
+
+
 def test_unknown_game_status_blocks_run_write_before_backup(tmp_path: Path, sample_save):
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
