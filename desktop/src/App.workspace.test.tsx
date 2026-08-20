@@ -53,11 +53,19 @@ describe("run-save workspace integration", () => {
     expect(health.getAttribute("min")).toBe("0");
     expect(health.getAttribute("step")).toBe("1");
     expect(health.getAttribute("aria-describedby")).toContain("player-health-help");
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-players")).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "Players" }).getAttribute("aria-describedby"),
+    ).toBeNull();
     await user.clear(health);
     await user.type(health, "42");
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 42");
     expect(health.getAttribute("aria-describedby")).toContain("player-health-pending");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
+    expect(screen.getByTestId("workspace-tab-pending-indicator-players")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-describedby")).toContain(
+      "workspace-tab-pending-1",
+    );
     expect(document.querySelector("#workspace-tab-pending-1")?.textContent).toContain(
       "1 pending change",
     );
@@ -69,11 +77,16 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-players")).toBeNull();
 
     await user.clear(health);
     await user.type(health, "42");
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
+    expect(screen.getByTestId("workspace-tab-pending-indicator-players")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
     await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
     expect(
