@@ -61,4 +61,10 @@ def set_player_health(data: SaveData, player_id: str, value: int) -> None:
     values = dictionaries.setdefault("playerHealth", {})
     if not isinstance(values, dict):
         raise SaveSchemaError("Player health field is not a dictionary.")
+    if player_id in values:
+        raw = values[player_id]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise SaveSchemaError(
+                f"Player health for '{player_id}' is not a supported integer value."
+            )
     values[player_id] = int(value)
