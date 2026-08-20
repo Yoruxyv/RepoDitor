@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
 
@@ -166,18 +167,17 @@ export function RunView({
             {t("run.resumeLocation")}
           </label>
           <div className="mt-3 flex flex-wrap items-start gap-3">
-            <select
-              className="min-w-56 rounded-sm border border-control bg-surface px-3 py-2 text-sm text-ink focus:border-accent"
+            <Select<string>
+              ariaLabel={t("run.resumeLocation")}
+              className="min-w-56 max-w-full"
               id="run-resume-location"
+              options={run.resumeLocation.options.map((option) => ({
+                label: option,
+                value: option,
+              }))}
               value={String(pendingByField.resumeLocation?.after ?? run.resumeLocation.value)}
-              onChange={(event) => onResumeChange(event.target.value)}
-            >
-              {run.resumeLocation.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onValueChange={onResumeChange}
+            />
             {pendingByField.resumeLocation ? (
               <button
                 className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"

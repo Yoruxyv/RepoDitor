@@ -56,6 +56,14 @@ async function layout(page: Page) {
   }));
 }
 
+async function selectCustomOption(page: Page, label: string, value: string): Promise<void> {
+  const control = page.getByRole("combobox", { name: label });
+  if ((await control.getAttribute("aria-expanded")) !== "true") {
+    await control.click();
+  }
+  await page.locator(`[role="option"][data-value=${JSON.stringify(value)}]`).click();
+}
+
 test("covers the source workspace, shell, and editor domains", async () => {
   let harness: SourceE2eHarness | undefined;
 
@@ -261,19 +269,18 @@ test("covers the source workspace, shell, and editor domains", async () => {
     await expect(page.getByText("2 matching items")).toBeVisible();
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
     await page.getByRole("button", { name: "Clear item search" }).click();
-    const itemFilter = page.getByRole("combobox", { name: "Filter" });
-    await itemFilter.selectOption("rechargeable");
+    await selectCustomOption(page, "Filter", "rechargeable");
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toBeVisible();
     await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
-    await itemFilter.selectOption("not_rechargeable");
+    await selectCustomOption(page, "Filter", "not_rechargeable");
     await expect(page.getByTestId("item-group-Cart Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Health Pack Medium")).toBeVisible();
     await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
-    await itemFilter.selectOption("upgrades");
+    await selectCustomOption(page, "Filter", "upgrades");
     await expect(page.getByTestId("item-group-Upgrade Player Health")).toBeVisible();
     await expect(page.getByTestId("item-group-Cart Medium")).toHaveCount(0);
-    await itemFilter.selectOption("all");
-    await page.getByRole("combobox", { name: "Sort" }).selectOption("quantity-desc");
+    await selectCustomOption(page, "Filter", "all");
+    await selectCustomOption(page, "Sort", "quantity-desc");
     await expect(
       page.getByRole("list", { name: "Item instances" }).locator(":scope > li").first(),
     ).toHaveAttribute("data-testid", "item-group-Cart Medium");

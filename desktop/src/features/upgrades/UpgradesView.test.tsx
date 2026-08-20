@@ -96,6 +96,32 @@ describe("UpgradesView", () => {
     expect(onChange).toHaveBeenLastCalledWith(upgrades[0], player, 3);
   });
 
+  it("keeps player selection behavior through the reusable Select", async () => {
+    const user = userEvent.setup();
+    const onSelectPlayer = vi.fn();
+    renderWithPreferences(
+      <UpgradesView
+        avatarUrls={{ "1": null, "2": null }}
+        error={null}
+        loading={false}
+        pendingByUpgrade={{}}
+        players={[player, secondPlayer]}
+        selectedPlayerId={player.id}
+        upgrades={upgrades}
+        onChange={vi.fn()}
+        onRejectAvatar={vi.fn()}
+        onRetry={vi.fn()}
+        onRevert={vi.fn()}
+        onSelectPlayer={onSelectPlayer}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Player" });
+    await user.click(control);
+    await user.click(screen.getByRole("option", { name: "Beta User" }));
+    expect(onSelectPlayer).toHaveBeenCalledWith("2");
+  });
+
   it("updates the avatar with the selected player and keeps a stable fallback", () => {
     const onSelectPlayer = vi.fn();
     const { rerender } = renderWithPreferences(

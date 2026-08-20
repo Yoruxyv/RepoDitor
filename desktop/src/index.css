@@ -36,6 +36,7 @@
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
+  textarea:focus-visible,
   select:focus-visible,
   summary:focus-visible {
     outline: 2px solid var(--theme-focus);
@@ -85,4 +86,23 @@ html {
 
 ::-webkit-scrollbar-button {
   display: none;
+}
+
+@layer utilities {
+  /* Shared polished interactive control chrome */
+  :where(button, a, input, textarea, select).border-control {
+    border-color: var(--theme-line);
+  }
+
+  :where(button, a, input, textarea, select).rounded-sm {
+    border-radius: var(--radius-md);
+  }
+
+  :where(button, a).border-control {
+    background-color: var(--theme-surface-raised);
+  }
+
+  :where(input, textarea, select).border-control.bg-surface {
+    background-color: var(--theme-surface-raised);
+  }
 }

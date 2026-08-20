@@ -1,14 +1,12 @@
-import {
-  CaretDownIcon,
-  CheckIcon,
-  DesktopIcon,
-  MoonIcon,
-  SunIcon,
-  type Icon,
-} from "@phosphor-icons/react";
+import { CheckIcon, DesktopIcon, MoonIcon, SunIcon, type Icon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { usePreferences, type ThemePreference } from "@/app/preferences";
+import {
+  menuSurfaceClassName,
+  utilityMenuItemStateClassName,
+  utilityTriggerClassName,
+} from "@/app/utilityMenuStyles";
 
 const THEMES = [
   { value: "system", labelKey: "utility.theme.system", icon: DesktopIcon },
@@ -97,7 +95,7 @@ export function ThemeMenu() {
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`${t("utility.theme")}: ${t(selectedTheme.labelKey)}`}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className={utilityTriggerClassName(open)}
         type="button"
         onClick={() => (open ? closeMenu(false) : openMenu())}
         onKeyDown={(event) => {
@@ -112,12 +110,6 @@ export function ThemeMenu() {
       >
         <SelectedThemeIcon aria-hidden="true" size={16} />
         <span>{t(selectedTheme.labelKey)}</span>
-        <CaretDownIcon
-          aria-hidden="true"
-          className={`ml-1 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
-          size={14}
-          weight="bold"
-        />
       </button>
 
       {open ? (
@@ -126,7 +118,7 @@ export function ThemeMenu() {
           {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
           <div
             aria-label={t("utility.theme")}
-            className="absolute right-0 z-30 mt-2 min-w-40 overflow-hidden rounded-sm border border-control bg-surface p-1.5 shadow-xl"
+            className={`${menuSurfaceClassName} absolute right-0 z-30 mt-1.5 min-w-40 overflow-hidden`}
             id={listboxId}
             role="listbox"
           >
@@ -140,11 +132,7 @@ export function ThemeMenu() {
                       options.current[index] = element;
                     }}
                     aria-selected={selected}
-                    className={`ui-feedback grid w-full grid-cols-[1rem_1rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${
-                      selected
-                        ? "bg-accent-muted text-accent"
-                        : "text-secondary hover:bg-surface-raised hover:text-ink"
-                    }`}
+                    className={`ui-feedback grid w-full grid-cols-[1rem_1rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${utilityMenuItemStateClassName(selected, index === activeIndex)}`}
                     role="option"
                     tabIndex={index === activeIndex ? 0 : -1}
                     type="button"

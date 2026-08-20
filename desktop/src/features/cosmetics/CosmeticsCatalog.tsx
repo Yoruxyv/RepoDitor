@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 
 import { GameIcon } from "@/components/GameIcon";
+import { Select } from "@/components/Select";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 
@@ -259,50 +260,52 @@ export function CosmeticsCatalog({
 
           <label className="min-w-36 flex-[1_1_9rem] text-sm font-semibold text-ink">
             <span>{t("cosmetics.ownershipFilterLabel")}</span>
-            <select
-              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+            <Select<OwnershipFilter>
+              ariaLabel={t("cosmetics.ownershipFilterLabel")}
+              className="mt-2"
+              options={[
+                { value: "all", label: t("cosmetics.filterAll") },
+                { value: "owned", label: t("cosmetics.filterUnlocked") },
+                { value: "locked", label: t("cosmetics.filterLocked") },
+              ]}
               value={ownershipFilter}
-              onChange={(event) => setOwnershipFilter(event.target.value as OwnershipFilter)}
-            >
-              <option value="all">{t("cosmetics.filterAll")}</option>
-              <option value="owned">{t("cosmetics.filterUnlocked")}</option>
-              <option value="locked">{t("cosmetics.filterLocked")}</option>
-            </select>
+              onValueChange={setOwnershipFilter}
+            />
           </label>
 
           <label className="min-w-40 flex-[1_1_10rem] text-sm font-semibold text-ink">
             <span>{t("cosmetics.typeFilterLabel")}</span>
-            <select
-              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+            <Select<TypeFilter>
+              ariaLabel={t("cosmetics.typeFilterLabel")}
+              className="mt-2"
+              options={[
+                { value: "all", label: t("cosmetics.filterAllTypes") },
+                ...typeOptions.map((type) => ({
+                  value: type,
+                  label: typeName(type) ?? t("cosmetics.typeLabel", { type }),
+                })),
+              ]}
               value={typeFilter}
-              onChange={(event) => {
-                const value = event.target.value;
-                setTypeFilter(value === "all" ? "all" : Number(value));
-              }}
-            >
-              <option value="all">{t("cosmetics.filterAllTypes")}</option>
-              {typeOptions.map((type) => (
-                <option key={type} value={type}>
-                  {typeName(type) ?? t("cosmetics.typeLabel", { type })}
-                </option>
-              ))}
-            </select>
+              onValueChange={setTypeFilter}
+            />
           </label>
 
           <label className="min-w-48 flex-[1_1_12rem] text-sm font-semibold text-ink">
             <span>{t("cosmetics.sortLabel")}</span>
-            <select
-              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+            <Select<CosmeticSort>
+              ariaLabel={t("cosmetics.sortLabel")}
+              className="mt-2"
+              options={[
+                { value: "name-asc", label: t("cosmetics.sortNameAsc") },
+                { value: "name-desc", label: t("cosmetics.sortNameDesc") },
+                { value: "rarity-asc", label: t("cosmetics.sortRarityAsc") },
+                { value: "rarity-desc", label: t("cosmetics.sortRarityDesc") },
+                { value: "id-asc", label: t("cosmetics.sortIdAsc") },
+                { value: "id-desc", label: t("cosmetics.sortIdDesc") },
+              ]}
               value={sort}
-              onChange={(event) => setSort(event.target.value as CosmeticSort)}
-            >
-              <option value="name-asc">{t("cosmetics.sortNameAsc")}</option>
-              <option value="name-desc">{t("cosmetics.sortNameDesc")}</option>
-              <option value="rarity-asc">{t("cosmetics.sortRarityAsc")}</option>
-              <option value="rarity-desc">{t("cosmetics.sortRarityDesc")}</option>
-              <option value="id-asc">{t("cosmetics.sortIdAsc")}</option>
-              <option value="id-desc">{t("cosmetics.sortIdDesc")}</option>
-            </select>
+              onValueChange={setSort}
+            />
           </label>
         </div>
 

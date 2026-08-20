@@ -5,6 +5,7 @@ import type { AdvancedItemDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/translations";
 import { GameIcon } from "@/components/GameIcon";
+import { Select } from "@/components/Select";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
 import { getItemUpgradeIcon } from "@/components/game/upgradeIcons";
 import { getItemIcon } from "./itemIcons";
@@ -130,28 +131,32 @@ export function ItemGroups({
           </div>
           <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
             <span>{t("items.filterLabel")}</span>
-            <select
-              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+            <Select<ItemFilter>
+              ariaLabel={t("items.filterLabel")}
+              className="mt-2"
+              options={[
+                { value: "all", label: t("items.filterAll") },
+                { value: "rechargeable", label: t("items.filterRechargeable") },
+                { value: "not_rechargeable", label: t("items.filterNonRechargeable") },
+                { value: "upgrades", label: t("items.filterUpgrades") },
+              ]}
               value={filter}
-              onChange={(event) => setFilter(event.target.value as ItemFilter)}
-            >
-              <option value="all">{t("items.filterAll")}</option>
-              <option value="rechargeable">{t("items.filterRechargeable")}</option>
-              <option value="not_rechargeable">{t("items.filterNonRechargeable")}</option>
-              <option value="upgrades">{t("items.filterUpgrades")}</option>
-            </select>
+              onValueChange={setFilter}
+            />
           </label>
           <label className="min-w-44 flex-[1_1_11rem] text-sm font-semibold text-ink">
             <span>{t("items.sortLabel")}</span>
-            <select
-              className="mt-2 block w-full rounded-sm border border-control bg-surface px-3 py-2.5 text-sm text-ink focus:border-accent"
+            <Select<ItemSort>
+              ariaLabel={t("items.sortLabel")}
+              className="mt-2"
+              options={[
+                { value: "name-asc", label: t("items.sortNameAsc") },
+                { value: "name-desc", label: t("items.sortNameDesc") },
+                { value: "quantity-desc", label: t("items.sortQuantity") },
+              ]}
               value={sort}
-              onChange={(event) => setSort(event.target.value as ItemSort)}
-            >
-              <option value="name-asc">{t("items.sortNameAsc")}</option>
-              <option value="name-desc">{t("items.sortNameDesc")}</option>
-              <option value="quantity-desc">{t("items.sortQuantity")}</option>
-            </select>
+              onValueChange={setSort}
+            />
           </label>
           <button
             className="ui-feedback min-h-10 max-w-full rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
 import { waitForDiscoveredSave } from "./support/waits";
@@ -13,6 +13,14 @@ async function imageNaturalWidth(locator: Locator): Promise<number> {
 
     return element.naturalWidth;
   });
+}
+
+async function selectCustomOption(page: Page, label: string, value: string): Promise<void> {
+  const control = page.getByRole("combobox", { name: label });
+  if ((await control.getAttribute("aria-expanded")) !== "true") {
+    await control.click();
+  }
+  await page.locator(`[role="option"][data-value=${JSON.stringify(value)}]`).click();
 }
 
 test("covers cosmetic catalog and pending-edit behavior", async () => {
@@ -40,16 +48,16 @@ test("covers cosmetic catalog and pending-edit behavior", async () => {
     await cosmeticIcon.locator("img").evaluate((image) => {
       image.dataset.loadedBeforeFilter = "true";
     });
-    await page.getByRole("combobox", { name: "Type" }).selectOption("0");
+    await selectCustomOption(page, "Type", "0");
     await expect(cosmeticIcon).toBeHidden();
-    await page.getByRole("combobox", { name: "Type" }).selectOption("all");
+    await selectCustomOption(page, "Type", "all");
     await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("missing cosmetic");
     await expect(cosmeticIcon).toBeHidden();
     await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("");
-    await page.getByRole("combobox", { name: "Ownership" }).selectOption("locked");
+    await selectCustomOption(page, "Ownership", "locked");
     await expect(cosmeticIcon).toBeHidden();
-    await page.getByRole("combobox", { name: "Ownership" }).selectOption("all");
-    await page.getByRole("combobox", { name: "Sort" }).selectOption("id-desc");
+    await selectCustomOption(page, "Ownership", "all");
+    await selectCustomOption(page, "Sort", "id-desc");
     await expect(cosmeticIcon.locator("img")).toHaveAttribute("data-loaded-before-filter", "true");
     await expect(page.getByTestId("cosmetic-icon-27-loading")).toHaveCount(0);
     await expect(page.getByTestId("cosmetic-icon-26")).toHaveAttribute(
