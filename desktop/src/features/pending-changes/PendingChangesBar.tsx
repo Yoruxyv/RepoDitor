@@ -97,17 +97,16 @@ export function PendingChangesBar({
         data-testid={`${testIdPrefix}-action-bar`}
       >
         {saving ? (
-          <div
-            aria-label={t("status.savingSafely")}
-            className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-accent-muted"
-            data-testid={`${testIdPrefix}-saving-progress`}
-            role="progressbar"
-          >
-            <span
+          <>
+            <progress aria-label={t("status.savingSafely")} className="sr-only" />
+            <div
               aria-hidden="true"
-              className="save-progress-indicator block h-full w-1/3 bg-accent"
-            />
-          </div>
+              className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-accent-muted"
+              data-testid={`${testIdPrefix}-saving-progress`}
+            >
+              <span className="save-progress-indicator block h-full w-1/3 bg-accent" />
+            </div>
+          </>
         ) : null}
         <div className="mx-auto w-full max-w-[1280px]">
           {edits.length > 0 ? (

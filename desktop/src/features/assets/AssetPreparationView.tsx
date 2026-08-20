@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import type { TranslationKey } from "@/app/translations";
+import type { Translate, TranslationKey } from "@/app/translations";
 
 const SEGMENT_COUNT = 18;
 const PROGRESS_REVEAL_DELAY_MS = 500;
@@ -38,6 +38,170 @@ function countFilledSegments(progress: PreparationProgress | null): number {
   return Math.round(Math.min(1, Math.max(0, ratio)) * SEGMENT_COUNT);
 }
 
+interface PreparationCopy {
+  readonly localPreparation: string;
+  readonly preparing: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly hint: string;
+}
+
+function preparationProgress(
+  state: AssetPreparationState,
+  mode: "save" | "artwork",
+): PreparationProgress | null {
+  if (mode !== "artwork" || state.completed === null || state.total === null) return null;
+  return { completed: state.completed, total: state.total };
+}
+
+function preparationCopy(
+  state: AssetPreparationState,
+  mode: "save" | "artwork",
+  saveDetail: string | undefined,
+  slow: boolean,
+  t: Translate,
+): PreparationCopy {
+  if (mode === "save") {
+    const hintKey = slow ? "entry.slowHint" : "entry.localOnlyHint";
+    return {
+      localPreparation: t("entry.localPreparation"),
+      preparing: t("entry.preparingEditor"),
+      title: t("entry.readingPreparingSave"),
+      detail: saveDetail ?? t("entry.detail.finalizing"),
+      hint: t(hintKey),
+    };
+  }
+
+  let detail = t(STAGE_KEYS[state.stage]);
+  if (state.currentAssetLabel !== null) {
+    detail = t("entry.detail.upgradeArtwork", { asset: state.currentAssetLabel });
+  } else if (state.currentAsset !== null) {
+    detail = t("entry.detail.asset", { asset: state.currentAsset });
+  }
+
+  const hintKey = slow ? "assets.slowHint" : "assets.localOnlyHint";
+  return {
+    localPreparation: t("assets.localPreparation"),
+    preparing: t("assets.preparingUpgrades"),
+    title: t("entry.decodingGameAssets"),
+    detail,
+    hint: t(hintKey),
+  };
+}
+
+function PreparationProgressDisplay({
+  progress,
+  t,
+}: {
+  readonly progress: PreparationProgress | null;
+  readonly t: Translate;
+}) {
+  const filledSegments = countFilledSegments(progress);
+  const progressAttributes =
+    progress === null
+      ? {}
+      : {
+          role: "progressbar" as const,
+          "aria-label": t("assets.progressLabel"),
+          "aria-valuemin": 0,
+          "aria-valuemax": progress.total,
+          "aria-valuenow": progress.completed,
+          "aria-valuetext": t("assets.progressCount", {
+            completed: progress.completed,
+            total: progress.total,
+          }),
+        };
+  const workingClass = progress === null ? "visible opacity-100" : "invisible opacity-0";
+  const countClass = progress !== null ? "visible opacity-100" : "invisible opacity-0";
+  const progressCount =
+    progress === null
+      ? ""
+      : t("assets.progressCount", {
+          completed: progress.completed,
+          total: progress.total,
+        });
+
+  return (
+    <div className="mt-7">
+      <div
+        {...progressAttributes}
+        className="relative overflow-hidden"
+        data-testid="asset-progress"
+      >
+        <div className="grid grid-cols-18 gap-1">
+          {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
+            const filled = progress !== null && index < filledSegments;
+            return (
+              <span
+                aria-hidden="true"
+                className={`h-3 border border-line ${filled ? "bg-accent" : "bg-surface-raised"}`}
+                key={index}
+              />
+            );
+          })}
+        </div>
+        {progress === null ? (
+          <span
+            aria-hidden="true"
+            className="asset-preparation-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
+          />
+        ) : null}
+      </div>
+
+      <div
+        className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
+        data-testid="asset-progress-status"
+      >
+        <span className="relative grid min-w-32 text-right">
+          <span
+            className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${workingClass}`}
+          >
+            {t("assets.working")}
+          </span>
+          <span
+            aria-hidden={progress === null}
+            className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${countClass}`}
+            data-testid={progress === null ? undefined : "asset-progress-count"}
+          >
+            {progressCount}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AssetPreparationFooter({
+  mode,
+  state,
+}: {
+  readonly mode: "save" | "artwork";
+  readonly state: AssetPreparationState;
+}) {
+  const { t } = usePreferences();
+
+  if (mode === "save") {
+    return (
+      <>
+        <span>{t("entry.localSave")}</span>
+        <span>{t("entry.editorPreparing")}</span>
+      </>
+    );
+  }
+
+  const installation = state.installationFound
+    ? t("assets.installationFound")
+    : t("assets.installationPending");
+  const build = state.buildVerified ? t("assets.buildVerified") : t("assets.buildPending");
+
+  return (
+    <>
+      <span>{installation}</span>
+      <span className={state.buildVerified ? "text-success" : undefined}>{build}</span>
+    </>
+  );
+}
+
 export function AssetPreparationView({
   state,
   mode = "artwork",
@@ -45,10 +209,7 @@ export function AssetPreparationView({
   onContinue,
 }: AssetPreparationViewProps) {
   const { t } = usePreferences();
-  const progress =
-    mode === "artwork" && state.completed !== null && state.total !== null
-      ? { completed: state.completed, total: state.total }
-      : null;
+  const progress = preparationProgress(state, mode);
   const hasDetailedProgress = progress !== null;
   const [slow, setSlow] = useState(false);
   const [showDetailedProgress, setShowDetailedProgress] = useState(false);
@@ -68,15 +229,7 @@ export function AssetPreparationView({
   }, [hasDetailedProgress]);
 
   const visibleProgress = showDetailedProgress ? progress : null;
-  const filledSegments = countFilledSegments(visibleProgress);
-  const detail =
-    mode === "save"
-      ? (saveDetail ?? t("entry.detail.finalizing"))
-      : state.currentAssetLabel !== null
-        ? t("entry.detail.upgradeArtwork", { asset: state.currentAssetLabel })
-        : state.currentAsset !== null
-          ? t("entry.detail.asset", { asset: state.currentAsset })
-          : t(STAGE_KEYS[state.stage]);
+  const copy = preparationCopy(state, mode, saveDetail, slow, t);
 
   return (
     <section
@@ -97,7 +250,7 @@ export function AssetPreparationView({
               RepoDitor
             </p>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
-              {t(mode === "save" ? "entry.localPreparation" : "assets.localPreparation")}
+              {copy.localPreparation}
             </p>
           </div>
           <div aria-hidden="true" className="text-muted">
@@ -115,89 +268,26 @@ export function AssetPreparationView({
 
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-secondary">
-              {t(mode === "save" ? "entry.preparingEditor" : "assets.preparingUpgrades")}
+              {copy.preparing}
             </p>
             <h1
               aria-live="polite"
               className="font-display mt-1 text-4xl font-semibold uppercase leading-none tracking-[0.02em] text-ink sm:text-5xl"
               id="asset-preparation-title"
             >
-              {t(mode === "save" ? "entry.readingPreparingSave" : "entry.decodingGameAssets")}
+              {copy.title}
             </h1>
             <p
               aria-live="polite"
               className="mt-3 min-h-6 text-sm font-medium text-secondary"
               data-testid="entry-loading-detail"
             >
-              {detail}
+              {copy.detail}
             </p>
 
-            <div className="mt-7">
-              <div
-                {...(visibleProgress !== null
-                  ? {
-                      role: "progressbar",
-                      "aria-label": t("assets.progressLabel"),
-                      "aria-valuemin": 0,
-                      "aria-valuemax": visibleProgress.total,
-                      "aria-valuenow": visibleProgress.completed,
-                      "aria-valuetext": t("assets.progressCount", visibleProgress),
-                    }
-                  : {})}
-                className="relative overflow-hidden"
-                data-testid="asset-progress"
-              >
-                <div className="grid grid-cols-18 gap-1">
-                  {Array.from({ length: SEGMENT_COUNT }, (_, index) => (
-                    <span
-                      aria-hidden="true"
-                      className={`h-3 border border-line ${
-                        visibleProgress !== null && index < filledSegments
-                          ? "bg-accent"
-                          : "bg-surface-raised"
-                      }`}
-                      key={index}
-                    />
-                  ))}
-                </div>
-                {visibleProgress === null ? (
-                  <span
-                    aria-hidden="true"
-                    className="asset-preparation-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
-                  />
-                ) : null}
-              </div>
+            <PreparationProgressDisplay progress={visibleProgress} t={t} />
 
-              <div
-                className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
-                data-testid="asset-progress-status"
-              >
-                <span className="relative grid min-w-32 text-right">
-                  <span
-                    className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${
-                      visibleProgress === null ? "visible opacity-100" : "invisible opacity-0"
-                    }`}
-                  >
-                    {t("assets.working")}
-                  </span>
-                  <span
-                    aria-hidden={visibleProgress === null}
-                    className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${
-                      visibleProgress !== null ? "visible opacity-100" : "invisible opacity-0"
-                    }`}
-                    data-testid={visibleProgress !== null ? "asset-progress-count" : undefined}
-                  >
-                    {visibleProgress !== null ? t("assets.progressCount", visibleProgress) : ""}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <p className="mt-5 max-w-[58ch] text-sm/6 text-secondary">
-              {mode === "save"
-                ? t(slow ? "entry.slowHint" : "entry.localOnlyHint")
-                : t(slow ? "assets.slowHint" : "assets.localOnlyHint")}
-            </p>
+            <p className="mt-5 max-w-[58ch] text-sm/6 text-secondary">{copy.hint}</p>
             {mode === "artwork" && slow && onContinue !== undefined ? (
               <button
                 className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-accent bg-accent-muted px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised"
@@ -211,23 +301,7 @@ export function AssetPreparationView({
         </div>
 
         <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          {mode === "save" ? (
-            <>
-              <span>{t("entry.localSave")}</span>
-              <span>{t("entry.editorPreparing")}</span>
-            </>
-          ) : (
-            <>
-              <span>
-                {state.installationFound
-                  ? t("assets.installationFound")
-                  : t("assets.installationPending")}
-              </span>
-              <span className={state.buildVerified ? "text-success" : undefined}>
-                {state.buildVerified ? t("assets.buildVerified") : t("assets.buildPending")}
-              </span>
-            </>
-          )}
+          <AssetPreparationFooter mode={mode} state={state} />
         </footer>
       </div>
     </section>

@@ -26,6 +26,11 @@ function isBulkEdit(edit: CosmeticPendingEdit): edit is CosmeticBulkEdit {
   return edit.field !== "owned";
 }
 
+function projectedOwnershipState(known: boolean, owned: boolean): "owned" | "locked" | "unknown" {
+  if (!known) return "unknown";
+  return owned ? "owned" : "locked";
+}
+
 function projectIndividualOwnership(
   view: CosmeticsViewDto | null,
   pendingEdits: readonly CosmeticPendingEdit[],
@@ -50,7 +55,7 @@ function projectIndividualOwnership(
       return {
         ...cosmetic,
         owned,
-        state: cosmetic.known ? (owned ? "owned" : "locked") : "unknown",
+        state: projectedOwnershipState(cosmetic.known, owned),
       };
     }),
   };

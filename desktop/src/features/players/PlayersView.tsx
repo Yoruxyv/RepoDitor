@@ -1,4 +1,4 @@
-import { ArrowClockwiseIcon, UserIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, HeartIcon, UserIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
@@ -19,6 +19,27 @@ interface PlayersViewProps {
   readonly onHealthChange: (player: PlayerDto, health: number) => void;
   readonly onRevertHealth: (playerId: string) => void;
   readonly onRetry: () => void;
+}
+
+interface HealthPresentation {
+  readonly parsed: number;
+  readonly invalid: boolean;
+  readonly value: number;
+  readonly percent: number;
+}
+
+function deriveHealthPresentation(
+  input: string,
+  fallback: number,
+  maximum: number,
+): HealthPresentation {
+  const parsed = Number(input);
+  const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0;
+  const effective = invalid ? fallback : parsed;
+  const value = Math.min(Math.max(effective, 0), maximum);
+  const percent = maximum > 0 ? Math.round((value / maximum) * 100) : 0;
+
+  return { parsed, invalid, value, percent };
 }
 
 function PlayersSkeleton({ label }: { readonly label: string }) {
@@ -85,11 +106,11 @@ export function PlayersView({
   const health = pending?.after ?? player?.health ?? 0;
   const [healthInputs, setHealthInputs] = useState<Record<string, string>>({});
   const healthInput = player ? (healthInputs[player.id] ?? String(health)) : String(health);
-  const parsedHealth = Number(healthInput);
-  const healthError =
-    healthInput.trim() === "" || !Number.isSafeInteger(parsedHealth) || parsedHealth < 0
-      ? t("players.healthError")
-      : null;
+  const healthPresentation = deriveHealthPresentation(healthInput, health, player?.maxHealth ?? 0);
+  const parsedHealth = healthPresentation.parsed;
+  const healthError = healthPresentation.invalid ? t("players.healthError") : null;
+  const visualHealth = healthPresentation.value;
+  const healthPercent = healthPresentation.percent;
   const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
   const healthDescription = [
     "player-health-help",
@@ -201,7 +222,11 @@ export function PlayersView({
         />
 
         <div className="mt-7 max-w-sm border-t border-line pt-6">
-          <label className="text-sm font-semibold text-ink" htmlFor="player-health">
+          <label
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+            htmlFor="player-health"
+          >
+            <HeartIcon aria-hidden="true" className="text-muted" size={15} />
             {t("players.currentHealth")}
           </label>
           <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
@@ -245,6 +270,32 @@ export function PlayersView({
                 {t("action.revert")}
               </button>
             ) : null}
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <progress
+                aria-label={t("players.currentHealth")}
+                aria-valuemax={player.maxHealth}
+                aria-valuemin={0}
+                aria-valuenow={visualHealth}
+                className="sr-only"
+                max={player.maxHealth}
+                value={visualHealth}
+              />
+              <div
+                aria-hidden="true"
+                className="h-1.5 overflow-hidden rounded-sm bg-surface-raised"
+              >
+                <div
+                  className="h-full bg-accent"
+                  data-testid="player-health-progress-fill"
+                  style={{ width: `${healthPercent}%` }}
+                />
+              </div>
+            </div>
+            <span aria-hidden="true" className="w-10 text-right font-mono text-xs text-muted">
+              {healthPercent}%
+            </span>
           </div>
           {healthError ? (
             <p className="mt-2 text-xs text-danger" id="player-health-error" role="alert">

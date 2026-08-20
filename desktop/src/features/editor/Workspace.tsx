@@ -249,7 +249,7 @@ export function Workspace({
                 aria-describedby={pendingCount > 0 ? `workspace-tab-pending-${index}` : undefined}
                 aria-label={t(`nav.${section}`)}
                 aria-selected={active}
-                className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
+                className={`ui-feedback rounded-sm py-2.5 pr-1.5 pl-4 text-sm font-semibold ${
                   active
                     ? "bg-accent text-accent-ink"
                     : "text-secondary hover:bg-surface hover:text-ink"
@@ -263,20 +263,24 @@ export function Workspace({
                 onKeyDown={(event) => moveTab(event, index)}
               >
                 {t(`nav.${section}`)}
-                {pendingCount > 0 ? (
-                  <>
+                <span aria-hidden="true" className="ml-1 inline-block size-1.5 align-middle">
+                  {pendingCount > 0 ? (
                     <span
-                      aria-hidden="true"
-                      className="ml-2 inline-block size-1.5 rounded-full bg-warning"
+                      className={`block size-1.5 rounded-full ${
+                        active ? "bg-accent-ink" : "bg-warning"
+                      }`}
+                      data-testid={`workspace-tab-pending-indicator-${section}`}
                     />
-                    <span className="sr-only" id={`workspace-tab-pending-${index}`}>
-                      {" "}
-                      ·{" "}
-                      {t(pendingCount === 1 ? "pending.one" : "pending.many", {
-                        count: pendingCount,
-                      })}
-                    </span>
-                  </>
+                  ) : null}
+                </span>
+                {pendingCount > 0 ? (
+                  <span className="sr-only" id={`workspace-tab-pending-${index}`}>
+                    {" "}
+                    ·{" "}
+                    {t(pendingCount === 1 ? "pending.one" : "pending.many", {
+                      count: pendingCount,
+                    })}
+                  </span>
                 ) : null}
               </button>
             );

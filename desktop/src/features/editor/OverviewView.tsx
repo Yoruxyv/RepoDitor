@@ -1,3 +1,12 @@
+import {
+  ArrowUpIcon,
+  CoinsIcon,
+  MapPinIcon,
+  PackageIcon,
+  PersonSimpleRunIcon,
+  UserIcon,
+} from "@phosphor-icons/react";
+
 import type { SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 
@@ -11,16 +20,20 @@ interface OverviewViewProps {
 export function OverviewView({ session, onNavigate }: OverviewViewProps) {
   const { locale, t } = usePreferences();
   const metrics = [
-    [t("overview.level"), session.level],
-    [t("overview.currency"), session.currency.toLocaleString(locale)],
-    [t("overview.players"), session.playerCount],
-    [t("overview.resumeAt"), session.resumeLocation],
+    { icon: ArrowUpIcon, label: t("overview.level"), value: session.level },
+    {
+      icon: CoinsIcon,
+      label: t("overview.currency"),
+      value: session.currency.toLocaleString(locale),
+    },
+    { icon: UserIcon, label: t("overview.players"), value: session.playerCount },
+    { icon: MapPinIcon, label: t("overview.resumeAt"), value: session.resumeLocation },
   ];
   const destinations = [
-    ["players", "overview.playersDescription"],
-    ["upgrades", "overview.upgradesDescription"],
-    ["run", "overview.runDescription"],
-    ["items", "overview.itemsDescription"],
+    { destination: "players", descriptionKey: "overview.playersDescription", icon: UserIcon },
+    { destination: "upgrades", descriptionKey: "overview.upgradesDescription", icon: ArrowUpIcon },
+    { destination: "run", descriptionKey: "overview.runDescription", icon: PersonSimpleRunIcon },
+    { destination: "items", descriptionKey: "overview.itemsDescription", icon: PackageIcon },
   ] as const;
 
   return (
@@ -34,12 +47,15 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
           {t("overview.runSnapshot")}
         </h3>
         <dl className="mt-2 grid grid-cols-2 border-y border-line xl:grid-cols-4">
-          {metrics.map(([label, value]) => (
+          {metrics.map(({ icon: MetricIcon, label, value }) => (
             <div
               className="min-w-0 px-4 py-5 first:pl-0 xl:border-r xl:border-line xl:last:border-r-0"
               key={label}
             >
-              <dt className="text-xs font-medium text-muted">{label}</dt>
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                <MetricIcon aria-hidden="true" size={14} />
+                {label}
+              </dt>
               <dd
                 className="mt-2 truncate font-mono text-xl font-semibold text-ink"
                 title={String(value)}
@@ -56,7 +72,7 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
           {t("overview.editSave")}
         </h3>
         <ul className="mt-2 divide-y divide-line border-y border-line">
-          {destinations.map(([destination, descriptionKey]) => {
+          {destinations.map(({ destination, descriptionKey, icon: DestinationIcon }) => {
             const label = t(`nav.${destination}`);
             return (
               <li
@@ -64,7 +80,10 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
                 key={destination}
               >
                 <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-ink">{label}</h4>
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <DestinationIcon aria-hidden="true" className="text-accent" size={17} />
+                    {label}
+                  </h4>
                   <p className="mt-1 text-xs/5 text-secondary">{t(descriptionKey)}</p>
                 </div>
                 <button

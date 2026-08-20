@@ -6,7 +6,7 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { usePreferences } from "@/app/preferences";
 import { useUiSound } from "@/app/useUiSound";
 import { UtilityCluster } from "@/app/UtilityCluster";
-import type { TranslationKey } from "@/app/translations";
+import type { Translate, TranslationKey } from "@/app/translations";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { useAssetPreparation } from "@/features/assets/useAssetPreparation";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";
@@ -76,12 +76,176 @@ function PendingDot({ count, id }: { readonly count: number; readonly id: string
   );
 }
 
+interface WorkspaceTabsProps {
+  readonly activeWorkspace: AppWorkspace;
+  readonly cosmeticsPendingCount: number;
+  readonly runPendingCount: number;
+  readonly onChange: (workspace: AppWorkspace) => void;
+}
+
+function WorkspaceTabs({
+  activeWorkspace,
+  cosmeticsPendingCount,
+  runPendingCount,
+  onChange,
+}: WorkspaceTabsProps) {
+  const { t } = usePreferences();
+  const runActive = activeWorkspace === "run-saves";
+  const cosmeticsActive = activeWorkspace === "cosmetics";
+
+  return (
+    <nav
+      aria-label={t("app.workspaces")}
+      className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
+    >
+      <div className="flex gap-2">
+        <button
+          aria-describedby={runPendingCount > 0 ? "run-saves-pending" : undefined}
+          aria-current={runActive ? "page" : undefined}
+          aria-label={t("app.runSaves")}
+          className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
+            runActive
+              ? "bg-accent text-accent-ink"
+              : "text-secondary hover:bg-surface hover:text-ink"
+          }`}
+          type="button"
+          onClick={() => onChange("run-saves")}
+        >
+          {t("app.runSaves")}
+          <PendingDot count={runPendingCount} id="run-saves-pending" />
+        </button>
+        <button
+          aria-describedby={cosmeticsPendingCount > 0 ? "cosmetics-pending" : undefined}
+          aria-current={cosmeticsActive ? "page" : undefined}
+          aria-label={t("app.cosmetics")}
+          className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
+            cosmeticsActive
+              ? "bg-accent text-accent-ink"
+              : "text-secondary hover:bg-surface hover:text-ink"
+          }`}
+          type="button"
+          onClick={() => onChange("cosmetics")}
+        >
+          {t("app.cosmetics")}
+          <PendingDot count={cosmeticsPendingCount} id="cosmetics-pending" />
+        </button>
+      </div>
+      <UtilityCluster />
+    </nav>
+  );
+}
+
+interface RunSavesWorkspaceProps {
+  readonly active: boolean;
+  readonly activeSection: WorkspaceSection;
+  readonly assets: ReturnType<typeof useAssetPreparation>;
+  readonly currentTask: RunEntryTask | null;
+  readonly discovery: ReturnType<typeof useEnvironmentDiscovery>;
+  readonly initialEntryData: RunEntryData | null;
+  readonly pendingEntry: PendingRunEntry | null;
+  readonly realAssetPreparation: boolean;
+  readonly save: ReturnType<typeof useSaveSession>;
+  readonly onActiveSectionChange: (section: WorkspaceSection) => void;
+  readonly onClose: () => void;
+  readonly onOpenSave: (saveId: string) => void;
+  readonly onPendingCountChange: (count: number) => void;
+  readonly onSave: ReturnType<typeof useSaveSession>["write"];
+}
+
+function runSaveDetail(
+  pendingEntry: PendingRunEntry,
+  currentTask: RunEntryTask | null,
+  t: Translate,
+): string {
+  if (pendingEntry.phase === "opening-save") return t("entry.detail.readingSave");
+  if (currentTask === null) return t("entry.detail.finalizing");
+  return t(RUN_ENTRY_TASK_KEYS[currentTask]);
+}
+
+function RunSavesWorkspace({
+  active,
+  activeSection,
+  assets,
+  currentTask,
+  discovery,
+  initialEntryData,
+  pendingEntry,
+  realAssetPreparation,
+  save,
+  onActiveSectionChange,
+  onClose,
+  onOpenSave,
+  onPendingCountChange,
+  onSave,
+}: RunSavesWorkspaceProps) {
+  const { t } = usePreferences();
+
+  if (pendingEntry !== null) {
+    return (
+      <div hidden={!active}>
+        <AssetPreparationView
+          mode={realAssetPreparation ? "artwork" : "save"}
+          state={assets}
+          saveDetail={runSaveDetail(pendingEntry, currentTask, t)}
+        />
+      </div>
+    );
+  }
+
+  if (save.session === null) {
+    return (
+      <div hidden={!active}>
+        <DiscoveryHome
+          discovery={discovery}
+          openError={save.error}
+          openingSaveId={save.openingSaveId}
+          onOpenSave={onOpenSave}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div hidden={!active}>
+      <Workspace
+        activeSection={activeSection}
+        assetState={assets}
+        backupPath={save.lastBackupPath}
+        initialEntryData={initialEntryData}
+        saveError={save.saveError}
+        saving={save.saving}
+        session={save.session}
+        onPendingCountChange={onPendingCountChange}
+        onActiveSectionChange={onActiveSectionChange}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    </div>
+  );
+}
+
+function currentRunEntryTask(pendingEntry: PendingRunEntry | null): RunEntryTask | null {
+  if (pendingEntry?.phase !== "preparing-entry") return null;
+  return RUN_ENTRY_TASK_PRIORITY.find((task) => pendingEntry.pendingTasks.has(task)) ?? null;
+}
+
+function isRealAssetPreparation(
+  pendingEntry: PendingRunEntry | null,
+  assets: ReturnType<typeof useAssetPreparation>,
+): boolean {
+  return (
+    pendingEntry?.phase === "preparing-entry" &&
+    pendingEntry.awaitingPresentation &&
+    assets.total !== null &&
+    ACTIVE_ASSET_STAGES.has(assets.stage)
+  );
+}
+
 function AppContent() {
   useUiSound();
   const save = useSaveSession();
   const assets = useAssetPreparation();
   const gameSafety = useGameSafety();
-  const { t } = usePreferences();
   const editorContent = useRef<HTMLDivElement>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<AppWorkspace>("run-saves");
   const [activeRunSection, setActiveRunSection] = useState<WorkspaceSection>("overview");
@@ -180,15 +344,8 @@ function AppContent() {
     return result;
   }
 
-  const currentRunEntryTask =
-    pendingRunEntry?.phase === "preparing-entry"
-      ? (RUN_ENTRY_TASK_PRIORITY.find((task) => pendingRunEntry.pendingTasks.has(task)) ?? null)
-      : null;
-  const realAssetPreparation =
-    pendingRunEntry?.phase === "preparing-entry" &&
-    pendingRunEntry.awaitingPresentation &&
-    assets.total !== null &&
-    ACTIVE_ASSET_STAGES.has(assets.stage);
+  const currentTask = currentRunEntryTask(pendingRunEntry);
+  const realAssetPreparation = isRealAssetPreparation(pendingRunEntry, assets);
   return (
     <AppShell>
       <div
@@ -198,81 +355,29 @@ function AppContent() {
         inert={dialogStatus !== null || initialSafetyCheck}
         tabIndex={-1}
       >
-        <nav
-          aria-label={t("app.workspaces")}
-          className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
-        >
-          <div className="flex gap-2">
-            <button
-              aria-describedby={runPendingCount > 0 ? "run-saves-pending" : undefined}
-              aria-current={activeWorkspace === "run-saves" ? "page" : undefined}
-              aria-label={t("app.runSaves")}
-              className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
-                activeWorkspace === "run-saves"
-                  ? "bg-accent text-accent-ink"
-                  : "text-secondary hover:bg-surface hover:text-ink"
-              }`}
-              type="button"
-              onClick={() => setActiveWorkspace("run-saves")}
-            >
-              {t("app.runSaves")}
-              <PendingDot count={runPendingCount} id="run-saves-pending" />
-            </button>
-            <button
-              aria-describedby={cosmeticsPendingCount > 0 ? "cosmetics-pending" : undefined}
-              aria-current={activeWorkspace === "cosmetics" ? "page" : undefined}
-              aria-label={t("app.cosmetics")}
-              className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${
-                activeWorkspace === "cosmetics"
-                  ? "bg-accent text-accent-ink"
-                  : "text-secondary hover:bg-surface hover:text-ink"
-              }`}
-              type="button"
-              onClick={() => setActiveWorkspace("cosmetics")}
-            >
-              {t("app.cosmetics")}
-              <PendingDot count={cosmeticsPendingCount} id="cosmetics-pending" />
-            </button>
-          </div>
-          <UtilityCluster />
-        </nav>
+        <WorkspaceTabs
+          activeWorkspace={activeWorkspace}
+          cosmeticsPendingCount={cosmeticsPendingCount}
+          runPendingCount={runPendingCount}
+          onChange={setActiveWorkspace}
+        />
 
-        <div hidden={activeWorkspace !== "run-saves"}>
-          {pendingRunEntry !== null ? (
-            <AssetPreparationView
-              mode={realAssetPreparation ? "artwork" : "save"}
-              state={assets}
-              saveDetail={
-                pendingRunEntry.phase === "opening-save"
-                  ? t("entry.detail.readingSave")
-                  : currentRunEntryTask === null
-                    ? t("entry.detail.finalizing")
-                    : t(RUN_ENTRY_TASK_KEYS[currentRunEntryTask])
-              }
-            />
-          ) : save.session === null ? (
-            <DiscoveryHome
-              discovery={discovery}
-              openError={save.error}
-              openingSaveId={save.openingSaveId}
-              onOpenSave={(saveId) => void openRunSave(saveId)}
-            />
-          ) : (
-            <Workspace
-              activeSection={activeRunSection}
-              assetState={assets}
-              backupPath={save.lastBackupPath}
-              initialEntryData={initialEntryData}
-              saveError={save.saveError}
-              saving={save.saving}
-              session={save.session}
-              onPendingCountChange={setRunPendingCount}
-              onActiveSectionChange={setActiveRunSection}
-              onClose={closeRunSave}
-              onSave={writeRunSave}
-            />
-          )}
-        </div>
+        <RunSavesWorkspace
+          active={activeWorkspace === "run-saves"}
+          activeSection={activeRunSection}
+          assets={assets}
+          currentTask={currentTask}
+          discovery={discovery}
+          initialEntryData={initialEntryData}
+          pendingEntry={pendingRunEntry}
+          realAssetPreparation={realAssetPreparation}
+          save={save}
+          onActiveSectionChange={setActiveRunSection}
+          onClose={closeRunSave}
+          onOpenSave={(saveId) => void openRunSave(saveId)}
+          onPendingCountChange={setRunPendingCount}
+          onSave={writeRunSave}
+        />
 
         <CosmeticsWorkspace
           hidden={activeWorkspace !== "cosmetics"}
