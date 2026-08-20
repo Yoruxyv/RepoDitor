@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from repo_save_editor.core.schema import get_dictionaries
+from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries
 from repo_save_editor.core.types import SaveData
 
 RUN_STATS: tuple[tuple[str, str], ...] = (
@@ -42,6 +42,10 @@ def get_run_stat(data: SaveData, key: str) -> int:
 def set_run_stat(data: SaveData, key: str, value: int) -> None:
     """Set an integer value in ``runStats``."""
     run_stats = get_dictionaries(data)["runStats"]
+    if key in run_stats:
+        raw = run_stats[key]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise SaveSchemaError(f"Run stat '{key}' is not a supported integer value.")
     run_stats[key] = int(value)
 
 

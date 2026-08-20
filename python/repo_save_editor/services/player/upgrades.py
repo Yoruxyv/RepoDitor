@@ -132,5 +132,11 @@ def set_player_upgrade(data: SaveData, player_id: str, key: str, value: int) -> 
     values = dictionaries.setdefault(key, {})
     if not isinstance(values, dict):
         raise SaveSchemaError(f"Upgrade field '{key}' is not a dictionary.")
+    if player_id in values:
+        raw = values[player_id]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise SaveSchemaError(
+                f"Upgrade '{key}' for player '{player_id}' is not a supported integer value."
+            )
 
     values[player_id] = int(value)
