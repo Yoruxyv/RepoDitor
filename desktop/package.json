@@ -26,7 +26,7 @@
     "test:e2e:packaged": "npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test e2e/package-smoke.spec.ts",
     "preview": "vite preview",
     "start": "electron .",
-    "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onefile --console --name repoditor-backend --paths ../python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../python/repo_save_editor/desktop_api/__main__.py",
+    "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onedir --console --name repoditor-backend --paths ../python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller ../python/repo_save_editor/desktop_api/__main__.py",
     "package:dir": "npm run clean:release-output && electron-builder --win dir && npm run package:verify",
     "package:dir:signed": "npm run clean:release-output && electron-builder --config electron-builder.release.cjs --win dir && npm run package:verify",
     "package:installer": "electron-builder --win nsis --prepackaged release/win-unpacked && npm run package:verify:installer",
@@ -58,8 +58,8 @@
     ],
     "extraResources": [
       {
-        "from": "build/backend/repoditor-backend.exe",
-        "to": "backend/repoditor-backend.exe"
+        "from": "build/backend/repoditor-backend",
+        "to": "backend"
       },
       {
         "from": "src/assets/fonts/teko/OFL.txt",
