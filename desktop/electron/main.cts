@@ -11,7 +11,11 @@ import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerProjectIpc } from "./ipc/project.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
-import { registerLocalIconProtocol, registerLocalIconScheme } from "./icons/protocol.cjs";
+import {
+  decodedUpgradeTextureCache,
+  registerLocalIconProtocol,
+  registerLocalIconScheme,
+} from "./icons/protocol.cjs";
 
 const developmentRendererUrl = process.env.VITE_DEV_SERVER_URL;
 const projectUrl = "https://github.com/Yoruxyv/RepoDitor";
@@ -93,6 +97,9 @@ registerEditorIpc();
 
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  decodedUpgradeTextureCache.configurePersistentRoot(
+    path.join(app.getPath("userData"), "presentation"),
+  );
   registerLocalIconProtocol();
   createWindow();
   void assetPreparationService.prepareStartup();

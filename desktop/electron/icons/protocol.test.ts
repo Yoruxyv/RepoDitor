@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { createRequire } from "node:module";
-import { lstat, mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -366,5 +366,292 @@ describe("local icon protocol", () => {
     await writeFile(watch, Buffer.from("changed source bytes"));
     expect((await serveLocalIcon(url(token), null, registry, client, cache)).status).toBe(200);
     expect(client.run).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists validated decoded artwork and reuses it from a new cache instance", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const sourceIdentity = "d".repeat(64);
+    const payload = {
+      sourceIdentity,
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    };
+    const firstClient = {
+      run: vi.fn().mockResolvedValue({ ok: true, texture: payload }),
+      dispose: vi.fn(),
+    };
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+
+    await expect(firstCache.get("playerUpgradeHealth", firstClient)).resolves.toEqual(png());
+    expect(firstClient.run).toHaveBeenCalledTimes(1);
+    expect(await readFile(path.join(persistentRoot, `${sourceIdentity}.png`))).toEqual(png());
+    const manifest = JSON.parse(
+      await readFile(path.join(persistentRoot, "manifest.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(manifest.formatVersion).toBe(1);
+
+    const secondClient = { run: vi.fn(), dispose: vi.fn() };
+    const secondCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await expect(secondCache.get("playerUpgradeHealth", secondClient)).resolves.toEqual(png());
+    expect(secondClient.run).not.toHaveBeenCalled();
+  });
+
+  it("prepares only a newly requested asset when an existing persistent entry is still valid", async () => {
+    const { base } = await fixture();
+    const healthWatch = path.join(base, "health.assets");
+    const staminaWatch = path.join(base, "stamina.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(healthWatch, Buffer.from("health source"));
+    await writeFile(staminaWatch, Buffer.from("stamina source"));
+    const healthStat = await lstat(healthWatch, { bigint: true });
+    const staminaStat = await lstat(staminaWatch, { bigint: true });
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await expect(
+      firstCache.storePrepared("playerUpgradeHealth", {
+        sourceIdentity: "e".repeat(64),
+        pngBase64: png().toString("base64"),
+        width: 1,
+        height: 1,
+        watches: [
+          {
+            path: healthWatch,
+            size: healthStat.size.toString(),
+            mtimeNs: healthStat.mtimeNs.toString(),
+          },
+        ],
+      }),
+    ).resolves.toBe(true);
+
+    const client = {
+      run: vi.fn().mockResolvedValue({
+        ok: true,
+        texture: {
+          sourceIdentity: "f".repeat(64),
+          pngBase64: png().toString("base64"),
+          width: 1,
+          height: 1,
+          watches: [
+            {
+              path: staminaWatch,
+              size: staminaStat.size.toString(),
+              mtimeNs: staminaStat.mtimeNs.toString(),
+            },
+          ],
+        },
+      }),
+      dispose: vi.fn(),
+    };
+    const secondCache = new DecodedUpgradeTextureCache(persistentRoot);
+
+    await expect(secondCache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
+    await expect(secondCache.get("playerUpgradeStamina", client)).resolves.toEqual(png());
+    expect(client.run).toHaveBeenCalledTimes(1);
+    expect(client.run).toHaveBeenCalledWith("upgrade-texture", ["playerUpgradeStamina"]);
+  });
+
+  it("invalidates only the persistent entry whose independent source watch changed", async () => {
+    const { base } = await fixture();
+    const healthWatch = path.join(base, "health.assets");
+    const staminaWatch = path.join(base, "stamina.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(healthWatch, Buffer.from("health source"));
+    await writeFile(staminaWatch, Buffer.from("stamina source"));
+    const healthStat = await lstat(healthWatch, { bigint: true });
+    const staminaStat = await lstat(staminaWatch, { bigint: true });
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await firstCache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity: "1".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [
+        {
+          path: healthWatch,
+          size: healthStat.size.toString(),
+          mtimeNs: healthStat.mtimeNs.toString(),
+        },
+      ],
+    });
+    await firstCache.storePrepared("playerUpgradeStamina", {
+      sourceIdentity: "2".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [
+        {
+          path: staminaWatch,
+          size: staminaStat.size.toString(),
+          mtimeNs: staminaStat.mtimeNs.toString(),
+        },
+      ],
+    });
+    await writeFile(healthWatch, Buffer.from("changed health source bytes"));
+    const changedHealthStat = await lstat(healthWatch, { bigint: true });
+    const client = {
+      run: vi.fn().mockResolvedValue({
+        ok: true,
+        texture: {
+          sourceIdentity: "3".repeat(64),
+          pngBase64: png().toString("base64"),
+          width: 1,
+          height: 1,
+          watches: [
+            {
+              path: healthWatch,
+              size: changedHealthStat.size.toString(),
+              mtimeNs: changedHealthStat.mtimeNs.toString(),
+            },
+          ],
+        },
+      }),
+      dispose: vi.fn(),
+    };
+    const secondCache = new DecodedUpgradeTextureCache(persistentRoot);
+
+    await expect(secondCache.get("playerUpgradeStamina", client)).resolves.toEqual(png());
+    expect(client.run).not.toHaveBeenCalled();
+    await expect(secondCache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
+    expect(client.run).toHaveBeenCalledTimes(1);
+    expect(client.run).toHaveBeenCalledWith("upgrade-texture", ["playerUpgradeHealth"]);
+  });
+
+  it("rejects old cache formats and malformed or incomplete persistent entries", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const sourceIdentity = "4".repeat(64);
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await firstCache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity,
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    });
+
+    const manifestPath = path.join(persistentRoot, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      formatVersion: number;
+    };
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, formatVersion: 0 }));
+    const oldFormatClient = {
+      run: vi.fn().mockResolvedValue({
+        ok: true,
+        texture: {
+          sourceIdentity: "5".repeat(64),
+          pngBase64: png().toString("base64"),
+          width: 1,
+          height: 1,
+          watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+        },
+      }),
+      dispose: vi.fn(),
+    };
+    await expect(
+      new DecodedUpgradeTextureCache(persistentRoot).get("playerUpgradeHealth", oldFormatClient),
+    ).resolves.toEqual(png());
+    expect(oldFormatClient.run).toHaveBeenCalledTimes(1);
+
+    await writeFile(manifestPath, "{ malformed");
+    const malformedClient = {
+      run: vi.fn().mockResolvedValue({ ok: true, texture: null }),
+      dispose: vi.fn(),
+    };
+    await expect(
+      new DecodedUpgradeTextureCache(persistentRoot).get("playerUpgradeHealth", malformedClient),
+    ).resolves.toBeNull();
+    expect(malformedClient.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to source preparation when a referenced persistent PNG is missing", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const sourceIdentity = "6".repeat(64);
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await firstCache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity,
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    });
+    await rm(path.join(persistentRoot, `${sourceIdentity}.png`));
+    const client = {
+      run: vi.fn().mockResolvedValue({
+        ok: true,
+        texture: {
+          sourceIdentity: "7".repeat(64),
+          pngBase64: png().toString("base64"),
+          width: 1,
+          height: 1,
+          watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+        },
+      }),
+      dispose: vi.fn(),
+    };
+
+    await expect(
+      new DecodedUpgradeTextureCache(persistentRoot).get("playerUpgradeHealth", client),
+    ).resolves.toEqual(png());
+    expect(client.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not present a stale persistent artifact after its source disappears", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await firstCache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity: "8".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    });
+    await rm(watch);
+    const client = {
+      run: vi.fn().mockResolvedValue({ ok: true, texture: null }),
+      dispose: vi.fn(),
+    };
+
+    await expect(
+      new DecodedUpgradeTextureCache(persistentRoot).get("playerUpgradeHealth", client),
+    ).resolves.toBeNull();
+    expect(client.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps decoded session memory usable when persistent cache writes fail", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "not-a-directory");
+    await writeFile(watch, Buffer.from("source"));
+    await writeFile(persistentRoot, Buffer.from("blocks cache directory creation"));
+    const stat = await lstat(watch, { bigint: true });
+    const cache = new DecodedUpgradeTextureCache(persistentRoot);
+    const payload = {
+      sourceIdentity: "9".repeat(64),
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    };
+    const client = { run: vi.fn(), dispose: vi.fn() };
+
+    await expect(cache.storePrepared("playerUpgradeHealth", payload)).resolves.toBe(true);
+    await expect(cache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
+    expect(client.run).not.toHaveBeenCalled();
   });
 });
