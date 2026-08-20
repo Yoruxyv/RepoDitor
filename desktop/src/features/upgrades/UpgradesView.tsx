@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { GameIcon } from "@/components/GameIcon";
+import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
 import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
@@ -133,17 +134,13 @@ export function UpgradesView({
           />
           <label className="min-w-0 text-sm font-semibold text-ink">
             <span>{t("upgrades.player")}</span>
-            <select
-              className="mt-1 block min-w-52 max-w-full rounded-sm border border-control bg-surface px-3 py-2 text-sm text-ink focus:border-accent"
+            <Select<string>
+              ariaLabel={t("upgrades.player")}
+              className="mt-1 min-w-52 max-w-full"
+              options={players.map((item) => ({ label: item.name, value: item.id }))}
               value={player.id}
-              onChange={(event) => onSelectPlayer(event.target.value)}
-            >
-              {players.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              onValueChange={onSelectPlayer}
+            />
           </label>
         </div>
       </div>

@@ -76,6 +76,21 @@ const advanced: AdvancedSaveDto = {
   unlinkedChargeEntryCount: 0,
 };
 
+async function selectCustomOption(
+  user: ReturnType<typeof userEvent.setup>,
+  control: HTMLElement,
+  value: string,
+): Promise<void> {
+  if (control.getAttribute("aria-expanded") !== "true") {
+    await user.click(control);
+  }
+  const option = screen
+    .getAllByRole("option")
+    .find((candidate) => candidate.getAttribute("data-value") === value);
+  if (!option) throw new Error(`Select option ${value} was not found.`);
+  await user.click(option);
+}
+
 describe("ItemsView", () => {
   const handlers = {
     pendingByItem: {},
@@ -364,19 +379,19 @@ describe("ItemsView", () => {
     );
 
     const filter = screen.getByRole("combobox", { name: "Filter" });
-    await user.selectOptions(filter, "rechargeable");
+    await selectCustomOption(user, filter, "rechargeable");
     expect(screen.getByTestId("item-group-Gun Tranq")).toBeTruthy();
     expect(screen.queryByTestId("item-group-Cart Medium")).toBeNull();
     expect(screen.queryByTestId("item-group-Future Tool")).toBeNull();
 
-    await user.selectOptions(filter, "not_rechargeable");
+    await selectCustomOption(user, filter, "not_rechargeable");
     const cart = screen.getByTestId("item-group-Cart Medium");
     expect(cart).toBeTruthy();
     expect(within(cart).queryByRole("list")).toBeNull();
     expect(screen.queryByTestId("item-group-Future Tool")).toBeNull();
     expect(screen.queryByTestId("item-group-Gun Tranq")).toBeNull();
 
-    await user.selectOptions(filter, "upgrades");
+    await selectCustomOption(user, filter, "upgrades");
     expect(screen.getByTestId("item-group-Modded Boost")).toBeTruthy();
     expect(screen.getByTestId("item-icon-Item Upgrade Player Health/1").dataset.iconSource).toBe(
       "specific",
@@ -384,9 +399,9 @@ describe("ItemsView", () => {
     expect(screen.getByTestId("item-icon-Item Modded Boost/1").dataset.iconSource).toBe("fallback");
     expect(screen.queryByTestId("item-group-Cart Medium")).toBeNull();
 
-    await user.selectOptions(filter, "all");
+    await selectCustomOption(user, filter, "all");
     expect(screen.getByTestId("item-group-Future Tool")).toBeTruthy();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "quantity-desc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "quantity-desc");
     expect(screen.getAllByTestId(/^item-group-/)[0]?.getAttribute("data-testid")).toBe(
       "item-group-Cart Medium",
     );

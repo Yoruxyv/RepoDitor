@@ -108,6 +108,21 @@ function visibleIds(): number[] {
   return screen.getAllByRole("listitem").map((row) => Number(row.getAttribute("data-cosmetic-id")));
 }
 
+async function selectCustomOption(
+  user: ReturnType<typeof userEvent.setup>,
+  control: HTMLElement,
+  value: string,
+): Promise<void> {
+  if (control.getAttribute("aria-expanded") !== "true") {
+    await user.click(control);
+  }
+  const option = screen
+    .getAllByRole("option")
+    .find((candidate) => candidate.getAttribute("data-value") === value);
+  if (!option) throw new Error(`Select option ${value} was not found.`);
+  await user.click(option);
+}
+
 describe("CosmeticsCatalog", () => {
   it("shows an accessible Unlock action only for eligible locked cosmetics", async () => {
     const user = userEvent.setup();
@@ -175,20 +190,20 @@ describe("CosmeticsCatalog", () => {
     fireEvent.load(thumbnail!);
     expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "17");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "all");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Type" }), "17");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Type" }), "all");
     expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
     expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
 
     const search = screen.getByRole("searchbox", { name: "Search cosmetics" });
     await user.type(search, "missing cosmetic");
     await user.clear(search);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Ownership" }), "owned");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Ownership" }), "all");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Ownership" }), "owned");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Ownership" }), "all");
     expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
     expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "id-desc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "id-desc");
     expect(screen.getByTestId("cosmetic-icon-0").querySelector("img")).toBe(thumbnail);
     expect(screen.queryByTestId("cosmetic-icon-0-loading")).toBeNull();
   });
@@ -246,13 +261,13 @@ describe("CosmeticsCatalog", () => {
     const ownership = screen.getByRole("combobox", { name: "Ownership" });
     expect(new Set(visibleIds())).toEqual(new Set([0, 1, 999]));
 
-    await user.selectOptions(ownership, "owned");
+    await selectCustomOption(user, ownership, "owned");
     expect(visibleIds()).toEqual([0]);
 
-    await user.selectOptions(ownership, "locked");
+    await selectCustomOption(user, ownership, "locked");
     expect(visibleIds()).toEqual([1]);
 
-    await user.selectOptions(ownership, "all");
+    await selectCustomOption(user, ownership, "all");
     expect(new Set(visibleIds())).toEqual(new Set([0, 1, 999]));
   });
 
@@ -268,16 +283,15 @@ describe("CosmeticsCatalog", () => {
     );
 
     const typeFilter = screen.getByRole("combobox", { name: "Type" });
-    const options = within(typeFilter)
-      .getAllByRole("option")
-      .map((option) => option.textContent);
+    await user.click(typeFilter);
+    const options = screen.getAllByRole("option").map((option) => option.textContent);
     expect(options).toEqual(["All Types", "Hat", "Ears", "Type 33"]);
 
-    await user.selectOptions(typeFilter, "17");
+    await selectCustomOption(user, typeFilter, "17");
     expect(visibleIds()).toEqual([1]);
     expect(screen.queryByRole("listitem", { name: "Cosmetic #999, ID 999, Unknown" })).toBeNull();
 
-    await user.selectOptions(typeFilter, "all");
+    await selectCustomOption(user, typeFilter, "all");
     expect(screen.getByText("Cosmetic #999")).toBeTruthy();
   });
 
@@ -314,7 +328,7 @@ describe("CosmeticsCatalog", () => {
       ]),
     );
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-asc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "rarity-asc");
     expect(visibleIds()).toEqual([1, 0, 2, 999]);
   });
 
@@ -329,7 +343,7 @@ describe("CosmeticsCatalog", () => {
       ]),
     );
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
     expect(visibleIds()).toEqual([2, 0, 1, 999]);
   });
 
@@ -347,10 +361,10 @@ describe("CosmeticsCatalog", () => {
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
 
-    await user.selectOptions(sort, "rarity-asc");
+    await selectCustomOption(user, sort, "rarity-asc");
     expect(visibleIds()).toEqual([0, 1, 999, 2]);
 
-    await user.selectOptions(sort, "rarity-desc");
+    await selectCustomOption(user, sort, "rarity-desc");
     expect(visibleIds()).toEqual([1, 0, 999, 2]);
   });
   it("uses display name then cosmetic ID as deterministic rarity tie-breakers", async () => {
@@ -363,7 +377,7 @@ describe("CosmeticsCatalog", () => {
       ]),
     );
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "rarity-desc");
     expect(visibleIds()).toEqual([1, 0, 2]);
   });
 
@@ -378,7 +392,7 @@ describe("CosmeticsCatalog", () => {
     const originalIds = view.cosmetics.map((cosmetic) => cosmetic.id);
     renderCatalog(view);
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort" }), "id-desc");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "id-desc");
     expect(visibleIds()).toEqual([2, 1, 0]);
     expect(view.cosmetics.map((cosmetic) => cosmetic.id)).toEqual(originalIds);
   });
@@ -394,9 +408,9 @@ describe("CosmeticsCatalog", () => {
     );
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
-    await user.selectOptions(sort, "id-desc");
+    await selectCustomOption(user, sort, "id-desc");
     expect(visibleIds()).toEqual([2, 1, 0]);
-    await user.selectOptions(sort, "id-asc");
+    await selectCustomOption(user, sort, "id-asc");
     expect(visibleIds()).toEqual([0, 1, 2]);
   });
 
@@ -412,7 +426,7 @@ describe("CosmeticsCatalog", () => {
 
     const sort = screen.getByRole("combobox", { name: "Sort" });
     expect(visibleIds()).toEqual([1, 0, 2]);
-    await user.selectOptions(sort, "name-desc");
+    await selectCustomOption(user, sort, "name-desc");
     expect(visibleIds()).toEqual([0, 2, 1]);
   });
 
@@ -459,7 +473,7 @@ describe("CosmeticsCatalog", () => {
       expect(within(row).getByText(/Preserved from the save/)).toBeTruthy();
     }
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Ownership" }), "owned");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Ownership" }), "owned");
     expect(screen.getByText("No cosmetics match the current search and filters.")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain(
       "Installed cosmetic metadata is unavailable",

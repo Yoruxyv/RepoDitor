@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RunStateDto } from "@electron/contracts";
@@ -21,6 +22,25 @@ const handlers = {
 };
 
 describe("RunView", () => {
+  it("keeps resume-location selection behavior through the reusable Select", async () => {
+    const user = userEvent.setup();
+    const onResumeChange = vi.fn();
+    renderWithPreferences(
+      <RunView
+        {...handlers}
+        error={null}
+        loading={false}
+        run={run}
+        onResumeChange={onResumeChange}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Resume location" });
+    await user.click(control);
+    await user.click(screen.getByRole("option", { name: "Shop / Service Station" }));
+    expect(onResumeChange).toHaveBeenCalledWith("Shop / Service Station");
+  });
+
   it("uses stat-row skeletons for initial loading and keeps existing refresh data", () => {
     const { rerender } = renderWithPreferences(
       <RunView {...handlers} error={null} loading run={null} />,
