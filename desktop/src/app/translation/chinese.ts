@@ -270,7 +270,7 @@ export const zh: Record<keyof typeof en, string> = {
   "entry.localSave": "本地存档 • 正在读取",
   "entry.editorPreparing": "编辑器数据 • 正在准备",
   "assets.localPreparation": "资源准备",
-  "assets.preparingGame": "正在准备游戏资源",
+  "assets.preparingGame": "正在准备游戏图像",
   "assets.preparingUpgrades": "正在准备升级图像",
   "assets.stage.idle": "正在启动资源准备",
   "assets.stage.discovering": "正在定位 R.E.P.O.",

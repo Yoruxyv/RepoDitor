@@ -40,7 +40,6 @@ type PendingRunEntry =
       readonly phase: "preparing-entry";
       readonly opened: SaveOpenResult;
       readonly requestId: number;
-      readonly awaitingPresentation: boolean;
       readonly pendingTasks: ReadonlySet<RunEntryTask>;
     };
 
@@ -235,7 +234,7 @@ function isRealAssetPreparation(
 ): boolean {
   return (
     pendingEntry?.phase === "preparing-entry" &&
-    pendingEntry.awaitingPresentation &&
+    pendingEntry.opened.presentationReadiness === "unresolved" &&
     assets.total !== null &&
     ACTIVE_ASSET_STAGES.has(assets.stage)
   );
@@ -279,9 +278,7 @@ function AppContent() {
   async function openRunSave(saveId: string): Promise<void> {
     const requestId = ++runEntryRequest.current;
     const cachedCandidate = runEntryCache.current.get(saveId) ?? null;
-    if (cachedCandidate === null) {
-      setPendingRunEntry({ phase: "opening-save", saveId, requestId });
-    }
+    setPendingRunEntry({ phase: "opening-save", saveId, requestId });
 
     const opened = await save.open(saveId);
     if (runEntryRequest.current !== requestId) return;
@@ -303,7 +300,6 @@ function AppContent() {
       phase: "preparing-entry",
       opened,
       requestId,
-      awaitingPresentation: opened.presentationReadiness === "unresolved",
       pendingTasks: new Set(cached === null ? RUN_ENTRY_TASK_PRIORITY : ["upgrades"]),
     });
 

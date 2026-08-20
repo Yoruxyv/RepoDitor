@@ -279,7 +279,7 @@ export const ja: Record<keyof typeof en, string> = {
   "entry.localSave": "ローカルセーブ • 読み込み中",
   "entry.editorPreparing": "エディターデータ • 準備中",
   "assets.localPreparation": "アセット準備",
-  "assets.preparingGame": "ゲームアセットを準備中",
+  "assets.preparingGame": "ゲーム画像を準備中",
   "assets.preparingUpgrades": "アップグレード画像を準備中",
   "assets.stage.idle": "アセット準備を開始中",
   "assets.stage.discovering": "R.E.P.O. を検索中",

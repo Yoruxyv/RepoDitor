@@ -286,7 +286,7 @@ export const id: Record<keyof typeof en, string> = {
   "entry.localSave": "Save lokal • membaca",
   "entry.editorPreparing": "Data editor • menyiapkan",
   "assets.localPreparation": "Persiapan aset",
-  "assets.preparingGame": "Menyiapkan aset game",
+  "assets.preparingGame": "Menyiapkan gambar game",
   "assets.preparingUpgrades": "Menyiapkan gambar upgrade",
   "assets.stage.idle": "Memulai persiapan aset",
   "assets.stage.discovering": "Mencari R.E.P.O.",

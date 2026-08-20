@@ -285,7 +285,7 @@ export const ko: Record<keyof typeof en, string> = {
   "entry.localSave": "로컬 세이브 • 읽는 중",
   "entry.editorPreparing": "에디터 데이터 • 준비 중",
   "assets.localPreparation": "에셋 준비",
-  "assets.preparingGame": "게임 에셋 준비 중",
+  "assets.preparingGame": "게임 이미지 준비 중",
   "assets.preparingUpgrades": "업그레이드 이미지 준비 중",
   "assets.stage.idle": "에셋 준비 시작 중",
   "assets.stage.discovering": "R.E.P.O. 찾는 중",

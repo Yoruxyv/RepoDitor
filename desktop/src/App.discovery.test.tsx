@@ -74,7 +74,11 @@ describe("save discovery integration", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Reading and validating save data…",
+    );
+    expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
     expect(screen.queryByTestId("workspace")).toBeNull();
     finishOpen?.(openResult());
 
