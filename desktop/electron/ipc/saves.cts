@@ -26,8 +26,8 @@ import {
   type SaveWriteResult,
 } from "../contracts.cjs";
 import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
+import { validSaveId } from "./protocol.cjs";
 
-const SAVE_ID_PATTERN = /^REPO_SAVE_\d{4}(?:_\d{2}){5}$/;
 const FINGERPRINT_PATTERN = /^[a-f\d]{64}$/;
 const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 const MAX_CHANGES = 512;
@@ -531,7 +531,7 @@ export async function openSave(
     "checkUpgradeVisualReadiness"
   > = assetPreparationService,
 ): Promise<DesktopOperationResult<SaveOpenResult>> {
-  if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
+  if (!validSaveId(saveId)) {
     return {
       ok: false,
       error: { code: "invalid_request", message: "A valid discovered save ID is required." },
@@ -566,7 +566,7 @@ export async function saveChanges(
   changes: unknown,
   evidence: RechargeEvidenceProvider = rechargeEvidenceStore,
 ): Promise<DesktopOperationResult<SaveWriteResult>> {
-  if (typeof saveId !== "string" || !SAVE_ID_PATTERN.test(saveId)) {
+  if (!validSaveId(saveId)) {
     return {
       ok: false,
       error: { code: "invalid_request", message: "A valid save ID is required." },
