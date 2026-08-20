@@ -273,6 +273,7 @@ def save_changes(
         else:
             recharge_capabilities = {}
         apply_run_save_changes(data, changes, recharge_capabilities)
+        require_game_closed(game_status_loader)
         backup, written = SaveRepository(save.path.parent).overwrite(
             save.path,
             data,

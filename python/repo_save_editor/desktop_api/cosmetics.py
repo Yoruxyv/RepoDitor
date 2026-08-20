@@ -244,6 +244,7 @@ def save_cosmetics(
             return _failure("save_stale", "MetaSave.es3 changed after it was opened.")
         installed_catalog = catalog_loader()
         _apply_changes(data, changes, installed_catalog)
+        require_game_closed(game_status_loader)
         backup, written = repository.overwrite(path, data, expected_source=source)
         return {
             "ok": True,
