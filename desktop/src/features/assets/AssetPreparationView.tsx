@@ -66,7 +66,7 @@ function preparationCopy(
     return {
       localPreparation: t("entry.localPreparation"),
       preparing: t("entry.preparingEditor"),
-      title: t("entry.readingPreparingSave"),
+      title: t("saves.openingSave"),
       detail: saveDetail ?? t("entry.detail.finalizing"),
       hint: t(hintKey),
     };
@@ -83,7 +83,7 @@ function preparationCopy(
   return {
     localPreparation: t("assets.localPreparation"),
     preparing: t("assets.preparingUpgrades"),
-    title: t("entry.decodingGameAssets"),
+    title: t("assets.preparingGame"),
     detail,
     hint: t(hintKey),
   };

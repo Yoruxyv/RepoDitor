@@ -83,7 +83,7 @@ describe("app shell integration", () => {
 
     const preload = await screen.findByTestId("asset-preparation");
     expect(preload.getAttribute("data-entry-mode")).toBe("save");
-    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toContain(
       "Loading upgrade data",
     );
@@ -107,7 +107,7 @@ describe("app shell integration", () => {
       }),
     );
     expect(preload.getAttribute("data-entry-mode")).toBe("artwork");
-    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Preparing game artwork" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
       "Decoding Health upgrade artwork…",
     );
@@ -137,12 +137,13 @@ describe("app shell integration", () => {
     expect(window.repoditor.upgrades.list).not.toHaveBeenCalled();
   });
 
-  it("reopens the same source-valid save directly from the app-session entry cache", async () => {
+  it("shows a fresh save-read state when reopening cached editor data", async () => {
     const preparation = deferred<DesktopOperationResult<PlayerUpgradeDto[]>>();
+    const reopening = deferred<ReturnType<typeof openResult>>();
     const open = vi
       .fn()
       .mockResolvedValueOnce(openResult(session, "unresolved"))
-      .mockResolvedValueOnce(openResult(session, "ready"));
+      .mockImplementationOnce(() => reopening.promise);
     window.repoditor = bridge(open, players);
     window.repoditor.upgrades.prepareEntry = vi.fn(() => preparation.promise);
     const user = userEvent.setup();
@@ -164,39 +165,69 @@ describe("app shell integration", () => {
     await user.click(screen.getByRole("button", { name: "Change save" }));
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
 
-    let preloadObserved = false;
-    const observer = new MutationObserver(() => {
-      if (document.querySelector('[data-testid="asset-preparation"]') !== null) {
-        preloadObserved = true;
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    try {
-      await user.click(screen.getByRole("button", { name: /Open workspace/ }));
-      expect(await screen.findByTestId("workspace")).toBeTruthy();
-      expect(preloadObserved).toBe(false);
-      expect(screen.queryByTestId("asset-preparation")).toBeNull();
-      expect(window.repoditor.players.list).toHaveBeenCalledTimes(playerCalls);
-      expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(avatarCalls);
-      expect(window.repoditor.run.get).toHaveBeenCalledTimes(runCalls);
-      expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(itemCalls);
-      expect(window.repoditor.maps.list).toHaveBeenCalledTimes(mapCalls);
-      expect(window.repoditor.upgrades.prepareEntry).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: /Open workspace/ }));
+    const preload = await screen.findByTestId("asset-preparation");
+    expect(preload.getAttribute("data-entry-mode")).toBe("save");
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Reading and validating save data…",
+    );
+    expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
+    expect(screen.queryByTestId("workspace")).toBeNull();
 
-      await user.click(screen.getByRole("tab", { name: "Players" }));
-      expect(screen.queryByTestId("players-skeleton")).toBeNull();
-      expect(screen.queryByTestId("player-avatar-skeleton")).toBeNull();
-      await user.click(screen.getByRole("tab", { name: "Upgrades" }));
-      expect(screen.queryByTestId("upgrades-skeleton")).toBeNull();
-      await user.click(screen.getByRole("tab", { name: "Run" }));
-      expect(screen.queryByTestId("run-skeleton")).toBeNull();
-      await user.click(screen.getByRole("tab", { name: "Items" }));
-      expect(screen.queryByTestId("items-skeleton")).toBeNull();
-      await user.click(screen.getByRole("tab", { name: "Maps" }));
-      expect(screen.queryByTestId("maps-skeleton")).toBeNull();
-    } finally {
-      observer.disconnect();
-    }
+    await act(async () => {
+      reopening.resolve(openResult(session, "ready"));
+    });
+
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(window.repoditor.players.list).toHaveBeenCalledTimes(playerCalls);
+    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(avatarCalls);
+    expect(window.repoditor.run.get).toHaveBeenCalledTimes(runCalls);
+    expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(itemCalls);
+    expect(window.repoditor.maps.list).toHaveBeenCalledTimes(mapCalls);
+    expect(window.repoditor.upgrades.prepareEntry).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.queryByTestId("players-skeleton")).toBeNull();
+    expect(screen.queryByTestId("player-avatar-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(screen.queryByTestId("upgrades-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    expect(screen.queryByTestId("run-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    expect(screen.queryByTestId("items-skeleton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    expect(screen.queryByTestId("maps-skeleton")).toBeNull();
+  });
+
+  it("clears save-opening status when the authoritative open fails", async () => {
+    const opening = deferred<DesktopOperationResult<ReturnType<typeof openResult>["data"]>>();
+    window.repoditor = bridge(
+      vi.fn(() => opening.promise),
+      players,
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+
+    expect(await screen.findByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
+      "Reading and validating save data…",
+    );
+    expect(screen.queryByTestId("workspace")).toBeNull();
+
+    await act(async () => {
+      opening.resolve({
+        ok: false,
+        error: { code: "save_corrupt", message: "fixture failure" },
+      });
+    });
+
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(screen.queryByTestId("workspace")).toBeNull();
   });
 
   it("uses save-specific loading for a different save when game artwork is already ready", async () => {
@@ -239,9 +270,9 @@ describe("app shell integration", () => {
 
     const preload = await screen.findByTestId("asset-preparation");
     expect(preload.getAttribute("data-entry-mode")).toBe("save");
-    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toContain("Loading item data");
-    expect(screen.queryByRole("heading", { name: "Decoding game assets" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
     expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -262,11 +293,11 @@ describe("app shell integration", () => {
 
     const preload = await screen.findByTestId("asset-preparation");
     expect(preload.getAttribute("data-entry-mode")).toBe("save");
-    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toContain(
       "Loading upgrade data",
     );
-    expect(screen.queryByRole("heading", { name: "Decoding game assets" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
     expect(screen.queryByTestId("workspace")).toBeNull();
     expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();
 

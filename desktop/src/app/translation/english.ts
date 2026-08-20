@@ -283,7 +283,7 @@ export const en = {
   "entry.localSave": "Local save • reading",
   "entry.editorPreparing": "Editor data • preparing",
   "assets.localPreparation": "Asset preparation",
-  "assets.preparingGame": "Preparing game assets",
+  "assets.preparingGame": "Preparing game artwork",
   "assets.preparingUpgrades": "Preparing upgrade art",
   "assets.stage.idle": "Starting asset preparation",
   "assets.stage.discovering": "Locating R.E.P.O.",

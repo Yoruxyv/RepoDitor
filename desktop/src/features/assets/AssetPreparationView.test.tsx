@@ -46,7 +46,7 @@ describe("AssetPreparationView", () => {
     renderView(state({ stage: "validating", installationFound: true }));
 
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Preparing game artwork" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
       "Validating installed build",
     );
@@ -123,7 +123,9 @@ describe("AssetPreparationView", () => {
       "Loading item data…",
     );
 
-    expect(screen.getByRole("heading", { name: "Reading and preparing this save" })).toBeTruthy();
+    const heading = screen.getByRole("heading", { name: "Opening save" });
+    expect(heading).toBeTruthy();
+    expect(heading.getAttribute("aria-live")).toBe("polite");
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe("Loading item data…");
     expect(screen.getByTestId("asset-preparation").getAttribute("data-entry-mode")).toBe("save");
     expect(screen.getByTestId("asset-progress-status").textContent).toContain("Working");
@@ -143,7 +145,7 @@ describe("AssetPreparationView", () => {
       }),
     );
 
-    expect(screen.getByRole("heading", { name: "Decoding game assets" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Preparing game artwork" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
       "Decoding Health upgrade artwork…",
     );
