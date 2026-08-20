@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { protocol } from "electron";
@@ -9,6 +10,11 @@ const ICON_SCHEME = "repoditor-icon";
 const MAX_ICON_BYTES = 2 * 1024 * 1024;
 const MAX_ICON_DIMENSION = 2048;
 const MAX_SOURCE_WATCHES = 8;
+const PRESENTATION_CACHE_FORMAT_VERSION = 1;
+const MAX_PRESENTATION_CACHE_ENTRIES = 256;
+const MAX_PRESENTATION_MANIFEST_BYTES = 512 * 1024;
+const MAX_UPGRADE_KEY_BYTES = 512;
+const PRESENTATION_MANIFEST_NAME = "manifest.json";
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const SOURCE_ID_PATTERN = /^[a-f0-9]{64}$/;
 const DECIMAL_PATTERN = /^\d{1,24}$/;
@@ -29,6 +35,11 @@ interface SourceWatch {
 interface DecodedTexture {
   readonly sourceIdentity: string;
   readonly png: Buffer;
+  readonly watches: readonly SourceWatch[];
+}
+
+interface PersistentTextureEntry {
+  readonly sourceIdentity: string;
   readonly watches: readonly SourceWatch[];
 }
 
@@ -101,6 +112,19 @@ function readDecimalBigInt(value: unknown): bigint | null {
   }
 }
 
+function parseSourceWatches(value: unknown): readonly SourceWatch[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_SOURCE_WATCHES) return null;
+  const watches: SourceWatch[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw) || typeof raw.path !== "string" || !path.isAbsolute(raw.path)) return null;
+    const size = readDecimalBigInt(raw.size);
+    const mtimeNs = readDecimalBigInt(raw.mtimeNs);
+    if (size === null || mtimeNs === null || size < 0n || mtimeNs < 0n) return null;
+    watches.push({ path: raw.path, size, mtimeNs });
+  }
+  return watches;
+}
+
 function parseDecodedTexturePayload(value: unknown): DecodedTexture | null {
   if (!isRecord(value)) return null;
   const texture = value;
@@ -110,13 +134,12 @@ function parseDecodedTexturePayload(value: unknown): DecodedTexture | null {
     typeof texture.pngBase64 !== "string" ||
     texture.pngBase64.length === 0 ||
     texture.pngBase64.length > Math.ceil(MAX_ICON_BYTES / 3) * 4 ||
-    !BASE64_PATTERN.test(texture.pngBase64) ||
-    !Array.isArray(texture.watches) ||
-    texture.watches.length === 0 ||
-    texture.watches.length > MAX_SOURCE_WATCHES
+    !BASE64_PATTERN.test(texture.pngBase64)
   ) {
     return null;
   }
+  const watches = parseSourceWatches(texture.watches);
+  if (watches === null) return null;
   const png = Buffer.from(texture.pngBase64, "base64");
   if (!validPng(png) || png.toString("base64") !== texture.pngBase64) return null;
   if (
@@ -128,15 +151,6 @@ function parseDecodedTexturePayload(value: unknown): DecodedTexture | null {
     texture.height !== png.readUInt32BE(20)
   ) {
     return null;
-  }
-
-  const watches: SourceWatch[] = [];
-  for (const raw of texture.watches) {
-    if (!isRecord(raw) || typeof raw.path !== "string" || !path.isAbsolute(raw.path)) return null;
-    const size = readDecimalBigInt(raw.size);
-    const mtimeNs = readDecimalBigInt(raw.mtimeNs);
-    if (size === null || mtimeNs === null || size < 0n || mtimeNs < 0n) return null;
-    watches.push({ path: raw.path, size, mtimeNs });
   }
   return { sourceIdentity: texture.sourceIdentity, png, watches };
 }
@@ -165,6 +179,68 @@ async function sourcesUnchanged(watches: readonly SourceWatch[]): Promise<boolea
   }
 }
 
+function validUpgradeKey(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    Buffer.byteLength(value, "utf8") <= MAX_UPGRADE_KEY_BYTES &&
+    !value.includes("\0")
+  );
+}
+
+function serializeWatches(watches: readonly SourceWatch[]): readonly Record<string, string>[] {
+  return watches.map((watch) => ({
+    path: watch.path,
+    size: watch.size.toString(),
+    mtimeNs: watch.mtimeNs.toString(),
+  }));
+}
+
+async function replaceCacheFile(root: string, name: string, data: string | Buffer): Promise<void> {
+  await fs.mkdir(root, { recursive: true });
+  const target = path.join(root, name);
+  const temporary = path.join(root, `.${name}.${randomUUID()}.tmp`);
+  let temporaryExists = false;
+  try {
+    const handle = await fs.open(temporary, "wx", 0o600);
+    temporaryExists = true;
+    try {
+      await handle.writeFile(data);
+    } finally {
+      await handle.close();
+    }
+    try {
+      await fs.rename(temporary, target);
+    } catch {
+      await fs.rm(target, { force: true });
+      await fs.rename(temporary, target);
+    }
+    temporaryExists = false;
+  } finally {
+    if (temporaryExists) {
+      await fs.rm(temporary, { force: true }).catch(() => undefined);
+    }
+  }
+}
+
+function parsePersistentManifest(value: unknown): Map<string, PersistentTextureEntry> {
+  const entries = new Map<string, PersistentTextureEntry>();
+  if (!isRecord(value) || value.formatVersion !== PRESENTATION_CACHE_FORMAT_VERSION) return entries;
+  if (!isRecord(value.entries)) return entries;
+  const rawEntries = Object.entries(value.entries);
+  if (rawEntries.length > MAX_PRESENTATION_CACHE_ENTRIES) return entries;
+  for (const [upgradeKey, raw] of rawEntries) {
+    if (!validUpgradeKey(upgradeKey) || !isRecord(raw)) continue;
+    if (typeof raw.sourceIdentity !== "string" || !SOURCE_ID_PATTERN.test(raw.sourceIdentity)) {
+      continue;
+    }
+    const watches = parseSourceWatches(raw.watches);
+    if (watches === null) continue;
+    entries.set(upgradeKey, { sourceIdentity: raw.sourceIdentity, watches });
+  }
+  return entries;
+}
+
 interface PreparationWaiter {
   readonly promise: Promise<Buffer | null>;
   readonly resolve: (value: Buffer | null) => void;
@@ -175,7 +251,24 @@ export class DecodedUpgradeTextureCache {
   readonly #sourceByUpgrade = new Map<string, string>();
   readonly #inFlight = new Map<string, Promise<Buffer | null>>();
   readonly #preparing = new Map<string, PreparationWaiter>();
+  readonly #persistentEntries = new Map<string, PersistentTextureEntry>();
+  #persistentRoot: string | null = null;
+  #persistentLoad: Promise<void> | null = null;
+  #persistentTail: Promise<void> = Promise.resolve();
   #decodeTail: Promise<void> = Promise.resolve();
+
+  constructor(persistentRoot: string | null = null) {
+    if (persistentRoot !== null) this.configurePersistentRoot(persistentRoot);
+  }
+
+  configurePersistentRoot(root: string): void {
+    if (!path.isAbsolute(root)) throw new Error("Presentation cache root must be absolute.");
+    const resolved = path.resolve(root);
+    if (this.#persistentRoot !== null && this.#persistentRoot !== resolved) {
+      throw new Error("Presentation cache root is already configured.");
+    }
+    this.#persistentRoot = resolved;
+  }
 
   beginPreparation(upgradeKeys: readonly string[]): void {
     for (const upgradeKey of new Set(upgradeKeys)) {
@@ -200,6 +293,7 @@ export class DecodedUpgradeTextureCache {
     const decoded = parseDecodedTexturePayload(value);
     if (decoded === null || !(await sourcesUnchanged(decoded.watches))) return false;
     const png = this.#store(upgradeKey, decoded);
+    await this.#persistFailSoft(upgradeKey, decoded);
     this.#resolvePreparation(upgradeKey, png);
     return true;
   }
@@ -222,12 +316,13 @@ export class DecodedUpgradeTextureCache {
 
   async #cached(upgradeKey: string): Promise<Buffer | null> {
     const knownSource = this.#sourceByUpgrade.get(upgradeKey);
-    if (knownSource === undefined) return null;
-    const cached = this.#bySource.get(knownSource);
-    if (cached !== undefined && (await sourcesUnchanged(cached.watches))) return cached.png;
-    this.#sourceByUpgrade.delete(upgradeKey);
-    if (cached !== undefined) this.#bySource.delete(knownSource);
-    return null;
+    if (knownSource !== undefined) {
+      const cached = this.#bySource.get(knownSource);
+      if (cached !== undefined && (await sourcesUnchanged(cached.watches))) return cached.png;
+      this.#sourceByUpgrade.delete(upgradeKey);
+      if (cached !== undefined) this.#bySource.delete(knownSource);
+    }
+    return this.#loadPersistent(upgradeKey);
   }
 
   #store(upgradeKey: string, decoded: DecodedTexture): Buffer {
@@ -261,7 +356,131 @@ export class DecodedUpgradeTextureCache {
       return null;
     }
     if (decoded === null || !(await sourcesUnchanged(decoded.watches))) return null;
-    return this.#store(upgradeKey, decoded);
+    const png = this.#store(upgradeKey, decoded);
+    await this.#persistFailSoft(upgradeKey, decoded);
+    return png;
+  }
+
+  async #ensurePersistentLoaded(): Promise<void> {
+    if (this.#persistentRoot === null) return;
+    if (this.#persistentLoad === null) this.#persistentLoad = this.#loadPersistentManifest();
+    await this.#persistentLoad;
+  }
+
+  async #loadPersistentManifest(): Promise<void> {
+    const root = this.#persistentRoot;
+    if (root === null) return;
+    const manifestPath = path.join(root, PRESENTATION_MANIFEST_NAME);
+    try {
+      const stat = await fs.lstat(manifestPath);
+      if (
+        !stat.isFile() ||
+        stat.isSymbolicLink() ||
+        stat.size <= 0 ||
+        stat.size > MAX_PRESENTATION_MANIFEST_BYTES
+      ) {
+        return;
+      }
+      const raw = await fs.readFile(manifestPath, "utf8");
+      const parsed = parsePersistentManifest(JSON.parse(raw));
+      for (const [upgradeKey, entry] of parsed) this.#persistentEntries.set(upgradeKey, entry);
+    } catch {
+      // Persistent presentation data is disposable. Any load failure falls back to source decode.
+    }
+  }
+
+  async #loadPersistent(upgradeKey: string): Promise<Buffer | null> {
+    if (this.#persistentRoot === null) return null;
+    await this.#ensurePersistentLoaded();
+    const entry = this.#persistentEntries.get(upgradeKey);
+    if (entry === undefined) return null;
+    if (!(await sourcesUnchanged(entry.watches))) {
+      await this.#dropPersistentEntry(upgradeKey);
+      return null;
+    }
+    const artifactPath = path.join(this.#persistentRoot, `${entry.sourceIdentity}.png`);
+    try {
+      const stat = await fs.lstat(artifactPath);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_ICON_BYTES) {
+        await this.#dropPersistentEntry(upgradeKey);
+        return null;
+      }
+      const png = await fs.readFile(artifactPath);
+      if (png.length !== stat.size || !validPng(png)) {
+        await this.#dropPersistentEntry(upgradeKey);
+        return null;
+      }
+      return this.#store(upgradeKey, {
+        sourceIdentity: entry.sourceIdentity,
+        png,
+        watches: entry.watches,
+      });
+    } catch {
+      await this.#dropPersistentEntry(upgradeKey);
+      return null;
+    }
+  }
+
+  async #persistFailSoft(upgradeKey: string, decoded: DecodedTexture): Promise<void> {
+    const root = this.#persistentRoot;
+    if (root === null) return;
+    const task = this.#persistentTail.then(async () => {
+      try {
+        await this.#ensurePersistentLoaded();
+        await replaceCacheFile(root, `${decoded.sourceIdentity}.png`, decoded.png);
+        this.#persistentEntries.set(upgradeKey, {
+          sourceIdentity: decoded.sourceIdentity,
+          watches: decoded.watches,
+        });
+        await this.#writePersistentManifest();
+      } catch {
+        // Disk/cache failures never turn presentation state into save-editing authority.
+      }
+    });
+    this.#persistentTail = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    await task;
+  }
+
+  async #dropPersistentEntry(upgradeKey: string): Promise<void> {
+    if (this.#persistentRoot === null) return;
+    const task = this.#persistentTail.then(async () => {
+      this.#persistentEntries.delete(upgradeKey);
+      try {
+        await this.#writePersistentManifest();
+      } catch {
+        // A stale manifest is harmless: source watches are revalidated on every persistent hit.
+      }
+    });
+    this.#persistentTail = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    await task;
+  }
+
+  async #writePersistentManifest(): Promise<void> {
+    const root = this.#persistentRoot;
+    if (root === null) return;
+    await fs.mkdir(root, { recursive: true });
+    const entries: Record<string, object> = {};
+    for (const [upgradeKey, entry] of this.#persistentEntries) {
+      entries[upgradeKey] = {
+        sourceIdentity: entry.sourceIdentity,
+        watches: serializeWatches(entry.watches),
+      };
+    }
+    const manifest = JSON.stringify(
+      { formatVersion: PRESENTATION_CACHE_FORMAT_VERSION, entries },
+      null,
+      2,
+    );
+    if (Buffer.byteLength(manifest, "utf8") > MAX_PRESENTATION_MANIFEST_BYTES) {
+      throw new Error("Presentation cache manifest exceeds its supported bound.");
+    }
+    await replaceCacheFile(root, PRESENTATION_MANIFEST_NAME, `${manifest}\n`);
   }
 }
 
