@@ -1,4 +1,11 @@
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import {
+  ArrowClockwiseIcon,
+  ArrowUpIcon,
+  CoinsIcon,
+  HeartIcon,
+  MapPinIcon,
+  PackageIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
@@ -6,6 +13,13 @@ import { usePreferences } from "@/app/preferences";
 import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
+
+const RUN_STAT_ICONS = {
+  level: ArrowUpIcon,
+  currency: CoinsIcon,
+  lives: HeartIcon,
+  totalHaul: PackageIcon,
+} as const;
 
 interface RunViewProps {
   readonly run: RunStateDto | null;
@@ -87,6 +101,7 @@ export function RunView({
       <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">{t("run.description")}</p>
       <div className="mt-7 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
         {run.stats.map((stat) => {
+          const StatIcon = RUN_STAT_ICONS[stat.key];
           const edit = pendingByField[stat.key];
           const input = inputs[stat.key] ?? String(edit?.after ?? stat.value);
           const parsed = Number(input);
@@ -101,7 +116,11 @@ export function RunView({
             undefined;
           return (
             <div className="border-t border-line pt-4" key={stat.key}>
-              <label className="text-sm font-semibold text-ink" htmlFor={`run-${stat.key}`}>
+              <label
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+                htmlFor={`run-${stat.key}`}
+              >
+                <StatIcon aria-hidden="true" className="text-muted" size={15} />
                 {stat.label}
               </label>
               <div className="mt-3 flex flex-wrap items-start gap-3">
@@ -163,7 +182,11 @@ export function RunView({
           );
         })}
         <div className="border-t border-line pt-4 sm:col-span-2">
-          <label className="text-sm font-semibold text-ink" htmlFor="run-resume-location">
+          <label
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+            htmlFor="run-resume-location"
+          >
+            <MapPinIcon aria-hidden="true" className="text-muted" size={15} />
             {t("run.resumeLocation")}
           </label>
           <div className="mt-3 flex flex-wrap items-start gap-3">

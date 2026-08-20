@@ -1,4 +1,4 @@
-import { ArrowClockwiseIcon, UserIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, HeartIcon, UserIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { PlayerDto } from "@electron/contracts";
@@ -90,6 +90,11 @@ export function PlayersView({
     healthInput.trim() === "" || !Number.isSafeInteger(parsedHealth) || parsedHealth < 0
       ? t("players.healthError")
       : null;
+  const effectiveHealth = healthError ? health : parsedHealth;
+  const visualHealth = player ? Math.min(Math.max(effectiveHealth, 0), player.maxHealth) : 0;
+  const healthPercent = player?.maxHealth
+    ? Math.round((visualHealth / player.maxHealth) * 100)
+    : 0;
   const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
   const healthDescription = [
     "player-health-help",
@@ -201,7 +206,11 @@ export function PlayersView({
         />
 
         <div className="mt-7 max-w-sm border-t border-line pt-6">
-          <label className="text-sm font-semibold text-ink" htmlFor="player-health">
+          <label
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+            htmlFor="player-health"
+          >
+            <HeartIcon aria-hidden="true" className="text-muted" size={15} />
             {t("players.currentHealth")}
           </label>
           <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
@@ -245,6 +254,25 @@ export function PlayersView({
                 {t("action.revert")}
               </button>
             ) : null}
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <div
+              aria-label={t("players.currentHealth")}
+              aria-valuemax={player.maxHealth}
+              aria-valuemin={0}
+              aria-valuenow={visualHealth}
+              className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-raised"
+              role="progressbar"
+            >
+              <div
+                className="h-full bg-accent"
+                data-testid="player-health-progress-fill"
+                style={{ width: `${healthPercent}%` }}
+              />
+            </div>
+            <span aria-hidden="true" className="w-10 text-right font-mono text-xs text-muted">
+              {healthPercent}%
+            </span>
           </div>
           {healthError ? (
             <p className="mt-2 text-xs text-danger" id="player-health-error" role="alert">
