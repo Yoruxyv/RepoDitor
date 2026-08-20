@@ -1,7 +1,8 @@
-import { CaretDownIcon, CheckIcon, TranslateIcon } from "@phosphor-icons/react";
+import { CheckIcon, TranslateIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { usePreferences } from "@/app/preferences";
+import { menuSurfaceClassName, utilityTriggerClassName } from "@/app/utilityMenuChrome";
 import type { Locale } from "@/app/translations";
 import chinaFlag from "@/assets/flags/china.svg?no-inline";
 import indonesiaFlag from "@/assets/flags/indonesia.svg?no-inline";
@@ -117,7 +118,7 @@ export function LanguageMenu() {
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`${t("utility.language")}: ${selectedLanguage.label}`}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className={utilityTriggerClassName(open)}
         type="button"
         onClick={() => (open ? closeMenu(false) : openMenu())}
         onKeyDown={(event) => {
@@ -133,12 +134,6 @@ export function LanguageMenu() {
         <TranslateIcon aria-hidden="true" size={16} />
         <LanguageFlag src={selectedLanguage.flag} />
         <span>{selectedLanguage.label}</span>
-        <CaretDownIcon
-          aria-hidden="true"
-          className={`ml-1 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
-          size={14}
-          weight="bold"
-        />
       </button>
 
       {open ? (
@@ -147,7 +142,7 @@ export function LanguageMenu() {
           {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
           <div
             aria-label={t("utility.language")}
-            className="absolute right-0 z-30 mt-2 min-w-60 overflow-hidden rounded-sm border border-control bg-surface p-1.5 shadow-xl"
+            className={`${menuSurfaceClassName} absolute right-0 z-30 mt-1.5 min-w-60 overflow-hidden`}
             id={listboxId}
             role="listbox"
           >
@@ -164,7 +159,9 @@ export function LanguageMenu() {
                     className={`ui-feedback grid w-full grid-cols-[1rem_1.25rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${
                       selected
                         ? "bg-accent-muted text-accent"
-                        : "text-secondary hover:bg-surface-raised hover:text-ink"
+                        : index === activeIndex
+                          ? "bg-surface text-ink"
+                          : "text-secondary hover:bg-surface hover:text-ink"
                     }`}
                     role="option"
                     tabIndex={index === activeIndex ? 0 : -1}

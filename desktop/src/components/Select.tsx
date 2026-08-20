@@ -1,4 +1,10 @@
-import { CaretDownIcon, CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+
+import {
+  menuOptionClassName,
+  menuSurfaceClassName,
+  UtilityMenuCaret,
+} from "@/app/utilityMenuChrome";
 import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 
 export type SelectValue = string | number;
@@ -71,12 +77,6 @@ export function Select<T extends SelectValue>({
     closeMenu(true);
   }
 
-  function optionStateClass(selected: boolean, active: boolean): string {
-    if (selected) return "bg-accent-muted font-semibold text-accent";
-    if (active) return "bg-surface-raised text-ink";
-    return "text-secondary hover:bg-surface-raised hover:text-ink";
-  }
-
   function closeWhenFocusLeaves(event: FocusEvent<HTMLDivElement>): void {
     const nextFocus = event.relatedTarget;
     if (nextFocus instanceof Node && event.currentTarget.contains(nextFocus)) return;
@@ -121,8 +121,8 @@ export function Select<T extends SelectValue>({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className={`ui-feedback flex h-10 w-full min-w-0 items-center gap-2 rounded-sm border bg-surface px-3 text-left text-sm text-ink disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60 ${
-          open ? "border-accent" : "border-control hover:border-accent"
+        className={`ui-feedback flex h-10 w-full min-w-0 items-center gap-2 rounded-md border bg-surface-raised px-3 text-left text-sm text-ink disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60 ${
+          open ? "border-line-strong" : "border-line hover:border-control"
         }`}
         disabled={controlDisabled}
         id={id}
@@ -148,20 +148,13 @@ export function Select<T extends SelectValue>({
         <span className="min-w-0 flex-1 truncate" title={selectedOption?.label}>
           {selectedOption?.label ?? String(value)}
         </span>
-        <CaretDownIcon
-          aria-hidden="true"
-          className={`shrink-0 transition-transform duration-150 motion-reduce:transition-none ${
-            open ? "rotate-180" : ""
-          }`}
-          size={14}
-          weight="bold"
-        />
+        <UtilityMenuCaret open={open} />
       </button>
 
       {open ? (
         <div
           aria-label={ariaLabel}
-          className="absolute left-0 z-30 mt-1.5 max-h-60 w-full min-w-0 max-w-full overflow-y-auto rounded-sm border border-control bg-surface p-1.5 shadow-xl"
+          className={`${menuSurfaceClassName} absolute left-0 z-30 mt-1.5 max-h-60 w-full min-w-0 max-w-full overflow-y-auto`}
           id={listboxId}
           role="listbox"
         >
@@ -176,7 +169,10 @@ export function Select<T extends SelectValue>({
                     optionRefs.current[index] = element;
                   }}
                   aria-selected={selected}
-                  className={`ui-feedback grid w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm ${optionStateClass(selected, active)}`}
+                  className={`${menuOptionClassName(
+                    selected,
+                    active,
+                  )} grid-cols-[minmax(0,1fr)_1rem]`}
                   data-value={String(option.value)}
                   role="option"
                   tabIndex={active ? 0 : -1}
@@ -185,15 +181,15 @@ export function Select<T extends SelectValue>({
                   onFocus={() => setActiveIndex(index)}
                   onKeyDown={(event) => moveOption(event, index)}
                 >
-                  <CheckIcon
-                    aria-hidden="true"
-                    className={selected ? "opacity-100" : "opacity-0"}
-                    size={14}
-                    weight="bold"
-                  />
                   <span className="min-w-0 truncate" title={option.label}>
                     {option.label}
                   </span>
+                  <CheckIcon
+                    aria-hidden="true"
+                    className={`justify-self-end ${selected ? "opacity-100" : "opacity-0"}`}
+                    size={14}
+                    weight="bold"
+                  />
                 </button>
               </div>
             );

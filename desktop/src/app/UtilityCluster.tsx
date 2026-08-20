@@ -2,6 +2,7 @@ import { GithubLogoIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { LanguageMenu } from "@/app/LanguageMenu";
+import { utilityTriggerClassName } from "@/app/utilityMenuChrome";
 import { usePreferences } from "@/app/preferences";
 import { ThemeMenu } from "@/app/ThemeMenu";
 
@@ -35,7 +36,7 @@ export function UtilityCluster() {
     >
       <a
         aria-label={t("utility.openGithub", { stars: starLabel })}
-        className="ui-feedback inline-flex h-10 items-center gap-2 rounded-sm border border-control bg-surface px-3 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+        className={utilityTriggerClassName()}
         data-testid="github-project-link"
         href={PROJECT_URL}
         rel="noreferrer"

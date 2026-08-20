@@ -38,7 +38,12 @@ describe("Select", () => {
 
     await user.click(control);
     expect(control.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("listbox", { name: "Mode" })).toBeTruthy();
+    expect(control.className).toContain("bg-surface-raised");
+    expect(control.className).toContain("rounded-md");
+    const listbox = screen.getByRole("listbox", { name: "Mode" });
+    expect(listbox.className).toContain("bg-surface-raised");
+    expect(listbox.className).toContain("border-line");
+    expect(listbox.className).toContain("rounded-md");
   });
 
   it("selects an option and returns focus to the trigger", async () => {
@@ -136,7 +141,7 @@ describe("Select", () => {
     await user.keyboard("{ArrowDown}");
     const active = screen.getByRole("option", { name: "Beta" });
     expect(active.getAttribute("aria-selected")).toBe("false");
-    expect(active.className).toContain("bg-surface-raised");
+    expect(active.className).toContain("bg-surface");
   });
 
   it("truncates long values and constrains the popup to the trigger width", async () => {
