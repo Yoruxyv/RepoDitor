@@ -11,7 +11,12 @@ import {
   createRunSaveFixture,
   isolatedApplicationEnvironment,
 } from "./support/fixtureEnvironment";
-import { waitForDiscoveredSave, waitForWorkspaceOrContinue } from "./support/waits";
+import { createGameFixture } from "./support/harness";
+import {
+  waitForDiscoveredSave,
+  waitForGameStatus,
+  waitForWorkspaceOrContinue,
+} from "./support/waits";
 
 const saveId = E2E_SAVE_ID;
 const expectedVersion = EXPECTED_DESKTOP_VERSION;
@@ -29,8 +34,10 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
 
   try {
     await createRunSaveFixture(home);
+    const gameRoot = await createGameFixture(home);
     const localAppDataLow = path.join(home, "AppData", "LocalLow");
     const applicationEnvironment = isolatedApplicationEnvironment(home, localAppDataLow);
+    applicationEnvironment["REPODITOR_E2E_STEAM_ROOT"] = path.resolve(gameRoot, "..", "..", "..");
 
     const launchStarted = performance.now();
     application = await electron.launch({
@@ -77,10 +84,13 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
       throw new Error(`Packaged environment discovery failed: ${environment.error.code}`);
     }
     expect(environment.data.saves.map((save) => save.id)).toContain(saveId);
+    await waitForGameStatus(page, "not_running");
 
     const openStarted = performance.now();
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await waitForWorkspaceOrContinue(page);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByTestId("editor-content")).not.toHaveAttribute("inert", "");
     const openReadyMs = performance.now() - openStarted;
 
     const readStarted = performance.now();
@@ -99,8 +109,15 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
     );
     const readReadyMs = performance.now() - readStarted;
 
+    await page.getByRole("button", { name: "Change save" }).click();
+    await waitForDiscoveredSave(page);
+    const reopenStarted = performance.now();
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await waitForWorkspaceOrContinue(page);
+    const reopenReadyMs = performance.now() - reopenStarted;
+
     console.info(
-      `Packaged smoke timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, read=${readReadyMs.toFixed(0)}`,
+      `Packaged smoke timings (ms): launch=${launchReadyMs.toFixed(0)}, open=${openReadyMs.toFixed(0)}, reopen=${reopenReadyMs.toFixed(0)}, read=${readReadyMs.toFixed(0)}`,
     );
 
     await application.close();

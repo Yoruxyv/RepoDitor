@@ -270,6 +270,7 @@ export const en = {
   "entry.detail.readingSave": "Reading and validating save data…",
   "entry.detail.items": "Loading item data…",
   "entry.detail.upgrades": "Loading upgrade data…",
+  "entry.detail.upgradeArtworkCache": "Checking cached artwork and loading upgrade data…",
   "entry.detail.players": "Loading player data…",
   "entry.detail.avatars": "Loading player avatars…",
   "entry.detail.run": "Loading run data…",

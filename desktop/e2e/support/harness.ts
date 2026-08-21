@@ -27,7 +27,7 @@ export interface SourceE2eHarness {
   dispose(): Promise<void>;
 }
 
-async function createGameFixture(home: string): Promise<string> {
+export async function createGameFixture(home: string): Promise<string> {
   const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "RepoDitor E2E Install");
   const catalogPath = path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json");
   await mkdir(path.dirname(catalogPath), { recursive: true });

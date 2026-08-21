@@ -402,6 +402,33 @@ describe("local icon protocol", () => {
     expect(secondClient.run).not.toHaveBeenCalled();
   });
 
+  it("prunes unreferenced derived PNGs while reusing the valid persistent entry", async () => {
+    const { base } = await fixture();
+    const watch = path.join(base, "resources.assets");
+    const persistentRoot = path.join(base, "presentation");
+    await writeFile(watch, Buffer.from("source"));
+    const stat = await lstat(watch, { bigint: true });
+    const sourceIdentity = "a".repeat(64);
+    const orphanIdentity = "b".repeat(64);
+    const firstCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await firstCache.storePrepared("playerUpgradeHealth", {
+      sourceIdentity,
+      pngBase64: png().toString("base64"),
+      width: 1,
+      height: 1,
+      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
+    });
+    await writeFile(path.join(persistentRoot, `${orphanIdentity}.png`), png());
+
+    const client = { run: vi.fn(), dispose: vi.fn() };
+    const secondCache = new DecodedUpgradeTextureCache(persistentRoot);
+    await expect(secondCache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
+
+    expect(client.run).not.toHaveBeenCalled();
+    await expect(lstat(path.join(persistentRoot, `${sourceIdentity}.png`))).resolves.toBeTruthy();
+    await expect(lstat(path.join(persistentRoot, `${orphanIdentity}.png`))).rejects.toThrow();
+  });
+
   it("prepares only a newly requested asset when an existing persistent entry is still valid", async () => {
     const { base } = await fixture();
     const healthWatch = path.join(base, "health.assets");

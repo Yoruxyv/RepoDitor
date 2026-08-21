@@ -265,6 +265,8 @@ export const ja: Record<keyof typeof en, string> = {
   "entry.detail.readingSave": "セーブデータを読み込み、検証しています…",
   "entry.detail.items": "アイテムデータを読み込み中…",
   "entry.detail.upgrades": "アップグレードデータを読み込み中…",
+  "entry.detail.upgradeArtworkCache":
+    "キャッシュ済み画像を確認し、アップグレードデータを読み込み中…",
   "entry.detail.players": "プレイヤーデータを読み込み中…",
   "entry.detail.avatars": "プレイヤーアバターを読み込み中…",
   "entry.detail.run": "ランデータを読み込み中…",

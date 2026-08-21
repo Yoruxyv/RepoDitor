@@ -39,4 +39,4 @@ identified.
 
 RepoDitor branding and application icons are project artwork. R.E.P.O. game
 assets discovered during local research are not bundled or redistributed. See
-`docs/asset-research.md` for the evidence and redistribution boundary.
+`docs/research/asset-research.md` for the evidence and redistribution boundary.

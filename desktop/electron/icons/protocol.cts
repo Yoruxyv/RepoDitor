@@ -15,6 +15,7 @@ const MAX_PRESENTATION_CACHE_ENTRIES = 256;
 const MAX_PRESENTATION_MANIFEST_BYTES = 512 * 1024;
 const MAX_UPGRADE_KEY_BYTES = 512;
 const PRESENTATION_MANIFEST_NAME = "manifest.json";
+const PERSISTENT_ARTIFACT_PATTERN = /^[a-f0-9]{64}\.png$/;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const SOURCE_ID_PATTERN = /^[a-f0-9]{64}$/;
 const DECIMAL_PATTERN = /^\d{1,24}$/;
@@ -384,9 +385,29 @@ export class DecodedUpgradeTextureCache {
       const raw = await fs.readFile(manifestPath, "utf8");
       const parsed = parsePersistentManifest(JSON.parse(raw));
       for (const [upgradeKey, entry] of parsed) this.#persistentEntries.set(upgradeKey, entry);
+      await this.#prunePersistentArtifacts();
     } catch {
       // Persistent presentation data is disposable. Any load failure falls back to source decode.
     }
+  }
+
+  async #prunePersistentArtifacts(): Promise<void> {
+    const root = this.#persistentRoot;
+    if (root === null) return;
+    const referenced = new Set(
+      [...this.#persistentEntries.values()].map((entry) => `${entry.sourceIdentity}.png`),
+    );
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    await Promise.all(
+      entries
+        .filter(
+          (entry) =>
+            entry.isFile() &&
+            PERSISTENT_ARTIFACT_PATTERN.test(entry.name) &&
+            !referenced.has(entry.name),
+        )
+        .map((entry) => fs.rm(path.join(root, entry.name), { force: true })),
+    );
   }
 
   async #loadPersistent(upgradeKey: string): Promise<Buffer | null> {
@@ -481,6 +502,7 @@ export class DecodedUpgradeTextureCache {
       throw new Error("Presentation cache manifest exceeds its supported bound.");
     }
     await replaceCacheFile(root, PRESENTATION_MANIFEST_NAME, `${manifest}\n`);
+    await this.#prunePersistentArtifacts();
   }
 }
 
