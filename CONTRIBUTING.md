@@ -29,7 +29,7 @@ and narrow preload methods.
 ## Evidence and save safety
 
 New save mutations require controlled evidence. Record what changed, what did
-not, and what remains causally ambiguous in `docs/reverse-engineering.md`.
+not, and what remains causally ambiguous in `docs/research/reverse-engineering.md`.
 Never infer a general mutation rule from a field name or a third-party editor.
 
 All production writes must retain game-process checks, typed validation, stale

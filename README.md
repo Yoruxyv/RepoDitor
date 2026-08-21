@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?label=release" alt="Latest release">
-  <img src="https://img.shields.io/github/actions/workflow/status/Yoruxyv/RepoDitor/quality.yml?branch=main&label=quality" alt="Quality workflow">
+  <img src="https://img.shields.io/github/actions/workflow/status/Yoruxyv/RepoDitor/quality.yml?branch=main&label=Quality" alt="Quality workflow">
   <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows11&logoColor=white" alt="Windows x64">
   <img src="https://img.shields.io/badge/license-MIT-22C55E" alt="MIT License">
 </p>
@@ -39,39 +39,51 @@ save parsing, validation, backups, game semantics, and encrypted writes.
 |---|---|
 | **Overview** | Review the selected run, its summary, and pending changes |
 | **Players** | Edit current health, heal to the Python-calculated maximum, and show optional Steam avatars |
-| **Upgrades** | Edit upgrades discovered dynamically from the save rather than a hardcoded catalog |
+| **Upgrades** | Edit upgrades discovered dynamically from the save, with installed metadata and artwork enrichment when available |
 | **Run** | Edit supported run values through typed, validated fields |
-| **Items** | Inspect item instances and use **Refill to Full** only when an exact stored-charge entry exists |
+| **Items** | Search, filter, and sort discovered instances; stage **Refill to Full** only when installed metadata confirms the item type is rechargeable and that exact instance has stored charge |
 | **Maps** | List locally installed maps without injecting code or forcing a map selection |
 
 ### Cosmetics / MetaSave
 
 Cosmetics has its own workspace and safe-write lifecycle, independent from a
-selected Run save. It shows the known `0..546` catalog, owned/locked totals, and
-saved-preset count. The current bulk actions are:
+selected Run save. When compatible installed metadata is available, it shows
+game-owned display names, types, rarity values, optional local icons,
+ownership totals, and saved-preset count. The catalog supports search,
+ownership/type filters, and sorting without using presentation metadata as
+mutation authority.
 
-- **Unlock All Cosmetics**;
+The current actions are:
+
+- Unlock one eligible locked cosmetic or **Unlock All Cosmetics**;
 - **Lock All Cosmetics**, only when no known owned cosmetic is equipped,
   preset-referenced, or otherwise unsafe to remove;
 - **Clear All Presets**, which clears the paired cosmetic/color preset slots.
 
-Unknown and future cosmetic IDs are preserved. Individual per-ID controls,
-cosmetic names, token editing, arbitrary equipment editing, and arbitrary
+Mutation eligibility remains limited to installed IDs within the independently
+proven `0..546` boundary. Unknown and future cosmetic IDs are preserved
+read-only. Token editing, arbitrary equipment/color editing, and arbitrary
 preset creation/editing are not supported because their game semantics have
 not been established safely.
 
 ## 🖼️ Preview
 
-The screenshots below use generated test data; no personal save paths, Steam
-identifiers, or real user saves are included.
-
-| Run Saves | Cosmetics |
+| Run overview | Cosmetics catalog |
 |---|---|
-| ![RepoDitor Run Saves workspace with generated test data](docs/screenshots/run-saves-workspace.png) | ![RepoDitor Cosmetics bulk-management workspace](docs/screenshots/cosmetics-workspace.png) |
+| ![RepoDitor Run overview showing the selected save summary and editor navigation](docs/screenshots/run-overview.png) | ![RepoDitor Cosmetics catalog showing installed metadata, local icons, filters, and bulk actions](docs/screenshots/cosmetic-unlocker.png) |
 
-| Selected player | Appearance and language |
+| Run editor | Evidence-backed item refill |
 |---|---|
-| ![Upgrades workspace showing selected-player identity](docs/screenshots/upgrades-player-avatar.png) | ![RepoDitor utility controls and language menu](docs/screenshots/utility-language-menu.png) |
+| ![RepoDitor Run editor with typed level, currency, lives, haul, and resume fields](docs/screenshots/run-editor.png) | ![RepoDitor staging several supported item refills before saving](docs/screenshots/recharge-truck-items.png) |
+
+### Manual in-game compatibility check
+
+![R.E.P.O. loading edited level, upgrade, health, energy, and item-charge values](docs/screenshots/all-in-one-proof-recharge-level-upgrades.png)
+
+This maintainer-run check loaded a save edited through RepoDitor in R.E.P.O.
+and displayed the resulting high level, upgrade, health, energy, and
+charged-item values. It documents that tested save and game build; it is not a
+compatibility or data-safety guarantee for every build.
 
 ## 🚀 Quick Start
 
@@ -100,21 +112,25 @@ backups.
 
 ## 🛡️ Save Safety
 
-R.E.P.O. can retain save state in memory and write it later. Editing the file
-while the game is running could therefore use stale persisted data or be
-overwritten by a later game save. RepoDitor checks the validated R.E.P.O.
-process at startup, on window focus, and immediately before writes. It blocks
-editing while the game is running and fails closed when process status cannot
-be verified safely.
+R.E.P.O. can retain save state in memory and write it later. Editing while the
+game is running could therefore use stale persisted data or be overwritten by
+a later game save. Startup and window-focus checks keep the interface current;
+the Python write boundary independently requires a confirmed-closed game both
+before loading the source and again immediately before persistence. An unknown
+process state fails closed.
 
-That check is additive to the write pipeline:
+The write pipeline is:
 
-- edits stay in memory until **Save Changes** is confirmed;
-- the source SHA-256 fingerprint is checked before mutation and again while staging;
-- a timestamped exact-byte backup is created beside the source;
-- Python validates the supported schema and change semantics;
-- encrypted output is staged, reopened, and compared with the intended data;
-- only verified output atomically replaces the source.
+1. Edits remain in memory until **Save Changes** is confirmed.
+2. Python loads and validates the current source, then compares its SHA-256 with
+   the fingerprint captured when the save was opened.
+3. Typed changes are validated and applied in memory, followed by the second
+   game-process check.
+4. The repository rereads the source, requires an exact-byte match, and creates
+   a timestamped exact-byte backup beside it.
+5. Encrypted output is staged, reopened, decrypted, validated, and compared
+   with the intended data.
+6. The source is checked once more before the staged file atomically replaces it.
 
 These safeguards reduce risk; they are not a guarantee against future game
 format changes or every form of data loss.
@@ -152,7 +168,62 @@ profile data is never written into a save. GitHub stars use one fixed metadata
 endpoint through typed Electron IPC with a successful-result session cache;
 the renderer receives no arbitrary network-fetch API.
 
+Those are the current optional background network requests. Project links open
+externally only after user action, and the current source contains no analytics
+or telemetry integration.
+
 See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+
+## 🔎 Open Source & Local Data
+
+RepoDitor is open source. The Electron desktop application, Python save
+backend, packaging configuration, and CI/release workflows are available in
+this repository for inspection, and the project can be built from source using
+the documented development and packaging commands. Public source does not by
+itself prove that a downloaded binary is identical to it; the published
+checksum verifies artifact integrity, not code safety or publisher identity.
+
+Save parsing, validation, and editing run locally in the bundled Python
+backend. Raw decrypted save JSON stays behind the Python desktop boundary and
+is neither exposed to React nor uploaded to a remote save-processing service.
+The application reads the fixed R.E.P.O. save and MetaSave locations, Steam
+installation metadata, supported installed-game data files, and R.E.P.O.'s
+game-generated icon cache. It writes a save only after an explicit supported
+save action, creates its backup and temporary staging file beside that source,
+and stores renderer preferences plus derived presentation/catalog caches in
+RepoDitor-owned application data.
+
+Two optional features use narrowly scoped network requests: GitHub project
+metadata is read from the fixed RepoDitor repository endpoint, and Steam avatar
+enrichment sends a plausible save-derived Steam ID to the corresponding public
+Steam profile endpoint before accepting only allowlisted HTTPS avatar hosts.
+Neither request receives a save file or raw decrypted save data. Current
+application source and dependencies contain no analytics, advertising SDK,
+usage telemetry, crash-report upload, or remote logging integration.
+
+## 💾 Save Freshness & Presentation Cache
+
+Save authority and presentation caching are deliberately separate:
+
+| Data | Current behavior |
+|---|---|
+| **Save state** | Every explicit open asks Python to read, decrypt, and validate the current `.es3`, then returns only typed projections and a source fingerprint. Decrypted save JSON is not persisted. The renderer may reuse typed editor-entry data during the current app session only after another open confirms the same fingerprint; a successful write invalidates that entry. |
+| **Game-generated item/cosmetic icons** | PNGs remain in R.E.P.O.'s LocalLow icon cache. Electron serves validated files through opaque in-memory tokens; cache paths and filenames do not cross into React. |
+| **Derived upgrade artwork** | Python resolves and decodes supported textures from the installed game. Electron stores validated derived PNGs under `%APPDATA%\repoditor-desktop\presentation`, reuses them only while watched source identities are unchanged, prunes unreferenced derived PNGs, and regenerates or falls back to Phosphor when an entry is missing, changed, malformed, or unreadable. |
+| **Installed cosmetic metadata** | A derived catalog cache under `%LOCALAPPDATA%\RepoDitor\cache\cosmetics` is accepted only when its schema, Steam build, game root, and relevant installed-file identities still match. It provides presentation data, never ownership evidence or mutation authority. |
+
+Theme and language preferences use renderer storage. RepoDitor writes R.E.P.O.
+data only after an explicit supported save action; backups are created beside
+the source rather than inside the presentation caches.
+
+To audit the derived presentation cache after restarting RepoDitor, run:
+
+```powershell
+.\desktop\scripts\check-presentation-cache.ps1
+```
+
+The read-only script compares `manifest.json` with the stored hash-named PNGs
+and reports unreferenced or missing artifacts.
 
 ## 🌐 Languages & Appearance
 
@@ -190,6 +261,13 @@ Services → core/storage → encrypted .es3 data
 Run saves and MetaSave use independent fingerprints, pending changes, backups,
 and save sessions while reusing the same validated encrypted repository.
 Python remains authoritative for game and save semantics.
+
+Save and installed-content discovery is dynamic where the verified structure
+supports it. Build-specific installed-game readers use explicit compatibility
+gates; uncertainty degrades presentation or capability to unavailable/unknown
+and does not expand mutation authority. See the
+[architecture](docs/architecture/architecture.md) and
+[reverse-engineering notes](docs/research/reverse-engineering.md) for the deeper boundary.
 
 ## 🧪 Quality & Testing
 
@@ -234,14 +312,20 @@ pull-request expectations.
 
 ## 📦 Packaging & Releases
 
-From `desktop/`, `npm run package` builds the locked Python sidecar, production
-Electron app, unpacked packaged smoke test, assisted NSIS installer, and local
-artifact verification under `desktop/release/`. This local path is intentionally
-unsigned.
+From `desktop/`, `npm run package` builds a locked Python 3.13 PyInstaller
+**onedir** sidecar, the production Electron app, unpacked packaged smoke test,
+assisted NSIS installer, and local artifact verification under
+`desktop/release/`. Electron Builder installs the sidecar directory under
+`resources/backend/` while retaining the fixed
+`resources/backend/repoditor-backend.exe` entry point. This local path is
+intentionally unsigned.
 
 Official tagged GitHub releases use separate fail-closed signing commands,
 verify Authenticode signatures before generating SHA-256 files, and publish only
-after the existing package checks. See the
+after the existing package checks. A separate temporary manual workflow can
+publish a prominently labeled unsigned release while signing approval or
+credentials are unavailable; it retains the quality, package, packaged-E2E,
+installer, and checksum gates but omits signature verification. See the
 [release checklist](docs/release-checklist.md) for current requirements and the
 preserved historical v0.1.0 baseline.
 
@@ -249,26 +333,34 @@ preserved historical v0.1.0 baseline.
 
 - RepoDitor targets observed R.E.P.O. encrypted-save structures; game updates
   may introduce incompatible data.
-- Items supports only exact-instance **Refill to Full** by removing an observed
-  stored-charge leaf. Numeric charge editing, battery-upgrade writes, purchase
-  mutations, and item add/delete/duplicate remain disabled.
-- Cosmetics supports only the bulk operations listed above. Unknown/future IDs
-  are preserved but not editable.
+- Items supports only exact-instance **Refill to Full** after both installed
+  item-type capability and stored-charge evidence agree. Numeric charge editing,
+  battery-upgrade writes, purchase mutations, and item add/delete/duplicate
+  remain disabled.
+- Cosmetics supports eligible individual unlocks, bulk unlock, guarded bulk
+  lock, and paired preset clearing. Equipment, token, arbitrary color, and
+  arbitrary preset creation/editing remain unsupported; IDs outside the proven
+  mutation boundary are preserved read-only.
 - Maps is discovery-only; RepoDitor does not inject code or force map selection.
 - Steam avatar enrichment can be unavailable for invalid, private, malformed,
   unreachable, or unsupported profiles without blocking Players.
+- Item recharge capability and decoded upgrade artwork use compatibility gates
+  for the validated installed-game layout. A game update can make those
+  capabilities unknown or artwork unavailable while ordinary supported save
+  reading remains available.
 - RepoDitor currently targets Windows x64 and has no automatic updater.
 
 ## 📚 Documentation
 
 | Document | Purpose |
 |---|---|
-| [Architecture](docs/architecture.md) | Desktop boundaries, ownership, and data flow |
-| [Electron UI](docs/ELECTRON_UI.md) | Renderer identity, responsiveness, appearance, and accessibility |
-| [Save format](docs/save-format.md) | Confirmed encrypted-save structure |
-| [Reverse engineering](docs/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics |
+| [Documentation index](docs/README.md) | Organized entry point for technical and release documentation |
+| [Architecture](docs/architecture/architecture.md) | Desktop boundaries, ownership, and data flow |
+| [Electron UI](docs/architecture/electron-ui.md) | Renderer identity, responsiveness, appearance, and accessibility |
+| [Save format](docs/research/save-format.md) | Confirmed encrypted-save structure |
+| [Reverse engineering](docs/research/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics |
 | [Release checklist](docs/release-checklist.md) | Current release gates and historical v0.1.0 baseline |
-| [Asset research](docs/asset-research.md) | Local asset-discovery evidence and redistribution boundary |
+| [Asset research](docs/research/asset-research.md) | Local asset-discovery evidence and redistribution boundary |
 | [Third-party notices](THIRD_PARTY_NOTICES.md) | Bundled asset and dependency attribution |
 
 ## 🤝 Contributing

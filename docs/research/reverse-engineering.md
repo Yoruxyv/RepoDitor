@@ -16,14 +16,15 @@ Only behavior verified against controlled saves should be promoted into named ed
 - Items dynamically distinguishes installed item-type recharge capability from exact-instance save
   charge state. **Refill to Full** remains the only supported item mutation and is available only
   when both independent evidence layers confirm it is safe.
-- Cosmetics exposes known-catalog ownership totals, guarded bulk unlock/lock, and paired
-  **Clear All Presets**. Unknown/future IDs are preserved.
+- Cosmetics exposes installed-catalog ownership totals, eligible per-ID unlock, guarded bulk
+  unlock/lock, and paired **Clear All Presets**. Installed metadata supplies presentation-only
+  names, type, rarity, status, and local icon identity; unknown/future IDs are preserved.
 
 Still pending research:
 
 - Persistent physical item placement for truck/shop customization.
-- Cosmetic display names and unsupported MetaSave domains such as tokens, equipment, arbitrary
-  preset creation/editing, and arbitrary colors.
+- Unsupported MetaSave domains such as tokens, equipment, arbitrary preset creation/editing, and
+  arbitrary colors.
 
 Do not hardcode unverified map or item identifiers into production UI code.
 
@@ -71,7 +72,6 @@ references cannot be verified.
 
 ### Unknown / unsupported
 
-- Cosmetic names; the production bulk UI deliberately avoids inventing per-ID names.
 - `cosmeticTokens` semantics and all token mutation.
 - Equipment mutation, arbitrary preset creation/editing, and arbitrary color mutation. Paired
   **Clear All Presets** is the only supported preset write.
