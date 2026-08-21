@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries
+from repo_save_editor.core.schema import (
+    SAVE_INT32_MAX,
+    SAVE_INT32_MIN,
+    SaveSchemaError,
+    get_dictionaries,
+)
 from repo_save_editor.core.types import SaveData
 
 RUN_STATS: tuple[tuple[str, str], ...] = (
@@ -41,12 +46,18 @@ def get_run_stat(data: SaveData, key: str) -> int:
 
 def set_run_stat(data: SaveData, key: str, value: int) -> None:
     """Set an integer value in ``runStats``."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not SAVE_INT32_MIN <= value <= SAVE_INT32_MAX
+    ):
+        raise ValueError(f"Run value must be between {SAVE_INT32_MIN:,} and {SAVE_INT32_MAX:,}.")
     run_stats = get_dictionaries(data)["runStats"]
     if key in run_stats:
         raw = run_stats[key]
         if isinstance(raw, bool) or not isinstance(raw, int):
             raise SaveSchemaError(f"Run stat '{key}' is not a supported integer value.")
-    run_stats[key] = int(value)
+    run_stats[key] = value
 
 
 def get_display_level(data: SaveData) -> int:
@@ -56,8 +67,12 @@ def get_display_level(data: SaveData) -> int:
 
 def set_display_level(data: SaveData, value: int) -> None:
     """Store a one-based game level in the zero-based save field."""
-    if value < 1:
-        raise ValueError("Level must be at least 1.")
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not 1 <= value <= SAVE_INT32_MAX + 1
+    ):
+        raise ValueError(f"Level must be between 1 and {SAVE_INT32_MAX + 1:,}.")
     set_run_stat(data, "level", value - 1)
 
 

@@ -96,6 +96,41 @@ describe("UpgradesView", () => {
     expect(onChange).toHaveBeenLastCalledWith(upgrades[0], player, 3);
   });
 
+  it("accepts the Int32 maximum and rejects unsafe upgrade values inline", () => {
+    const onChange = vi.fn();
+    renderWithPreferences(
+      <UpgradesView
+        avatarUrls={{ "1": null }}
+        error={null}
+        loading={false}
+        pendingByUpgrade={{}}
+        players={[player]}
+        selectedPlayerId={player.id}
+        upgrades={[upgrades[0]!]}
+        onChange={onChange}
+        onRejectAvatar={vi.fn()}
+        onRetry={vi.fn()}
+        onRevert={vi.fn()}
+        onSelectPlayer={vi.fn()}
+      />,
+    );
+    const input = screen.getByRole("spinbutton", { name: "Health for Alpha" });
+
+    for (const value of ["0", "10", "2147483647"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange).toHaveBeenLastCalledWith(upgrades[0], player, 2_147_483_647);
+    expect(input.getAttribute("max")).toBe("2147483647");
+
+    for (const value of ["", "-1", "1.5", "2147483648", "9007199254740992"]) {
+      fireEvent.change(input, { target: { value } });
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      expect(screen.getByText("Upgrade value must be between 0 and 2,147,483,647.")).toBeTruthy();
+    }
+    expect(onChange).toHaveBeenCalledTimes(3);
+  });
+
   it("keeps player selection behavior through the reusable Select", async () => {
     const user = userEvent.setup();
     const onSelectPlayer = vi.fn();

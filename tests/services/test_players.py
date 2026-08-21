@@ -1,5 +1,6 @@
 import pytest
 
+from repo_save_editor.core.schema import SAVE_INT32_MAX
 from repo_save_editor.services.player.state import (
     get_player_health,
     get_player_max_health,
@@ -38,6 +39,7 @@ def test_player_max_health_defaults_safely_for_missing_or_invalid_upgrades(sampl
     assert get_player_max_health(sample_save, "222") == 100
 
 
-def test_player_health_rejects_negative_values(sample_save):
-    with pytest.raises(ValueError, match="cannot be negative"):
-        set_player_health(sample_save, "111", -1)
+@pytest.mark.parametrize("value", [-1, SAVE_INT32_MAX + 1, True, 1.5, "1"])
+def test_player_health_rejects_values_outside_storage_representation(sample_save, value):
+    with pytest.raises(ValueError, match="between 0 and 2,147,483,647"):
+        set_player_health(sample_save, "111", value)

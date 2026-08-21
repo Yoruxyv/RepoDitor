@@ -339,6 +339,18 @@ test("covers the source workspace, shell, and editor domains", async () => {
     );
     await expect(page.getByText("playerUpgradeStrength", { exact: true })).toHaveCount(0);
     const strength = page.getByRole("spinbutton", { name: "Strength for Beta" });
+    await strength.fill("2147483648");
+    await expect(strength).toHaveAttribute("aria-invalid", "true");
+    await expect(
+      page.getByText("Upgrade value must be between 0 and 2,147,483,647."),
+    ).toBeVisible();
+    await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toHaveCount(0);
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("2 pending changes");
+    await strength.fill("2147483647");
+    await expect(strength).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toContainText(
+      "0 → 2147483647",
+    );
     await strength.fill("3");
     await expect(page.getByTestId("pending-upgrade-playerUpgradeStrength")).toContainText("0 → 3");
 

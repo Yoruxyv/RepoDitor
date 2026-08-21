@@ -7,10 +7,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
-from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries
+from repo_save_editor.core.schema import SAVE_INT32_MAX, SaveSchemaError, get_dictionaries
 from repo_save_editor.core.types import SaveData
 
 UPGRADE_PREFIX = "playerUpgrade"
+UPGRADE_VALUE_MIN = 0
+UPGRADE_VALUE_MAX = SAVE_INT32_MAX
 
 UPGRADE_LABEL_ALIASES: dict[str, str] = {
     "playerUpgradeLaunch": "Tumble Launch",
@@ -125,8 +127,14 @@ def get_player_upgrade(data: SaveData, player_id: str, key: str) -> int:
 
 def set_player_upgrade(data: SaveData, player_id: str, key: str, value: int) -> None:
     """Set one player's stored value for an upgrade key."""
-    if value < 0:
-        raise ValueError("Upgrade values cannot be negative.")
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not UPGRADE_VALUE_MIN <= value <= UPGRADE_VALUE_MAX
+    ):
+        raise ValueError(
+            f"Upgrade value must be between {UPGRADE_VALUE_MIN:,} and {UPGRADE_VALUE_MAX:,}."
+        )
 
     dictionaries = get_dictionaries(data)
     values = dictionaries.setdefault(key, {})
@@ -139,4 +147,4 @@ def set_player_upgrade(data: SaveData, player_id: str, key: str, value: int) -> 
                 f"Upgrade '{key}' for player '{player_id}' is not a supported integer value."
             )
 
-    values[player_id] = int(value)
+    values[player_id] = value

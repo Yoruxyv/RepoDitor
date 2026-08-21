@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
+import { SAVE_INT32_MAX } from "@/features/editor/saveValueBounds";
 import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
 import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
 
@@ -35,7 +36,8 @@ function deriveHealthPresentation(
   maximum: number,
 ): HealthPresentation {
   const parsed = Number(input);
-  const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0;
+  const invalid =
+    input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0 || parsed > SAVE_INT32_MAX;
   const effective = invalid ? fallback : parsed;
   const value = Math.min(Math.max(effective, 0), maximum);
   const percent = maximum > 0 ? Math.round((value / maximum) * 100) : 0;
@@ -163,7 +165,8 @@ export function PlayersView({
     }
     setHealthInputs((current) => ({ ...current, [player.id]: value }));
     const next = Number(value);
-    if (value.trim() === "" || !Number.isSafeInteger(next) || next < 0) {
+    if (value.trim() === "" || !Number.isSafeInteger(next) || next < 0 || next > SAVE_INT32_MAX) {
+      onRevertHealth(player.id);
       return;
     }
     onHealthChange(player, next);
@@ -241,6 +244,7 @@ export function PlayersView({
                 className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                 id="player-health"
                 inputMode="numeric"
+                max={SAVE_INT32_MAX}
                 min="0"
                 step="1"
                 type="number"

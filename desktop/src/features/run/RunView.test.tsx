@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -54,5 +54,27 @@ describe("RunView", () => {
     expect(screen.queryByTestId("run-skeleton")).toBeNull();
     expect(screen.getByRole("spinbutton", { name: "Level" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Run" }).getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("does not stage Run values outside their stored Int32 representation", () => {
+    const onStatChange = vi.fn();
+    const onRevert = vi.fn();
+    renderWithPreferences(
+      <RunView
+        {...handlers}
+        error={null}
+        loading={false}
+        run={run}
+        onRevert={onRevert}
+        onStatChange={onStatChange}
+      />,
+    );
+
+    const currency = screen.getByRole("spinbutton", { name: "Currency" });
+    fireEvent.change(currency, { target: { value: "2147483648" } });
+
+    expect(currency.getAttribute("aria-invalid")).toBe("true");
+    expect(onStatChange).not.toHaveBeenCalled();
+    expect(onRevert).toHaveBeenCalledWith("currency");
   });
 });

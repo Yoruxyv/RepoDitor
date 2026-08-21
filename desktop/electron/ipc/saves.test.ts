@@ -425,6 +425,50 @@ describe("saveChanges", () => {
     expect(fake.run).not.toHaveBeenCalled();
   });
 
+  it("enforces Run-save Int32 boundaries before starting Python", async () => {
+    const fake = client({});
+    const invalidChanges = [
+      { feature: "players", entity: "222", field: "health", after: 2_147_483_648 },
+      {
+        feature: "upgrades",
+        entity: "222",
+        field: "playerUpgradeStrength",
+        after: 2_147_483_648,
+      },
+      { feature: "run", entity: "run", field: "currency", after: 2_147_483_648 },
+      { feature: "run", entity: "run", field: "currency", after: -2_147_483_649 },
+      { feature: "run", entity: "run", field: "level", after: 2_147_483_649 },
+    ];
+
+    for (const change of invalidChanges) {
+      await expect(
+        saveChanges(fake, session.id, session.fingerprint, [change]),
+      ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    }
+    expect(fake.run).not.toHaveBeenCalled();
+  });
+
+  it("allows the maximum supported upgrade value to reach Python", async () => {
+    const fake = client({
+      ok: false,
+      error: { code: "save_validation_failed", message: "Fixture stopped after validation." },
+    });
+    const change = {
+      feature: "upgrades",
+      entity: "222",
+      field: "playerUpgradeStrength",
+      after: 2_147_483_647,
+    };
+
+    await saveChanges(fake, session.id, session.fingerprint, [change]);
+
+    expect(fake.run).toHaveBeenCalledWith("saves-write", [
+      session.id,
+      session.fingerprint,
+      JSON.stringify([change]),
+    ]);
+  });
+
   it("passes through stale-save failures and rejects malformed receipts", async () => {
     await expect(
       saveChanges(

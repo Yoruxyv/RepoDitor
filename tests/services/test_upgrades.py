@@ -1,6 +1,7 @@
 import pytest
 
 from repo_save_editor.services.player.upgrades import (
+    UPGRADE_VALUE_MAX,
     UpgradePresentation,
     UpgradePresentationSource,
     discover_player_upgrades,
@@ -19,9 +20,25 @@ def test_set_upgrade_creates_player_value(sample_save):
     assert get_player_upgrade(sample_save, "222", "playerUpgradeStrength") == 100
 
 
-def test_negative_upgrade_is_rejected(sample_save):
-    with pytest.raises(ValueError, match="cannot be negative"):
-        set_player_upgrade(sample_save, "111", "playerUpgradeStrength", -1)
+@pytest.mark.parametrize("value", [0, 10_000, UPGRADE_VALUE_MAX])
+def test_supported_upgrade_boundaries_are_accepted(sample_save, value):
+    set_player_upgrade(sample_save, "111", "playerUpgradeStrength", value)
+
+    assert get_player_upgrade(sample_save, "111", "playerUpgradeStrength") == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [-1, UPGRADE_VALUE_MAX + 1, 3_000_000_000, 3_000_000_000_000_000_000, True, 1.5, "1"],
+)
+def test_unsupported_upgrade_values_are_rejected_without_mutation(sample_save, value):
+    values = sample_save["dictionaryOfDictionaries"]["value"]["playerUpgradeStrength"]
+    original = dict(values)
+
+    with pytest.raises(ValueError, match="between 0 and 2,147,483,647"):
+        set_player_upgrade(sample_save, "111", "playerUpgradeStrength", value)
+
+    assert values == original
 
 
 def test_discovery_uses_save_as_source_of_truth(sample_save):

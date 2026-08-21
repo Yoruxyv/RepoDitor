@@ -39,6 +39,9 @@ const PLAYER_ID_PATTERN = /^\d{1,20}$/;
 const MAX_CHANGES = 512;
 const MAX_REQUIRED_VISUAL_KEYS = 512;
 const MAX_RECHARGE_EVIDENCE_ARG_BYTES = 16 * 1024;
+const SAVE_INT32_MIN = -(2 ** 31);
+const SAVE_INT32_MAX = 2 ** 31 - 1;
+const RUN_DISPLAY_LEVEL_MAX = SAVE_INT32_MAX + 1;
 const RUN_STAT_FIELDS = new Set(["level", "currency", "lives", "totalHaul"]);
 const SAVE_ERROR_CODES = new Set<DesktopOperationErrorCode>([
   "invalid_request",
@@ -186,12 +189,24 @@ function hasExactChangeKeys(value: Record<string, unknown>): boolean {
   );
 }
 
+function readBoundedInteger(
+  value: unknown,
+  label: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = readInteger(value, label);
+  if (parsed < minimum || parsed > maximum) {
+    throw new SaveProtocolError(`Invalid ${label}.`);
+  }
+  return parsed;
+}
+
 function parseUpgradeChange(entity: string, field: string, afterValue: unknown): SaveChange {
   if (!PLAYER_ID_PATTERN.test(entity) || !field.startsWith("playerUpgrade")) {
     throw new SaveProtocolError("Invalid upgrade change.");
   }
-  const after = readInteger(afterValue, "upgrade value");
-  if (after < 0) throw new SaveProtocolError("Invalid upgrade value.");
+  const after = readBoundedInteger(afterValue, "upgrade value", 0, SAVE_INT32_MAX);
   return { feature: "upgrades", entity, field, after };
 }
 
@@ -204,16 +219,17 @@ function parseChange(value: unknown): SaveChange {
   const field = readString(value.field, "change field");
 
   if (feature === "players" && PLAYER_ID_PATTERN.test(entity) && field === "health") {
-    const after = readInteger(value.after, "health value");
-    if (after < 0) throw new SaveProtocolError("Invalid health value.");
+    const after = readBoundedInteger(value.after, "health value", 0, SAVE_INT32_MAX);
     return { feature, entity, field, after };
   }
   if (feature === "upgrades") {
     return parseUpgradeChange(entity, field, value.after);
   }
   if (feature === "run" && entity === "run" && RUN_STAT_FIELDS.has(field)) {
-    const after = readInteger(value.after, "run value");
-    if (field === "level" && after < 1) throw new SaveProtocolError("Invalid run level.");
+    const after =
+      field === "level"
+        ? readBoundedInteger(value.after, "run level", 1, RUN_DISPLAY_LEVEL_MAX)
+        : readBoundedInteger(value.after, `run ${field}`, SAVE_INT32_MIN, SAVE_INT32_MAX);
     return { feature, entity, field: field as RunStatChange["field"], after };
   }
   if (feature === "run" && entity === "run" && field === "resumeLocation") {
