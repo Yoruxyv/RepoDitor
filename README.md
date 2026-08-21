@@ -12,11 +12,13 @@
 
 # RepoDitor
 
-### Inspect and safely edit local R.E.P.O. saves from a focused Windows desktop app
+### Inspect and edit local R.E.P.O. saves from a focused Windows desktop app — no BepInEx required
 
-RepoDitor is an unofficial Electron editor for local R.E.P.O. `.es3` data.
-The interface uses narrow typed operations while a bundled Python backend owns
-save parsing, validation, backups, game semantics, and encrypted writes.
+RepoDitor is an unofficial standalone Electron save editor for local R.E.P.O. `.es3` data.
+
+The desktop interface uses narrow typed operations, while a bundled Python backend owns save parsing, validation, backups, game semantics, and encrypted writes.
+
+RepoDitor runs separately from the game and does not require BepInEx, a mod loader, or installation into the R.E.P.O. game directory.
 
 <sub>Overview · Players · Upgrades · Run · Items · Cosmetics · Maps</sub>
 
