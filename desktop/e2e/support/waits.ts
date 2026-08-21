@@ -1,3 +1,4 @@
+/** Semantic Playwright waits for cross-process state instead of timing sleeps. */
 import { expect, type Page } from "@playwright/test";
 
 const CROSS_PROCESS_TIMEOUT_MS = 15_000;

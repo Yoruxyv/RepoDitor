@@ -1,3 +1,9 @@
+/**
+ * Canonical IPC channel allowlist shared by Electron main and preload.
+ *
+ * Adding a capability still requires a narrow contract, main-process runtime
+ * validation, and an explicit preload method; renderers never receive generic invoke.
+ */
 import type { IpcChannelMap } from "./contracts.cjs";
 
 export const IPC_CHANNELS: IpcChannelMap = {

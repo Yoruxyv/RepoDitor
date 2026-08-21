@@ -1,3 +1,9 @@
+/**
+ * Bounded Electron-main client for the bundled Python desktop protocol.
+ *
+ * Owns sidecar discovery, process lifetime, timeouts, byte limits, and JSON/record
+ * framing. Callers still validate command-specific output before exposing it via IPC.
+ */
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";

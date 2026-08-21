@@ -1,3 +1,4 @@
+/** Composes the isolated Cosmetics editor, source context, and pending action surface. */
 import { ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 

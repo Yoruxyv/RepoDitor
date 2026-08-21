@@ -1,3 +1,9 @@
+/**
+ * Pure renderer helpers for the typed in-memory pending-change union.
+ *
+ * These helpers preserve exact domain identity and support replacement/revert; they
+ * do not validate game semantics or persist anything.
+ */
 import type {
   AdvancedRefillChange,
   CosmeticChange,
@@ -62,6 +68,7 @@ export type RunSavePendingEdit =
 
 export type PendingEdit = RunSavePendingEdit | CosmeticPendingEdit;
 
+/** Strip renderer-only review fields before crossing the Run-save write boundary. */
 export function toSaveChange(edit: RunSavePendingEdit): SaveChange {
   return {
     feature: edit.feature,
@@ -71,6 +78,7 @@ export function toSaveChange(edit: RunSavePendingEdit): SaveChange {
   } as SaveChange;
 }
 
+/** Strip renderer-only review fields before crossing the Cosmetics write boundary. */
 export function toCosmeticChange(edit: CosmeticPendingEdit): CosmeticChange {
   return {
     feature: edit.feature,

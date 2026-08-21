@@ -1,3 +1,9 @@
+/**
+ * Searchable, sortable, lazily illustrated installed cosmetic catalog.
+ *
+ * Filtering changes only presentation order. Numeric IDs remain canonical and all
+ * action availability is supplied by the typed domain projection.
+ */
 import { MagnifyingGlassIcon, TShirtIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 

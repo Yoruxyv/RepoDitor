@@ -1,3 +1,8 @@
+/**
+ * Measures built renderer assets against configurable advisory size budgets.
+ * Missing build output is an error; exceeding a budget is reported without pretending
+ * that this early project has a proven hard release threshold.
+ */
 import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";

@@ -1,3 +1,11 @@
+<#
+.SYNOPSIS
+Fails unless every supplied Windows artifact has a valid expected Authenticode signer.
+
+.DESCRIPTION
+Used after official release signing and before checksum publication. The publisher is
+an explicit workflow input; this script never obtains or handles signing credentials.
+#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]

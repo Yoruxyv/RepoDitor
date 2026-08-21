@@ -1,3 +1,4 @@
+/** Accessible dark/light/system theme selector for the shared preference context. */
 import { CheckIcon, DesktopIcon, MoonIcon, SunIcon, type Icon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 

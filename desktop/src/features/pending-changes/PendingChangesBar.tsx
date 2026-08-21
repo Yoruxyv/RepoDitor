@@ -1,3 +1,9 @@
+/**
+ * Shared review, revert, and explicit-save action surface for pending changes.
+ *
+ * The natural-flow review list and sticky controls are presentation only; callers own
+ * pending state and route save actions through their authoritative session boundary.
+ */
 import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";

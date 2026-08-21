@@ -1,3 +1,7 @@
+/**
+ * Enforces one aligned release version and an exact matching GitHub tag when tagged.
+ * Imported by tests and executed by release workflows before packaging or publishing.
+ */
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 

@@ -1,3 +1,9 @@
+/**
+ * Translation facade and formatter for RepoDitor-owned interface text.
+ *
+ * English defines the compile-time key set; every locale must implement that set.
+ * Game-derived names and save values remain opaque data and are never translated here.
+ */
 import type { DesktopOperationErrorCode } from "@electron/contracts";
 import { zh } from "@/app/translation/chinese";
 import { en } from "@/app/translation/english";
@@ -12,6 +18,12 @@ export type Translate = (key: TranslationKey, values?: TranslationValues) => str
 export const SUPPORTED_LOCALES = ["en", "ja", "ko", "zh", "id"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
+/**
+ * Validate a persisted or external locale value against the shipped catalog.
+ *
+ * @param value - Candidate preference value.
+ * @returns Whether the value can safely index every translation table.
+ */
 export function isLocale(value: string | null): value is Locale {
   return SUPPORTED_LOCALES.some((locale) => locale === value);
 }
@@ -48,6 +60,12 @@ const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   internal_error: "error.service",
 };
 
+/**
+ * Map a stable desktop error code to RepoDitor-owned interface copy.
+ *
+ * @param code - Validated error code returned through preload.
+ * @returns Translation key appropriate for user-facing failure presentation.
+ */
 export function operationErrorKey(code: DesktopOperationErrorCode): TranslationKey {
   return ERROR_KEYS[code];
 }

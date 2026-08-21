@@ -1,3 +1,10 @@
+/**
+ * Complete typed preload fixture for renderer/component tests.
+ *
+ * Defaults are deterministic in-memory DTOs and mocked methods; individual tests
+ * override only the boundary behavior they exercise, without spawning Electron or
+ * touching local saves.
+ */
 import { vi } from "vitest";
 
 import type {

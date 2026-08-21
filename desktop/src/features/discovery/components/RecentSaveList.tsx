@@ -1,3 +1,4 @@
+/** Compact list of additional discovered save slots and explicit open actions. */
 import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";

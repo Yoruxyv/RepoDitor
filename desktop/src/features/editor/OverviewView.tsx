@@ -1,3 +1,4 @@
+/** Read-only Run snapshot and navigation hub built from already loaded projections. */
 import {
   ArrowUpIcon,
   CoinsIcon,

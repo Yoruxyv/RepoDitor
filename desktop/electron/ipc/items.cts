@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated read boundary for advanced item data.
+ *
+ * Parses Python's evidence-backed projection and registers optional icon tokens.
+ * Mutation semantics remain in Python and use the shared save-write path.
+ */
 import {
   type AdvancedCapabilitiesDto,
   type AdvancedDomainDto,

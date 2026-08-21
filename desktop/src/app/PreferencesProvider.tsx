@@ -1,3 +1,9 @@
+/**
+ * Owns renderer preference lifetime and synchronization with browser/OS state.
+ *
+ * Theme and locale are presentation preferences stored locally in the renderer; they
+ * never enter the save protocol or Python backend.
+ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 
 import { PreferencesContext, type ResolvedTheme, type ThemePreference } from "@/app/preferences";

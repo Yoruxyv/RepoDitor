@@ -69,6 +69,8 @@ class UpgradeTextureError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SourceWatch:
+    """File identity fields Electron rechecks before reusing derived artwork."""
+
     path: Path
     size: int
     mtime_ns: int
@@ -76,6 +78,8 @@ class SourceWatch:
 
 @dataclass(frozen=True, slots=True)
 class DecodedUpgradeTexture:
+    """Bounded PNG and provenance produced from the validated local installation."""
+
     save_key: str
     texture: Texture2DMetadata
     png: bytes
@@ -124,6 +128,16 @@ class _ResolvedUpgradeVisual:
 
 
 def validate_upgrade_texture_key(key: str) -> None:
+    """Reject identities that cannot belong to the bounded dynamic upgrade domain.
+
+    Args:
+        key: Save-derived upgrade key requested by the trusted desktop adapter.
+
+    Raises:
+        UpgradeTextureError: The key is malformed, not an upgrade, or exceeds
+            the protocol byte bound.
+    """
+
     if (
         not isinstance(key, str)
         or not key.startswith(UPGRADE_PREFIX)

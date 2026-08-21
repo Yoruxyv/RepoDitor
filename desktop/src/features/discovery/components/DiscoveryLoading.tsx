@@ -1,3 +1,4 @@
+/** Structural initial-loading state matching the final discovery workspace. */
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 

@@ -58,18 +58,24 @@ _VERTEX_FORMAT_BYTES: Final = {
 
 @dataclass(frozen=True, slots=True)
 class GameObjectData:
+    """Minimal GameObject relationship data required by visual resolution."""
+
     name: str
     components: tuple[PPtr, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class TransformData:
+    """Transform ownership and child links needed to walk one prefab hierarchy."""
+
     game_object: PPtr
     children: tuple[PPtr, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class MeshVertexData:
+    """Bounded mesh channels used to derive artwork framing from installed data."""
+
     path_id: int
     positions: tuple[tuple[float, float, float], ...]
     normals: tuple[tuple[float, float, float], ...]
@@ -78,6 +84,8 @@ class MeshVertexData:
 
 @dataclass(frozen=True, slots=True)
 class MeshStreamMetadata:
+    """Validated external stream range referenced by a Unity mesh."""
+
     path: str
     offset: int
     size: int
@@ -85,6 +93,8 @@ class MeshStreamMetadata:
 
 @dataclass(frozen=True, slots=True)
 class Texture2DMetadata:
+    """Texture fields required to locate and decode one supported top mip."""
+
     path_id: int
     name: str
     width: int
@@ -99,6 +109,8 @@ class Texture2DMetadata:
 
 
 def read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> str:
+    """Read only a GameObject name while scanning broad prefab candidates."""
+
     if record.class_id != GAME_OBJECT_CLASS_ID:
         raise UnityMetadataError("Expected a GameObject record.")
     reader = index.object_reader(record)
@@ -111,6 +123,8 @@ def read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> s
 
 
 def parse_game_object(index: SerializedFileIndex, record: ObjectRecord) -> GameObjectData:
+    """Parse a matched GameObject and require complete local component links."""
+
     if record.class_id != GAME_OBJECT_CLASS_ID:
         raise UnityMetadataError("Expected a GameObject record.")
     reader = index.object_reader(record)
@@ -128,6 +142,8 @@ def parse_game_object(index: SerializedFileIndex, record: ObjectRecord) -> GameO
 
 
 def parse_transform(index: SerializedFileIndex, record: ObjectRecord) -> TransformData:
+    """Parse the local ownership links from one supported Transform record."""
+
     if record.class_id != TRANSFORM_CLASS_ID:
         raise UnityMetadataError("Expected a Transform record.")
     reader = index.object_reader(record)

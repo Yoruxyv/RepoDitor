@@ -1,3 +1,4 @@
+/** Locale-aware formatting for already-sanitized save discovery metadata. */
 import type { Locale, TranslationValues, TranslationKey } from "@/app/translations";
 
 type Translate = (key: TranslationKey, values?: TranslationValues) => string;

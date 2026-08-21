@@ -1,3 +1,9 @@
+/**
+ * Enforces RepoDitor's renderer import-boundary policy with TypeScript resolution.
+ *
+ * The script rewrites only resolvable renderer parent imports to configured aliases;
+ * it preserves same-directory imports and never applies renderer aliases to Electron.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";

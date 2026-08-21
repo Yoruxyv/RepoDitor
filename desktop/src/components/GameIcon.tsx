@@ -1,3 +1,9 @@
+/**
+ * Renderer-safe game-content thumbnail with deterministic semantic fallback.
+ *
+ * The component consumes only opaque Electron icon URLs. Loading affects the thumbnail
+ * box alone; missing or rejected local artwork immediately falls back to Phosphor.
+ */
 import { useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
 

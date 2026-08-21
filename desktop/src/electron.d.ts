@@ -1,3 +1,4 @@
+/** Renderer view of the single typed API intentionally exposed by preload. */
 import type { RepoDitorApi } from "@electron/contracts";
 
 export {};

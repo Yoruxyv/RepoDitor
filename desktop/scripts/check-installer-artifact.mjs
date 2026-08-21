@@ -1,3 +1,4 @@
+/** Verifies the configured assisted x64 NSIS installer and its exact output artifact. */
 import { readFile, stat } from "node:fs/promises";
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));

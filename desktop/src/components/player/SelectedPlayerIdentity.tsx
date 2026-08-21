@@ -1,3 +1,4 @@
+/** Shared selected-player identity block used by player-scoped editor features. */
 import type { PlayerDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";

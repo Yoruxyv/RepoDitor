@@ -1,3 +1,4 @@
+/** Small semantic Phosphor icon wrapper used by RepoDitor feature headings. */
 import type { Icon } from "@phosphor-icons/react";
 
 interface FeatureIconProps {

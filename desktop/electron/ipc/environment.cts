@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated local environment discovery boundary.
+ *
+ * Adapts Python's sanitized save/game discovery result for React. Trusted paths stay
+ * in Electron/Python and no generic filesystem discovery API is exposed.
+ */
 import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

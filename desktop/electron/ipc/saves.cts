@@ -1,3 +1,9 @@
+/**
+ * Open/save IPC boundary for Run-save sessions.
+ *
+ * Validates IDs, fingerprints, change unions, Python responses, and canonical output.
+ * Python owns process safety, mutation semantics, backups, verification, and replace.
+ */
 import { ipcMain } from "electron";
 
 import { assetPreparationService, type AssetPreparationService } from "../assets/preparation.cjs";

@@ -1,3 +1,4 @@
+/** Player-facing empty and failure states for sanitized discovery outcomes. */
 import {
   ArrowClockwiseIcon,
   FolderIcon,

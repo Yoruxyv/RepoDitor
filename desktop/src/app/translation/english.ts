@@ -1,3 +1,4 @@
+/** Canonical RepoDitor-owned translation key catalog and English fallback text. */
 export const en = {
   "app.skipToContent": "Skip to content",
   "app.tagline": "R.E.P.O. save utility",

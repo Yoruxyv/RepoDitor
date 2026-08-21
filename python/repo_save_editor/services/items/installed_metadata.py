@@ -33,18 +33,24 @@ KNOWN_BATTERY_BARS: Final = frozenset({5, 6, 8, 10, 12, 15, 18, 20})
 
 @dataclass(frozen=True, slots=True)
 class GameObjectData:
+    """Minimal prefab identity and component links needed by item discovery."""
+
     name: str
     components: tuple[PPtr, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class VariantResult:
+    """Recharge evidence collected from one completely inspected prefab variant."""
+
     has_battery: bool | None
     battery_metadata: tuple[int, int] | None
 
 
 @dataclass(frozen=True, slots=True)
 class ItemPresentation:
+    """Optional player-facing fields read from one installed item component."""
+
     canonical_name: str
     display_name: str | None
     gameplay_cap: int | None

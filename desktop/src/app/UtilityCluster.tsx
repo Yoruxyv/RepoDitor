@@ -1,3 +1,4 @@
+/** Top-level project metadata, appearance, and language utility controls. */
 import { GithubLogoIcon, StarIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 

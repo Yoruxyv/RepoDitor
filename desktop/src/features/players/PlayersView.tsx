@@ -1,3 +1,4 @@
+/** Player selection and health editing from Python-calculated player DTOs. */
 import { ArrowClockwiseIcon, HeartIcon, UserIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 

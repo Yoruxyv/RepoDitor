@@ -1,3 +1,9 @@
+/**
+ * Owns the independent MetaSave session, typed pending changes, and explicit writes.
+ *
+ * Python returns capabilities and canonical post-write state. The hook never infers
+ * mutation authority from installed names, icons, or other presentation metadata.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CosmeticsViewDto } from "@electron/contracts";

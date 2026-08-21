@@ -1,3 +1,4 @@
+/** Japanese translations constrained to the canonical English UI key set. */
 import type { en } from "./english";
 
 export const ja: Record<keyof typeof en, string> = {

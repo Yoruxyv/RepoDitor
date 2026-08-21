@@ -1,3 +1,4 @@
+/** Accessible startup/progress presentation for fail-soft installed artwork work. */
 import { PackageIcon, WrenchIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 

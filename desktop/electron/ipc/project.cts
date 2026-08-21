@@ -1,3 +1,9 @@
+/**
+ * Fixed-endpoint GitHub project metadata boundary.
+ *
+ * Fetches and validates only RepoDitor's minimal public repository metadata, caching
+ * successful results for the session without exposing renderer-controlled URLs.
+ */
 import { ipcMain, net } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

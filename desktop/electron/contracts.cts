@@ -1,3 +1,9 @@
+/**
+ * Serializable contracts for the renderer-to-Electron trust boundary.
+ *
+ * Types align preload and renderer consumers, but handlers still validate runtime
+ * input and Python/network responses. Game and save semantics remain Python-owned.
+ */
 export interface IpcChannelMap {
   environmentDetect: "environment:detect";
   projectMetadata: "project:metadata";

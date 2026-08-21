@@ -1,3 +1,9 @@
+/**
+ * Owns renderer lifetime for local environment discovery and explicit refresh.
+ *
+ * The hook prevents stale responses from replacing newer state; Python/Electron own
+ * path trust and discovery semantics.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DesktopOperationError, EnvironmentDiscovery } from "@electron/contracts";

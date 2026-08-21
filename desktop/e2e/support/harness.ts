@@ -1,3 +1,10 @@
+/**
+ * Disposable Playwright/Electron harness for real desktop-boundary journeys.
+ *
+ * Generates synthetic encrypted saves and an isolated application environment, then
+ * records original bytes so tests can prove safety invariants. It never discovers or
+ * writes the maintainer's real R.E.P.O. saves.
+ */
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

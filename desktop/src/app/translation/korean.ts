@@ -1,3 +1,4 @@
+/** Korean translations constrained to the canonical English UI key set. */
 import type { en } from "./english";
 
 export const ko: Record<keyof typeof en, string> = {

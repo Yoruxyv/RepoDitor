@@ -1,3 +1,4 @@
+/** Composes discovery status, latest save, and recent-save entry actions. */
 import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 import type { EnvironmentDiscovery } from "@electron/contracts";

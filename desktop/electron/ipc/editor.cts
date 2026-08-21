@@ -1,3 +1,9 @@
+/**
+ * Registration facade for Run-save editor IPC domains.
+ *
+ * It wires domain handlers without becoming another semantics layer. New domains
+ * keep validation in their own module and register here only when needed.
+ */
 import { ipcMain } from "electron";
 
 import { assetPreparationService, type AssetPreparationService } from "../assets/preparation.cjs";

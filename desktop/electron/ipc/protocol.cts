@@ -1,3 +1,9 @@
+/**
+ * Shared runtime validation and stable failure mapping for editor IPC handlers.
+ *
+ * Domain handlers retain responsibility for their DTO shapes. Errors are bounded
+ * and sanitized before returning to the renderer.
+ */
 import {
   type DesktopOperationError,
   type DesktopOperationErrorCode,

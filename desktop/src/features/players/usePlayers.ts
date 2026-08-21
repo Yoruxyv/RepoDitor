@@ -1,3 +1,9 @@
+/**
+ * Owns player projection loading plus bounded optional avatar retries.
+ *
+ * Health edits remain parent-owned pending changes. Avatar failures are cached only
+ * for the session and never block or mutate save-derived player state.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {

@@ -1,3 +1,4 @@
+/** Shared visual tokens for utility triggers and popovers; behavior stays component-owned. */
 const UTILITY_TRIGGER_BASE =
   "ui-feedback inline-flex h-10 items-center gap-2 rounded-md border bg-surface-raised px-3 text-sm font-semibold text-secondary";
 

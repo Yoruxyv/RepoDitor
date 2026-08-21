@@ -27,6 +27,12 @@ IconLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
 def upgrade_item_candidates(key: str) -> tuple[str, str]:
+    """Return installed prefab names that may present one dynamic save upgrade.
+
+    Candidate generation is presentation matching only. The save-key prefix
+    remains the source of upgrade membership and edit authority.
+    """
+
     raw = get_fallback_presentation(key).label
     installed_name = _INSTALLED_NAME_ALIASES.get(raw, raw)
     return (f"Item Upgrade Player {installed_name}", f"Item Upgrade {installed_name}")

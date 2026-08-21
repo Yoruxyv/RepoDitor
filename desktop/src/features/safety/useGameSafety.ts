@@ -1,3 +1,9 @@
+/**
+ * Renderer mirror of fail-closed game-process safety state.
+ *
+ * Checks at startup and window-focus/recovery events keep editing state current, while
+ * Python independently rechecks immediately around every real write.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { GameProcessStatus } from "@electron/contracts";

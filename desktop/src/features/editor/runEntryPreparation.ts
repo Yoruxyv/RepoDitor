@@ -1,3 +1,10 @@
+/**
+ * Parallel loader for the typed projections needed when entering a Run workspace.
+ *
+ * One fresh save-open result establishes the source fingerprint; domain reads then
+ * populate feature-local state. Reuse is limited to successful application-session
+ * projections, while unresolved artwork is refreshed independently and fail-soft.
+ */
 import type {
   AdvancedSaveDto,
   DesktopOperationResult,
@@ -67,10 +74,18 @@ async function loadAvatarUrls(
   return Object.fromEntries(entries);
 }
 
+/** Return whether every authoritative feature projection may be reused this session. */
 export function runEntryDataReusable(data: RunEntryData): boolean {
   return data.players.ok && data.upgrades.ok && data.run.ok && data.items.ok && data.maps.ok;
 }
 
+/**
+ * Load or refresh the renderer-safe projections required by the Run editor.
+ *
+ * @param options - Save identity, artwork readiness, map loader, and progress callback.
+ * @returns Independent typed results; one optional-domain failure does not discard
+ * the other successfully loaded projections.
+ */
 export async function prepareRunEntryData({
   saveId,
   requiredUpgradeVisualKeys,

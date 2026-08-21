@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated dynamic player-upgrade read and presentation boundary.
+ *
+ * Membership comes from Python save discovery. Optional installed artwork is
+ * fail-soft presentation and never changes which keys are editable.
+ */
 import { type DesktopOperationResult, type PlayerUpgradeDto } from "../contracts.cjs";
 import type {
   AssetPreparationService,

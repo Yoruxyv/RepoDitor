@@ -1,3 +1,9 @@
+/**
+ * In-memory registry for opaque renderer-safe game icon tokens.
+ *
+ * Registrations bind domain identities to trusted local-cache keys or prepared
+ * visuals. Local paths remain in Electron/Python and never cross into React.
+ */
 import { randomUUID } from "node:crypto";
 
 export type IconDomain = "item" | "upgrade" | "cosmetic";

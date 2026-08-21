@@ -1,3 +1,10 @@
+/**
+ * Electron main-process composition root.
+ *
+ * Creates the hardened window, registers fixed protocols and narrow IPC handlers,
+ * owns lifecycle/menu behavior, and disposes trusted process services. Feature
+ * semantics stay in Python; renderer code receives no Node or filesystem authority.
+ */
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, Menu, shell } from "electron";

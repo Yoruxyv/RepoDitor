@@ -1,3 +1,4 @@
+/** Presents save-root and installed-game discovery without exposing local paths. */
 import {
   CheckCircleIcon,
   FolderIcon,

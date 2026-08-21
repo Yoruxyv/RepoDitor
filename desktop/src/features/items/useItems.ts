@@ -1,3 +1,4 @@
+/** Owns renderer loading state for the evidence-backed advanced item projection. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
