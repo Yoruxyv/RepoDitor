@@ -1,3 +1,9 @@
+/**
+ * Semantic Phosphor fallback registry for dynamic upgrade identities.
+ *
+ * Exact local game artwork takes precedence. This registry may improve presentation
+ * for known meanings but never defines upgrade membership or mutation capability.
+ */
 import {
   ArrowUpIcon,
   BatteryHighIcon,
@@ -41,11 +47,13 @@ const ITEM_UPGRADE_ALIASES: Readonly<Record<string, string>> = {
   "Tumble Launch": "Launch",
 };
 
+/** Return a semantic fallback icon without defining upgrade membership. */
 export function getUpgradeIcon(key: string): { icon: Icon; source: "fallback" | "specific" } {
   const icon = UPGRADE_ICONS[key];
   return icon ? { icon, source: "specific" } : { icon: PackageIcon, source: "fallback" };
 }
 
+/** Convert an installed upgrade-item label into the same presentation fallback lookup. */
 export function getItemUpgradeIcon(name: string): ReturnType<typeof getUpgradeIcon> {
   const itemName = name
     .replace(/^Item\s+/, "")

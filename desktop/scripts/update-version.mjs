@@ -1,3 +1,8 @@
+/**
+ * Transaction-like maintainer command for synchronizing RepoDitor release metadata.
+ * Validates strict SemVer, updates only declared version fields, refreshes uv.lock, and
+ * runs the shared alignment check without creating commits or tags.
+ */
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

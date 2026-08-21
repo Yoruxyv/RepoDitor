@@ -1,3 +1,4 @@
+/** Chinese translations constrained to the canonical English UI key set. */
 import type { en } from "./english";
 
 export const zh: Record<keyof typeof en, string> = {

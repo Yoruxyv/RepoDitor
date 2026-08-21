@@ -1,3 +1,8 @@
+/**
+ * Deterministic paths, synthetic fixture generation, and isolated process environment
+ * shared by source and packaged Electron E2E. Overrides redirect every game/app data
+ * location into temporary test-owned directories.
+ */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";

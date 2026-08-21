@@ -1,3 +1,9 @@
+/**
+ * Theme-aware accessible listbox used when native select popup styling is unsuitable.
+ *
+ * Owns keyboard navigation, focus restoration, outside dismissal, and ARIA state;
+ * callers own option meaning and persisted selection.
+ */
 import { CheckIcon } from "@phosphor-icons/react";
 
 import { UtilityMenuCaret } from "@/app/UtilityMenuCaret";

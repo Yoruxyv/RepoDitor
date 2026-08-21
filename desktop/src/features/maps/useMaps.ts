@@ -1,3 +1,4 @@
+/** Owns fail-soft renderer loading state for the read-only installed map catalog. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DesktopOperationResult, InstalledMapsDto } from "@electron/contracts";

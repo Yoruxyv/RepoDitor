@@ -1,3 +1,7 @@
+/**
+ * Modal fail-closed interruption for running or unverifiable game-process state.
+ * Owns focus trapping/restoration only; status authority remains Python-owned.
+ */
 import { useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 
 import type { GameProcessStatus } from "@electron/contracts";

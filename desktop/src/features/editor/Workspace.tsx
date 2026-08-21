@@ -1,3 +1,10 @@
+/**
+ * Run-save workspace orchestrator and cross-feature pending-edit owner.
+ *
+ * Keeps feature modules shallow, preserves edits across section navigation, and sends
+ * one typed change union through the session write boundary. It never derives game
+ * mechanics or accesses raw save data.
+ */
 import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type KeyboardEvent } from "react";
 

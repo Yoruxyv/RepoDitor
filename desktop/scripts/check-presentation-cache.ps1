@@ -1,3 +1,12 @@
+<#
+.SYNOPSIS
+Audits RepoDitor's disposable derived-artwork cache without modifying it.
+
+.DESCRIPTION
+Compares manifest references with hash-named PNG artifacts. Missing or orphaned
+artifacts fail the audit; an absent cache is valid because runtime preparation is
+fail-soft and may recreate it from authoritative installed sources.
+#>
 [CmdletBinding()]
 param(
     [Parameter()]

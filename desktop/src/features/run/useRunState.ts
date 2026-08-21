@@ -1,3 +1,4 @@
+/** Owns renderer loading state for the typed Run projection; persistence stays shared. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {

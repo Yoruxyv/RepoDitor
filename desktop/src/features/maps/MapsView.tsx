@@ -1,3 +1,4 @@
+/** Read-only installed map presentation; no selection or game-control behavior. */
 import { ArrowClockwiseIcon, MapTrifoldIcon } from "@phosphor-icons/react";
 
 import type { InstalledMapsDto } from "@electron/contracts";

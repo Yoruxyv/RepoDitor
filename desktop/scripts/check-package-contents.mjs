@@ -1,3 +1,4 @@
+/** Fail-closed smoke check for files required in the unpacked Windows application. */
 import { access } from "node:fs/promises";
 
 const requiredFiles = [

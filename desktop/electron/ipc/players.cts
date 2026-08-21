@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated player and optional avatar IPC boundary.
+ *
+ * Player state comes from Python. Avatar lookup is fixed to plausible save-derived
+ * Steam IDs and allowlisted HTTPS hosts, fails soft, and never becomes save data.
+ */
 import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

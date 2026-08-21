@@ -1,3 +1,10 @@
+/**
+ * Main-process coordinator for optional installed-artwork preparation.
+ *
+ * Batches dynamic upgrade identities through Python, publishes coarse progress, and
+ * stores validated presentation results. Failure degrades artwork only and never
+ * blocks save semantics or authorizes mutations.
+ */
 import { BrowserWindow, ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

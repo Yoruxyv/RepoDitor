@@ -1,3 +1,4 @@
+/** Application chrome shared by discovery and editor workspaces. */
 import { HardDriveIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 

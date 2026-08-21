@@ -21,6 +21,12 @@ VALIDATED_BUILD_ID: Final = "23363152"
 
 @dataclass(frozen=True, slots=True)
 class ValidatedInstalledBuild:
+    """Steam-backed installation identity accepted by build-specific readers.
+
+    Presence of this value authorizes only the optional readers that explicitly
+    support ``build_id``; it does not authorize save mutation.
+    """
+
     build_id: str
     manifest_path: Path
 

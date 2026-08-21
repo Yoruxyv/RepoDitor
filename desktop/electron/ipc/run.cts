@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated read boundary for supported Run-state projections.
+ *
+ * Python owns representation and game semantics; writes use the shared
+ * pending-change save pipeline rather than this read adapter.
+ */
 import { type DesktopOperationResult, type RunStateDto, type RunStatDto } from "../contracts.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {

@@ -1,3 +1,4 @@
+/** Primary discovered-save action card using metadata only, never decrypted data. */
 import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
 
 import type { SaveSummary } from "@electron/contracts";

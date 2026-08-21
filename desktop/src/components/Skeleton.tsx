@@ -1,3 +1,4 @@
+/** Decorative, reduced-motion-safe loading primitives matching final content geometry. */
 import type { ReactNode } from "react";
 
 interface SkeletonProps {

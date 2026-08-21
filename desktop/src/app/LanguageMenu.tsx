@@ -1,3 +1,4 @@
+/** Accessible locale selector backed by renderer-only persisted preferences. */
 import { CheckIcon, TranslateIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 

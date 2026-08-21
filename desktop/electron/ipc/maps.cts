@@ -1,3 +1,9 @@
+/**
+ * Read-only installed-map IPC boundary.
+ *
+ * Validates Python-discovered display data and exposes no map selection, local path,
+ * injection, or game-control capability.
+ */
 import {
   type DesktopOperationResult,
   type InstalledMapDto,

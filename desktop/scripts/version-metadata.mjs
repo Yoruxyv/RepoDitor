@@ -1,3 +1,7 @@
+/**
+ * Shared strict version parsing, narrow source updates, and alignment validation.
+ * package.json is canonical; all other managed sources must agree before release.
+ */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 

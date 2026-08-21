@@ -1,3 +1,4 @@
+/** Subscribes to Electron-owned optional artwork preparation progress. */
 import { useEffect, useState } from "react";
 
 import type { AssetPreparationState } from "@electron/contracts";

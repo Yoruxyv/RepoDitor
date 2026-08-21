@@ -42,12 +42,16 @@ class UnityMetadataError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class PPtr:
+    """Unity object reference expressed as external file ID and object path ID."""
+
     file_id: int
     path_id: int
 
 
 @dataclass(frozen=True, slots=True)
 class ObjectRecord:
+    """Validated byte range and class identity for one serialized Unity object."""
+
     path_id: int
     byte_start: int
     byte_size: int
@@ -56,12 +60,16 @@ class ObjectRecord:
 
 @dataclass(frozen=True, slots=True)
 class ExternalReference:
+    """Names recorded for one external serialized-file dependency."""
+
     asset_path: str
     path: str
 
 
 @dataclass(frozen=True, slots=True)
 class MonoBehaviourPrefix:
+    """Common MonoBehaviour header plus the offset where script fields begin."""
+
     game_object: PPtr
     script: PPtr
     name: str
@@ -70,6 +78,8 @@ class MonoBehaviourPrefix:
 
 @dataclass(frozen=True, slots=True)
 class MonoScriptData:
+    """Runtime script identity used to resolve component semantics dynamically."""
+
     name: str
     class_name: str
     namespace: str
@@ -164,7 +174,13 @@ class _Reader:
 
 
 class SerializedFileIndex:
-    """Minimal index over a supported Unity serialized file."""
+    """Memory-mapped index over one supported Unity serialized file.
+
+    Construction validates the file header, metadata bounds, object table, and
+    external references before consumers can resolve records. Use as a context
+    manager so the memory map is released deterministically. Domain services own
+    the meaning of resolved objects; this class only provides bounded structure.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -190,6 +206,8 @@ class SerializedFileIndex:
         self.close()
 
     def close(self) -> None:
+        """Release the memory map and underlying installed-file handle."""
+
         data = getattr(self, "_data", None)
         if data is not None:
             data.close()
@@ -385,6 +403,8 @@ class SerializedFileIndex:
         return record if record.path_id == path_id else None
 
     def find_records(self, path_ids: set[int]) -> dict[int, ObjectRecord]:
+        """Resolve every requested local path ID or fail on missing ambiguity."""
+
         if not path_ids:
             return {}
         if self._has_sorted_path_ids():
@@ -436,6 +456,8 @@ class SerializedFileIndex:
                 yield ObjectRecord(path_id, byte_start, byte_size, class_id)
 
     def object_reader(self, record: ObjectRecord) -> _Reader:
+        """Return a bounds-checked reader restricted to one object record."""
+
         return _Reader(
             self._data,
             record.byte_start,
@@ -444,6 +466,8 @@ class SerializedFileIndex:
         )
 
     def external_names(self, file_id: int) -> tuple[str, ...]:
+        """Return normalized candidate filenames for one external reference."""
+
         if file_id <= 0 or file_id > len(self.external_references):
             raise UnityMetadataError("A required external PPtr file ID is invalid.")
         reference = self.external_references[file_id - 1]
@@ -460,6 +484,8 @@ class SerializedFileIndex:
         return tuple(names)
 
     def external_name(self, file_id: int) -> str:
+        """Return the preferred normalized filename for one external reference."""
+
         return self.external_names(file_id)[0]
 
     def read_pptr_vector(
@@ -469,6 +495,8 @@ class SerializedFileIndex:
         *,
         maximum: int,
     ) -> tuple[PPtr, ...] | None:
+        """Read a plausible bounded PPtr vector without claiming field semantics."""
+
         record_end = record.byte_start + record.byte_size
         if maximum <= 0 or absolute % 4 != 0 or absolute + 4 > record_end:
             return None
@@ -553,6 +581,8 @@ def find_resource_manager_pointer(
 
 
 def read_pptr(reader: _Reader) -> PPtr:
+    """Read one Unity 2022.3 PPtr from the current bounded object cursor."""
+
     return PPtr(reader.i32(), reader.i64())
 
 
@@ -560,6 +590,8 @@ def parse_mono_behaviour_prefix(
     index: SerializedFileIndex,
     record: ObjectRecord,
 ) -> MonoBehaviourPrefix:
+    """Parse the common header shared by supported MonoBehaviour components."""
+
     if record.class_id != MONO_BEHAVIOUR_CLASS_ID:
         raise UnityMetadataError("Expected a MonoBehaviour component record.")
     reader = index.object_reader(record)
@@ -574,6 +606,8 @@ def parse_mono_behaviour_prefix(
 
 
 def parse_mono_script(index: SerializedFileIndex, record: ObjectRecord) -> MonoScriptData:
+    """Read the script identity used to classify a MonoBehaviour dynamically."""
+
     if record.class_id != MONO_SCRIPT_CLASS_ID:
         raise UnityMetadataError("MonoBehaviour script pointer does not resolve to MonoScript.")
     reader = index.object_reader(record)

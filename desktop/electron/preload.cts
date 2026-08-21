@@ -1,3 +1,10 @@
+/**
+ * Sandboxed preload bridge exposing RepoDitor's explicit desktop API.
+ *
+ * Every method maps to one allowlisted channel. The bridge intentionally exposes
+ * neither ipcRenderer nor arbitrary channel, file, process, shell, or network
+ * access.
+ */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 import {

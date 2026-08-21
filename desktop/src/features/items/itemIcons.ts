@@ -1,3 +1,7 @@
+/**
+ * Semantic Phosphor fallbacks for item thumbnails when local artwork is unavailable.
+ * Names select presentation only and never classify recharge or mutation capability.
+ */
 import {
   BaseballIcon,
   BatteryHighIcon,
@@ -47,6 +51,7 @@ const CATEGORY_ICONS: ReadonlyArray<readonly [RegExp, Icon]> = [
   [/semiscooter|vehicle/i, MotorcycleIcon],
 ];
 
+/** Select a presentation-only fallback; callers must not use it as item capability evidence. */
 export function getItemIcon(name: string): { icon: Icon; source: IconSource } {
   const normalized = name.replace(/^Item\s+/, "");
   const icon = ITEM_ICONS[normalized];

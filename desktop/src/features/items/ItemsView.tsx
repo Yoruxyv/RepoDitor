@@ -1,3 +1,4 @@
+/** Items section shell that presents support state and delegates exact instances. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
 import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";

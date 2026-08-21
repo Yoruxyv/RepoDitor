@@ -1,3 +1,9 @@
+/**
+ * Runtime-validated MetaSave/Cosmetics IPC boundary.
+ *
+ * Validates renderer changes and Python DTOs, adds opaque icon tokens, and delegates
+ * ownership and safe-write semantics to Python. Presentation never grants authority.
+ */
 import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

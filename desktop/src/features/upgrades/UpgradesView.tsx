@@ -1,3 +1,9 @@
+/**
+ * Player-scoped dynamic upgrade editor using typed presentation metadata.
+ *
+ * The view stages save keys supplied by Python; labels, caps, and icons guide the UI
+ * but do not define catalog membership or mutation authority.
+ */
 import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 

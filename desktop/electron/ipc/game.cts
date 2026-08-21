@@ -1,3 +1,9 @@
+/**
+ * Narrow game-process safety IPC boundary.
+ *
+ * Maps Python's verified state to a renderer-safe status. Unknown remains a distinct
+ * fail-closed result and must never be coerced to "not running."
+ */
 import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";

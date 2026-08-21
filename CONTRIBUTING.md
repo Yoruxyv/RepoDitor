@@ -26,6 +26,20 @@ filesystem writes, or game-mechanics calculations into React or Electron.
 Preserve `contextIsolation: true`, `nodeIntegration: false`, renderer sandboxing,
 and narrow preload methods.
 
+## Source documentation
+
+Document ownership where it lives so new features extend the tree instead of
+forcing a central comment rewrite. Meaningful Python packages and modules need
+concise docstrings; Electron, renderer, and important tooling modules need an
+opening comment when their responsibility or trust boundary is not obvious.
+Document exported or non-obvious APIs with their contract, lifetime, fallback,
+and failure behavior. Do not restate syntax or maintain a closed feature catalog
+in comments.
+
+When adding a feature, document its local service/adapter/hook or view modules
+and update shared architecture documentation only if a cross-layer boundary or
+project-wide invariant actually changed.
+
 ## Evidence and save safety
 
 New save mutations require controlled evidence. Record what changed, what did

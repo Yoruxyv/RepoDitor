@@ -1,3 +1,4 @@
+/** Shared decorative caret for accessible utility menu triggers. */
 import { CaretDownIcon } from "@phosphor-icons/react";
 
 export function UtilityMenuCaret({ open }: { readonly open: boolean }) {

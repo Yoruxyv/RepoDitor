@@ -1,3 +1,9 @@
+/**
+ * Fixed-geometry optional player avatar with bounded retry and local fallback.
+ *
+ * URLs are already validated by Electron. Image failure remains presentation-only and
+ * never prevents the player projection from rendering.
+ */
 import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";

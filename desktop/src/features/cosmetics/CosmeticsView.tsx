@@ -1,3 +1,4 @@
+/** Cosmetics summary and evidence-gated bulk/individual action presentation. */
 import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@phosphor-icons/react";
 
 import type { CosmeticsViewDto } from "@electron/contracts";

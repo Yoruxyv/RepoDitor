@@ -1,3 +1,4 @@
+/** Owns renderer loading state for dynamically discovered player upgrades. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {

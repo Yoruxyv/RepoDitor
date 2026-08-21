@@ -1,3 +1,9 @@
+/**
+ * Renderer lifecycle for one opaque Run-save session and explicit writes.
+ *
+ * Pending feature edits remain outside this hook; it sends their typed union only on
+ * explicit save and accepts Python's returned fingerprint/session as authoritative.
+ */
 import { useRef, useState } from "react";
 
 import type { SaveChange, SaveOpenResult, SaveSession, SaveWriteResult } from "@electron/contracts";

@@ -1,3 +1,4 @@
+/** Narrow renderer adapter for the preload environment-discovery operation. */
 import type { DesktopOperationResult, EnvironmentDiscovery } from "@electron/contracts";
 
 const BRIDGE_FAILURE: DesktopOperationResult<EnvironmentDiscovery> = {

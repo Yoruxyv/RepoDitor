@@ -1,3 +1,9 @@
+/**
+ * Selected-save source disclosure with bounded clipboard feedback.
+ *
+ * This is the intentional user-visible path exception; ordinary discovery cards and
+ * feature views avoid exposing filesystem details.
+ */
 import { CheckIcon, CopyIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 

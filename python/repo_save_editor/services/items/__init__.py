@@ -1,4 +1,7 @@
-"""Item-save projection, recharge mutation policy, and installed item metadata.
+"""Item-save projection, installed capability evidence, and narrow mutations.
 
-Generic Unity serialized-file parsing belongs to neutral service infrastructure.
+Save data identifies exact instances, installed metadata classifies item-type
+capability, and mutation policy decides whether a refill is allowed; these are
+independent sources of authority. Generic Unity parsing belongs to neutral
+service infrastructure, and arbitrary item editing does not belong here.
 """

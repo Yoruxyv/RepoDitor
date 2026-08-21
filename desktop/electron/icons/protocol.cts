@@ -1,3 +1,10 @@
+/**
+ * Custom protocol and persistent cache for local presentation artwork.
+ *
+ * Resolves opaque tokens, enforces trusted-root containment and PNG bounds, and
+ * fails soft when optional artwork is unavailable. Derived files are presentation
+ * artifacts only; source watches invalidate them and they grant no mutation authority.
+ */
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";

@@ -1,3 +1,4 @@
+/** Reuses one optional local UI sound without making audio part of interaction state. */
 import { useEffect } from "react";
 
 import clickSound from "@/assets/sfx/mouse-click.mp3";

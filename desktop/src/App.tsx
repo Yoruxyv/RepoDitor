@@ -1,3 +1,10 @@
+/**
+ * Renderer composition root for discovery, editor entry, and workspace switching.
+ *
+ * Coordinates typed desktop operations and application-session projections by source
+ * fingerprint. Feature hooks own domain UI state; Python remains authoritative for
+ * save semantics and every persisted result.
+ */
 import { useRef, useState } from "react";
 
 import type { SaveChange, SaveOpenResult } from "@electron/contracts";

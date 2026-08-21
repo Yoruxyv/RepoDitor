@@ -1,3 +1,10 @@
+/**
+ * Application-session cache for Python-issued item recharge evidence.
+ *
+ * Evidence is bound to installed-file identity and revalidated before reuse. Missing,
+ * malformed, or stale records fall back to Python discovery; this layer never infers
+ * capability from names and cannot authorize a refill by itself.
+ */
 const EVIDENCE_VERSION = 1;
 const MAX_EVIDENCE_ITEMS = 512;
 const MAX_ITEM_NAME_CHARS = 1024;

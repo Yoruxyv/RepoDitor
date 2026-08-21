@@ -1,3 +1,9 @@
+/**
+ * Player-facing grouping, search, filter, sort, and refill staging for item instances.
+ *
+ * Grouping never collapses canonical instance identity. Recharge controls appear only
+ * from backend-provided capability and exact charge-state evidence.
+ */
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
