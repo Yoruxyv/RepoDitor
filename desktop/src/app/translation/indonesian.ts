@@ -273,6 +273,7 @@ export const id: Record<keyof typeof en, string> = {
   "entry.detail.readingSave": "Membaca dan memvalidasi data save…",
   "entry.detail.items": "Memuat data item…",
   "entry.detail.upgrades": "Memuat data upgrade…",
+  "entry.detail.upgradeArtworkCache": "Memeriksa cache gambar dan memuat data upgrade…",
   "entry.detail.players": "Memuat data pemain…",
   "entry.detail.avatars": "Memuat avatar pemain…",
   "entry.detail.run": "Memuat data run…",

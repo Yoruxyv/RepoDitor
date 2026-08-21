@@ -271,6 +271,7 @@ export const ko: Record<keyof typeof en, string> = {
   "entry.detail.readingSave": "세이브 데이터를 읽고 검증하는 중…",
   "entry.detail.items": "아이템 데이터 불러오는 중…",
   "entry.detail.upgrades": "업그레이드 데이터 불러오는 중…",
+  "entry.detail.upgradeArtworkCache": "캐시된 이미지를 확인하고 업그레이드 데이터를 불러오는 중…",
   "entry.detail.players": "플레이어 데이터 불러오는 중…",
   "entry.detail.avatars": "플레이어 아바타 불러오는 중…",
   "entry.detail.run": "런 데이터 불러오는 중…",

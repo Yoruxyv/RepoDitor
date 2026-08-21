@@ -158,6 +158,9 @@ function runSaveDetail(
 ): string {
   if (pendingEntry.phase === "opening-save") return t("entry.detail.readingSave");
   if (currentTask === null) return t("entry.detail.finalizing");
+  if (currentTask === "upgrades" && pendingEntry.opened.presentationReadiness === "unresolved") {
+    return t("entry.detail.upgradeArtworkCache");
+  }
   return t(RUN_ENTRY_TASK_KEYS[currentTask]);
 }
 

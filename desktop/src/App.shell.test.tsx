@@ -85,7 +85,7 @@ describe("app shell integration", () => {
     expect(preload.getAttribute("data-entry-mode")).toBe("save");
     expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
     expect(screen.getByTestId("entry-loading-detail").textContent).toContain(
-      "Loading upgrade data",
+      "Checking cached artwork and loading upgrade data",
     );
     expect(screen.queryByTestId("workspace")).toBeNull();
     expect(window.repoditor.players.list).toHaveBeenCalledTimes(1);

@@ -258,6 +258,7 @@ export const zh: Record<keyof typeof en, string> = {
   "entry.detail.readingSave": "正在读取并验证存档数据…",
   "entry.detail.items": "正在加载物品数据…",
   "entry.detail.upgrades": "正在加载升级数据…",
+  "entry.detail.upgradeArtworkCache": "正在检查缓存图像并加载升级数据…",
   "entry.detail.players": "正在加载玩家数据…",
   "entry.detail.avatars": "正在加载玩家头像…",
   "entry.detail.run": "正在加载局内数据…",
