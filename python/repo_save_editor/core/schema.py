@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from .types import SaveData
 
 
 class SaveSchemaError(ValueError):
     """Raised when expected save data is missing or malformed."""
+
+
+# ``dictionaryOfDictionaries`` declares every inner value as ``System.Int32``.
+SAVE_INT32_MIN: Final = -(2**31)
+SAVE_INT32_MAX: Final = 2**31 - 1
 
 
 def get_typed_value(data: SaveData, key: str) -> Any:

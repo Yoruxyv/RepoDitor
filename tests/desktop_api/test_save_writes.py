@@ -5,6 +5,7 @@ from unittest.mock import Mock
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.player.upgrades import UPGRADE_VALUE_MAX
 from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
@@ -165,6 +166,58 @@ def test_validation_failure_does_not_create_backup_or_modify_source(tmp_path: Pa
     assert result["error"]["code"] == "save_validation_failed"
     assert path.read_bytes() == original
     assert not list(path.parent.glob("*.bak-*"))
+
+
+def test_oversized_upgrade_does_not_create_backup_or_modify_source(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [
+            {
+                "feature": "upgrades",
+                "entity": "111",
+                "field": "playerUpgradeStrength",
+                "after": UPGRADE_VALUE_MAX + 1,
+            }
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+
+    assert result["error"]["code"] == "save_validation_failed"
+    assert path.read_bytes() == original
+    assert not list(path.parent.glob("*.bak-*"))
+
+
+def test_maximum_upgrade_value_uses_normal_safe_write_pipeline(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    original = path.read_bytes()
+
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [
+            {
+                "feature": "upgrades",
+                "entity": "111",
+                "field": "playerUpgradeStrength",
+                "after": UPGRADE_VALUE_MAX,
+            }
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+
+    assert result["ok"] is True
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+    reopened = SaveRepository.load(path)
+    assert (
+        reopened["dictionaryOfDictionaries"]["value"]["playerUpgradeStrength"]["111"]
+        == UPGRADE_VALUE_MAX
+    )
 
 
 def test_invalid_refill_does_not_create_backup_or_modify_source(tmp_path: Path, sample_save):

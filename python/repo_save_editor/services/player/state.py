@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from repo_save_editor.core.schema import SaveSchemaError, get_dictionaries, get_typed_value
+from repo_save_editor.core.schema import (
+    SAVE_INT32_MAX,
+    SaveSchemaError,
+    get_dictionaries,
+    get_typed_value,
+)
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.services.player.upgrades import get_player_upgrade
 
@@ -54,8 +59,8 @@ def get_player_max_health(data: SaveData, player_id: str) -> int:
 
 def set_player_health(data: SaveData, player_id: str, value: int) -> None:
     """Set a player's current HP."""
-    if value < 0:
-        raise ValueError("Current Health cannot be negative.")
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= SAVE_INT32_MAX:
+        raise ValueError(f"Current Health must be between 0 and {SAVE_INT32_MAX:,}.")
 
     dictionaries = get_dictionaries(data)
     values = dictionaries.setdefault("playerHealth", {})
@@ -67,4 +72,4 @@ def set_player_health(data: SaveData, player_id: str, value: int) -> None:
             raise SaveSchemaError(
                 f"Player health for '{player_id}' is not a supported integer value."
             )
-    values[player_id] = int(value)
+    values[player_id] = value

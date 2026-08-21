@@ -13,6 +13,11 @@ import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
+import {
+  RUN_DISPLAY_LEVEL_MAX,
+  SAVE_INT32_MAX,
+  SAVE_INT32_MIN,
+} from "@/features/editor/saveValueBounds";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
 
 const RUN_STAT_ICONS = {
@@ -106,10 +111,13 @@ export function RunView({
           const edit = pendingByField[stat.key];
           const input = inputs[stat.key] ?? String(edit?.after ?? stat.value);
           const parsed = Number(input);
+          const minimum = stat.key === "level" ? 1 : SAVE_INT32_MIN;
+          const maximum = stat.key === "level" ? RUN_DISPLAY_LEVEL_MAX : SAVE_INT32_MAX;
           const invalid =
             input.trim() === "" ||
             !Number.isSafeInteger(parsed) ||
-            (stat.key === "level" && parsed < 1);
+            parsed < minimum ||
+            parsed > maximum;
           const errorId = `run-${stat.key}-error`;
           const pendingId = `run-${stat.key}-pending`;
           const description =
@@ -130,7 +138,8 @@ export function RunView({
                   aria-invalid={invalid ? "true" : undefined}
                   className="w-36 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                   id={`run-${stat.key}`}
-                  min={stat.key === "level" ? 1 : undefined}
+                  max={maximum}
+                  min={minimum}
                   step="1"
                   type="number"
                   value={input}
@@ -141,9 +150,13 @@ export function RunView({
                     if (
                       value.trim() &&
                       Number.isSafeInteger(next) &&
-                      (stat.key !== "level" || next >= 1)
-                    )
+                      next >= minimum &&
+                      next <= maximum
+                    ) {
                       onStatChange(stat, next);
+                    } else {
+                      onRevert(stat.key);
+                    }
                   }}
                 />
                 {edit ? (

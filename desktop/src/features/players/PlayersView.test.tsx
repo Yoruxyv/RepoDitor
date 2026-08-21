@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -178,6 +178,30 @@ describe("PlayersView", () => {
     const progress = screen.getByRole("progressbar", { name: "Current health" });
     expect(progress.getAttribute("aria-valuenow")).toBe("80");
     expect(screen.getByTestId("player-health-progress-fill").style.width).toBe("80%");
-    expect(screen.getByText("Health must be a whole number of zero or more.")).toBeTruthy();
+    expect(screen.getByText("Health must be between 0 and 2,147,483,647.")).toBeTruthy();
+  });
+
+  it("does not stage health above the stored Int32 maximum", () => {
+    const onHealthChange = vi.fn();
+    const onRevertHealth = vi.fn();
+    renderWithPreferences(
+      <PlayersView
+        {...handlers}
+        avatarUrls={{ "1": null }}
+        error={null}
+        loading={false}
+        players={[player]}
+        selectedPlayerId={player.id}
+        onHealthChange={onHealthChange}
+        onRevertHealth={onRevertHealth}
+      />,
+    );
+
+    const input = screen.getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "2147483648" } });
+
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(onHealthChange).not.toHaveBeenCalled();
+    expect(onRevertHealth).toHaveBeenCalledWith(player.id);
   });
 });

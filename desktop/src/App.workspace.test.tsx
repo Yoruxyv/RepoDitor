@@ -110,7 +110,7 @@ describe("run-save workspace integration", () => {
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     fireEvent.change(health, { target: { value: "-1" } });
 
-    expect(screen.getByRole("alert").textContent).toContain("whole number");
+    expect(screen.getByRole("alert").textContent).toContain("between 0 and 2,147,483,647");
     expect(health.getAttribute("aria-describedby")).toContain("player-health-error");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
@@ -192,7 +192,7 @@ describe("run-save workspace integration", () => {
     await user.clear(currency);
     await user.type(currency, "20");
     expect(screen.getByTestId("pending-run-currency").textContent).toContain("12 → 20");
-    expect(currency.getAttribute("min")).toBeNull();
+    expect(currency.getAttribute("min")).toBe("-2147483648");
     expect(currency.getAttribute("aria-describedby")).toContain("run-currency-pending");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "2 pending changes",

@@ -12,6 +12,7 @@ import { usePreferences } from "@/app/preferences";
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
+import { SAVE_INT32_MAX } from "@/features/editor/saveValueBounds";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
 import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
 import { getUpgradeIcon } from "@/components/game/upgradeIcons";
@@ -162,7 +163,11 @@ export function UpgradesView({
             const inputKey = key(player.id, upgrade.key);
             const input = inputs[inputKey] ?? String(edit?.after ?? stored);
             const parsed = Number(input);
-            const invalid = input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0;
+            const invalid =
+              input.trim() === "" ||
+              !Number.isSafeInteger(parsed) ||
+              parsed < 0 ||
+              parsed > SAVE_INT32_MAX;
             const errorId = `${upgrade.key}-error`;
             const pendingId = `${upgrade.key}-pending`;
             const description =
@@ -206,6 +211,7 @@ export function UpgradesView({
                     })}
                     className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
                     id={upgrade.key}
+                    max={SAVE_INT32_MAX}
                     min="0"
                     step="1"
                     type="number"
@@ -214,8 +220,16 @@ export function UpgradesView({
                       const value = event.target.value;
                       setInputs((current) => ({ ...current, [inputKey]: value }));
                       const next = Number(value);
-                      if (value.trim() && Number.isSafeInteger(next) && next >= 0)
+                      if (
+                        value.trim() &&
+                        Number.isSafeInteger(next) &&
+                        next >= 0 &&
+                        next <= SAVE_INT32_MAX
+                      ) {
                         onChange(upgrade, player, next);
+                      } else {
+                        onRevert(player.id, upgrade.key);
+                      }
                     }}
                   />
                   {edit ? (

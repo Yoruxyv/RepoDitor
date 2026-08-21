@@ -28,6 +28,34 @@ Still pending research:
 
 Do not hardcode unverified map or item identifiers into production UI code.
 
+## Run-save signed integer boundary
+
+The Run save's own Easy Save metadata declares `dictionaryOfDictionaries` as a nested
+`Dictionary<string, Dictionary<string, System.Int32>>`. Player upgrades, player health, and
+editable `runStats` values therefore share a signed 32-bit stored representation even though
+RepoDitor decrypts the JSON numbers into arbitrary-precision Python integers.
+
+**Observed runtime evidence:** a disposable save written with upgrade value `2,147,483,647`
+loaded successfully in R.E.P.O.; the same controlled edit at `2,147,483,648` did not. This
+establishes the tested runtime boundary without imposing a lower vanilla gameplay cap.
+
+**Source/format evidence:** both files in a separate excluded good/corrupt comparison retained the
+exact nested `System.Int32` type declaration:
+
+| Evidence | Bytes | SHA-256 | Redacted structural result |
+| --- | ---: | --- | --- |
+| Known-good backup | 14,160 | `e0e31881056c667370b3fd89d49c1faa98a81eebbad06ab65fb3b8765cd869a0` | Supported signed-integer values. |
+| Game-rejected edit | 22,896 | `dfe730a95ee2e5dbf3f4fa3a7b1d07be89dfe5b4e58668cea5042ac069fa5b13` | Included two upgrade transitions from `0` to `1,000,000,000,000,000` and one Run transition from `3` to `3,000,000,000,000,000`. |
+
+The raw files contain personal save data, remain outside the repository, and are not fixtures.
+The broad pair is corroborating evidence rather than the controlled boundary experiment.
+
+RepoDitor's previous staged verification could accept these values because Python's JSON encoder
+and decoder round-trip the same arbitrary-precision integer. The staging check proves that
+RepoDitor can reopen the encrypted output and that it matches the intended data; it does not run
+the game's `System.Int32` deserializer. Mutation boundaries must therefore reject values outside
+the declared primitive range before backup or serialization.
+
 ## MetaSave cosmetic ownership
 
 RepoDitor's existing ES3 crypto decrypts the observed `MetaSave.es3`. The ownership model is
