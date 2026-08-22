@@ -297,6 +297,7 @@ export const zh: Record<keyof typeof en, string> = {
   "assets.notice.gameMissing": "未检测到 R.E.P.O.；将使用内置图标。",
   "assets.notice.buildUnverified": "无法验证已安装版本；将使用内置图标。",
   "assets.notice.partial": "部分本地图像无法准备；需要时将使用内置图标。",
+  "assets.notice.dismiss": "关闭图像警告",
   "assets.notice.preparingTitle": "游戏图像仍在准备中。",
   "assets.notice.preparing": "后台准备将继续 · {progress}。",
   "safety.label": "存档安全",

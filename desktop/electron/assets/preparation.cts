@@ -253,7 +253,7 @@ export class AssetPreparationService {
     requiredUpgradeKeys: readonly string[],
   ): Promise<"ready" | "unresolved"> {
     for (const upgradeKey of new Set(requiredUpgradeKeys)) {
-      if (this.#failedUpgradeKeys.has(upgradeKey)) continue;
+      if (this.#failedUpgradeKeys.has(upgradeKey)) return "unresolved";
       const resolved = this.#resolvedVisuals.get(upgradeKey);
       if (resolved === undefined) return "unresolved";
       if (resolved.cacheKey === null && !(await this.#cache.hasPrepared(upgradeKey))) {

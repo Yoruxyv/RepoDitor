@@ -311,6 +311,7 @@ export const ja: Record<keyof typeof en, string> = {
     "インストール済みビルドを検証できなかったため、内蔵アイコンを使用します。",
   "assets.notice.partial":
     "一部のローカル画像を準備できませんでした。必要な箇所では内蔵アイコンを使用します。",
+  "assets.notice.dismiss": "画像の警告を閉じる",
   "assets.notice.preparingTitle": "ゲーム画像を引き続き準備しています。",
   "assets.notice.preparing": "バックグラウンド準備を継続中 · {progress}。",
   "safety.label": "セーブ保護",

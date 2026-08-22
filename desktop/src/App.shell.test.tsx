@@ -40,6 +40,7 @@ const localeCases: ReadonlyArray<readonly [Locale, string]> = [
 describe("app shell integration", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     window.repoditor = bridge(vi.fn());
   });
 
@@ -343,6 +344,98 @@ describe("app shell integration", () => {
     expect(await screen.findByRole("heading", { name: session.name })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Upgrades" })).toBeTruthy();
     expect(screen.getByTestId("asset-preparation-notice")).toBeTruthy();
+  });
+
+  it("scopes degraded artwork and its dismissal to the opened save", async () => {
+    const saveB = {
+      ...session,
+      id: "REPO_SAVE_2026_08_08_10_20_31",
+      name: "Degraded B",
+      path: "C:\\fixture\\saves\\B.es3",
+      fingerprint: "b".repeat(64),
+    };
+    const saveA = {
+      ...session,
+      id: "REPO_SAVE_2026_08_08_10_20_32",
+      name: "Healthy A",
+      path: "C:\\fixture\\saves\\A.es3",
+      fingerprint: "a".repeat(64),
+    };
+    const saveC = {
+      ...session,
+      id: "REPO_SAVE_2026_08_08_10_20_33",
+      name: "Degraded C",
+      path: "C:\\fixture\\saves\\C.es3",
+      fingerprint: "c".repeat(64),
+    };
+    const summaries = [saveB, saveA, saveC].map((save) => ({
+      id: save.id,
+      name: save.name,
+      path: save.path,
+      modifiedAt: save.modifiedAt,
+      sizeBytes: 1024,
+    }));
+    const sessions = new Map([
+      [saveA.id, saveA],
+      [saveB.id, saveB],
+      [saveC.id, saveC],
+    ]);
+    window.repoditor = bridge(
+      vi.fn((id: string) =>
+        Promise.resolve(
+          openResult(sessions.get(id) ?? saveC, id === saveA.id ? "ready" : "unresolved"),
+        ),
+      ),
+      players,
+    );
+    window.repoditor.environment.detect = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...environment, saves: summaries },
+    });
+    const degradedAssets: AssetPreparationState = {
+      stage: "degraded",
+      installationFound: true,
+      buildVerified: true,
+      completed: 1,
+      total: 2,
+      currentAsset: null,
+      currentAssetLabel: null,
+      degraded: true,
+    };
+    window.repoditor.assets.state = vi.fn().mockResolvedValue(degradedAssets);
+    window.repoditor.assets.onState = vi.fn((listener) => {
+      listener(degradedAssets);
+      return () => undefined;
+    });
+    window.repoditor.upgrades.prepareEntry = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: upgrades });
+    const user = userEvent.setup();
+    render(<App />);
+
+    const openSave = async (name: string) => {
+      const button = (await screen.findByText(name)).closest("button");
+      expect(button).not.toBeNull();
+      await user.click(button!);
+      await screen.findByRole("heading", { name });
+    };
+
+    await openSave(saveB.name);
+    expect(screen.getByTestId("asset-preparation-notice")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Dismiss artwork warning" }));
+    expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await openSave(saveA.name);
+    expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await openSave(saveC.name);
+    expect(screen.getByTestId("asset-preparation-notice")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await openSave(saveB.name);
+    expect(screen.queryByTestId("asset-preparation-notice")).toBeNull();
   });
 
   it("presents release identity and project attribution", () => {

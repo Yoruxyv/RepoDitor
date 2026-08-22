@@ -1,5 +1,5 @@
 /** Accessible startup/progress presentation for fail-soft installed artwork work. */
-import { PackageIcon, WrenchIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { PackageIcon, WrenchIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
@@ -326,9 +326,11 @@ const ACTIVE_STAGES = new Set<AssetPreparationStage>([
 export function AssetPreparationNotice({
   state,
   showPreparing = false,
+  onDismiss,
 }: {
   readonly state: AssetPreparationState;
   readonly showPreparing?: boolean;
+  readonly onDismiss?: (() => void) | undefined;
 }) {
   const { t } = usePreferences();
   const preparing = showPreparing && ACTIVE_STAGES.has(state.stage) && !state.degraded;
@@ -370,9 +372,19 @@ export function AssetPreparationNotice({
         size={18}
         weight="fill"
       />
-      <span>
+      <span className="min-w-0 flex-1">
         <strong className="font-semibold text-ink">{t("assets.notice.title")}</strong> {t(detail)}
       </span>
+      {onDismiss !== undefined ? (
+        <button
+          aria-label={t("assets.notice.dismiss")}
+          className="ui-feedback -mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-sm text-secondary outline-none hover:bg-surface-raised hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
+          type="button"
+          onClick={onDismiss}
+        >
+          <XIcon aria-hidden="true" size={16} weight="bold" />
+        </button>
+      ) : null}
     </output>
   );
 }

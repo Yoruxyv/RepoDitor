@@ -313,6 +313,7 @@ export const en = {
     "The installed build could not be verified; built-in icons will be used.",
   "assets.notice.partial":
     "Some local artwork could not be prepared; built-in icons will be used where needed.",
+  "assets.notice.dismiss": "Dismiss artwork warning",
   "assets.notice.preparingTitle": "Game artwork is still preparing.",
   "assets.notice.preparing": "Background preparation continues · {progress}.",
   "safety.label": "Save safety",
