@@ -72,20 +72,20 @@ not been established safely.
 
 | Run overview | Cosmetics catalog |
 |---|---|
-| ![RepoDitor Run overview showing the selected save summary and editor navigation](docs/screenshots/run-overview.png) | ![RepoDitor Cosmetics catalog showing installed metadata, local icons, filters, and bulk actions](docs/screenshots/cosmetic-unlocker.png) |
+| ![RepoDitor Run overview showing the selected save summary and editor navigation](docs/screenshots/repoditor-overview.png) | ![RepoDitor Cosmetics catalog showing installed metadata, local icons, filters, and bulk actions](docs/screenshots/cosmetic-unlocker.png) |
 
-| Run editor | Evidence-backed item refill |
+| Player Editor | Player Upgrades  |
 |---|---|
-| ![RepoDitor Run editor with typed level, currency, lives, haul, and resume fields](docs/screenshots/run-editor.png) | ![RepoDitor staging several supported item refills before saving](docs/screenshots/recharge-truck-items.png) |
+| ![RepoDitor Player editor showing the selected player health](docs/screenshots/repoditor-player-editor.png) | ![RepoDitor Player upgrades showing the available upgrade options](docs/screenshots/repoditor-upgrades-editor.png) |
+
+| Run editor | Truck Items Recharge |
+|---|---|
+| ![RepoDitor Run editor with typed level, currency, lives, haul, and resume fields](docs/screenshots/repoditor-run-editor.png) | ![RepoDitor staging several supported item refills before saving](docs/screenshots/recharge-truck-items.png) |
 
 ### Manual in-game compatibility check
 
-![R.E.P.O. loading edited level, upgrade, health, energy, and item-charge values](docs/screenshots/all-in-one-proof-recharge-level-upgrades.png)
-
-This maintainer-run check loaded a save edited through RepoDitor in R.E.P.O.
-and displayed the resulting high level, upgrade, health, energy, and
-charged-item values. It documents that tested save and game build; it is not a
-compatibility or data-safety guarantee for every build.
+![R.E.P.O. loading edited level, upgrade, health, energy, and item-charge values](docs/screenshots/repoditor-absurd-level.png)
+Image shows a R.E.P.O. run with edited absurd level, upgrade, health, energy, and item-charge values. RepoDitor edits are applied to the local save file; the game reads them on its next load.
 
 ## 🚀 Quick Start
 
