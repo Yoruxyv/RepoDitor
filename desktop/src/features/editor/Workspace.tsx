@@ -6,7 +6,7 @@
  * mechanics or accesses raw save data.
  */
 import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import type {
   AssetPreparationState,
@@ -75,6 +75,19 @@ export function Workspace({
   onSave,
 }: WorkspaceProps) {
   const [postSaveRefreshing, setPostSaveRefreshing] = useState(false);
+  const warningScope = `${session.id}:${session.fingerprint}`;
+  const warningStorageKey = `repoditor.dismissedArtworkWarning:${warningScope}`;
+  const [dismissedWarning, setDismissedWarning] = useState(() => {
+    try {
+      return sessionStorage.getItem(warningStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [artworkDegraded, setArtworkDegraded] = useState(
+    initialEntryData?.artworkDegraded ?? false,
+  );
+  const observedArtworkPreparation = useRef(false);
   const { locale, t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(
@@ -114,6 +127,27 @@ export function Workspace({
     "resolving",
     "decoding",
   ].includes(assetState.stage);
+
+  useEffect(() => {
+    if (assetPreparationActive) {
+      observedArtworkPreparation.current = true;
+      return;
+    }
+    if (!observedArtworkPreparation.current) return;
+    observedArtworkPreparation.current = false;
+    if (assetState.stage === "ready" || assetState.stage === "degraded") {
+      setArtworkDegraded(assetState.degraded);
+    }
+  }, [assetPreparationActive, assetState.degraded, assetState.stage]);
+
+  function dismissArtworkWarning(): void {
+    setDismissedWarning(true);
+    try {
+      sessionStorage.setItem(warningStorageKey, "1");
+    } catch {
+      // Session persistence is optional; the visible workspace still dismisses it.
+    }
+  }
 
   function revertAll(): void {
     players.revertAll();
@@ -199,10 +233,22 @@ export function Workspace({
     });
   }
 
+  const showArtworkWarning = artworkDegraded && !dismissedWarning;
+  const noticeState =
+    artworkDegraded && !assetPreparationActive
+      ? { ...assetState, stage: "degraded" as const, degraded: true }
+      : assetState;
+  const noticeDismiss =
+    artworkDegraded && !assetPreparationActive ? dismissArtworkWarning : undefined;
+
   return (
     <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
-      {assetState.degraded || assetPreparationActive ? (
-        <AssetPreparationNotice state={assetState} showPreparing={assetPreparationActive} />
+      {showArtworkWarning || assetPreparationActive ? (
+        <AssetPreparationNotice
+          state={noticeState}
+          showPreparing={assetPreparationActive}
+          onDismiss={noticeDismiss}
+        />
       ) : null}
       <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">

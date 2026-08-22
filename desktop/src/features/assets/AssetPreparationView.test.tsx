@@ -188,14 +188,23 @@ describe("AssetPreparationView", () => {
   });
 
   it("keeps degraded artwork status nonblocking and explains the structured reason", () => {
+    const onDismiss = vi.fn();
     render(
       <PreferencesProvider>
-        <AssetPreparationNotice state={state({ stage: "degraded", degraded: true })} />
+        <AssetPreparationNotice
+          state={state({ stage: "degraded", degraded: true })}
+          onDismiss={onDismiss}
+        />
       </PreferencesProvider>,
     );
 
     const notice = screen.getByTestId("asset-preparation-notice");
     expect(notice.textContent).toContain("Game artwork unavailable.");
     expect(notice.textContent).toContain("R.E.P.O. was not detected");
+    const dismiss = screen.getByRole("button", { name: "Dismiss artwork warning" });
+    dismiss.focus();
+    expect(document.activeElement).toBe(dismiss);
+    fireEvent.click(dismiss);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });

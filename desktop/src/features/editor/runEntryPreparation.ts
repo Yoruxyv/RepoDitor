@@ -17,6 +17,7 @@ import type {
 export type RunEntryTask = "items" | "upgrades" | "players" | "avatars" | "run" | "maps";
 
 export interface RunEntryData {
+  readonly artworkDegraded: boolean;
   readonly players: DesktopOperationResult<PlayerDto[]>;
   readonly avatarUrls: Readonly<Record<string, string | null>>;
   readonly upgrades: DesktopOperationResult<PlayerUpgradeDto[]>;
@@ -52,6 +53,14 @@ async function safeResult<T>(
     return await request();
   } catch {
     return bridgeFailure(message);
+  }
+}
+
+async function currentArtworkDegraded(): Promise<boolean> {
+  try {
+    return (await window.repoditor.assets.state()).degraded;
+  } catch {
+    return true;
   }
 }
 
@@ -109,14 +118,16 @@ export async function prepareRunEntryData({
   };
 
   if (existingData !== null) {
-    if (presentationReadiness === "ready") return existingData;
+    if (presentationReadiness === "ready") {
+      return { ...existingData, artworkDegraded: false };
+    }
     const upgrades = await tracked("upgrades", () =>
       safeResult(
         () => window.repoditor.upgrades.prepareEntry(saveId, [...requiredUpgradeVisualKeys]),
         "The upgrade bridge failed unexpectedly.",
       ),
     );
-    return { ...existingData, upgrades };
+    return { ...existingData, artworkDegraded: await currentArtworkDegraded(), upgrades };
   }
 
   const playersPromise = tracked("players", () =>
@@ -146,8 +157,13 @@ export async function prepareRunEntryData({
   const avatarUrlsPromise = playersPromise.then((players) =>
     tracked("avatars", () => loadAvatarUrls(saveId, players)),
   );
+  const artworkDegradedPromise =
+    presentationReadiness === "ready"
+      ? Promise.resolve(false)
+      : upgradesPromise.then(currentArtworkDegraded);
 
-  const [players, avatarUrls, upgrades, run, items, mapData] = await Promise.all([
+  const [artworkDegraded, players, avatarUrls, upgrades, run, items, mapData] = await Promise.all([
+    artworkDegradedPromise,
     playersPromise,
     avatarUrlsPromise,
     upgradesPromise,
@@ -157,6 +173,7 @@ export async function prepareRunEntryData({
   ]);
 
   return {
+    artworkDegraded,
     players,
     avatarUrls,
     upgrades,

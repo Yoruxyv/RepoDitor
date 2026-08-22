@@ -317,6 +317,7 @@ export const id: Record<keyof typeof en, string> = {
     "Build yang terpasang tidak dapat diverifikasi; ikon bawaan akan digunakan.",
   "assets.notice.partial":
     "Sebagian gambar lokal tidak dapat disiapkan; ikon bawaan akan digunakan bila diperlukan.",
+  "assets.notice.dismiss": "Tutup peringatan gambar",
   "assets.notice.preparingTitle": "Gambar game masih disiapkan.",
   "assets.notice.preparing": "Persiapan latar belakang berlanjut · {progress}.",
   "safety.label": "Keamanan save",

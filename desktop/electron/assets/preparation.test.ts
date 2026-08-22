@@ -330,6 +330,9 @@ describe("AssetPreparationService", () => {
       total: 2,
       degraded: true,
     });
+    await expect(
+      service.checkUpgradeVisualReadiness(visuals.map((visual) => visual.upgradeKey)),
+    ).resolves.toBe("unresolved");
 
     await service.prepareUpgradeVisuals(visuals);
     expect(fakeClient.runRecords).toHaveBeenCalledTimes(1);

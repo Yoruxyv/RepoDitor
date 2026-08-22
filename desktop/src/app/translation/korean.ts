@@ -315,6 +315,7 @@ export const ko: Record<keyof typeof en, string> = {
   "assets.notice.buildUnverified": "설치된 빌드를 검증할 수 없어 내장 아이콘을 사용합니다.",
   "assets.notice.partial":
     "일부 로컬 이미지를 준비하지 못했습니다. 필요한 곳에서는 내장 아이콘을 사용합니다.",
+  "assets.notice.dismiss": "이미지 경고 닫기",
   "assets.notice.preparingTitle": "게임 이미지를 계속 준비하고 있습니다.",
   "assets.notice.preparing": "백그라운드 준비 계속 · {progress}.",
   "safety.label": "세이브 안전",
