@@ -15,9 +15,14 @@ class SaveCryptoError(ValueError):
     """Raised when a save cannot be decrypted, decoded, or encoded."""
 
 
-# ES3 compatibility contract: these values reproduce the game-owned save
-# container. They are not RepoDitor security choices; changing them would make
-# existing R.E.P.O. saves unreadable.
+# R.E.P.O./ES3 compatibility contract.
+#
+# These values reproduce the observed R.E.P.O./ES3 save container; they are not
+# RepoDitor cryptographic design choices. ES3_PASSWORD is format compatibility
+# material, not a user credential or application secret. PBKDF2-HMAC-SHA1/100,
+# AES-CBC, and PKCS#7 must remain exact or existing saves will no longer decrypt
+# and newly written saves will not match the observed format. See SECURITY.md
+# and the known compatibility vector in tests/core/test_crypto.py.
 ES3_PASSWORD = "Why would you want to cheat?... :o It's no fun. :') :'D"
 ES3_COMPAT_IV_SIZE_BYTES = 16
 ES3_COMPAT_PBKDF2_HASH = "sha1"
@@ -27,6 +32,7 @@ ES3_COMPAT_AES_BLOCK_SIZE_BITS = 128
 
 
 def _derive_key(password: bytes, iv: bytes) -> bytes:
+    # The low iteration count is format-defined; changing it derives a different key.
     return hashlib.pbkdf2_hmac(
         ES3_COMPAT_PBKDF2_HASH,
         password,
@@ -57,6 +63,7 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
     key = _derive_key(ES3_PASSWORD.encode("utf-8"), iv)
 
     try:
+        # CBC is format-defined here; this compatibility path does not add authentication.
         decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
         padded = decryptor.update(ciphertext) + decryptor.finalize()
 
@@ -104,6 +111,7 @@ def encrypt_save(data: dict[str, Any]) -> bytes:
     padder = PKCS7(ES3_COMPAT_AES_BLOCK_SIZE_BITS).padder()
     padded = padder.update(plaintext) + padder.finalize()
 
+    # AES-CBC + PKCS#7 reproduce the observed ES3 container and must remain exact.
     encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
     ciphertext = encryptor.update(padded) + encryptor.finalize()
 

@@ -70,9 +70,16 @@ RepoDitor's supported boundary requires:
 - The application edits a game-owned format that may change without notice.
 - Advanced item and purchase data remains read-only except for the evidence-backed exact-instance
   **Refill to Full** action. Arbitrary charge values and other item mutations remain unsupported.
-- ES3 saves use game-defined PBKDF2-HMAC-SHA1, 100 iterations, AES-CBC, and PKCS#7 padding.
-  RepoDitor preserves these parameters solely for save compatibility; they are not used to protect
-  RepoDitor credentials, network traffic, or application secrets.
+- Observed R.E.P.O./ES3 saves use PBKDF2-HMAC-SHA1 with exactly 100 iterations, a 16-byte AES key,
+  AES-CBC, a 16-byte IV, and PKCS#7 padding. The fixed ES3 password used as PBKDF2 input is format
+  compatibility material, not a RepoDitor user credential, account credential, API secret, or
+  application secret. It is an observed compatibility parameter supplied to key derivation, not
+  something extracted from each `.es3` save. These parameters are compatibility requirements, not
+  recommendations for new security-sensitive cryptographic systems. Raising the PBKDF2 iteration
+  count, replacing CBC with GCM, changing the padding, or otherwise modernizing the scheme would
+  derive a different key or emit an incompatible container. AES-CBC does not provide authentication,
+  and RepoDitor does not claim that the ES3 format is authenticated. The known byte-for-byte vector
+  in `tests/core/test_crypto.py` intentionally locks this behavior against accidental format drift.
 - A user or process with control of the trusted Windows account can already read
   or replace files accessible to that account.
 
@@ -80,8 +87,9 @@ RepoDitor's supported boundary requires:
 
 Please avoid reports based only on game bugs, cheating or multiplayer policy,
 unproven save-mechanic assumptions, the documented unsigned-installer warning,
-scanner findings that only restate the documented ES3 compatibility parameters,
-dependency scanner output without reproducible impact, attacks requiring control
+scanner findings that only restate the documented ES3 compatibility parameters
+without identifying a RepoDitor-specific implementation defect, dependency scanner
+output without reproducible impact, attacks requiring control
 of the trusted host, or unauthorized testing against R.E.P.O., Steam, GitHub, or
 other third-party infrastructure.
 

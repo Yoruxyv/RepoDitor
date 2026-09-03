@@ -18,6 +18,8 @@ def test_crypto_round_trip(sample_save):
 
 
 def test_known_es3_compatibility_vector():
+    # Intentionally locks the compatibility password, PBKDF2 parameters, AES-CBC,
+    # PKCS#7, IV handling, and serialized bytes against format drift.
     assert decrypt_save(COMPATIBILITY_VECTOR) == COMPATIBILITY_DATA
 
     with patch("repo_save_editor.core.crypto.os.urandom", return_value=bytes(range(16))):
