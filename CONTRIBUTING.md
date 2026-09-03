@@ -101,6 +101,29 @@ redesign and corresponding source/tests; do not bypass or weaken the five-locale
 invariant as part of a translation-only change. Keep the existing fixed locale
 order and each language's native label.
 
+### Language selector assets
+
+Language-selector flags are bundled SVG assets under
+`desktop/src/assets/flags/`; they are not Unicode flag emoji and are not
+downloaded at runtime.
+
+Treat flags as decorative visual cues rather than the identity of a locale.
+The language name remains the canonical and accessible identity of each option.
+Flag images should remain hidden from assistive technology (`alt=""` and
+`aria-hidden="true"`).
+
+Country names may be used as limited search aliases where helpful, but they must
+not replace the canonical language name. For example, Japan may help users find
+Japanese, but the locale represents the Japanese language rather than the
+country of Japan.
+
+When a future selector redesign permits an additional locale:
+
+- add its flag as a bundled SVG asset rather than a platform-dependent emoji;
+- register the asset through the language-selector metadata;
+- preserve an appropriate native/endonym language label;
+- document the source and license of any externally sourced new asset.
+
 For translation-only changes, run the following from the repository root:
 
 ```powershell
