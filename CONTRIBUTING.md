@@ -73,14 +73,13 @@ When translating:
 - Keep corrections to existing translations focused when practical so they are
   easier to review.
 
-### Current five-language UI limit
+### Language selector capacity
 
-The existing language dropdown supports at most **5 registered locales** and
-RepoDitor already ships five: English, Japanese, Korean, Simplified Chinese, and
-Indonesian. A pull request that introduces a sixth language must also redesign
-the language selector so more than five entries cannot overflow, then update the
-corresponding source invariant and tests. Do not add a sixth locale by removing,
-bypassing, or weakening the guard without solving the menu layout problem.
+The language dropdown keeps at most **5 locale rows visible at once**. Additional
+registered locales remain available through vertical scrolling; do not truncate or
+hide them with array slicing. Keep locale ordering stable and use each language's
+native label in the selector. When changing selector behavior, preserve keyboard
+navigation, focus movement, and access to off-screen options.
 
 For translation-only changes, run the following from the repository root:
 
