@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +28,48 @@ describe("cosmetics workspace integration", () => {
     await user.click(screen.getByRole("button", { name: "Run Saves" }));
     await user.click(screen.getByRole("button", { name: "Cosmetics" }));
     await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a staged edit bound to the MetaSave fingerprint it was created from", async () => {
+    const getCosmetics = vi.mocked(window.repoditor.cosmetics.get);
+    const cosmeticWrite = vi.mocked(window.repoditor.cosmetics.write);
+    const refreshed = structuredClone(cosmetics);
+    refreshed.fingerprint = "d".repeat(64);
+    refreshed.savedPresetCount = 4;
+
+    let resolveReload!: (value: { ok: true; data: typeof cosmetics }) => void;
+    const reload = new Promise<{ ok: true; data: typeof cosmetics }>((resolve) => {
+      resolveReload = resolve;
+    });
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await screen.findByRole("heading", { name: "Cosmetics" });
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+
+    getCosmetics.mockReturnValueOnce(reload);
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(getCosmetics).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole("button", { name: "Unlock Installed Cosmetic 28" }));
+
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
+
+    await act(async () => {
+      resolveReload({ ok: true, data: refreshed });
+      await reload;
+    });
+
+    expect(screen.getByText("Saved presets").nextElementSibling?.textContent).toBe("0");
+    expect(screen.getByTestId("cosmetics-pending-edit-count").textContent).toBe("1 pending change");
+
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    expect(cosmeticWrite).toHaveBeenCalledWith(cosmetics.fingerprint, [
+      { feature: "cosmetics", entity: "28", field: "owned", after: true },
+    ]);
   });
 
   it("does not expose a manual MetaSave Refresh control", async () => {

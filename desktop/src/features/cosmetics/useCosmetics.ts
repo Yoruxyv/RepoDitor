@@ -85,14 +85,18 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   const wasActive = useRef(false);
   const seenRecoveryGeneration = useRef(recoveryGeneration);
   const writeInFlight = useRef(false);
+  const pendingSourceFingerprint = useRef<string | null>(null);
+  const pendingRevision = useRef(0);
 
   const load = useCallback(async () => {
+    if (pendingSourceFingerprint.current !== null) return;
+    const revision = pendingRevision.current;
     if (mounted.current) {
       setState((current) => ({ ...current, loadError: null, loading: current.view === null }));
     }
     try {
       const result = await window.repoditor.cosmetics.get();
-      if (mounted.current) {
+      if (mounted.current && pendingRevision.current === revision) {
         setState(
           result.ok
             ? { view: result.data, loadError: null, loading: false }
@@ -100,7 +104,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
         );
       }
     } catch {
-      if (mounted.current) {
+      if (mounted.current && pendingRevision.current === revision) {
         setState({
           view: null,
           loadError: "error.service",
@@ -134,8 +138,17 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
     if (recovered && active && !hasPending) void load();
   }, [active, hasPending, load, recoveryGeneration]);
 
+  function capturePendingSource(): void {
+    if (!state.view) return;
+    if (pendingSourceFingerprint.current === null) {
+      pendingSourceFingerprint.current = state.view.fingerprint;
+    }
+    pendingRevision.current += 1;
+  }
+
   function unlockAll(): void {
     if (!state.view || state.view.knownLockedCount === 0 || hasPending) return;
+    capturePendingSource();
     setPendingEdits([
       {
         feature: "cosmetics",
@@ -157,6 +170,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   function lockAll(): void {
     if (!state.view || state.view.knownOwnedCount === 0 || lockAllBlockedReason || hasPending)
       return;
+    capturePendingSource();
     setPendingEdits([
       {
         feature: "cosmetics",
@@ -172,6 +186,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
 
   function clearAllPresets(): void {
     if (!state.view || state.view.savedPresetCount === 0 || hasPending) return;
+    capturePendingSource();
     setPendingEdits([
       {
         feature: "cosmetics",
@@ -205,6 +220,7 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
       return;
     }
 
+    capturePendingSource();
     const entity = String(cosmetic.id);
     const edit: CosmeticOwnershipEdit = {
       feature: "cosmetics",
@@ -227,6 +243,8 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   }
 
   function revertAll(): void {
+    pendingSourceFingerprint.current = null;
+    pendingRevision.current += 1;
     setPendingEdits([]);
   }
 
@@ -249,14 +267,22 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   );
 
   async function save(): Promise<boolean> {
-    if (!state.view || pendingEdits.length === 0 || writeInFlight.current) return false;
+    const sourceFingerprint = pendingSourceFingerprint.current;
+    if (
+      !state.view ||
+      pendingEdits.length === 0 ||
+      sourceFingerprint === null ||
+      writeInFlight.current
+    ) {
+      return false;
+    }
     writeInFlight.current = true;
     setSaving(true);
     setWriteError(null);
     setBackupPath(null);
     try {
       const result = await window.repoditor.cosmetics.write(
-        state.view.fingerprint,
+        sourceFingerprint,
         pendingEdits.map(toCosmeticChange),
       );
       if (!result.ok) {
