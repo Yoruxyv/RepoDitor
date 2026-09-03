@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isLocale, SUPPORTED_LOCALES, TRANSLATIONS } from "@/app/i18n";
+import { isLocale, MAX_SUPPORTED_LOCALES, SUPPORTED_LOCALES, TRANSLATIONS } from "@/app/i18n";
 
 describe("i18n facade", () => {
   it("keeps every locale aligned with the English dictionary", () => {
@@ -19,5 +19,11 @@ describe("i18n facade", () => {
     expect(isLocale("zh")).toBe(false);
     expect(isLocale("fr")).toBe(false);
     expect(isLocale(null)).toBe(false);
+  });
+
+  it("keeps the locale registry within the current five-language selector invariant", () => {
+    expect(MAX_SUPPORTED_LOCALES).toBe(5);
+    expect(SUPPORTED_LOCALES).toEqual(["en", "ja", "ko", "zh-CN", "id"]);
+    expect(SUPPORTED_LOCALES).toHaveLength(MAX_SUPPORTED_LOCALES);
   });
 });

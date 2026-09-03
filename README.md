@@ -241,6 +241,8 @@ The RepoDitor-owned interface is available in:
 - Simplified Chinese (中文)
 - Indonesian (Bahasa Indonesia)
 
+Japanese and Korean translations were initially prepared with AI assistance and have not yet received complete native/fluent-speaker review. Fluent and native-speaker corrections are welcome.
+
 Game-owned strings—such as player names, item names, map names, and values read
 from saves—remain unchanged. The interface also respects reduced-motion
 preferences; its local interaction sound is decorative and not required to

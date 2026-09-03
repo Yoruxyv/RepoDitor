@@ -15,6 +15,8 @@ export type TranslationKey = keyof typeof en;
 export type TranslationValues = Readonly<Record<string, string | number>>;
 export type Translate = (key: TranslationKey, values?: TranslationValues) => string;
 
+/** Current compact LanguageMenu capacity; adding a locale requires a selector redesign. */
+export const MAX_SUPPORTED_LOCALES = 5;
 export const SUPPORTED_LOCALES = ["en", "ja", "ko", "zh-CN", "id"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 

@@ -73,13 +73,33 @@ When translating:
 - Keep corrections to existing translations focused when practical so they are
   easier to review.
 
+### Translation quality and review
+
+The current Japanese and Korean translations were initially prepared with AI
+assistance and have not yet received complete native/fluent-speaker review. Treat
+them as community-reviewable translations rather than native-verified,
+authoritative wording. Fluent and native-speaker corrections are especially
+welcome.
+
+AI or machine assistance is not automatically prohibited for future translation
+work, but significant machine/AI assistance should be disclosed in the pull
+request. Contributors remain responsible for reviewing what they submit. In
+particular:
+
+- Safety warnings, destructive confirmations, errors, and save-safety terminology
+  must preserve their meaning accurately.
+- Prefer natural target-language phrasing over literal word-for-word English
+  structure.
+- Keep translation-improvement pull requests focused where practical so wording
+  changes remain easy to review.
+
 ### Language selector capacity
 
-The language dropdown keeps at most **5 locale rows visible at once**. Additional
-registered locales remain available through vertical scrolling; do not truncate or
-hide them with array slicing. Keep locale ordering stable and use each language's
-native label in the selector. When changing selector behavior, preserve keyboard
-navigation, focus movement, and access to off-screen options.
+RepoDitor currently ships exactly **5 registered locales**, matching the compact
+language selector's maximum. Adding a sixth locale requires a deliberate selector
+redesign and corresponding source/tests; do not bypass or weaken the five-locale
+invariant as part of a translation-only change. Keep the existing fixed locale
+order and each language's native label.
 
 For translation-only changes, run the following from the repository root:
 
