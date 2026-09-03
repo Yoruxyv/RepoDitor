@@ -21,7 +21,7 @@ export const en = {
   "language.en": "English",
   "language.ja": "Japanese",
   "language.ko": "Korean",
-  "language.zh": "Chinese",
+  "language.zh-CN": "Chinese",
   "language.id": "Indonesian",
   "action.tryAgain": "Try again",
   "action.refresh": "Refresh",

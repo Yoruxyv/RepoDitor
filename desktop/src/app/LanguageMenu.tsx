@@ -8,7 +8,7 @@ import {
   utilityMenuItemStateClassName,
   utilityTriggerClassName,
 } from "@/app/utilityMenuStyles";
-import type { Locale } from "@/app/translations";
+import { MAX_SUPPORTED_LOCALES, type Locale } from "@/app/i18n";
 import chinaFlag from "@/assets/flags/china.svg?no-inline";
 import indonesiaFlag from "@/assets/flags/indonesia.svg?no-inline";
 import japanFlag from "@/assets/flags/japan.svg?no-inline";
@@ -19,9 +19,15 @@ const LANGUAGES = [
   { locale: "en", flag: unitedStatesFlag, label: "English" },
   { locale: "ja", flag: japanFlag, label: "日本語" },
   { locale: "ko", flag: southKoreaFlag, label: "한국어" },
-  { locale: "zh", flag: chinaFlag, label: "中文" },
+  { locale: "zh-CN", flag: chinaFlag, label: "中文" },
   { locale: "id", flag: indonesiaFlag, label: "Bahasa Indonesia" },
 ] as const satisfies ReadonlyArray<{ locale: Locale; flag: string; label: string }>;
+
+if (LANGUAGES.length > MAX_SUPPORTED_LOCALES) {
+  throw new Error(
+    `LanguageMenu supports at most ${MAX_SUPPORTED_LOCALES} locales without a layout redesign.`,
+  );
+}
 
 function LanguageFlag({ src }: { readonly src: string }) {
   return (

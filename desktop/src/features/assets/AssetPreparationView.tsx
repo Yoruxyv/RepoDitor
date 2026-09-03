@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import type { Translate, TranslationKey } from "@/app/translations";
+import type { Translate, TranslationKey } from "@/app/i18n";
 
 const SEGMENT_COUNT = 18;
 const PROGRESS_REVEAL_DELAY_MS = 500;

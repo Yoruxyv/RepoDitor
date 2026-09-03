@@ -3,7 +3,7 @@ import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 import type { EnvironmentDiscovery } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type Translate } from "@/app/translations";
+import { operationErrorKey, type Translate } from "@/app/i18n";
 import { formatSaveCount } from "@/features/discovery/formatters";
 import type { EnvironmentDiscoveryController } from "@/features/discovery/useEnvironmentDiscovery";
 import { DiscoveryFailure, DiscoveryState } from "./DiscoveryState";

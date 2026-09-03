@@ -1,5 +1,5 @@
 /** Japanese translations constrained to the canonical English UI key set. */
-import type { en } from "./english";
+import type { en } from "./en";
 
 export const ja: Record<keyof typeof en, string> = {
   "app.skipToContent": "コンテンツへ移動",
@@ -23,7 +23,7 @@ export const ja: Record<keyof typeof en, string> = {
   "language.en": "英語",
   "language.ja": "日本語",
   "language.ko": "韓国語",
-  "language.zh": "中国語",
+  "language.zh-CN": "中国語",
   "language.id": "インドネシア語",
   "action.tryAgain": "再試行",
   "action.refresh": "更新",

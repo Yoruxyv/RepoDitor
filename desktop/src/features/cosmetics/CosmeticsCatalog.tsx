@@ -12,7 +12,7 @@ import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
 import { usePreferences } from "@/app/preferences";
-import type { Translate } from "@/app/translations";
+import type { Translate } from "@/app/i18n";
 
 interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;

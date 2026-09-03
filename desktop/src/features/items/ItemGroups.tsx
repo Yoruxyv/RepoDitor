@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 
 import type { AdvancedItemDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import type { Translate } from "@/app/translations";
+import type { Translate } from "@/app/i18n";
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";

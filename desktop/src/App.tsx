@@ -13,7 +13,7 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { usePreferences } from "@/app/preferences";
 import { useUiSound } from "@/app/useUiSound";
 import { UtilityCluster } from "@/app/UtilityCluster";
-import type { Translate, TranslationKey } from "@/app/translations";
+import type { Translate, TranslationKey } from "@/app/i18n";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { useAssetPreparation } from "@/features/assets/useAssetPreparation";
 import { CosmeticsWorkspace } from "@/features/cosmetics/CosmeticsWorkspace";

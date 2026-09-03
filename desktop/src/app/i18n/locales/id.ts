@@ -1,5 +1,5 @@
 /** Indonesian translations constrained to the canonical English UI key set. */
-import type { en } from "./english";
+import type { en } from "./en";
 
 export const id: Record<keyof typeof en, string> = {
   "app.skipToContent": "Lewati ke konten",
@@ -23,7 +23,7 @@ export const id: Record<keyof typeof en, string> = {
   "language.en": "Inggris",
   "language.ja": "Jepang",
   "language.ko": "Korea",
-  "language.zh": "Tionghoa",
+  "language.zh-CN": "Tionghoa",
   "language.id": "Indonesia",
   "action.tryAgain": "Coba lagi",
   "action.refresh": "Segarkan",

@@ -1,5 +1,5 @@
 /** Korean translations constrained to the canonical English UI key set. */
-import type { en } from "./english";
+import type { en } from "./en";
 
 export const ko: Record<keyof typeof en, string> = {
   "app.skipToContent": "콘텐츠로 건너뛰기",
@@ -23,7 +23,7 @@ export const ko: Record<keyof typeof en, string> = {
   "language.en": "영어",
   "language.ja": "일본어",
   "language.ko": "한국어",
-  "language.zh": "중국어",
+  "language.zh-CN": "중국어",
   "language.id": "인도네시아어",
   "action.tryAgain": "다시 시도",
   "action.refresh": "새로 고침",

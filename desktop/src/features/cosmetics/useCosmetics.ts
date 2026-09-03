@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CosmeticsViewDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type TranslationKey } from "@/app/translations";
+import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import {
   toCosmeticChange,
   type CosmeticClearAllPresetsEdit,

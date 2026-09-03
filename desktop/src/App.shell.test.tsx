@@ -9,7 +9,7 @@ import type {
   PlayerUpgradeDto,
 } from "@electron/contracts";
 import App from "@/App";
-import { TRANSLATIONS, type Locale } from "@/app/translations";
+import { TRANSLATIONS, type Locale } from "@/app/i18n";
 import {
   createRepoDitorApi as bridge,
   advanced,
@@ -33,7 +33,7 @@ const localeCases: ReadonlyArray<readonly [Locale, string]> = [
   ["en", "English"],
   ["ja", "日本語"],
   ["ko", "한국어"],
-  ["zh", "中文"],
+  ["zh-CN", "中文"],
   ["id", "Bahasa Indonesia"],
 ];
 
