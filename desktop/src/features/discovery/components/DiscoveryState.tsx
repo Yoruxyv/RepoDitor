@@ -8,7 +8,7 @@ import {
 
 import type { DesktopOperationError, SaveRootStatus } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type Translate } from "@/app/translations";
+import { operationErrorKey, type Translate } from "@/app/i18n";
 
 interface DiscoveryStateProps {
   readonly status: SaveRootStatus;

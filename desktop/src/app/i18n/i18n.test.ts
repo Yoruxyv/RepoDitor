@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { isLocale, SUPPORTED_LOCALES, TRANSLATIONS } from "@/app/translations";
+import { isLocale, SUPPORTED_LOCALES, TRANSLATIONS } from "@/app/i18n";
 
-describe("translations facade", () => {
+describe("i18n facade", () => {
   it("keeps every locale aligned with the English dictionary", () => {
     const englishKeys = Object.keys(TRANSLATIONS.en);
 
@@ -11,8 +11,12 @@ describe("translations facade", () => {
     }
   });
 
-  it("recognizes only supported locale preferences", () => {
-    expect(isLocale("ja")).toBe(true);
+  it("recognizes only canonical supported locale preferences", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(isLocale(locale)).toBe(true);
+    }
+    expect(isLocale("zh-CN")).toBe(true);
+    expect(isLocale("zh")).toBe(false);
     expect(isLocale("fr")).toBe(false);
     expect(isLocale(null)).toBe(false);
   });

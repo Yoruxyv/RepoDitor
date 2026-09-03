@@ -8,7 +8,7 @@ import type {
   SaveCanonicalAdvanced,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type TranslationKey } from "@/app/translations";
+import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
 
 interface State {

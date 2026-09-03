@@ -13,7 +13,7 @@ import {
   type Locale,
   type TranslationKey,
   type TranslationValues,
-} from "@/app/translations";
+} from "@/app/i18n";
 
 const THEME_STORAGE_KEY = "repoditor.theme";
 const LOCALE_STORAGE_KEY = "repoditor.locale";
@@ -31,6 +31,8 @@ function readTheme(): ThemePreference {
 function readLocale(): Locale {
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+    // Migrate the legacy Simplified Chinese preference to its canonical locale ID.
+    if (stored === "zh") return "zh-CN";
     return isLocale(stored) ? stored : "en";
   } catch {
     return "en";

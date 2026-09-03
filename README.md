@@ -238,7 +238,7 @@ The RepoDitor-owned interface is available in:
 - English
 - Japanese (日本語)
 - Korean (한국어)
-- Chinese (中文)
+- Simplified Chinese (中文)
 - Indonesian (Bahasa Indonesia)
 
 Game-owned strings—such as player names, item names, map names, and values read

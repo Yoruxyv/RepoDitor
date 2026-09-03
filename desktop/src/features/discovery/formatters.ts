@@ -1,5 +1,5 @@
 /** Locale-aware formatting for already-sanitized save discovery metadata. */
-import type { Locale, TranslationValues, TranslationKey } from "@/app/translations";
+import type { Locale, TranslationValues, TranslationKey } from "@/app/i18n";
 
 type Translate = (key: TranslationKey, values?: TranslationValues) => string;
 
@@ -7,7 +7,7 @@ const INTL_LOCALES: Record<Locale, string> = {
   en: "en-US",
   ja: "ja-JP",
   ko: "ko-KR",
-  zh: "zh-CN",
+  "zh-CN": "zh-CN",
   id: "id-ID",
 };
 

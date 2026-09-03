@@ -1,7 +1,7 @@
 /** Stable preference context contract used by theme, locale, and utility controls. */
 import { createContext, useContext } from "react";
 
-import type { Locale, Translate } from "@/app/translations";
+import type { Locale, Translate } from "@/app/i18n";
 
 export type ThemePreference = "dark" | "light" | "system";
 export type ResolvedTheme = Exclude<ThemePreference, "system">;

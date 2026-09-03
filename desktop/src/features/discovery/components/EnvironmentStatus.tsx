@@ -14,7 +14,7 @@ import type {
   SaveRootStatus,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import type { Translate } from "@/app/translations";
+import type { Translate } from "@/app/i18n";
 import { formatSaveCount } from "@/features/discovery/formatters";
 
 type StatusTone = "success" | "warning" | "danger";

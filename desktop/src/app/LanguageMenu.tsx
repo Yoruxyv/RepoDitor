@@ -8,7 +8,7 @@ import {
   utilityMenuItemStateClassName,
   utilityTriggerClassName,
 } from "@/app/utilityMenuStyles";
-import type { Locale } from "@/app/translations";
+import type { Locale } from "@/app/i18n";
 import chinaFlag from "@/assets/flags/china.svg?no-inline";
 import indonesiaFlag from "@/assets/flags/indonesia.svg?no-inline";
 import japanFlag from "@/assets/flags/japan.svg?no-inline";
@@ -19,9 +19,15 @@ const LANGUAGES = [
   { locale: "en", flag: unitedStatesFlag, label: "English" },
   { locale: "ja", flag: japanFlag, label: "日本語" },
   { locale: "ko", flag: southKoreaFlag, label: "한국어" },
-  { locale: "zh", flag: chinaFlag, label: "中文" },
+  { locale: "zh-CN", flag: chinaFlag, label: "中文" },
   { locale: "id", flag: indonesiaFlag, label: "Bahasa Indonesia" },
 ] as const satisfies ReadonlyArray<{ locale: Locale; flag: string; label: string }>;
+
+/** Keep the dropdown compact while allowing the registered locale set to grow. */
+export const MAX_VISIBLE_LOCALES = 5;
+const LANGUAGE_OPTION_HEIGHT_REM = 2.25;
+const LANGUAGE_MENU_MAX_HEIGHT_REM = MAX_VISIBLE_LOCALES * LANGUAGE_OPTION_HEIGHT_REM;
+const LANGUAGE_MENU_SCROLLABLE = LANGUAGES.length > MAX_VISIBLE_LOCALES;
 
 function LanguageFlag({ src }: { readonly src: string }) {
   return (
@@ -144,44 +150,55 @@ export function LanguageMenu() {
       {open ? (
         <>
           {/* Native select popups cannot honor RepoDitor's dark/light surface tokens. */}
-          {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
           <div
-            aria-label={t("utility.language")}
             className={`${menuSurfaceClassName} absolute right-0 z-30 mt-1.5 min-w-60 overflow-hidden`}
-            id={listboxId}
-            role="listbox"
           >
-            {LANGUAGES.map((language, index) => {
-              const selected = language.locale === locale;
-              return (
-                <div key={language.locale}>
-                  {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
-                  <button
-                    ref={(element) => {
-                      options.current[index] = element;
-                    }}
-                    aria-selected={selected}
-                    className={`ui-feedback grid w-full grid-cols-[1rem_1.25rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${utilityMenuItemStateClassName(selected, index === activeIndex)}`}
-                    role="option"
-                    tabIndex={index === activeIndex ? 0 : -1}
-                    type="button"
-                    onClick={() => selectLanguage(language.locale)}
-                    onKeyDown={(event) => moveOption(event, index)}
-                  >
-                    <CheckIcon
-                      aria-hidden="true"
-                      className={selected ? "opacity-100" : "opacity-0"}
-                      size={14}
-                      weight="bold"
-                    />
-                    <LanguageFlag src={language.flag} />
-                    <span className="whitespace-nowrap" lang={language.locale}>
-                      {language.label}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
+            {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+            <div
+              aria-label={t("utility.language")}
+              className={
+                LANGUAGE_MENU_SCROLLABLE ? "language-menu-scrollbar overflow-y-auto" : undefined
+              }
+              id={listboxId}
+              role="listbox"
+              style={
+                LANGUAGE_MENU_SCROLLABLE
+                  ? { maxHeight: `${LANGUAGE_MENU_MAX_HEIGHT_REM}rem` }
+                  : undefined
+              }
+            >
+              {LANGUAGES.map((language, index) => {
+                const selected = language.locale === locale;
+                return (
+                  <div key={language.locale}>
+                    {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+                    <button
+                      ref={(element) => {
+                        options.current[index] = element;
+                      }}
+                      aria-selected={selected}
+                      className={`ui-feedback grid h-9 w-full grid-cols-[1rem_1.25rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm font-semibold ${utilityMenuItemStateClassName(selected, index === activeIndex)}`}
+                      role="option"
+                      tabIndex={index === activeIndex ? 0 : -1}
+                      type="button"
+                      onClick={() => selectLanguage(language.locale)}
+                      onKeyDown={(event) => moveOption(event, index)}
+                    >
+                      <CheckIcon
+                        aria-hidden="true"
+                        className={selected ? "opacity-100" : "opacity-0"}
+                        size={14}
+                        weight="bold"
+                      />
+                      <LanguageFlag src={language.flag} />
+                      <span className="whitespace-nowrap" lang={language.locale}>
+                        {language.label}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </>
       ) : null}

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { LanguageMenu } from "@/app/LanguageMenu";
+import { LanguageMenu, MAX_VISIBLE_LOCALES } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 
 function renderMenu() {
@@ -30,7 +30,11 @@ describe("LanguageMenu", () => {
     expect(screen.getByRole("option", { name: "English" }).getAttribute("aria-selected")).toBe(
       "true",
     );
-    for (const name of ["English", "日本語", "한국어", "中文", "Bahasa Indonesia"]) {
+    const expectedLabels = ["English", "日本語", "한국어", "中文", "Bahasa Indonesia"];
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(
+      expectedLabels,
+    );
+    for (const name of expectedLabels) {
       const option = screen.getByRole("option", { name });
       expect(option.textContent).toBe(name);
       expect(option.querySelector("img")?.getAttribute("src")).toBeTruthy();
@@ -46,6 +50,16 @@ describe("LanguageMenu", () => {
     unmount();
     renderMenu();
     expect(screen.getByRole("button", { name: "言語: 日本語" })).toBeTruthy();
+  });
+
+  it("migrates a persisted legacy Chinese locale to zh-CN", () => {
+    localStorage.setItem("repoditor.locale", "zh");
+
+    renderMenu();
+
+    expect(screen.getByRole("button", { name: "语言: 中文" })).toBeTruthy();
+    expect(document.documentElement.lang).toBe("zh-CN");
+    expect(localStorage.getItem("repoditor.locale")).toBe("zh-CN");
   });
 
   it("supports arrow navigation, Space selection, and Escape focus restoration", async () => {
@@ -75,5 +89,18 @@ describe("LanguageMenu", () => {
 
     expect(localStorage.getItem("repoditor.locale")).toBe("id");
     expect(screen.getByRole("button", { name: "Bahasa: Bahasa Indonesia" })).toBeTruthy();
+  });
+  it("only enables scrolling when locale count exceeds the visible-row limit", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Language: English" }));
+
+    const listbox = screen.getByRole("listbox", { name: "Language" });
+    const shouldScroll = screen.getAllByRole("option").length > MAX_VISIBLE_LOCALES;
+
+    expect(listbox.className.includes("overflow-y-auto")).toBe(shouldScroll);
+    expect(listbox.className.includes("language-menu-scrollbar")).toBe(shouldScroll);
+    expect(Boolean(listbox.style.maxHeight)).toBe(shouldScroll);
   });
 });

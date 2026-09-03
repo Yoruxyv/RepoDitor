@@ -1,7 +1,7 @@
-/** Chinese translations constrained to the canonical English UI key set. */
-import type { en } from "./english";
+/** Simplified Chinese translations constrained to the canonical English UI key set. */
+import type { en } from "./en";
 
-export const zh: Record<keyof typeof en, string> = {
+export const zhCN: Record<keyof typeof en, string> = {
   "app.skipToContent": "跳转到内容",
   "app.tagline": "R.E.P.O. 存档工具",
   "app.localDesktop": "本地桌面",
@@ -23,7 +23,7 @@ export const zh: Record<keyof typeof en, string> = {
   "language.en": "英语",
   "language.ja": "日语",
   "language.ko": "韩语",
-  "language.zh": "中文",
+  "language.zh-CN": "中文",
   "language.id": "印度尼西亚语",
   "action.tryAgain": "重试",
   "action.refresh": "刷新",

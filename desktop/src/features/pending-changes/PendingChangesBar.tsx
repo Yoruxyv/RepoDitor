@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
-import type { Translate } from "@/app/translations";
+import type { Translate } from "@/app/i18n";
 import type { PendingEdit } from "@/features/pending-changes/pendingEdits";
 
 interface PendingChangesBarProps {

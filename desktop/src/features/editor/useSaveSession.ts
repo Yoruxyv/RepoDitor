@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 
 import type { SaveChange, SaveOpenResult, SaveSession, SaveWriteResult } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type TranslationKey } from "@/app/translations";
+import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 /**
  * Own one Run-save session without exposing decrypted data to the renderer.

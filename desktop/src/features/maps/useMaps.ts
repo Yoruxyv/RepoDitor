@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DesktopOperationResult, InstalledMapsDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { operationErrorKey, type TranslationKey } from "@/app/translations";
+import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 interface State {
   discovery: InstalledMapsDto | null;

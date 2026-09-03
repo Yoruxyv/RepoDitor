@@ -5,17 +5,17 @@
  * Game-derived names and save values remain opaque data and are never translated here.
  */
 import type { DesktopOperationErrorCode } from "@electron/contracts";
-import { zh } from "@/app/translation/chinese";
-import { en } from "@/app/translation/english";
-import { id } from "@/app/translation/indonesian";
-import { ja } from "@/app/translation/japanese";
-import { ko } from "@/app/translation/korean";
+import { zhCN } from "@/app/i18n/locales/zh-CN";
+import { en } from "@/app/i18n/locales/en";
+import { id } from "@/app/i18n/locales/id";
+import { ja } from "@/app/i18n/locales/ja";
+import { ko } from "@/app/i18n/locales/ko";
 
 export type TranslationKey = keyof typeof en;
 export type TranslationValues = Readonly<Record<string, string | number>>;
 export type Translate = (key: TranslationKey, values?: TranslationValues) => string;
 
-export const SUPPORTED_LOCALES = ["en", "ja", "ko", "zh", "id"] as const;
+export const SUPPORTED_LOCALES = ["en", "ja", "ko", "zh-CN", "id"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 /**
@@ -32,7 +32,7 @@ export const TRANSLATIONS: Record<Locale, Record<TranslationKey, string>> = {
   en,
   ja,
   ko,
-  zh,
+  "zh-CN": zhCN,
   id,
 };
 

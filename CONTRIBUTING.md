@@ -40,6 +40,60 @@ When adding a feature, document its local service/adapter/hook or view modules
 and update shared architecture documentation only if a cross-layer boundary or
 project-wide invariant actually changed.
 
+## Translations
+
+RepoDitor welcomes focused improvements to existing translations. English is the
+canonical source catalog for RepoDitor-owned interface text.
+
+Locale files live under:
+
+```text
+desktop/src/app/i18n/locales/
+```
+
+Locale filenames use locale/BCP-47-style identifiers. Examples include `en.ts`,
+`ja.ts`, `id.ts`, `pt-BR.ts`, and `zh-CN.ts`; an example filename does not mean
+that locale is currently shipped. Use `en.ts` as the source of required keys and
+provide every translation key in the target locale.
+
+When translating:
+
+- Preserve placeholders exactly, including braces and names such as `{count}`,
+  `{label}`, `{before}`, and `{after}`.
+- Translate RepoDitor-owned UI text only. Do not translate game-owned or
+  generated data through this i18n layer, including player names, Steam
+  identities, game-provided item names, cosmetic names, upgrade names, map
+  names, or values read from save files.
+- Proper names such as RepoDitor, R.E.P.O., Steam, and GitHub generally remain
+  unchanged unless there is a deliberate, established localized representation.
+- Preserve the meaning of safety warnings, destructive-action confirmations,
+  and error messages accurately.
+- Prefer natural target-language writing over literal, machine-like
+  word-for-word English structure.
+- Keep corrections to existing translations focused when practical so they are
+  easier to review.
+
+### Language selector capacity
+
+The language dropdown keeps at most **5 locale rows visible at once**. Additional
+registered locales remain available through vertical scrolling; do not truncate or
+hide them with array slicing. Keep locale ordering stable and use each language's
+native label in the selector. When changing selector behavior, preserve keyboard
+navigation, focus movement, and access to off-screen options.
+
+For translation-only changes, run the following from the repository root:
+
+```powershell
+Set-Location desktop
+npm run format
+npm run imports:check
+npm run lint
+npm run build
+npm test
+```
+
+If the language selector itself changes, also run `npm run test:e2e`.
+
 ## Evidence and save safety
 
 New save mutations require controlled evidence. Record what changed, what did
