@@ -149,7 +149,7 @@ export default defineConfig([
       },
     },
     rules: {
-      "better-tailwindcss/enforce-canonical-classes": "warn",
+      "better-tailwindcss/enforce-canonical-classes": "error",
     },
   },
   eslintConfigPrettier,

@@ -303,7 +303,7 @@ export function LanguageMenu() {
           {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role */}
           <div
             aria-label={t("utility.language")}
-            className={`${menuSurfaceClassName} absolute right-0 z-30 mt-1.5 w-max min-w-[17rem] max-w-[22rem] overflow-hidden`}
+            className={`${menuSurfaceClassName} absolute right-0 z-30 mt-1.5 w-max min-w-68 max-w-88 overflow-hidden`}
             id={listboxId}
             role="listbox"
           >
