@@ -88,15 +88,6 @@ html {
   display: none;
 }
 
-/* Compact scrollbar for small utility popovers. */
-.language-menu-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.language-menu-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
 @layer utilities {
   /* Shared polished interactive control chrome */
   :where(button, a, input, textarea, select).border-control {

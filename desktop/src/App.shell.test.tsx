@@ -537,7 +537,7 @@ describe("app shell integration", () => {
     const { unmount } = render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Language: English" }));
-    await user.click(screen.getByRole("option", { name: "日本語" }));
+    await user.click(screen.getByRole("option", { name: "日本語 · Japanese" }));
     expect(screen.getByRole("button", { name: "ランセーブ" })).toBeTruthy();
     expect(localStorage.getItem("repoditor.locale")).toBe("ja");
     expect(await screen.findByText(environment.saves[0]!.name)).toBeTruthy();
