@@ -1,128 +1,223 @@
-# Phase 16 numeric installer progress investigation
+# Real installer extraction progress
 
-Investigated on 2026-09-13 against the current repository and installed dependencies.
-The request's stop condition applies: **do not implement numeric telemetry through
-an upstream extraction-macro replacement or plug-in modification.** The existing
-stage display remains unchanged. The independent card-centering defect is fixed.
+Implemented on 2026-09-13 as the authorized follow-up to Phase 16. The earlier
+investigation stopped at electron-builder's supported-hook boundary. This follow-up
+explicitly permits a narrow, owned, version-guarded extraction macro override.
 
-## Installed implementation and evidence
+## Integration and maintenance boundary
 
-- electron-builder and app-builder-lib: **26.15.3**.
-- Cached compiler: **NSIS v3.04**, electron-builder bundle `nsis-3.0.4.1`.
-- Cached resources: `nsis-resources-3.4.1`, using `plugins/x86-unicode/nsis7z.dll`
-  even though the application payload is x64.
-- Generated `desktop/release/builder-debug.yml` and effective configuration confirm
-  standard embedded-payload NSIS installation, with RepoDitor's include file and
-  no replacement installer script or ZIP extraction option.
-- Inspected `NsisTarget.js`, `installer.nsi`, `installSection.nsh`,
-  `include/installer.nsh`, `include/extractAppPackage.nsh`, `common.nsh`,
-  `uninstaller.nsh`, and the current split C# host and typed UI bridge.
+RepoDitor retains electron-builder/app-builder-lib **26.15.3**, its standard x64
+embedded 7z payload, cached NSIS **3.04**, and the bundled x86 Unicode Nsis7z plug-in.
+There is no replacement installer script, additional bootstrapper, modified plug-in,
+node_modules mutation, or generated-script text patch.
 
-The installed DLL exports `Extract`, `ExtractWithDetails`, and
-`ExtractWithCallback`. This is important: the plug-in **does have real byte
-telemetry**; the limitation is how the generated installer invokes it.
-The official [Nsis7z distribution](https://nsis.sourceforge.io/Nsis7z_plug-in)
-includes source and an example of the callback API. Its x86 Unicode DLL matches
-the installed DLL byte-for-byte, SHA-256:
+The existing `customHeader` hook changes the compiler working directory to
+`desktop/installer/nsis` for the install build only. NSIS resolves includes from
+that directory before include search paths. The owned `installSection.nsh` includes
+the original upstream section explicitly and restores the upstream compiler directory.
+While upstream `include/installer.nsh` loads, owned `extractAppPackage.nsh` includes
+the original extraction definitions, undefines only `extractUsing7za`, and supplies
+its protected replacement. Header/includes use documented NSIS mechanisms; this
+extraction override itself is a RepoDitor maintenance responsibility, not a public
+electron-builder extraction callback setting.
+
+The replacement preserves upstream temporary extraction, `CopyFiles /SILENT`, copy
+retries, existing retry delay, cancellation, and direct-extraction fallback. Only
+callback invocation, extraction-attempt markers, and pipe lifetime are added. Old
+version removal, `--updated`, exact destination selection, payload architecture,
+registration, shortcuts, installed uninstaller, and cleanup remain upstream-owned.
+Normal extraction and last-resort direct extraction both invoke `ExtractWithCallback`.
+Reinstall/update normally extracts one payload after old-version removal. Fallback
+extracts that same archive again, explicitly starting attempt 2 at its measured zero.
+It is not an aggregate installation percentage and is not weighted across stages.
+
+Build-time `check-extraction-override.mjs` fails closed on:
+
+- app-builder-lib version drift from 26.15.3;
+- normalized extraction-template SHA-256 drift from
+  `e4174388a0f7a1df0b85a0742aa1ea7a4b2b18f9f29dccd6ef10a66212f68148`;
+- bundled plug-in SHA-256 drift from
+  `b393f05e8ff919ef071181050e1873c9a776e1a0ae8329aefff7007d0cadf592`;
+- a local shadow of the Nsis7z plug-in;
+- an actual archive unpacked-byte total outside 1 through 4,294,967,295.
+
+Unsupported ZIP, web-download, directory-payload, x86, and ARM64 configurations are
+rejected by the header. Upgrading electron-builder requires reviewing upstream
+extraction/copy/fallback behavior, updating the guard intentionally, and rerunning
+the native fixtures and production lifecycle matrix. Do not merely replace hashes.
+The callback is embedded in the ordinary NSIS executable and follows the existing
+installer signing flow. The archive is unchanged. Version/hash guards improve
+repeatability; they do not claim byte-identical Windows binaries or validate signing
+credentials unavailable to local unsigned development builds.
+
+## Actual telemetry and display
+
+The matching Nsis7z source formats decoder `SetTotal` and `SetCompleted` values as
+UInt32 decimal strings. It pushes **total first, completed second**, then executes
+the supplied NSIS function address. The callback pops completed first and total
+second, preserving stack, working registers, and the NSIS error flag.
+
+A bounded ASCII record is:
 
 ```text
-B393F05E8FF919EF071181050E1873C9A776E1A0AE8329AEFFF7007D0CADF592
+1|<32-character run nonce>|<attempt 1 or 2>|<completedBytes>|<totalBytes>\n
 ```
 
-Source inspection covered `Bundles/Nsis7z/nsis7z.cpp` and
-`UI/NSIS/ExtractCallbackConsole.{cpp,h}`. An isolated NSIS probe used the installed
-compiler and installed DLL, a synthetic 32 MiB archive, an output directory under
-ignored build output, and no application registration, uninstall, or elevation.
-It produced 15 callback samples, including four intermediate completed-byte
-values. Total was consistently 33,554,432 bytes; completed values were
-non-decreasing from zero to that total. All eight extracted files matched their
-synthetic inputs. `$HWNDPARENT` was zero: the callback works in silent mode
-without a native installer progress window. This probe establishes capability,
-not production integration or a guarantee about every archive/error case.
-The temporary probe and downloaded source are not shipping code.
+`ExtractionMeasurements` accepts only nonnegative UInt32 integers, positive total,
+completed <= total, one stable total, and non-decreasing completed within each
+attempt. Attempt 2 must follow attempt 1 and start at a real zero. Invalid records,
+wrong sessions, stale attempts, inconsistent totals, and overflow are rejected.
+The 32-bit ceiling is required because the installed plug-in formats wider decoder
+counters using Windows `%lu`. Build-time archive sizes protect that ceiling; those
+sizes never generate runtime percentages.
 
-## Answers to the seven investigation questions
+The integer display is `floor(completedBytes * 100.0 / totalBytes)`. No interpolation,
+clamping of malformed input, elapsed-time estimate, stage weight, file-count estimate,
+destination-size polling, timer, or CSS-position measurement supplies samples.
+Decoder measurements can be sparse. A solid archive may jump substantially; the UI
+shows the actual samples. These bytes measure **payload extraction**, excluding
+copying, registration, shortcuts, old-version removal, and postcondition verification.
 
-1. **Embedded payload extraction.** `extractEmbeddedAppPackage` chooses the
-   architecture and writes `app-64.7z` into `$PLUGINSDIR` with NSIS `File`.
-   `extractUsing7za` invokes `Nsis7z::Extract` into `$PLUGINSDIR\7z-out`, then
-   `CopyFiles /SILENT` moves the extracted tree into the destination. Its existing
-   copy retries can fall back to a second direct `Nsis7z::Extract`. Application
-   registration, shortcuts, the stored setup, and installed uninstaller are
-   separate operations. Updates first run old-version removal.
+## Local IPC and privilege threat model
 
-2. **Native position/maximum.** There are two different counters. NSIS's normal
-   installation-page counter advances over script instructions, with its maximum
-   derived from section code sizes. It is not an extraction-byte or overall-work
-   counter. The plug-in separately receives 7-Zip `SetTotal`/`SetCompleted` byte
-   measurements and maps their ratio onto a native control range of 0–30000.
-   See the matching-version [NSIS execution source](https://github.com/kichik/nsis/blob/v304/Source/exehead/exec.c)
-   and [UI source](https://github.com/kichik/nsis/blob/v304/Source/exehead/Ui.c).
+The existing unelevated host owns a fresh, unpredictable GUID-named inbound pipe
+for each operation: `RepoDitor.Extraction.<nonce>`. A protected DACL grants only the
+host user's SID, elevated Administrators, and LocalSystem the client rights
+FILE_WRITE_DATA, FILE_READ_ATTRIBUTES, and SYNCHRONIZE (0x00100082). Read-attributes
+is required by Windows client opening and is covered by a real connection fixture.
+There is no Everyone/anonymous access, read-data grant to clients, pipe-instance
+creation grant, network listener, persistent service, or privileged helper.
 
-3. **Silent emission.** `ExtractWithCallback` pushes total, then completed bytes
-   onto the NSIS stack and executes the supplied script callback. The callback
-   pops completed first, then total. This operates without a progress control.
-   The existing `Extract` call does not execute a script callback or return those
-   measurements. The template's `Pop $R0` restores the previously pushed output
-   directory; it is not a progress result.
+`CreateNamedPipe` specifies inbound, overlapped, first-instance, one instance, and
+remote-client rejection. The host binds the channel to the actual `Process.Start`
+engine PID. `GetNamedPipeClientProcessId` authenticates the OS-reported sender before
+reading records. The engine process handle remains open until telemetry is drained,
+preventing its PID from being recycled during sender authentication. Other local processes, including another process of the same user,
+can be rejected even if they learn the nonce. The NSIS client independently checks
+`GetNamedPipeServerProcessId` against the host PID. It opens with anonymous security
+quality of service so the unelevated server cannot impersonate the elevated client.
+The progress channel carries data in one direction and exposes no commands.
 
-4. **electron-builder hooks.** Initialization and header hooks precede the
-   install section. `customFiles_x64` runs after decompression and destination
-   copying; `customInstall` runs after registration/shortcut work. None selects
-   `ExtractWithCallback`, supplies its function address, or runs inside extraction.
-   Both normal and fallback extraction calls are hardcoded. A local
-   `!macroundef`/replacement of `extractUsing7za`, include shadowing, generated
-   script rewriting, or a modified same-name plug-in would take ownership of
-   upstream implementation details. These are not the requested supported hook.
+A malicious process can still cause denial of service if it compromises the host
+user or administrator context; this channel is not a sandbox for already-compromised
+processes. It cannot authorize installation success or filesystem actions. Records
+are printable ASCII, newline-delimited, and capped at 128 bytes. Invalid framing
+faults the reader; incorrect numeric records are discarded. Successful engine exit
+also requires complete extraction measurements to have drained from the pipe.
+Missing/incomplete telemetry causes failure, not invented progress or optimistic
+success. Success/failure/disposal closes the pipe and observes reader faults.
 
-5. **Byte reliability.** Callback totals/processed values are genuine decoder
-   measurements for extraction, not completion of copying or installation.
-   Compressed archive length is available at build time; the generated unpacked
-   size is rounded to KiB for space requirements and `ESTIMATED_SIZE` is registry
-   metadata. Neither provides a running byte count. The installed callback
-   formats UInt64 counters using Windows `%lu`, exposing only 32 bits; archives
-   at or beyond 4 GiB would need an explicit size restriction or corrected
-   plug-in API. Measurements can be sparse: do not interpolate between samples.
+Current-user engine launch stays unelevated. All-users engine launch retains `runas`;
+the WebView host remains unelevated. Administrator write access permits an elevated
+engine, including over-the-shoulder administrator credentials. Windows permits
+higher-integrity writes to the medium-integrity host's pipe; low-integrity writes
+remain restricted by the normal mandatory-integrity policy. The production UAC/
+secure-desktop boundary remains a separate manual acceptance case.
 
-6. **Small local IPC.** A scoped Windows named pipe could carry genuine callback
-   data using existing native APIs and .NET, without a network listener or new
-   bootstrapper. It would require an operation-specific endpoint, restrictive
-   ACLs, authenticated engine client identity, bounded records, and stale-run
-   rejection across retries and elevation. Transport is technically feasible
-   but cannot retrieve data from the current `Extract` call. No speculative
-   transport or numeric contract was added; cross-elevation transport was not
-   implemented or tested.
+## Native and UI authority
 
-7. **Reading the native progress control.** Silent NSIS bypasses installer pages
-   and runs its installation thread without a progress HWND. The ordinary
-   instruction counter is therefore not a useful silent extraction source, and
-   the plug-in's control updates have no installer control to target. Creating a
-   hidden page, locating controls, reading process memory, or intercepting window
-   messages would introduce the prohibited UI/internal-state dependence.
+Only `InstallerEngine` owns measurements and native lifecycle. It forwards a typed
+progress event containing session, attempt, and validated integer percentage.
+`InstallerWindow` forwards it only while installing the matching active operation.
+The existing `WebViewBridge` remains the sole raw bridge owner. React receives no
+byte totals, raw process API, filesystem API, or new command channel.
 
-## Uninstall, decision, and required change
+The typed parser rejects nonnumeric, NaN/infinite, negative, >100, wrong-session,
+wrong-attempt, and unexpected-field progress messages. React accepts them only
+after initialization, during install/update, and for the active session. It rejects
+decreases within an attempt, stale runs, and progress before extraction or after
+finalizing/success/failure. Retry creates a fresh native nonce and clears measurements,
+percentage, and attempt. Fallback is explicitly labeled as another extraction attempt.
 
-Standard uninstall invokes removal macros and filesystem/registry operations.
-Its hooks provide boundaries, not processed/total removal bytes. The same NSIS
-instruction counter does not measure removal work. Leave uninstall indeterminate.
+Install/update keeps the same stationary bar visible throughout Preparing, Running,
+and Verifying. Before the first genuine extraction sample it displays 0%, meaning
+payload extraction has not started; no numeric work is estimated for those stages.
+Genuine measurements then supply the native HTML progress element and visible percentage. Its value and
+ARIA bounds/current value match measured progress, its text states payload extraction,
+and its determinate CSS has no loop or transition smoothing. Reduced motion and
+approved centered/card-capped composition are preserved.
 
-**Real extraction percentages are possible at the plug-in level, but unavailable
-through this generated installer's supported lifecycle hooks.** Stop numeric work
-at that boundary. No timer, stage weighting, directory polling, guessed count,
-hardcoded percentage, or CSS-derived measurement was introduced.
+Measured 100% leaves the native state installing. Only actual engine exit advances
+to finalizing/verifying; only exact registered InstallLocation plus `RepoDitor.exe`,
+`Uninstall RepoDitor.exe`, `resources/app.asar`, and the Python backend executable
+allow completion. A real 100% with missing registration fails the native fixture.
+The upstream plug-in does not return its decoder result on the NSIS stack; complete
+telemetry is therefore an additional check, never a substitute for those authoritative
+checks. A callback error, engine nonzero exit, or failed postcondition cannot produce
+success. Failure removes progress and retains Retry/Close; only a fresh operation
+may proceed. Existing cancellation/window-close semantics remain unchanged.
 
-The smallest future change is an upstream-supported extraction callback hook
-covering both extraction calls while preserving electron-builder's existing
-copy/retry/fallback behavior. That hook could call the installed callback API and
-send real counts to `InstallerEngine` over secured local IPC. Otherwise a maintained
-template fork or modified native extractor would be required, outside this task's
-allowed boundary. Replacing electron-builder's installer is unnecessary.
+Uninstall uses truthful stage text without a bar: NSIS removal hooks and script position do not supply
+a trustworthy processed/total removal-byte measurement. Removal stages and existing
+registration/filesystem checks remain authoritative.
 
-Only after that hook exists should the typed event support finite, ranged,
-monotonic percentages with operation/retry isolation. A measured 100% would mean
-payload extraction only. Copying, registration, and authoritative postcondition
-verification must remain visible finalization work; only existing native
-completion checks may authorize success. There are deliberately no acceptance
-tests for supported numeric events because numeric events are not implemented.
-Existing tests reject every unsupported percentage, including 0, 43, and 100,
-and retain failure, retry, and authoritative completion coverage.
+## Regression checks and manual QA
+
+For visible local production lifecycle automation, run `npm run test:installer:lifecycle`
+from `desktop` in an unelevated Windows terminal. It finds PowerShell 7 on PATH,
+in its standard installation locations, or in an existing local Codex runtime. It uses
+the existing built installer, creates a fresh standard disposable account through
+UAC, enables visible UI automation and unelevated/SID/profile checks automatically,
+and removes that account/profile/credential only after authoritative postflight.
+The current Windows login must permit UAC under the same identity for private DPAPI
+credentials. Watch the windows without clicking them. Results are retained under
+`desktop/build/installer-lifecycle-<nonce>/stage`. Failed postflight leaves the
+isolated account for diagnosis instead of bypassing cleanup safety checks.
+
+CI already stages the same worker into its own disposable account and passes
+`ObserveSetupUi`, `RequireUnelevated`, and the expected SID/profile explicitly.
+Its production lifecycle job remains independent of the local interactive launcher.
+
+Run `npm run test:installer:extraction` for the installed compiler/plug-in, owned
+macro, real normal/fallback callbacks, copied payload bytes, stack/register contract,
+byte bounds/rounding, malformed framing, PID rejection, missing-registration failure
+at measured 100%, fresh native Retry, template drift, and security source guards.
+The fixture uses synthetic archives under ignored build output and no product
+registration or game data. Solid-block callback sparsity is expected; the fixture
+uses separate archive blocks to exercise real intermediate measurements.
+
+Component tests protect install/update percentages, ARIA, no premature success,
+terminal behavior, stale Retry/attempts, invalid percentages, unexpected fields,
+and stage-only uninstall. Production layout checks cover 50 mode/stage/viewport
+combinations including the measured label and non-looping bar. Existing host, desktop,
+release, packaged, AppData, custom-path, and synthetic LocalLow checks remain required.
+The Windows lifecycle CI also runs the extraction fixture before packaging.
+
+Use the installer built at `desktop/release/RepoDitor-Setup-0.2.1-x64.exe` for manual QA
+**only in a disposable Windows account or VM** with synthetic game data:
+
+1. Select current user and install. Before a genuine sample there is stage text and a stationary 0% bar. During
+   extraction, confirm a visible percentage, proportional filling bar, and
+   “Installing application files…”. Jumps are truthful; do not expect every integer.
+2. At measured 100%, confirm the screen still says installing or verifying, with
+   no Launch button. “RepoDitor is ready” must follow native registration/payload
+   verification; progress then disappears. Fast stages need not remain artificially visible.
+3. Reopen the installer and Update at the same registered path. Confirm the same
+   measured behavior and retention of synthetic RepoDitor AppData/game fingerprints.
+4. Run the installed real WebView uninstaller. Confirm Preparing/Running/Verifying
+   removal where observable, no removal percentage, and completion only after removal.
+5. On a fresh clean target, create only a synthetic refusal sentinel, trigger the
+   existing nonempty-path refusal, resolve that sentinel, and click Retry. Failure
+   must remove progress and never show Ready; Retry starts a fresh operation.
+6. Check minimum, normal, maximized, high DPI and reduced motion. The capped card
+   stays centered horizontally/vertically; the percentage must not crush its bar.
+7. In a disposable VM, exercise all-users UAC acceptance/cancellation and
+   over-the-shoulder credentials. Confirm the host stays unelevated, the real engine
+   is elevated, genuine percentages arrive, and cancellation never implies success.
+
+No production-only test hooks or stage-duration sleeps are used. Local production
+lifecycle results and full validation are recorded separately in ignored build QA
+receipts. This integration is reasonable to maintain with the fail-closed guard and
+mandatory upgrade review; the owned upstream extraction macro remains its explicit
+maintenance risk.
+
+Sources: [electron-builder NSIS customization](https://www.electron.build/v26/docs/nsis/),
+[NSIS preprocessor include rules](https://nsis.sourceforge.io/Docs/Chapter5.html),
+[Nsis7z API/source distribution](https://nsis.sourceforge.io/Nsis7z_plug-in),
+[Windows pipe access rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights),
+[Windows client PID authentication](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid),
+[Windows process ID lifetime](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information).
+
+Confirmed follow-up: all left/right looping bars are removed for both installation and
+removal. Install/update initializes extraction at 0% and advances only on real native
+measurements. Removal uses stage text without numeric progress or a looping bar.

@@ -115,6 +115,8 @@ export function ReadyState({
 interface ProgressStateProps {
   readonly mode: InstallerMode;
   readonly stage: InstallerStage;
+  readonly percentage: number | null;
+  readonly attempt: number;
 }
 
 const stageMessages: Record<InstallerMode, Record<InstallerStage, string>> = {
@@ -130,8 +132,15 @@ const stageMessages: Record<InstallerMode, Record<InstallerStage, string>> = {
   },
 };
 
-export function ProgressState({ mode, stage }: ProgressStateProps) {
+export function ProgressState({ mode, stage, percentage, attempt }: ProgressStateProps) {
   const uninstalling = mode === "uninstall";
+  const measured = !uninstalling ? percentage : null;
+  const value = measured ?? 0;
+  let status = stageMessages[mode][stage];
+  if (measured !== null && stage === "installing") {
+    status =
+      attempt === 2 ? "Retrying application file extraction…" : "Installing application files…";
+  }
   return (
     <div className="installer-state state-progress">
       <h1>{uninstalling ? "Removing RepoDitor" : "Installing RepoDitor"}</h1>
@@ -140,14 +149,30 @@ export function ProgressState({ mode, stage }: ProgressStateProps) {
           ? "Removing the application. Your R.E.P.O. saves and game data are not being modified."
           : "Setting up the application. Your game data is not being modified."}
       </p>
-      <div className="progress-track">
-        <progress
-          className="progress-bar"
-          aria-label={uninstalling ? "Removal progress" : "Installation progress"}
-          aria-valuetext={stageMessages[mode][stage]}
-        />
-      </div>
-      <output className="status-note">{stageMessages[mode][stage]}</output>
+      {!uninstalling ? (
+        <div className="progress-row">
+          <div className="progress-track">
+            <progress
+              className="progress-bar determinate"
+              value={value}
+              max={100}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={value}
+              aria-label="Installation progress"
+              aria-valuetext={
+                measured === null
+                  ? `Payload extraction has not started. ${status}`
+                  : `${measured}% payload extracted. ${status}`
+              }
+            />
+          </div>
+          <span className="progress-percentage" aria-hidden="true">
+            {value}%
+          </span>
+        </div>
+      ) : null}
+      <output className="status-note">{status}</output>
       <div className="spacer" />
     </div>
   );

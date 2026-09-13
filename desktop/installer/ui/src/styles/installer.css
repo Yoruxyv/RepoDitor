@@ -363,27 +363,47 @@ button:disabled {
   flex-direction: column;
 }
 
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
 .progress-track {
   width: 100%;
   height: 8px;
   border-radius: 999px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.09);
-  margin-top: 24px;
+}
+
+.progress-percentage {
+  color: var(--gold-strong);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-bar {
   appearance: none;
   display: block;
   border: 0;
-  width: 36%;
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #c89449, #efc776);
-  animation: install-progress 1.25s ease-in-out infinite alternate;
+  background: transparent;
 }
 
-.progress-bar::-webkit-progress-bar {
-  background: inherit;
+.progress-bar.determinate {
+  animation: none;
+}
+
+.progress-bar.determinate::-webkit-progress-bar {
+  background: transparent;
+}
+
+.progress-bar.determinate::-webkit-progress-value {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c89449, #efc776);
 }
 
 .status-note {
@@ -409,21 +429,4 @@ button:disabled {
   color: #f2a2a2;
   background: rgba(183, 68, 68, 0.16);
   border-color: rgba(230, 104, 104, 0.38);
-}
-
-@keyframes install-progress {
-  from {
-    transform: translateX(-15%);
-  }
-
-  to {
-    transform: translateX(190%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progress-bar {
-    animation: none;
-    opacity: 0.72;
-  }
 }

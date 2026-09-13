@@ -20,16 +20,21 @@ internal sealed class InstallerEngine : IDisposable
     private readonly Arguments _options;
     private readonly ParentProcessSynchronizer _parent;
     private readonly Action<InstallerState> _onStage;
+    private readonly Action<ExtractionProgress> _onProgress;
+    internal string ProgressSession { get; private set; }
 
-    internal InstallerEngine(Arguments options, Action<InstallerState> onStage)
+    internal InstallerEngine(Arguments options, Action<InstallerState> onStage,
+        Action<ExtractionProgress> onProgress = null)
     {
         _options = options;
         _parent = new ParentProcessSynchronizer(options.ParentProcessId);
         _onStage = onStage;
+        _onProgress = onProgress;
     }
 
     internal async Task RunAsync(string scope, string selectedPath)
     {
+        ProgressSession = _options.Mode != "uninstall" && _onProgress != null ? Guid.NewGuid().ToString("N") : null;
         _onStage(InstallerState.Preparing);
         if (string.IsNullOrWhiteSpace(_options.Engine) || !File.Exists(_options.Engine))
         {
@@ -37,55 +42,67 @@ internal sealed class InstallerEngine : IDisposable
         }
 
         await _parent.WaitAsync();
-        var arguments = "/" + (scope == "all" ? "allusers" : "currentuser") + " /S";
-        if (_options.Mode != "uninstall")
+        using (var progress = ProgressSession == null ? null : new ExtractionProgressChannel(ProgressSession, _onProgress))
         {
-            if (_options.Updated)
+            var arguments = "/" + (scope == "all" ? "allusers" : "currentuser") + " /S";
+            if (_options.Mode != "uninstall")
             {
-                arguments += " --updated";
+                if (_options.Updated)
+                {
+                    arguments += " --updated";
+                }
+                if (progress != null)
+                {
+                    arguments += " --repoditor-progress=" + ProgressSession +
+                        " --repoditor-progress-host=" + Process.GetCurrentProcess().Id;
+                }
+                arguments += " /D=" + selectedPath;
             }
-            arguments += " /D=" + selectedPath;
-        }
 
-        var startInfo = new ProcessStartInfo(_options.Engine, arguments);
-        startInfo.WorkingDirectory = Path.GetDirectoryName(_options.Engine) ?? string.Empty;
-        if (scope == "all")
-        {
-            startInfo.UseShellExecute = true;
-            startInfo.Verb = "runas";
-        }
-        else
-        {
-            startInfo.UseShellExecute = false;
-            startInfo.CreateNoWindow = true;
-        }
-
-        using (var process = Process.Start(startInfo))
-        {
-            if (process == null)
+            var startInfo = new ProcessStartInfo(_options.Engine, arguments);
+            startInfo.WorkingDirectory = Path.GetDirectoryName(_options.Engine) ?? string.Empty;
+            if (scope == "all")
             {
-                throw new InvalidOperationException("The installer engine did not start.");
+                startInfo.UseShellExecute = true;
+                startInfo.Verb = "runas";
             }
-            // The process may still be checking prerequisites or removing an old version.
-            // This stage means the engine is running, not that payload extraction has started.
-            _onStage(InstallerState.Installing);
-            await Task.Run(delegate { process.WaitForExit(); });
-            if (process.ExitCode != 0)
+            else
             {
-                throw new InvalidOperationException("The installer engine returned error " + process.ExitCode + ".");
+                startInfo.UseShellExecute = false;
+                startInfo.CreateNoWindow = true;
             }
-        }
 
-        // An installed NSIS uninstaller can hand off to a temporary inner process.
-        // Entry-process exit alone does not mean removal has finished.
-        _onStage(InstallerState.Finalizing);
-        if (_options.Mode == "uninstall")
-        {
-            await WaitForUninstallCompletionAsync(scope, selectedPath);
-        }
-        else
-        {
-            VerifyInstallCompletion(scope, selectedPath);
+            using (var process = Process.Start(startInfo))
+            {
+                if (process == null)
+                {
+                    throw new InvalidOperationException("The installer engine did not start.");
+                }
+                // The process may still be checking prerequisites or removing an old version.
+                // This stage means the engine is running, not that payload extraction has started.
+                _onStage(InstallerState.Installing);
+                if (progress != null) progress.BindEngine(process.Id);
+                await Task.Run(delegate { process.WaitForExit(); });
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidOperationException("The installer engine returned error " + process.ExitCode + ".");
+                }
+                // Keep the engine process handle alive while authenticating/draining
+                // its pipe, so its kernel process identity cannot be recycled.
+                if (progress != null) await progress.FinishAsync();
+            }
+
+            // An installed NSIS uninstaller can hand off to a temporary inner process.
+            // Entry-process exit alone does not mean removal has finished.
+            _onStage(InstallerState.Finalizing);
+            if (_options.Mode == "uninstall")
+            {
+                await WaitForUninstallCompletionAsync(scope, selectedPath);
+            }
+            else
+            {
+                VerifyInstallCompletion(scope, selectedPath);
+            }
         }
     }
 

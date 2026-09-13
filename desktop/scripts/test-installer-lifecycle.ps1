@@ -197,7 +197,7 @@ function Find-Button($Window, [string] $Name) {
     [System.Windows.Automation.Condition]::TrueCondition
   ) | Where-Object {
     $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
-    $_.Current.Name -eq $Name
+    $_.Current.Name -eq $Name -and $_.Current.IsEnabled
   } | Select-Object -First 1
 }
 
@@ -207,6 +207,11 @@ function Invoke-WebViewOperation(
   [string] $Mode = 'uninstall',
   [string] $FailureSentinel = ''
 ) {
+  Assert-True ($InstallPath -eq $script:defaultInstallPath -or $InstallPath -eq $script:customInstallPath) `
+    "$Scenario UI target escaped the synthetic install paths."
+  if (Test-Path -LiteralPath $script:appKey) {
+    Assert-PathEqual (Get-RegisteredInstallLocation) $InstallPath "$Scenario registration changed before UI operation."
+  }
   $entry = if ($Mode -eq 'install') { $script:setupPath } else { Join-Path $InstallPath 'Uninstall RepoDitor.exe' }
   Assert-True (Test-Path -LiteralPath $entry -PathType Leaf) "$Scenario production entry is missing."
 
@@ -253,6 +258,16 @@ function Invoke-WebViewOperation(
   }
   Assert-True ($null -ne $actionButton) "$Scenario WebView2 $actionName button was not available."
 
+  if ($Mode -eq 'install') {
+    $pathFields = @($window.FindAll(
+      [System.Windows.Automation.TreeScope]::Descendants,
+      [System.Windows.Automation.Condition]::TrueCondition
+    ) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit })
+    Assert-True ($pathFields.Count -eq 1) "$Scenario selected path field was not available."
+    $selectedPath = $pathFields[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    Assert-PathEqual $selectedPath $InstallPath "$Scenario selected UI target changed before invocation."
+  }
+
   $invoke = $actionButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
   $invoke.Invoke()
   Add-Observation $Scenario 'WebView2 action' "$actionName invoked"
@@ -273,6 +288,8 @@ function Invoke-WebViewOperation(
     $uiResult = $null
     $uiText = @()
     $observedStages = [Collections.Generic.HashSet[string]]::new()
+    $lastPercentage = -1
+    $observedPercentages = [Collections.Generic.HashSet[int]]::new()
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     while ($null -eq $uiResult -and [DateTime]::UtcNow -lt $deadline) {
       $uiNodes = @($window.FindAll(
@@ -280,10 +297,31 @@ function Invoke-WebViewOperation(
         [System.Windows.Automation.Condition]::TrueCondition
       ))
       $uiText = @($uiNodes | ForEach-Object { $_.Current.Name } | Where-Object { $_ } | Sort-Object -Unique)
-      foreach ($stageText in $uiText | Where-Object { $_ -match '^(Preparing|Running|Verifying) (installation|removal)' }) {
+      foreach ($stageText in $uiText | Where-Object { $_ -match '^(Preparing|Running|Verifying) (installation|removal)|^(Installing|Retrying) application file' }) {
         if ($observedStages.Add($stageText)) { Add-Observation $Scenario 'visible stage' $stageText }
       }
-      Assert-True (-not ($uiText | Where-Object { $_ -match '\d+(?:\.\d+)?\s*%' })) "$Scenario displayed numeric progress."
+      $progressNodes = @($uiNodes | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ProgressBar })
+      foreach ($progressNode in $progressNodes) {
+        $range = $null
+        if ($progressNode.TryGetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern, [ref]$range)) {
+          $percentage = $range.Current.Value
+          if ($Mode -eq 'install' -and $uiText -match '^Installing application files|^Retrying application file|^Verifying installation') {
+            Assert-True (-not [double]::IsNaN($percentage) -and -not [double]::IsInfinity($percentage) -and $percentage -ge 0 -and $percentage -le 100) "$Scenario invalid measured percentage."
+            Assert-True ($percentage -ge $lastPercentage -or ($uiText -match '^Retrying application file' -and $percentage -eq 0)) "$Scenario measured progress decreased without a fallback boundary."
+            $lastPercentage = $percentage
+            if ($observedPercentages.Add([int]$percentage)) { Add-Observation $Scenario 'measured extraction' "$percentage%" }
+          }
+        }
+      }
+      if ($Mode -eq 'uninstall') {
+        Assert-True ($progressNodes.Count -eq 0) "$Scenario uninstall retained a looping progress bar."
+        Assert-True (-not ($uiText | Where-Object { $_ -match '\d+(?:\.\d+)?\s*%' })) "$Scenario uninstall displayed invented numeric progress."
+      }
+      elseif ($uiText -match '^Preparing installation|^Running installation') {
+        Assert-True ($progressNodes.Count -eq 1) "$Scenario initial extraction bar was missing."
+        $initialRange = $progressNodes[0].GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+        Assert-True ($initialRange.Current.Value -eq 0) "$Scenario advanced before genuine extraction measurements."
+      }
       if ($uiText -contains $successHeading) { $uiResult = 'finished' }
       if ($uiText -contains $failureHeading) { $uiResult = 'failed' }
       if ($null -eq $uiResult) { Start-Sleep -Milliseconds 100 }
@@ -294,7 +332,7 @@ function Invoke-WebViewOperation(
         "$Scenario displayed success and failure together."
       Assert-True (-not ($uiNodes | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ProgressBar })) `
         "$Scenario terminal UI retained a progress indicator."
-      Add-Observation $Scenario 'terminal progress' 'indicator absent; no numeric percentage observed'
+      Add-Observation $Scenario 'terminal progress' 'indicator absent'
     }
     if ($FailureSentinel) {
       Assert-True ($Mode -eq 'install' -and $uiResult -eq 'failed') "$Scenario expected native installation refusal."
@@ -443,6 +481,7 @@ finally {
   if ($createdGameData -and (Test-Path -LiteralPath $gameDataRoot)) {
     try {
       Assert-True ($gameDataRoot -eq (Join-Path $profile 'AppData\LocalLow\semiwork\Repo')) 'Synthetic cleanup path escaped its verified profile.'
+      Assert-GameData 'synthetic cleanup'
       Remove-Item -LiteralPath $gameDataRoot -Recurse -Force
       if (Test-Path -LiteralPath $gameDataRoot) {
         throw 'Synthetic R.E.P.O. cleanup did not complete.'
@@ -454,6 +493,17 @@ finally {
       $cleanupFailure = $_.Exception.ToString()
       $failure = if ($failure) { "$failure`n$cleanupFailure" } else { $cleanupFailure }
       Write-LifecycleLog "CLEANUP FAILED | $cleanupFailure"
+    }
+  }
+  if ($succeeded) {
+    $finalPaths = @($appKey, $uninstallKey, $defaultInstallPath, $customInstallPath, $gameDataRoot) + $ownedDataRoots
+    if ($finalPaths | Where-Object { Test-Path -LiteralPath $_ }) {
+      $succeeded = $false
+      $failure = 'Authoritative final registry/filesystem state remains; refusing account cleanup.'
+    }
+    else {
+      [ordered]@{Passed=$true;SID=$identity.User.Value;Profile=$profile} | ConvertTo-Json |
+        Set-Content -LiteralPath (Join-Path $resultsRoot 'postflight.json')
     }
   }
   $summary = [ordered]@{

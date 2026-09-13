@@ -118,17 +118,31 @@ internal sealed class WebViewBridge
         }
     }
 
-    internal void SendState(InstallerState state, string message)
+    internal void SendState(InstallerState state, string message, string session = null)
     {
         if (!Enum.IsDefined(typeof(InstallerState), state))
         {
             throw new ArgumentOutOfRangeException("state");
         }
-        Send(new Dictionary<string, object>
+        var data = new Dictionary<string, object>
         {
             { "type", "state" },
             { "state", state.ToString().ToLowerInvariant() },
             { "message", message ?? string.Empty }
+        };
+        if (session != null) data.Add("session", session);
+        Send(data);
+    }
+
+    internal void SendProgress(ExtractionProgress progress)
+    {
+        if (progress.Percentage < 0 || progress.Percentage > 100 ||
+            progress.Attempt < 1 || progress.Attempt > 2 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(progress.Session, "\\A[a-f0-9]{32}\\z"))
+            throw new ArgumentOutOfRangeException("progress");
+        Send(new Dictionary<string, object> {
+            { "type", "progress" }, { "session", progress.Session },
+            { "attempt", progress.Attempt }, { "percentage", progress.Percentage }
         });
     }
 }
