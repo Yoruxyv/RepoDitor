@@ -117,4 +117,18 @@ internal sealed class WebViewBridge
             _webView.CoreWebView2.PostWebMessageAsJson(_json.Serialize(message));
         }
     }
+
+    internal void SendState(InstallerState state, string message)
+    {
+        if (!Enum.IsDefined(typeof(InstallerState), state))
+        {
+            throw new ArgumentOutOfRangeException("state");
+        }
+        Send(new Dictionary<string, object>
+        {
+            { "type", "state" },
+            { "state", state.ToString().ToLowerInvariant() },
+            { "message", message ?? string.Empty }
+        });
+    }
 }

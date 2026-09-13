@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { InstallerApp } from "./InstallerApp";
-import { installerCommands, parseInstallerMessage } from "./bridge/webview";
+import { installerCommands, installerStates, parseInstallerMessage } from "./bridge/webview";
 
 type MessageListener = (event: { readonly data: unknown }) => void;
 
@@ -13,6 +13,23 @@ function sendFromHost(data: unknown) {
   act(() => {
     for (const listener of listeners) listener({ data });
   });
+}
+
+function initialize(mode: "install" | "uninstall" = "install", updated = false) {
+  sendFromHost({
+    type: "initialize",
+    mode,
+    version: "0.2.1",
+    updated,
+    scope: "current",
+    scopeLocked: updated,
+    showScope: true,
+    path: "C:\\RepoDitor",
+  });
+}
+
+function stage(state: string) {
+  sendFromHost({ type: "state", state, message: "" });
 }
 
 beforeEach(() => {
@@ -54,7 +71,41 @@ describe("installer WebView2 contract", () => {
     expect(parseInstallerMessage({ type: "state", state: "percent", message: "50" })).toBeNull();
     expect(parseInstallerMessage({ type: "path", path: 42 })).toBeNull();
     expect(parseInstallerMessage("initialize")).toBeNull();
+    expect(parseInstallerMessage({ type: "initialize", mode: "unknown" })).toBeNull();
+    expect(parseInstallerMessage({ type: "state", state: "installing", message: 42 })).toBeNull();
+    expect(parseInstallerMessage({ type: "state", state: "installing" })).toBeNull();
+    expect(parseInstallerMessage(null)).toBeNull();
+    expect(parseInstallerMessage([])).toBeNull();
   });
+
+  test("explicitly accepts only the native semantic states", () => {
+    expect(installerStates).toEqual([
+      "ready",
+      "preparing",
+      "installing",
+      "finalizing",
+      "success",
+      "failure",
+    ]);
+    for (const state of installerStates) {
+      const message = { type: "state", state, message: "" };
+      expect(parseInstallerMessage(message)).toEqual(message);
+    }
+  });
+
+  test.each([NaN, Infinity, -Infinity, -1, 101, "50", null, 0, 43, 100])(
+    "rejects unsupported percentage telemetry: %s",
+    (percentage) => {
+      expect(
+        parseInstallerMessage({
+          type: "state",
+          state: "installing",
+          message: "",
+          percentage,
+        }),
+      ).toBeNull();
+    },
+  );
 });
 
 test("renders an initialized install and preserves a long selectable path", () => {
@@ -93,31 +144,96 @@ test("renders an initialized install and preserves a long selectable path", () =
   expect(postMessage).toHaveBeenCalledWith("start");
 });
 
-test("represents installing, success, and failure without fake progress", () => {
+test.each([false, true])("represents real install/update stages, updated=%s", (updated) => {
   render(<InstallerApp />);
-  sendFromHost({
-    type: "initialize",
-    mode: "install",
-    version: "0.2.1",
-    updated: false,
-    scope: "current",
-    scopeLocked: false,
-    showScope: true,
-    path: "C:\\RepoDitor",
-  });
+  initialize("install", updated);
+  fireEvent.click(screen.getByRole("button", { name: updated ? "Update" : "Install" }));
+  expect(screen.queryByRole("progressbar")).toBeNull();
 
-  sendFromHost({ type: "state", state: "progress", message: "Installing application…" });
+  stage("preparing");
+  expect(screen.getByRole("status").textContent).toBe("Preparing installation…");
+  stage("installing");
   expect(screen.getByRole("heading", { name: "Installing RepoDitor" }).isConnected).toBe(true);
-  expect(screen.getByText("Installing application…").isConnected).toBe(true);
+  expect(screen.getByRole("status").textContent).toBe("Running installation…");
+  const progress = screen.getByRole("progressbar");
+  expect(progress.getAttribute("aria-valuenow")).toBeNull();
+  expect(progress.getAttribute("aria-valuetext")).toBe("Running installation…");
+  expect(progress.closest("section")?.getAttribute("aria-busy")).toBe("true");
+  expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
+  stage("finalizing");
+  expect(screen.getByRole("status").textContent).toBe("Verifying installation…");
+  expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
 
-  sendFromHost({ type: "state", state: "done", message: "" });
+  stage("success");
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  expect(screen.getByRole("heading", { name: "RepoDitor is ready" }).isConnected).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Launch RepoDitor" }));
   expect(postMessage).toHaveBeenCalledWith("launch");
+});
 
-  sendFromHost({ type: "state", state: "error", message: "The installer engine failed." });
-  expect(screen.getByRole("heading", { name: "Installation failed" }).isConnected).toBe(true);
-  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(postMessage).toHaveBeenCalledWith("retry");
+test("ignores early success, out-of-order stages, and malformed telemetry", () => {
+  render(<InstallerApp />);
+  stage("success");
+  initialize();
+  stage("success");
+  stage("finalizing");
+  expect(screen.getByRole("heading", { name: "Ready to install" }).isConnected).toBe(true);
+  stage("preparing");
+  stage("success");
+  sendFromHost({ type: "state", state: "installing", message: "", percentage: 100 });
+  expect(screen.getByRole("status").textContent).toBe("Preparing installation…");
+  stage("installing");
+  stage("success");
+  stage("preparing");
+  initialize("uninstall");
+  expect(screen.getByRole("status").textContent).toBe("Running installation…");
+});
+
+test.each(["preparing", "installing", "finalizing"])(
+  "failure at %s stops progress and rejects late success until native retry starts",
+  (failedStage) => {
+    render(<InstallerApp />);
+    initialize();
+    for (const current of ["preparing", "installing", "finalizing"]) {
+      stage(current);
+      if (current === failedStage) break;
+    }
+    sendFromHost({ type: "state", state: "failure", message: "The installer engine failed." });
+    stage("finalizing");
+    stage("success");
+    stage("installing");
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Installation failed" }).isConnected).toBe(true);
+    expect(screen.getByRole("alert").textContent).toBe("The installer engine failed.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(postMessage).toHaveBeenCalledWith("retry");
+    stage("success");
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    stage("preparing");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Preparing installation…");
+    expect(screen.getByRole("progressbar").getAttribute("value")).toBeNull();
+    stage("installing");
+    stage("finalizing");
+    stage("success");
+    expect(screen.getByRole("heading", { name: "RepoDitor is ready" }).isConnected).toBe(true);
+  },
+);
+
+test("a claimed 100 percent cannot complete native verification", () => {
+  render(<InstallerApp />);
+  initialize();
+  stage("preparing");
+  stage("installing");
+  stage("finalizing");
+  sendFromHost({ type: "state", state: "success", message: "", percentage: 100 });
+  expect(screen.getByRole("status").textContent).toBe("Verifying installation…");
+  expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
+  sendFromHost({ type: "state", state: "failure", message: "Verification failed." });
+  sendFromHost({ type: "state", state: "success", message: "", percentage: 100 });
+  stage("success");
+  expect(screen.getByRole("alert").textContent).toBe("Verification failed.");
+  expect(screen.queryByRole("progressbar")).toBeNull();
 });
 
 test("preserves uninstall scope and completion behavior", () => {
@@ -137,7 +253,14 @@ test("preserves uninstall scope and completion behavior", () => {
   expect(screen.queryByLabelText("INSTALL LOCATION")).toBeNull();
   expect(screen.queryByText("Current user")).toBeNull();
 
-  sendFromHost({ type: "state", state: "done", message: "" });
+  stage("preparing");
+  expect(screen.getByRole("status").textContent).toBe("Preparing removal…");
+  stage("installing");
+  expect(screen.getByRole("status").textContent).toBe("Running removal…");
+  stage("finalizing");
+  expect(screen.getByRole("status").textContent).toBe("Verifying removal…");
+  expect(screen.queryByRole("heading", { name: "Uninstall finished" })).toBeNull();
+  stage("success");
   const complete = screen
     .getAllByRole("button", { name: "Close" })
     .find((button) => button.classList.contains("primary"));

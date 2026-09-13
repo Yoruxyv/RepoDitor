@@ -183,10 +183,31 @@ older installer and the candidate installer for the upgrade leg:
 
 The dedicated `Installer lifecycle` workflow complements this gate with fresh-package,
 current-user default/custom-path, registered reinstall, explicit-cleanup, and synthetic LocalLow
-fingerprint coverage through the real WebView2 **Uninstall** action. It runs the lifecycle under an
+fingerprint coverage through real WebView2 **Install/Update**, **Uninstall**, and a safe native
+refusal followed by one real **Retry**. Custom-path installation passes the selected path to the
+production silent engine. It runs the lifecycle under an
 isolated standard Windows user because GitHub-hosted Windows jobs otherwise run as administrators
 with UAC disabled. Exit code 0 is never sufficient: both HKCU registration keys and installed
 payload entry points must be gone.
+
+Run `npm run test:installer:host` on Windows for native stage, argument, failure,
+and completion checks against temporary files and a unique HKCU fixture key. The
+installer lifecycle workflow runs this check before packaging.
+
+The embedded installer shows indeterminate progress only. Verify **Preparing
+installation… → Running installation… → Verifying installation… → RepoDitor is
+ready**, with corresponding removal wording for uninstall. Running means the
+NSIS engine has started; verification means its entry process exited and native
+completion checks are running. These stages do not measure extraction bytes or
+claim that removal finished before NSIS's inner process completes. Stages may be
+brief; do not require artificial delays to keep them visible. Failure must remove
+the progress bar, show Retry/Close, and never turn into success before a native
+retry completes. Also check the 960×640 minimum window and reduced motion.
+At normal and maximized sizes the approved card must stay centered on both axes
+and retain its 1160px width cap. Run `npm run test:installer:layout` for the
+production UI geometry regression (Windows uses installed Edge); the installer
+lifecycle workflow enforces it. See [the telemetry investigation](installer-progress.md)
+for the numeric progress decision and the native callback evidence.
 
 All-users secure-desktop UAC approval/cancellation, Windows Settings launch, and visual/scaling QA
 remain manual. GitHub-hosted Windows runners disable UAC, so automating those paths there would not
@@ -311,6 +332,37 @@ $afterHashes = "$env:TEMP\repoditor-repo-save-hashes-after.csv"
     focused primary action, Escape/cancel must leave the machine unchanged, and no stock NSIS
     header/sidebar or Next/Back page may appear. Do not mark visual acceptance complete until a
     human has inspected the actual release-candidate installer.
+
+### Phase 16 local current-user acceptance — 2026-09-13
+
+The current unsigned `RepoDitor-Setup-0.2.1-x64.exe` (103,968,668 bytes, SHA-256
+`D52BB4D61EE63DCD7F14DDD3D004256EA0163CB123FD661BF05670E3C0810896`) passed the
+production matrix in a newly created, unelevated disposable Windows profile. No lifecycle action
+ran against the normal ASUS profile; LocalLow input consisted only of three synthetic files.
+
+| Case                            | Result | Authoritative evidence                                                                                                                                                                                                                                           |
+| ------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default-path fresh install      | PASS   | HKCU InstallLocation equals the disposable user's Local Programs/RepoDitor; executable, installed uninstaller, app.asar and Python backend exist.                                                                                                                |
+| Same-path reinstall             | PASS   | Exact registered path retained; both owned AppData sentinels retained with unchanged hashes.                                                                                                                                                                     |
+| Default-path WebView2 uninstall | PASS   | Both HKCU keys, four payload entry points, installation directory and both owned AppData roots removed.                                                                                                                                                          |
+| Custom-path install             | PASS   | Exact selected temporary path registered; all four payload entry points exist there; silent engine exits zero.                                                                                                                                                   |
+| Custom-path WebView2 uninstall  | PASS   | Both HKCU keys, exact custom directory, payload and both owned AppData roots removed.                                                                                                                                                                            |
+| Native failure and real Retry   | PASS   | Non-empty synthetic target refused without registration or executable; sentinel unchanged; failure removes progress and offers Retry. Resolving only that sentinel and invoking Retry starts fresh preparation/running and completes with valid installed state. |
+
+All three synthetic LocalLow relative paths, sizes and SHA-256 values matched after every operation,
+including refusal/retry. Live removal showed preparing, running and verifying before success.
+Install/reinstall/retry showed preparing and running; installation verification was too brief for
+the existing condition-based observer to sample. Native fixtures verify its position before
+authoritative success. No stage was artificially prolonged. Success and failure had no progress
+control, no percentage was observed, and completion checks passed immediately at successful UI
+results. Numeric integration remains stopped at the documented supported-hook boundary.
+
+The first attempt failed a harness-only assumption that the interactive setup launcher must exit
+zero. NSIS `.onInit` executes `Quit` after the WebView handoff and returns 2; this is distinct from
+the silent engine's result. The harness now checks the expected handoff status and still requires
+the WebView result and authoritative registry/filesystem checks. No production change was made
+in response. These measurements validate this artifact only; all-users secure-desktop/UAC,
+Settings entry, native path picker and human scaling/keyboard visual acceptance remain manual.
 
 ## Historical v0.1.0 baseline
 

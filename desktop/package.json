@@ -38,6 +38,8 @@
     "package:verify:installer": "node scripts/check-installer-artifact.mjs",
     "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run test:e2e:packaged && npm run package:installer",
     "test:installer:lifecycle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer-lifecycle.ps1",
+    "test:installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer-host.ps1",
+    "test:installer:layout": "npm run installer:ui:build && node --test scripts/installer-layout.test.mjs",
     "bundle:check": "node scripts/check-bundle-budget.mjs",
     "release:check": "node scripts/check-release-version.mjs && npm run installer:ui:build && node --test scripts/installer-config.test.mjs scripts/signing-config.test.mjs scripts/version-tooling.test.mjs",
     "update:version": "node scripts/update-version.mjs",

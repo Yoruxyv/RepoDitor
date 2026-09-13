@@ -149,7 +149,7 @@ Var RepoDitor.Scope
       StrCpy $RepoDitor.InstallPath "$INSTDIR"
 
       !insertmacro RepoDitorStageWebViewHost
-      StrCpy $RepoDitor.HostArguments '--mode install --engine "$EXEPATH" --path "$RepoDitor.InstallPath" --current-path "$RepoDitor.CurrentUserPath" --all-path "$RepoDitor.AllUsersPath" --scope "$RepoDitor.Scope" --version "${VERSION}" --parent-pid "$RepoDitor.ParentProcessId" --updated "$RepoDitor.Updated" --scope-locked "$RepoDitor.Updated" --show-scope "true" --cleanup "true"'
+      StrCpy $RepoDitor.HostArguments '--mode install --engine "$EXEPATH" --registry-key "${INSTALL_REGISTRY_KEY}" --path "$RepoDitor.InstallPath" --current-path "$RepoDitor.CurrentUserPath" --all-path "$RepoDitor.AllUsersPath" --scope "$RepoDitor.Scope" --version "${VERSION}" --parent-pid "$RepoDitor.ParentProcessId" --updated "$RepoDitor.Updated" --scope-locked "$RepoDitor.Updated" --show-scope "true" --cleanup "true"'
       ClearErrors
       Exec '"$RepoDitor.StageDirectory\RepoDitorInstallerHost.exe" $RepoDitor.HostArguments'
       ${If} ${Errors}

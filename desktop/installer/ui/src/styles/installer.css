@@ -29,8 +29,17 @@ body,
 body {
   min-height: 100vh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 28px;
+}
+
+#root {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
 }
 
 button,
@@ -39,7 +48,7 @@ input {
 }
 
 .stage {
-  width: min(1160px, 96vw);
+  width: min(1160px, 100%);
 }
 
 .window {
@@ -364,10 +373,17 @@ button:disabled {
 }
 
 .progress-bar {
+  appearance: none;
+  display: block;
+  border: 0;
   width: 36%;
   height: 100%;
   background: linear-gradient(90deg, #c89449, #efc776);
   animation: install-progress 1.25s ease-in-out infinite alternate;
+}
+
+.progress-bar::-webkit-progress-bar {
+  background: inherit;
 }
 
 .status-note {
@@ -408,7 +424,6 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .progress-bar {
     animation: none;
-    width: 100%;
     opacity: 0.72;
   }
 }

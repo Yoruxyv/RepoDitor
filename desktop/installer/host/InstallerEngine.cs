@@ -4,20 +4,33 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
+internal enum InstallerState
+{
+    Ready,
+    Preparing,
+    Installing,
+    Finalizing,
+    Success,
+    Failure
+}
+
 // Runs the production NSIS entry point; UI state and WebView lifetime belong to the window.
 internal sealed class InstallerEngine : IDisposable
 {
     private readonly Arguments _options;
     private readonly ParentProcessSynchronizer _parent;
+    private readonly Action<InstallerState> _onStage;
 
-    internal InstallerEngine(Arguments options)
+    internal InstallerEngine(Arguments options, Action<InstallerState> onStage)
     {
         _options = options;
         _parent = new ParentProcessSynchronizer(options.ParentProcessId);
+        _onStage = onStage;
     }
 
     internal async Task RunAsync(string scope, string selectedPath)
     {
+        _onStage(InstallerState.Preparing);
         if (string.IsNullOrWhiteSpace(_options.Engine) || !File.Exists(_options.Engine))
         {
             throw new FileNotFoundException("The installer engine is unavailable.", _options.Engine);
@@ -53,6 +66,9 @@ internal sealed class InstallerEngine : IDisposable
             {
                 throw new InvalidOperationException("The installer engine did not start.");
             }
+            // The process may still be checking prerequisites or removing an old version.
+            // This stage means the engine is running, not that payload extraction has started.
+            _onStage(InstallerState.Installing);
             await Task.Run(delegate { process.WaitForExit(); });
             if (process.ExitCode != 0)
             {
@@ -60,9 +76,45 @@ internal sealed class InstallerEngine : IDisposable
             }
         }
 
+        // An installed NSIS uninstaller can hand off to a temporary inner process.
+        // Entry-process exit alone does not mean removal has finished.
+        _onStage(InstallerState.Finalizing);
         if (_options.Mode == "uninstall")
         {
             await WaitForUninstallCompletionAsync(scope, selectedPath);
+        }
+        else
+        {
+            VerifyInstallCompletion(scope, selectedPath);
+        }
+    }
+
+    private void VerifyInstallCompletion(string scope, string selectedPath)
+    {
+        var registry = scope == "all" ? Registry.LocalMachine : Registry.CurrentUser;
+        if (string.IsNullOrWhiteSpace(_options.RegistryKey))
+        {
+            throw new InvalidOperationException("The installation registration is unavailable.");
+        }
+        using (var key = registry.OpenSubKey(_options.RegistryKey))
+        {
+            var registeredPath = key == null ? null : key.GetValue("InstallLocation") as string;
+            if (string.IsNullOrWhiteSpace(registeredPath) ||
+                !string.Equals(Path.GetFullPath(registeredPath).TrimEnd('\\'),
+                    Path.GetFullPath(selectedPath).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The installation location was not registered.");
+            }
+        }
+        foreach (var relativePath in new[] {
+            "RepoDitor.exe", "Uninstall RepoDitor.exe", "resources\\app.asar",
+            "resources\\backend\\repoditor-backend.exe"
+        })
+        {
+            if (!File.Exists(Path.Combine(selectedPath, relativePath)))
+            {
+                throw new FileNotFoundException("The installed payload is incomplete.", relativePath);
+            }
         }
     }
 

@@ -105,6 +105,60 @@ test("electron-builder keeps ownership of the x64 NSIS lifecycle", () => {
   assert.match(packageJson.scripts["package:installer:signed"], /npm run installer:host:signed/);
 });
 
+test("native stages and terminal events remain authoritative and explicitly validated", async () => {
+  const [sources, uiBridge, include, css] = await Promise.all([
+    readHostSources(),
+    readFile(path.join(uiSourceRoot, "src", "bridge", "webview.ts"), "utf8"),
+    readFile(path.join(installerRoot, "installer.nsh"), "utf8"),
+    readFile(path.join(uiSourceRoot, "src", "styles", "installer.css"), "utf8"),
+  ]);
+  const engine = classSource(sources, "InstallerEngine");
+  const window = classSource(sources, "InstallerWindow");
+  const bridge = classSource(sources, "WebViewBridge");
+  const states = engine.match(/enum InstallerState\s*\{(?<states>[\s\S]*?)\}/)?.groups?.states;
+  const uiStates = uiBridge.match(/installerStates = \[(?<states>[\s\S]*?)\] as const/)?.groups
+    ?.states;
+  assert.ok(states && uiStates);
+  assert.deepEqual(
+    states.split(",").map((state) => state.trim().toLowerCase()),
+    [...uiStates.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
+  );
+  assert.match(bridge, /SendState\(InstallerState state, string message\)/);
+  assert.match(bridge, /Enum\.IsDefined\(typeof\(InstallerState\), state\)/);
+  assert.match(uiBridge, /Object\.keys\(value\)\.every/);
+  assert.match(engine, /InstallerState\.Preparing[\s\S]*await _parent\.WaitAsync/);
+  assert.match(
+    engine,
+    /Process\.Start[\s\S]*InstallerState\.Installing[\s\S]*process\.WaitForExit/,
+  );
+  assert.match(engine, /process\.ExitCode != 0[\s\S]*throw[\s\S]*InstallerState\.Finalizing/);
+  assert.match(engine, /VerifyInstallCompletion\(scope, selectedPath\)/);
+  assert.match(engine, /GetValue\("InstallLocation"\)/);
+  assert.match(
+    include,
+    /--mode install --engine "\$EXEPATH" --registry-key "\$\{INSTALL_REGISTRY_KEY\}"/,
+  );
+  assert.match(
+    window,
+    /await _engine\.RunAsync\(_scope, _selectedPath\);[\s\S]*SendState\(InstallerState\.Success/,
+  );
+  assert.match(window, /command == "launch"[^\n]*_state == InstallerState\.Success/);
+  assert.match(window, /LogFailure\(error\)/);
+  const uiSources = await Promise.all(
+    (await collectFiles(path.join(uiSourceRoot, "src")))
+      .filter((file) => !file.includes(".test."))
+      .map((file) => readFile(file, "utf8")),
+  );
+  assert.doesNotMatch(
+    uiSources.join("\n"),
+    /setInterval|setTimeout|Downloading RepoDitor|progressPercent/i,
+  );
+  const reducedMotion = css.match(/@media \(prefers-reduced-motion: reduce\)(?<body>[\s\S]*)/)
+    ?.groups?.body;
+  assert.ok(reducedMotion);
+  assert.doesNotMatch(reducedMotion, /width:\s*100%/);
+});
+
 test("approved composition and assets remain installer-owned source", async () => {
   const [artwork, icon, css, chrome, states] = await Promise.all([
     readFile(path.join(installerRoot, "assets", "ArtWork.png")),
@@ -214,6 +268,8 @@ test("long paths stay semantic, single-line, and cannot displace Change", async 
   assert.match(css, /\.location-row\s*\{[\s\S]*?height:\s*44px[\s\S]*?minmax\(0,\s*1fr\)\s+auto/);
   assert.match(css, /\.path\s*\{[\s\S]*?white-space:\s*nowrap[\s\S]*?overflow-x:\s*auto/);
   assert.match(css, /\.change\s*\{[\s\S]*?height:\s*44px[\s\S]*?flex:\s*0 0 auto/);
+  assert.match(css, /#root\s*\{[\s\S]*?width:\s*100%[\s\S]*?min-width:\s*0/);
+  assert.match(css, /\.stage\s*\{[\s\S]*?width:\s*min\(1160px,\s*100%\)/);
   assert.match(scrollbar, /::-webkit-scrollbar[\s\S]*?6px/);
   assert.match(scrollbar, /\.path:hover[\s\S]*?\.path:focus/);
 

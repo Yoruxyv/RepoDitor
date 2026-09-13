@@ -1,4 +1,4 @@
-import type { InstallerMode, InstallerScope } from "./bridge/webview";
+import type { InstallerMode, InstallerScope, InstallerStage } from "./bridge/webview";
 
 interface ReadyStateProps {
   readonly initialized: boolean;
@@ -114,12 +114,24 @@ export function ReadyState({
 
 interface ProgressStateProps {
   readonly mode: InstallerMode;
-  readonly message: string;
+  readonly stage: InstallerStage;
 }
 
-export function ProgressState({ mode, message }: ProgressStateProps) {
+const stageMessages: Record<InstallerMode, Record<InstallerStage, string>> = {
+  install: {
+    preparing: "Preparing installation…",
+    installing: "Running installation…",
+    finalizing: "Verifying installation…",
+  },
+  uninstall: {
+    preparing: "Preparing removal…",
+    installing: "Running removal…",
+    finalizing: "Verifying removal…",
+  },
+};
+
+export function ProgressState({ mode, stage }: ProgressStateProps) {
   const uninstalling = mode === "uninstall";
-  const defaultMessage = uninstalling ? "Removing application…" : "Installing application…";
   return (
     <div className="installer-state state-progress">
       <h1>{uninstalling ? "Removing RepoDitor" : "Installing RepoDitor"}</h1>
@@ -128,10 +140,14 @@ export function ProgressState({ mode, message }: ProgressStateProps) {
           ? "Removing the application. Your R.E.P.O. saves and game data are not being modified."
           : "Setting up the application. Your game data is not being modified."}
       </p>
-      <div className="progress-track" aria-hidden="true">
-        <div className="progress-bar" />
+      <div className="progress-track">
+        <progress
+          className="progress-bar"
+          aria-label={uninstalling ? "Removal progress" : "Installation progress"}
+          aria-valuetext={stageMessages[mode][stage]}
+        />
       </div>
-      <div className="status-note">{message || defaultMessage}</div>
+      <output className="status-note">{stageMessages[mode][stage]}</output>
       <div className="spacer" />
     </div>
   );
@@ -168,7 +184,9 @@ export function ResultState({ mode, failed, message, onClose, onResult }: Result
         {failed ? "!" : "✓"}
       </div>
       <h1>{heading}</h1>
-      <p className="intro">{description}</p>
+      <p className="intro" role={failed ? "alert" : "status"}>
+        {description}
+      </p>
       <div className="spacer" />
       <div className="actions">
         {!uninstalling || failed ? (

@@ -7,9 +7,8 @@ import {
   type InstallerMessage,
   type InstallerMode,
   type InstallerScope,
+  type InstallerState,
 } from "./bridge/webview";
-
-type InstallerPhase = "ready" | "progress" | "success" | "failure";
 
 interface InstallerView {
   readonly initialized: boolean;
@@ -20,7 +19,7 @@ interface InstallerView {
   readonly scopeLocked: boolean;
   readonly showScope: boolean;
   readonly path: string;
-  readonly phase: InstallerPhase;
+  readonly phase: InstallerState;
   readonly message: string;
 }
 
@@ -39,6 +38,7 @@ const initialView: InstallerView = {
 
 function applyMessage(view: InstallerView, message: InstallerMessage): InstallerView {
   if (message.type === "initialize") {
+    if (view.initialized) return view;
     return {
       initialized: true,
       mode: message.mode,
@@ -53,11 +53,22 @@ function applyMessage(view: InstallerView, message: InstallerMessage): Installer
     };
   }
 
-  if (message.type === "path") return { ...view, path: message.path };
-  let phase: InstallerPhase = "success";
-  if (message.state === "progress") phase = "progress";
-  else if (message.state === "error") phase = "failure";
-  return { ...view, phase, message: message.message };
+  if (!view.initialized) return view;
+  if (message.type === "path") {
+    return view.phase === "ready" ? { ...view, path: message.path } : view;
+  }
+  if (!canTransition(view.phase, message.state)) return view;
+  return { ...view, phase: message.state, message: message.message };
+}
+
+function canTransition(current: InstallerState, next: InstallerState): boolean {
+  if (current === next) return true;
+  if (next === "preparing") return current === "ready" || current === "failure";
+  if (next === "installing") return current === "preparing";
+  if (next === "finalizing") return current === "installing";
+  if (next === "success") return current === "finalizing";
+  if (next === "failure") return current !== "ready" && current !== "failure";
+  return false;
 }
 
 export function InstallerApp() {
@@ -78,6 +89,8 @@ export function InstallerApp() {
 
   const title = view.mode === "uninstall" ? "RepoDitor Uninstall" : "RepoDitor Setup";
   const version = `RepoDitor ${view.version}`.trim();
+  const busy =
+    view.phase === "preparing" || view.phase === "installing" || view.phase === "finalizing";
   const finish = () => {
     if (view.phase === "failure") installerBridge.post("retry");
     else if (view.mode === "uninstall") installerBridge.post("close");
@@ -101,8 +114,12 @@ export function InstallerApp() {
         onStart={() => installerBridge.post("start")}
       />
     );
-  } else if (view.phase === "progress") {
-    state = <ProgressState mode={view.mode} message={view.message} />;
+  } else if (
+    view.phase === "preparing" ||
+    view.phase === "installing" ||
+    view.phase === "finalizing"
+  ) {
+    state = <ProgressState mode={view.mode} stage={view.phase} />;
   } else {
     state = (
       <ResultState
@@ -120,7 +137,7 @@ export function InstallerApp() {
       <main className="window" aria-label="RepoDitor installer">
         <WindowChrome title={title} />
         <div className="version">{version}</div>
-        <section className="panel" aria-live="polite" aria-busy={view.phase === "progress"}>
+        <section className="panel" aria-busy={busy}>
           <BrandHeader />
           {state}
         </section>

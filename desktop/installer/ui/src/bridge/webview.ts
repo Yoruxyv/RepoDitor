@@ -17,6 +17,16 @@ export const installerCommands = [
 export type InstallerCommand = (typeof installerCommands)[number];
 export type InstallerMode = "install" | "uninstall";
 export type InstallerScope = "current" | "all";
+export const installerStates = [
+  "ready",
+  "preparing",
+  "installing",
+  "finalizing",
+  "success",
+  "failure",
+] as const;
+export type InstallerState = (typeof installerStates)[number];
+export type InstallerStage = Extract<InstallerState, "preparing" | "installing" | "finalizing">;
 
 interface InitializeMessage {
   readonly type: "initialize";
@@ -34,7 +44,7 @@ export type InstallerMessage =
   | { readonly type: "path"; readonly path: string }
   | {
       readonly type: "state";
-      readonly state: "progress" | "done" | "error";
+      readonly state: InstallerState;
       readonly message: string;
     };
 
@@ -55,23 +65,34 @@ function getWebView(): NativeWebView | undefined {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isInstallerState(value: unknown): value is "progress" | "done" | "error" {
-  return value === "progress" || value === "done" || value === "error";
+function isInstallerState(value: unknown): value is InstallerState {
+  return installerStates.some((state) => state === value);
 }
 
-function parseInitialize(value: Record<string, unknown>): InitializeMessage {
+function parseInitialize(value: Record<string, unknown>): InitializeMessage | null {
+  if (
+    (value.mode !== "install" && value.mode !== "uninstall") ||
+    (value.scope !== "current" && value.scope !== "all") ||
+    typeof value.version !== "string" ||
+    typeof value.path !== "string" ||
+    typeof value.updated !== "boolean" ||
+    typeof value.scopeLocked !== "boolean" ||
+    typeof value.showScope !== "boolean"
+  ) {
+    return null;
+  }
   return {
     type: "initialize",
-    mode: value.mode === "uninstall" ? "uninstall" : "install",
-    version: typeof value.version === "string" ? value.version : "",
-    updated: value.updated === true,
-    scope: value.scope === "all" ? "all" : "current",
-    scopeLocked: value.scopeLocked === true,
-    showScope: value.showScope !== false,
-    path: typeof value.path === "string" ? value.path : "",
+    mode: value.mode,
+    version: value.version,
+    updated: value.updated,
+    scope: value.scope,
+    scopeLocked: value.scopeLocked,
+    showScope: value.showScope,
+    path: value.path,
   };
 }
 
@@ -86,11 +107,17 @@ export function parseInstallerMessage(value: unknown): InstallerMessage | null {
     return { type: "path", path: value.path };
   }
 
-  if (value.type === "state" && isInstallerState(value.state)) {
+  // No percentage is supported: reject extra fields, including purported numeric telemetry.
+  if (
+    value.type === "state" &&
+    isInstallerState(value.state) &&
+    typeof value.message === "string" &&
+    Object.keys(value).every((key) => key === "type" || key === "state" || key === "message")
+  ) {
     return {
       type: "state",
       state: value.state,
-      message: typeof value.message === "string" ? value.message : "",
+      message: value.message,
     };
   }
 

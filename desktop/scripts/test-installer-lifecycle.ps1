@@ -2,7 +2,10 @@
 param(
   [string] $SetupPath,
   [string] $ResultsPath = (Join-Path $PSScriptRoot '..\build\installer-lifecycle-results'),
-  [switch] $RequireUnelevated
+  [switch] $RequireUnelevated,
+  [switch] $ObserveSetupUi,
+  [string] $ExpectedDisposableProfile,
+  [string] $ExpectedDisposableSID
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +13,25 @@ Set-StrictMode -Version Latest
 
 $desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $resultsRoot = [IO.Path]::GetFullPath($ResultsPath)
+$allowedBuildRoot = [IO.Path]::GetFullPath((Join-Path $desktopRoot 'build'))
+if (-not $resultsRoot.StartsWith($allowedBuildRoot + '\', [StringComparison]::OrdinalIgnoreCase) -and
+    $resultsRoot -ne [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'results'))) {
+  throw 'Lifecycle results cleanup must stay in desktop/build or the staged results directory.'
+}
+if ($ExpectedDisposableProfile -or $ExpectedDisposableSID) {
+  $workerIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $workerProfile = [Environment]::GetFolderPath('UserProfile')
+  $disposableName = [IO.Path]::GetFileName($ExpectedDisposableProfile)
+  if ($disposableName -notmatch '^rd(?:p16[a-f0-9]{10}|ci[a-f0-9]{12})$' -or
+      $workerIdentity.User.Value -ne $ExpectedDisposableSID -or
+      $workerIdentity.Name -ne "$env:COMPUTERNAME\$disposableName" -or
+      $workerProfile -ne (Join-Path 'C:\Users' $disposableName) -or
+      $workerProfile -ne $ExpectedDisposableProfile -or
+      [Environment]::GetFolderPath('ApplicationData') -ne (Join-Path $workerProfile 'AppData\Roaming') -or
+      [Environment]::GetFolderPath('LocalApplicationData') -ne (Join-Path $workerProfile 'AppData\Local')) {
+    throw 'Disposable worker identity or known-folder isolation mismatch; refusing lifecycle work.'
+  }
+}
 if (Test-Path -LiteralPath $resultsRoot) {
   Remove-Item -LiteralPath $resultsRoot -Recurse -Force
 }
@@ -102,6 +124,7 @@ function Assert-Installed([string] $Scenario, [string] $ExpectedPath) {
       "$Scenario payload is missing $relativePath."
   }
   Add-Observation $Scenario 'installed state' "valid at $registeredPath"
+  Add-Observation $Scenario 'payload' 'RepoDitor.exe, installed uninstaller, app.asar, Python backend present'
 }
 
 function Assert-Uninstalled([string] $Scenario, [string] $InstallPath) {
@@ -121,10 +144,15 @@ function Assert-Uninstalled([string] $Scenario, [string] $InstallPath) {
   if ($remaining.Count -gt 0) {
     throw "$Scenario reported success while authoritative installed state remained: $($remaining -join ', ')."
   }
+  Assert-True (-not (Test-Path -LiteralPath $InstallPath)) "$Scenario installation directory remains."
   Add-Observation $Scenario 'uninstall postconditions' 'registration and payload gone'
 }
 
 function Invoke-Setup([string] $Scenario, [string] $ExpectedPath) {
+  if ($ObserveSetupUi -and $ExpectedPath -eq $script:defaultInstallPath) {
+    Invoke-WebViewOperation $Scenario $ExpectedPath 'install'
+    return
+  }
   # Mirror InstallerEngine.RunAsync(): production installs always pass the
   # authoritative selected path, including the normal default location.
   $arguments = @('/S', '/currentuser', "/D=$ExpectedPath")
@@ -173,27 +201,34 @@ function Find-Button($Window, [string] $Name) {
   } | Select-Object -First 1
 }
 
-function Invoke-WebViewUninstall([string] $Scenario, [string] $InstallPath) {
-  $uninstaller = Join-Path $InstallPath 'Uninstall RepoDitor.exe'
-  Assert-True (Test-Path -LiteralPath $uninstaller -PathType Leaf) `
-    "$Scenario installed uninstaller is missing."
+function Invoke-WebViewOperation(
+  [string] $Scenario,
+  [string] $InstallPath,
+  [string] $Mode = 'uninstall',
+  [string] $FailureSentinel = ''
+) {
+  $entry = if ($Mode -eq 'install') { $script:setupPath } else { Join-Path $InstallPath 'Uninstall RepoDitor.exe' }
+  Assert-True (Test-Path -LiteralPath $entry -PathType Leaf) "$Scenario production entry is missing."
 
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
   $existingHosts = @(Get-Process -Name RepoDitorInstallerHost -ErrorAction SilentlyContinue |
     ForEach-Object Id)
-  Write-LifecycleLog "$Scenario | uninstall UI start | executable=$uninstaller arguments=/currentuser"
-  $entryProcess = Start-Process -FilePath $uninstaller -ArgumentList '/currentuser' -PassThru
+  Write-LifecycleLog "$Scenario | $Mode UI start | executable=$entry arguments=/currentuser"
+  $entryProcess = Start-Process -FilePath $entry -ArgumentList '/currentuser' -WindowStyle Normal -PassThru
 
   $installerHost = $null
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   while ($null -eq $installerHost -and [DateTime]::UtcNow -lt $deadline) {
     $installerHost = Get-Process -Name RepoDitorInstallerHost -ErrorAction SilentlyContinue |
-      Where-Object { $_.Id -notin $existingHosts } |
+      Where-Object {
+        $_.Id -notin $existingHosts -and $_.Path -and
+        $_.Path.StartsWith((Join-Path $script:local 'Temp\RepoDitorInstaller-'), [StringComparison]::OrdinalIgnoreCase)
+      } |
       Select-Object -First 1
     if ($null -eq $installerHost) { Start-Sleep -Milliseconds 100 }
   }
-  Assert-True ($null -ne $installerHost) "$Scenario WebView2 uninstall host did not start."
+  Assert-True ($null -ne $installerHost) "$Scenario WebView2 $Mode host did not start."
   Add-Observation $Scenario 'WebView2 host' "pid=$($installerHost.Id)"
 
   $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -202,47 +237,97 @@ function Invoke-WebViewUninstall([string] $Scenario, [string] $InstallPath) {
     [int]$installerHost.Id
   )
   $window = $null
-  $uninstallButton = $null
+  $actionButton = $null
+  $actionName = if ($Mode -eq 'install') { 'Install' } else { 'Uninstall' }
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
-  while ($null -eq $uninstallButton -and [DateTime]::UtcNow -lt $deadline) {
+  while ($null -eq $actionButton -and [DateTime]::UtcNow -lt $deadline) {
     $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
-    if ($null -ne $window) { $uninstallButton = Find-Button $window 'Uninstall' }
-    if ($null -eq $uninstallButton) { Start-Sleep -Milliseconds 100 }
+    if ($null -ne $window) {
+      $actionButton = Find-Button $window $actionName
+      if ($null -eq $actionButton -and $Mode -eq 'install') {
+        $actionButton = Find-Button $window 'Update'
+        if ($null -ne $actionButton) { $actionName = 'Update' }
+      }
+    }
+    if ($null -eq $actionButton) { Start-Sleep -Milliseconds 100 }
   }
-  Assert-True ($null -ne $uninstallButton) "$Scenario WebView2 Uninstall button was not available."
+  Assert-True ($null -ne $actionButton) "$Scenario WebView2 $actionName button was not available."
 
-  $invoke = $uninstallButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+  $invoke = $actionButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
   $invoke.Invoke()
-  Add-Observation $Scenario 'WebView2 action' 'Uninstall invoked'
+  Add-Observation $Scenario 'WebView2 action' "$actionName invoked"
 
-  Assert-True ($entryProcess.WaitForExit(30000)) "$Scenario installed uninstaller entry did not exit."
-  Add-Observation $Scenario 'uninstaller entry exit' ([string]$entryProcess.ExitCode)
-  Assert-True ($entryProcess.ExitCode -eq 0) `
-    "$Scenario installed uninstaller entry exited $($entryProcess.ExitCode)."
+  Assert-True ($entryProcess.WaitForExit(30000)) "$Scenario production entry did not exit."
+  $entryProcess.Refresh()
+  Add-Observation $Scenario 'production entry exit' ([string]$entryProcess.ExitCode)
+  # NSIS Quit in the install .onInit callback returns 2 after handing off to
+  # WebView2. This launcher status is not the silent engine's result or success.
+  $expectedEntryExit = if ($Mode -eq 'install') { 2 } else { 0 }
+  Assert-True ($entryProcess.ExitCode -eq $expectedEntryExit) `
+    "$Scenario production entry exited $($entryProcess.ExitCode), expected handoff status $expectedEntryExit."
 
-  $uiResult = $null
-  $uiText = @()
-  $deadline = [DateTime]::UtcNow.AddSeconds(90)
-  while ($null -eq $uiResult -and [DateTime]::UtcNow -lt $deadline) {
-    $uiText = @($window.FindAll(
-      [System.Windows.Automation.TreeScope]::Descendants,
-      [System.Windows.Automation.Condition]::TrueCondition
-    ) | ForEach-Object { $_.Current.Name } | Where-Object { $_ } | Sort-Object -Unique)
-    if ($uiText -contains 'Uninstall finished') { $uiResult = 'finished' }
-    if ($uiText -contains 'Uninstall failed') { $uiResult = 'failed' }
-    if ($null -eq $uiResult) { Start-Sleep -Milliseconds 100 }
-  }
-  Add-Observation $Scenario 'WebView2 result' ([string]$uiResult)
+  $successHeading = if ($Mode -eq 'install') { 'RepoDitor is ready' } else { 'Uninstall finished' }
+  $failureHeading = if ($Mode -eq 'install') { 'Installation failed' } else { 'Uninstall failed' }
+  do {
+    $retryRequested = $false
+    $uiResult = $null
+    $uiText = @()
+    $observedStages = [Collections.Generic.HashSet[string]]::new()
+    $deadline = [DateTime]::UtcNow.AddSeconds(90)
+    while ($null -eq $uiResult -and [DateTime]::UtcNow -lt $deadline) {
+      $uiNodes = @($window.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.Condition]::TrueCondition
+      ))
+      $uiText = @($uiNodes | ForEach-Object { $_.Current.Name } | Where-Object { $_ } | Sort-Object -Unique)
+      foreach ($stageText in $uiText | Where-Object { $_ -match '^(Preparing|Running|Verifying) (installation|removal)' }) {
+        if ($observedStages.Add($stageText)) { Add-Observation $Scenario 'visible stage' $stageText }
+      }
+      Assert-True (-not ($uiText | Where-Object { $_ -match '\d+(?:\.\d+)?\s*%' })) "$Scenario displayed numeric progress."
+      if ($uiText -contains $successHeading) { $uiResult = 'finished' }
+      if ($uiText -contains $failureHeading) { $uiResult = 'failed' }
+      if ($null -eq $uiResult) { Start-Sleep -Milliseconds 100 }
+    }
+    Add-Observation $Scenario 'WebView2 result' ([string]$uiResult)
+    if ($uiResult) {
+      Assert-True (-not ($uiText -contains $successHeading -and $uiText -contains $failureHeading)) `
+        "$Scenario displayed success and failure together."
+      Assert-True (-not ($uiNodes | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ProgressBar })) `
+        "$Scenario terminal UI retained a progress indicator."
+      Add-Observation $Scenario 'terminal progress' 'indicator absent; no numeric percentage observed'
+    }
+    if ($FailureSentinel) {
+      Assert-True ($Mode -eq 'install' -and $uiResult -eq 'failed') "$Scenario expected native installation refusal."
+      Assert-True ($FailureSentinel -eq (Join-Path $InstallPath 'refusal-sentinel.txt')) 'Refusal sentinel escaped its synthetic target.'
+      Assert-True (-not (Test-Path -LiteralPath $script:appKey) -and -not (Test-Path -LiteralPath $script:uninstallKey)) `
+        "$Scenario failure created authoritative registration."
+      Assert-True (-not (Test-Path -LiteralPath (Join-Path $InstallPath 'RepoDitor.exe'))) "$Scenario failure installed an executable."
+      Assert-True ([IO.File]::ReadAllText($FailureSentinel) -ceq 'synthetic-refusal-only') 'Native refusal changed the synthetic sentinel.'
+      Assert-GameData "$Scenario failure"
+      $retryButton = Find-Button $window 'Retry'
+      Assert-True ($null -ne $retryButton -and $null -eq (Find-Button $window 'Launch RepoDitor')) `
+        "$Scenario failure offered success instead of Retry."
+      # Resolve this deliberate native path refusal, then invoke one real user
+      # Retry. No automatic retries, injected messages, or product test hooks.
+      Remove-Item -LiteralPath $FailureSentinel -Force
+      $FailureSentinel = ''
+      $retryButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+      Add-Observation $Scenario 'WebView2 retry' 'Retry invoked after resolving synthetic path refusal'
+      $retryRequested = $true
+    }
+  } while ($retryRequested)
   if ($uiResult -ne 'finished') {
-    throw "$Scenario WebView2 uninstall failed or timed out. UI text: $($uiText -join ' | ')"
+    throw "$Scenario WebView2 $Mode failed or timed out. UI text: $($uiText -join ' | ')"
   }
 
-  Assert-Uninstalled $Scenario $InstallPath
-  Assert-GameData "$Scenario uninstall"
+  if ($Mode -eq 'install') { Assert-Installed $Scenario $InstallPath }
+  else { Assert-Uninstalled $Scenario $InstallPath }
+  Assert-GameData "$Scenario $Mode"
   $closeButton = Find-Button $window 'Close'
   if ($null -ne $closeButton) {
     $closeButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   }
+  Assert-True ($installerHost.WaitForExit(30000)) "$Scenario completed host did not close."
 }
 
 try {
@@ -306,14 +391,20 @@ try {
     New-Item -ItemType Directory -Path $root -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $root 'upgrade-sentinel.txt'), 'preserve-on-update')
   }
+  $ownedSentinelHashes = @{}
+  foreach ($root in $ownedDataRoots) {
+    $ownedSentinelHashes[$root] = (Get-FileHash -LiteralPath (Join-Path $root 'upgrade-sentinel.txt')).Hash
+  }
   Invoke-Setup 'current-user-default-update' $defaultInstallPath
   foreach ($root in $ownedDataRoots) {
     Assert-True (Test-Path -LiteralPath (Join-Path $root 'upgrade-sentinel.txt') -PathType Leaf) `
       "Update removed RepoDitor-owned AppData sentinel: $root"
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $root 'upgrade-sentinel.txt')).Hash -eq $ownedSentinelHashes[$root]) `
+      "Update changed RepoDitor-owned AppData sentinel: $root"
   }
   Add-Observation 'current-user-default-update' 'AppData' 'sentinels retained'
 
-  Invoke-WebViewUninstall 'current-user-default-uninstall' $defaultInstallPath
+  Invoke-WebViewOperation 'current-user-default-uninstall' $defaultInstallPath
   foreach ($root in $ownedDataRoots) {
     Assert-True (-not (Test-Path -LiteralPath $root)) `
       "Explicit uninstall left RepoDitor-owned AppData: $root"
@@ -321,7 +412,27 @@ try {
   Add-Observation 'current-user-default-uninstall' 'AppData' 'owned roots removed'
 
   Invoke-Setup 'current-user-custom-install' $customInstallPath
-  Invoke-WebViewUninstall 'current-user-custom-uninstall' $customInstallPath
+  foreach ($root in $ownedDataRoots) {
+    New-Item -ItemType Directory -Path $root -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $root 'custom-uninstall-sentinel.txt'), 'remove-on-explicit-uninstall')
+  }
+  Add-Observation 'current-user-custom-uninstall' 'AppData baseline' 'owned roots populated with synthetic sentinels'
+  Invoke-WebViewOperation 'current-user-custom-uninstall' $customInstallPath
+  foreach ($root in $ownedDataRoots) {
+    Assert-True (-not (Test-Path -LiteralPath $root)) "Custom uninstall left RepoDitor-owned AppData: $root"
+  }
+  Add-Observation 'current-user-custom-uninstall' 'AppData' 'owned roots removed'
+  if ($ObserveSetupUi) {
+    Assert-True (-not (Test-Path -LiteralPath $defaultInstallPath)) 'Refusal test target is not clean.'
+    New-Item -ItemType Directory -Path $defaultInstallPath | Out-Null
+    $refusalSentinel = Join-Path $defaultInstallPath 'refusal-sentinel.txt'
+    [IO.File]::WriteAllText($refusalSentinel, 'synthetic-refusal-only')
+    Invoke-WebViewOperation 'native-failure-and-real-retry' $defaultInstallPath 'install' $refusalSentinel
+    Invoke-WebViewOperation 'retry-install-clean-uninstall' $defaultInstallPath
+    foreach ($root in $ownedDataRoots) {
+      Assert-True (-not (Test-Path -LiteralPath $root)) "Retry cleanup left RepoDitor-owned AppData: $root"
+    }
+  }
   $succeeded = $true
 }
 catch {
@@ -331,6 +442,7 @@ catch {
 finally {
   if ($createdGameData -and (Test-Path -LiteralPath $gameDataRoot)) {
     try {
+      Assert-True ($gameDataRoot -eq (Join-Path $profile 'AppData\LocalLow\semiwork\Repo')) 'Synthetic cleanup path escaped its verified profile.'
       Remove-Item -LiteralPath $gameDataRoot -Recurse -Force
       if (Test-Path -LiteralPath $gameDataRoot) {
         throw 'Synthetic R.E.P.O. cleanup did not complete.'

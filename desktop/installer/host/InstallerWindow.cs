@@ -24,6 +24,7 @@ internal sealed class InstallerWindow : Form
     private string _scope;
     private string _selectedPath;
     private bool _busy;
+    private InstallerState _state = InstallerState.Ready;
 
     internal InstallerWindow(Arguments options)
     {
@@ -48,7 +49,7 @@ internal sealed class InstallerWindow : Form
 
         _bridge = new WebViewBridge(BackColor, OnInstallerCommand);
         Controls.Add(_bridge.View);
-        _engine = new InstallerEngine(options);
+        _engine = new InstallerEngine(options, delegate(InstallerState stage) { SendState(stage, string.Empty); });
     }
 
     protected override void Dispose(bool disposing)
@@ -118,7 +119,8 @@ internal sealed class InstallerWindow : Form
         {
             SetScope("all", _options.AllPath);
         }
-        else if ((command == "start" || command == "retry") && !_busy)
+        else if ((command == "start" || command == "retry") && !_busy &&
+            (_state == InstallerState.Ready || _state == InstallerState.Failure))
         {
             RunEngine();
         }
@@ -126,7 +128,7 @@ internal sealed class InstallerWindow : Form
         {
             Close();
         }
-        else if (command == "launch" && !_busy)
+        else if (command == "launch" && !_busy && _state == InstallerState.Success && _options.Mode != "uninstall")
         {
             LaunchRepoDitor();
         }
@@ -206,26 +208,27 @@ internal sealed class InstallerWindow : Form
     private async void RunEngine()
     {
         _busy = true;
-        SendState("progress", _options.Mode == "uninstall" ? "Removing application…" : "Installing application…");
 
         try
         {
             await _engine.RunAsync(_scope, _selectedPath);
 
             _busy = false;
-            SendState("done", string.Empty);
+            SendState(InstallerState.Success, string.Empty);
         }
         catch (Win32Exception error)
         {
             _busy = false;
-            SendState("error", error.NativeErrorCode == 1223
+            LogFailure(error);
+            SendState(InstallerState.Failure, error.NativeErrorCode == 1223
                 ? "Administrator access was cancelled. No changes were made."
-                : error.Message);
+                : FailureMessage());
         }
         catch (Exception error)
         {
             _busy = false;
-            SendState("error", error.Message);
+            LogFailure(error);
+            SendState(InstallerState.Failure, FailureMessage());
         }
     }
 
@@ -239,18 +242,33 @@ internal sealed class InstallerWindow : Form
         }
         catch (Exception error)
         {
-            SendState("error", error.Message);
+            LogFailure(error);
+            SendState(InstallerState.Failure, "RepoDitor could not be launched. Close Setup and try opening the application again.");
         }
     }
 
-    private void SendState(string state, string message)
+    private string FailureMessage()
     {
-        _bridge.Send(new Dictionary<string, object>
-        {
-            { "type", "state" },
-            { "state", state },
-            { "message", message }
-        });
+        return _options.Mode == "uninstall"
+            ? "RepoDitor could not be removed. Retry or close this window."
+            : "RepoDitor could not be installed. Retry or close this window.";
     }
 
+    private static void LogFailure(Exception error)
+    {
+        Trace.TraceError(error.ToString());
+        try
+        {
+            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "installer.log"),
+                DateTime.UtcNow.ToString("O") + " " + error + Environment.NewLine);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private void SendState(InstallerState state, string message)
+    {
+        _state = state;
+        _bridge.SendState(state, message);
+    }
 }

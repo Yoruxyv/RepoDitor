@@ -69,6 +69,12 @@ jobs:
       - name: Verify installer configuration
         run: npm run release:check
 
+      - name: Verify native installer stages and completion checks
+        run: npm run test:installer:host
+
+      - name: Verify production installer composition at normal and maximized sizes
+        run: npm run test:installer:layout
+
       - name: Build, package, and verify the production installer
         run: npm run package
 
@@ -120,7 +126,10 @@ jobs:
                 "-File $stage\lifecycle.ps1",
                 "-SetupPath $stage\setup.exe",
                 "-ResultsPath $stage\results",
-                "-RequireUnelevated"
+                "-RequireUnelevated",
+                "-ObserveSetupUi",
+                "-ExpectedDisposableProfile $profileRoot",
+                "-ExpectedDisposableSID $sid"
               ) `
               -RedirectStandardOutput (Join-Path $stage "worker.stdout.log") `
               -RedirectStandardError (Join-Path $stage "worker.stderr.log") `
@@ -129,9 +138,13 @@ jobs:
 
             Get-Content (Join-Path $stage "worker.stdout.log") -ErrorAction SilentlyContinue
             Get-Content (Join-Path $stage "worker.stderr.log") -ErrorAction SilentlyContinue
-            if ($worker.ExitCode -ne 0) {
+            if ($null -ne $worker.ExitCode -and $worker.ExitCode -ne 0) {
               throw "Installer lifecycle worker exited $($worker.ExitCode)."
             }
+            # Start-Process -Credential can return an unavailable ExitCode.
+            # Require the completed worker journal and every authoritative check.
+            $summary = Get-Content (Join-Path $stage "results/summary.json") | ConvertFrom-Json
+            if (-not $summary.succeeded) { throw "Installer lifecycle checks failed: $($summary.failure)" }
           }
           finally {
             if ($userCreated) { & net.exe user $ciUser /delete | Out-Null }
