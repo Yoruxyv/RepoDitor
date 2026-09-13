@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://repoditor.vercel.app/sitemap.xml
