@@ -48,6 +48,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Bundle sizes
+        run: npm run bundle:check
 
   e2e:
     name: Playwright critical flows

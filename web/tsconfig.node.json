@@ -19,5 +19,5 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["api/**/*.ts", "e2e/**/*.ts", "playwright.config.ts", "vite.config.ts"]
+  "include": ["api/**/*.ts", "e2e/**/*.ts", "playwright*.config.ts", "vite.config.ts"]
 }

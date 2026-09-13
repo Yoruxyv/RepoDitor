@@ -51,6 +51,8 @@ RepoDitor runs separately from the game and does not require BepInEx, a mod load
 
 [Download the latest release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
+🌐 **Web:** [repoditor.vercel.app](https://repoditor.vercel.app/)
+
 </div>
 
 

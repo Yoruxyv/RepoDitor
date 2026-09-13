@@ -295,15 +295,15 @@ export function AppFooter() {
 
   return (
     <footer className="theme-surface border-t border-line bg-surface">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 p-5 text-sm text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col flex-wrap gap-3 p-5 text-sm text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <p className="inline-flex items-center gap-2">
-          <ShieldCheckIcon aria-hidden="true" className="text-accent" size={17} />
+          <ShieldCheckIcon aria-hidden="true" className="shrink-0 text-accent" size={17} />
           {t("app.footerPrivacy")}
         </p>
-        <nav aria-label={t("app.policies")} className="flex flex-wrap gap-x-4 gap-y-2">
+        <nav aria-label={t("app.policies")} className="flex flex-wrap gap-x-6 gap-y-2">
           {(["security", "privacy", "terms"] as const).map((entry) => (
             <a
-              className="font-semibold text-secondary transition-colors hover:text-accent"
+              className="py-1 font-semibold text-secondary transition-colors hover:text-accent"
               href={`#${entry}`}
               key={entry}
               onClick={(event) => {
@@ -316,12 +316,12 @@ export function AppFooter() {
             </a>
           ))}
           <a
-            className="font-semibold text-secondary transition-colors hover:text-accent"
-            href={GITHUB_URL}
+            className="py-1 font-semibold text-secondary transition-colors hover:text-accent"
+            href={`${GITHUB_URL}/blob/main/LICENSE`}
             rel="noreferrer"
             target="_blank"
           >
-            GitHub
+            {t("policies.licenseTitle")}
           </a>
         </nav>
       </div>
