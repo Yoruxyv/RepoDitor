@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -15,6 +16,56 @@ const uiBuildRoot = path.join(desktopRoot, "build", "installer-ui");
 const builderRoot = path.dirname(require.resolve("app-builder-lib/package.json"));
 const builderTemplate = (...segments) => path.join(builderRoot, "templates", "nsis", ...segments);
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+test("the bare npm lifecycle command isolates its visible production worker and verifies cleanup", async () => {
+  assert.match(
+    packageJson.scripts["test:installer:lifecycle"],
+    /powershell .*run-installer-lifecycle\.ps1$/,
+  );
+  const [runner, worker, workflow] = await Promise.all([
+    readFile(path.join(desktopRoot, "scripts/run-installer-lifecycle.ps1"), "utf8"),
+    readFile(path.join(desktopRoot, "scripts/test-installer-lifecycle.ps1"), "utf8"),
+    readFile(path.join(desktopRoot, "../.github/workflows/installer-lifecycle.yml"), "utf8"),
+  ]);
+  assert.match(runner, /SetAccessRuleProtection\(\$true, \$false\)/);
+  assert.match(runner, /-Credential \$credential -LoadUserProfile -Environment/);
+  assert.match(runner, /'-ObserveSetupUi', '-RequireUnelevated', '-ExpectedDisposableProfile'/);
+  assert.match(runner, /-ExpectedDisposableSID/);
+  assert.match(runner, /\$postflight\.SID -ne \$created\.SID/);
+  assert.match(runner, /\$profileInfo\.Special -or \$profileInfo\.Loaded/);
+  assert.match(runner, /Remove-CimInstance -InputObject \$profileInfo/);
+  assert.doesNotMatch(
+    runner,
+    /Remove-Item -LiteralPath \$(?:profile|run\.Profile)|;;;WD|Start-Sleep/,
+  );
+  assert.match(worker, /Assert-GameData 'synthetic cleanup'/);
+  assert.match(worker, /Authoritative final registry\/filesystem state remains/);
+  assert.match(workflow, /-ObserveSetupUi[\s\S]*-ExpectedDisposableSID/);
+});
+
+test(
+  "administrative lifecycle mode rejects paths outside its QA directory",
+  { skip: process.platform !== "win32" },
+  () => {
+    assert.throws(
+      () =>
+        execFileSync(
+          "powershell",
+          [
+            "-NoProfile",
+            "-File",
+            path.join(desktopRoot, "scripts/run-installer-lifecycle.ps1"),
+            "-Mode",
+            "Create",
+            "-ControlPath",
+            desktopRoot,
+          ],
+          { encoding: "utf8", stdio: "pipe" },
+        ),
+      (error) => error.status !== 0 && /Control path escaped/.test(error.stderr),
+    );
+  },
+);
 
 async function collectFiles(directory) {
   const files = [];
@@ -123,7 +174,7 @@ test("native stages and terminal events remain authoritative and explicitly vali
     states.split(",").map((state) => state.trim().toLowerCase()),
     [...uiStates.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
   );
-  assert.match(bridge, /SendState\(InstallerState state, string message\)/);
+  assert.match(bridge, /SendState\(InstallerState state, string message, string session = null\)/);
   assert.match(bridge, /Enum\.IsDefined\(typeof\(InstallerState\), state\)/);
   assert.match(uiBridge, /Object\.keys\(value\)\.every/);
   assert.match(engine, /InstallerState\.Preparing[\s\S]*await _parent\.WaitAsync/);
@@ -153,10 +204,7 @@ test("native stages and terminal events remain authoritative and explicitly vali
     uiSources.join("\n"),
     /setInterval|setTimeout|Downloading RepoDitor|progressPercent/i,
   );
-  const reducedMotion = css.match(/@media \(prefers-reduced-motion: reduce\)(?<body>[\s\S]*)/)
-    ?.groups?.body;
-  assert.ok(reducedMotion);
-  assert.doesNotMatch(reducedMotion, /width:\s*100%/);
+  assert.doesNotMatch(css, /@keyframes|animation:\s*(?!none)[a-z][\w-]*\s+\d/);
 });
 
 test("approved composition and assets remain installer-owned source", async () => {
@@ -355,7 +403,7 @@ test("native install, update, elevation, and uninstall contracts remain unchange
     /if \(scope == "all"\)\s*\{\s*startInfo\.UseShellExecute = true;\s*startInfo\.Verb = "runas";\s*\}\s*else\s*\{\s*startInfo\.UseShellExecute = false;\s*startInfo\.CreateNoWindow = true;/,
   );
   assert.doesNotMatch(host, /DirectEngine|direct-engine| _\?=/);
-  assert.doesNotMatch(host, /attempt <|for \(var attempt/);
+  assert.doesNotMatch(engine, /attempt <|for \(var attempt/);
   assert.match(host, /await WaitForUninstallCompletionAsync\(scope, selectedPath\)/);
   assert.match(host, /Registry\.LocalMachine : Registry\.CurrentUser/);
   assert.match(host, /registry\.OpenSubKey\(_options\.RegistryKey\)/);

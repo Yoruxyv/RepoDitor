@@ -72,6 +72,9 @@ jobs:
       - name: Verify native installer stages and completion checks
         run: npm run test:installer:host
 
+      - name: Verify real extraction callbacks and authenticated progress transport
+        run: npm run test:installer:extraction
+
       - name: Verify production installer composition at normal and maximized sizes
         run: npm run test:installer:layout
 
