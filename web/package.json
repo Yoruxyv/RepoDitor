@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "bundle:check": "node scripts/check-bundle.mjs",
     "capabilities:check": "cd .. && uv run --locked --group test python -m tools.capabilities check",
     "capabilities:check:installed": "cd .. && uv run --locked --group test python -m tools.capabilities check-installed",
     "capabilities:update": "cd .. && uv run --locked --group test python -m tools.capabilities update",
@@ -16,6 +17,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run && node --test scripts/*.test.mjs",
     "test:e2e": "tsc -b && vite build && node scripts/run-playwright.mjs",
+    "test:production": "playwright test --config playwright.production.config.ts",
     "lighthouse": "node scripts/run-lighthouse.mjs",
     "preview": "vite preview"
   },
