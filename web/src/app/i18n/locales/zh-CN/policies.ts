@@ -2,6 +2,7 @@ import type { TranslationShape } from "@/app/i18n/types";
 import { policiesEn } from "@/app/i18n/locales/en/policies";
 
 export const policiesZhCn: TranslationShape<typeof policiesEn> = {
+  licenseTitle: "许可证",
   privacyTitle: "数据与隐私",
   privacyOne: "存档内容在本地处理，RepoDitor Web 不会持久化保存。",
   privacyTwo:

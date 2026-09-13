@@ -2,6 +2,7 @@ import type { TranslationShape } from "@/app/i18n/types";
 import { policiesEn } from "@/app/i18n/locales/en/policies";
 
 export const policiesKo: TranslationShape<typeof policiesEn> = {
+  licenseTitle: "라이선스",
   privacyTitle: "데이터 및 개인정보",
   privacyOne: "세이브 내용은 로컬에서 처리되며 RepoDitor Web에 저장되지 않습니다.",
   privacyTwo:

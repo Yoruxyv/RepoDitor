@@ -1,4 +1,5 @@
 export const policiesEn = {
+  licenseTitle: "License",
   privacyTitle: "Data & Privacy",
   privacyOne: "Save contents are processed locally and are not persisted by RepoDitor Web.",
   privacyTwo:
