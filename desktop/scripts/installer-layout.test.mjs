@@ -60,9 +60,23 @@ test("production installer stays centered and capped at minimum, normal and maxi
               removeEventListener: messages.removeEventListener.bind(messages),
             },
           };
+          const session = "0123456789abcdef0123456789abcdef";
+          window.sendInstallerProgress = (percentage) =>
+            messages.dispatchEvent(
+              new MessageEvent("message", {
+                data: { type: "progress", session, attempt: 1, percentage },
+              }),
+            );
           window.sendInstallerState = (state) =>
             messages.dispatchEvent(
-              new MessageEvent("message", { data: { type: "state", state, message: "" } }),
+              new MessageEvent("message", {
+                data: {
+                  type: "state",
+                  state,
+                  message: "",
+                  ...(mode === "install" ? { session } : {}),
+                },
+              }),
             );
         },
         { mode },
@@ -74,7 +88,11 @@ test("production installer stays centered and capped at minimum, normal and maxi
       for (const state of ["ready", "preparing", "installing", "finalizing", "failure"]) {
         if (state !== "ready") {
           await page.evaluate((state) => window.sendInstallerState(state), state);
-          await page.locator(state === "failure" ? ".state-done" : ".progress-track").waitFor();
+          await page.locator(state === "failure" ? ".state-done" : ".state-progress").waitFor();
+          if (mode === "install" && state === "installing") {
+            await page.evaluate(() => window.sendInstallerProgress(53));
+            await page.getByText("53%", { exact: true }).waitFor();
+          }
         }
         for (const [width, height] of [
           [960, 640],
@@ -101,6 +119,20 @@ test("production installer stays centered and capped at minimum, normal and maxi
           );
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
           assert.equal(await page.evaluate(() => document.documentElement.scrollHeight), height);
+          if (mode === "uninstall") assert.equal(await page.getByRole("progressbar").count(), 0);
+          if (mode === "install" && ["preparing", "installing", "finalizing"].includes(state)) {
+            const bar = page.getByRole("progressbar");
+            assert.equal(await bar.getAttribute("value"), state === "preparing" ? "0" : "53");
+            assert.equal(
+              await bar.evaluate((element) => getComputedStyle(element).animationName),
+              "none",
+            );
+            const row = await page.locator(".progress-row").boundingBox();
+            const track = await page.locator(".progress-track").boundingBox();
+            const label = await page.locator(".progress-percentage").boundingBox();
+            assert.ok(row && track && label && track.x + track.width < label.x);
+            assert.ok(label.x + label.width <= row.x + row.width + 1);
+          }
         }
       }
       await page.close();

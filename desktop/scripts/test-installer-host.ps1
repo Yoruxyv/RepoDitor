@@ -11,6 +11,8 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $sources = @(
     (Join-Path $desktopRoot 'installer\host\Arguments.cs'),
     (Join-Path $desktopRoot 'installer\host\InstallerEngine.cs'),
+    (Join-Path $desktopRoot 'installer\host\ExtractionProgress.cs'),
+    (Join-Path $desktopRoot 'installer\host\ExtractionProgressChannel.cs'),
     (Join-Path $desktopRoot 'installer\host\ParentProcessSynchronizer.cs'),
     (Join-Path $desktopRoot 'installer\tests\InstallerEngineChecks.cs')
 )

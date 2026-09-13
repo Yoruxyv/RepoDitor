@@ -46,6 +46,13 @@ export type InstallerMessage =
       readonly type: "state";
       readonly state: InstallerState;
       readonly message: string;
+      readonly session?: string;
+    }
+  | {
+      readonly type: "progress";
+      readonly session: string;
+      readonly attempt: number;
+      readonly percentage: number;
     };
 
 type MessageListener = (event: { readonly data: unknown }) => void;
@@ -70,6 +77,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isInstallerState(value: unknown): value is InstallerState {
   return installerStates.some((state) => state === value);
+}
+
+function isSession(value: unknown): value is string {
+  return typeof value === "string" && value.length === 32 && /^[a-f0-9]{32}$/.test(value);
 }
 
 function parseInitialize(value: Record<string, unknown>): InitializeMessage | null {
@@ -107,17 +118,37 @@ export function parseInstallerMessage(value: unknown): InstallerMessage | null {
     return { type: "path", path: value.path };
   }
 
-  // No percentage is supported: reject extra fields, including purported numeric telemetry.
+  if (
+    value.type === "progress" &&
+    isSession(value.session) &&
+    (value.attempt === 1 || value.attempt === 2) &&
+    typeof value.percentage === "number" &&
+    Number.isFinite(value.percentage) &&
+    value.percentage >= 0 &&
+    value.percentage <= 100 &&
+    Object.keys(value).every((key) => ["type", "session", "attempt", "percentage"].includes(key))
+  ) {
+    return {
+      type: "progress",
+      session: value.session,
+      attempt: value.attempt,
+      percentage: value.percentage,
+    };
+  }
+
+  // Percentage is only carried by the dedicated extraction contract.
   if (
     value.type === "state" &&
     isInstallerState(value.state) &&
     typeof value.message === "string" &&
-    Object.keys(value).every((key) => key === "type" || key === "state" || key === "message")
+    (value.session === undefined || isSession(value.session)) &&
+    Object.keys(value).every((key) => ["type", "state", "message", "session"].includes(key))
   ) {
     return {
       type: "state",
       state: value.state,
       message: value.message,
+      ...(value.session === undefined ? {} : { session: value.session }),
     };
   }
 

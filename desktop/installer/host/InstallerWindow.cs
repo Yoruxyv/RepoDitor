@@ -49,7 +49,8 @@ internal sealed class InstallerWindow : Form
 
         _bridge = new WebViewBridge(BackColor, OnInstallerCommand);
         Controls.Add(_bridge.View);
-        _engine = new InstallerEngine(options, delegate(InstallerState stage) { SendState(stage, string.Empty); });
+        _engine = new InstallerEngine(options,
+            delegate(InstallerState stage) { SendState(stage, string.Empty); }, OnExtractionProgress);
     }
 
     protected override void Dispose(bool disposing)
@@ -269,6 +270,14 @@ internal sealed class InstallerWindow : Form
     private void SendState(InstallerState state, string message)
     {
         _state = state;
-        _bridge.SendState(state, message);
+        _bridge.SendState(state, message, _engine.ProgressSession);
+    }
+
+    private void OnExtractionProgress(ExtractionProgress progress)
+    {
+        BeginInvoke((Action)delegate {
+            if (_busy && _state == InstallerState.Installing && progress.Session == _engine.ProgressSession)
+                _bridge.SendProgress(progress);
+        });
     }
 }

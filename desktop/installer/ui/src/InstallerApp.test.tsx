@@ -28,8 +28,14 @@ function initialize(mode: "install" | "uninstall" = "install", updated = false) 
   });
 }
 
-function stage(state: string) {
-  sendFromHost({ type: "state", state, message: "" });
+function stage(state: string, session?: string) {
+  sendFromHost({ type: "state", state, message: "", ...(session ? { session } : {}) });
+}
+
+const extractionSession = "0123456789abcdef0123456789abcdef";
+const retrySession = "ffffffffffffffffffffffffffffffff";
+function extraction(percentage: unknown, session = extractionSession, attempt = 1) {
+  sendFromHost({ type: "progress", session, attempt, percentage });
 }
 
 beforeEach(() => {
@@ -94,7 +100,7 @@ describe("installer WebView2 contract", () => {
   });
 
   test.each([NaN, Infinity, -Infinity, -1, 101, "50", null, 0, 43, 100])(
-    "rejects unsupported percentage telemetry: %s",
+    "rejects percentages on semantic state messages: %s",
     (percentage) => {
       expect(
         parseInstallerMessage({
@@ -106,6 +112,150 @@ describe("installer WebView2 contract", () => {
       ).toBeNull();
     },
   );
+});
+
+test.each([0, 53, 100])("the dedicated bridge accepts measured %s percent", (percentage) => {
+  const message = { type: "progress", session: extractionSession, attempt: 1, percentage };
+  expect(parseInstallerMessage(message)).toEqual(message);
+});
+
+test.each([NaN, Infinity, -Infinity, "53", null, -1, 101])(
+  "the dedicated bridge rejects invalid percentage %s",
+  (percentage) => {
+    expect(
+      parseInstallerMessage({
+        type: "progress",
+        session: extractionSession,
+        attempt: 1,
+        percentage,
+      }),
+    ).toBeNull();
+  },
+);
+
+test("rejects malformed progress sessions, attempts and unexpected byte fields", () => {
+  for (const extra of [
+    { session: extractionSession + "\n" },
+    { session: "predictable" },
+    { attempt: 0 },
+    { attempt: 3 },
+    { attempt: "1" },
+    { completedBytes: 53 },
+    { totalBytes: 100 },
+    { unexpected: true },
+  ])
+    expect(
+      parseInstallerMessage({
+        type: "progress",
+        session: extractionSession,
+        attempt: 1,
+        percentage: 53,
+        ...extra,
+      }),
+    ).toBeNull();
+});
+
+test.each([false, true])(
+  "real extraction fills install/update without completing it, updated=%s",
+  (updated) => {
+    render(<InstallerApp />);
+    extraction(53);
+    initialize("install", updated);
+    extraction(53);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    stage("preparing", extractionSession);
+    extraction(53);
+    const preparingBar = screen.getByRole("progressbar");
+    expect(preparingBar.getAttribute("value")).toBe("0");
+    expect(preparingBar.getAttribute("aria-valuetext")).toContain("has not started");
+    stage("installing", extractionSession);
+    expect(screen.getByRole("progressbar")).toBe(preparingBar);
+    expect(preparingBar.getAttribute("value")).toBe("0");
+    expect(screen.getByRole("status").textContent).toBe("Running installation…");
+    for (const percentage of [0, 27, 53, 100]) {
+      extraction(percentage);
+      const bar = screen.getByRole("progressbar");
+      expect(bar.getAttribute("value")).toBe(String(percentage));
+      expect(bar.getAttribute("aria-valuenow")).toBe(String(percentage));
+      expect(bar.getAttribute("aria-valuemin")).toBe("0");
+      expect(bar.getAttribute("aria-valuemax")).toBe("100");
+      expect(bar.classList.contains("determinate")).toBe(true);
+      expect(screen.getByText(`${percentage}%`).isConnected).toBe(true);
+      expect(screen.getByRole("status").textContent).toBe("Installing application files…");
+      expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
+    }
+    extraction(83);
+    extraction(100, retrySession);
+    stage("success", extractionSession);
+    expect(screen.getByRole("progressbar").getAttribute("value")).toBe("100");
+    stage("finalizing", extractionSession);
+    extraction(99);
+    expect(screen.getByRole("status").textContent).toBe("Verifying installation…");
+    expect(screen.getByRole("progressbar").getAttribute("value")).toBe("100");
+    stage("success", extractionSession);
+    extraction(100);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByRole("heading", { name: "RepoDitor is ready" }).isConnected).toBe(true);
+  },
+);
+
+test("failure stops measured progress and real Retry requires a fresh session", () => {
+  render(<InstallerApp />);
+  initialize();
+  stage("preparing", extractionSession);
+  stage("installing", extractionSession);
+  extraction(53);
+  sendFromHost({
+    type: "state",
+    state: "failure",
+    message: "Native verification failed.",
+    session: extractionSession,
+  });
+  extraction(100);
+  stage("finalizing", extractionSession);
+  stage("success", extractionSession);
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  expect(screen.getByRole("alert").textContent).toBe("Native verification failed.");
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  stage("preparing", extractionSession);
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  stage("preparing", retrySession);
+  extraction(100);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("0");
+  stage("installing", retrySession);
+  extraction(100);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("0");
+  extraction(0, retrySession);
+  extraction(27, retrySession);
+  extraction(8, retrySession);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("27");
+});
+
+test("fallback explicitly starts another genuine extraction attempt", () => {
+  render(<InstallerApp />);
+  initialize();
+  stage("preparing", extractionSession);
+  stage("installing", extractionSession);
+  extraction(100);
+  extraction(53, extractionSession, 2);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("100");
+  extraction(0, extractionSession, 2);
+  expect(screen.getByRole("status").textContent).toBe("Retrying application file extraction…");
+  extraction(53, extractionSession, 2);
+  extraction(100, extractionSession, 1);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("53");
+});
+
+test("uninstall rejects extraction sessions and remains indeterminate", () => {
+  render(<InstallerApp />);
+  initialize("uninstall");
+  stage("preparing", extractionSession);
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  stage("preparing");
+  stage("installing");
+  extraction(53);
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  expect(screen.getByRole("status").textContent).toBe("Running removal…");
 });
 
 test("renders an initialized install and preserves a long selectable path", () => {
@@ -152,16 +302,19 @@ test.each([false, true])("represents real install/update stages, updated=%s", (u
 
   stage("preparing");
   expect(screen.getByRole("status").textContent).toBe("Preparing installation…");
+  const bar = screen.getByRole("progressbar");
+  expect(bar.getAttribute("value")).toBe("0");
   stage("installing");
   expect(screen.getByRole("heading", { name: "Installing RepoDitor" }).isConnected).toBe(true);
   expect(screen.getByRole("status").textContent).toBe("Running installation…");
-  const progress = screen.getByRole("progressbar");
-  expect(progress.getAttribute("aria-valuenow")).toBeNull();
-  expect(progress.getAttribute("aria-valuetext")).toBe("Running installation…");
-  expect(progress.closest("section")?.getAttribute("aria-busy")).toBe("true");
+  expect(screen.getByRole("progressbar")).toBe(bar);
+  expect(bar.getAttribute("value")).toBe("0");
+  expect(screen.getByRole("status").closest("section")?.getAttribute("aria-busy")).toBe("true");
   expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
   stage("finalizing");
   expect(screen.getByRole("status").textContent).toBe("Verifying installation…");
+  expect(screen.getByRole("progressbar")).toBe(bar);
+  expect(bar.getAttribute("value")).toBe("0");
   expect(screen.queryByRole("button", { name: "Launch RepoDitor" })).toBeNull();
 
   stage("success");
@@ -212,7 +365,7 @@ test.each(["preparing", "installing", "finalizing"])(
     stage("preparing");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("Preparing installation…");
-    expect(screen.getByRole("progressbar").getAttribute("value")).toBeNull();
+    expect(screen.getByRole("progressbar").getAttribute("value")).toBe("0");
     stage("installing");
     stage("finalizing");
     stage("success");

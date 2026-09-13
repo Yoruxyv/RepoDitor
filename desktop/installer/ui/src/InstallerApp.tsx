@@ -21,6 +21,9 @@ interface InstallerView {
   readonly path: string;
   readonly phase: InstallerState;
   readonly message: string;
+  readonly session: string | null;
+  readonly percentage: number | null;
+  readonly extractionAttempt: number;
 }
 
 const initialView: InstallerView = {
@@ -34,6 +37,9 @@ const initialView: InstallerView = {
   path: "Preparing installation…",
   phase: "ready",
   message: "",
+  session: null,
+  percentage: null,
+  extractionAttempt: 0,
 };
 
 function applyMessage(view: InstallerView, message: InstallerMessage): InstallerView {
@@ -50,14 +56,60 @@ function applyMessage(view: InstallerView, message: InstallerMessage): Installer
       path: message.path || view.path,
       phase: "ready",
       message: "",
+      session: null,
+      percentage: null,
+      extractionAttempt: 0,
     };
   }
 
   if (!view.initialized) return view;
+  if (message.type === "progress") return applyProgress(view, message);
   if (message.type === "path") {
     return view.phase === "ready" ? { ...view, path: message.path } : view;
   }
+  return applyState(view, message);
+}
+
+function applyProgress(
+  view: InstallerView,
+  message: Extract<InstallerMessage, { type: "progress" }>,
+): InstallerView {
+  if (view.mode !== "install" || view.phase !== "installing" || message.session !== view.session)
+    return view;
+  if (message.attempt === view.extractionAttempt) {
+    if (view.percentage !== null && message.percentage < view.percentage) return view;
+  } else if (
+    message.attempt !== view.extractionAttempt + 1 ||
+    (view.extractionAttempt !== 0 && message.percentage !== 0)
+  )
+    return view;
+  return { ...view, percentage: message.percentage, extractionAttempt: message.attempt };
+}
+
+function applyState(
+  view: InstallerView,
+  message: Extract<InstallerMessage, { type: "state" }>,
+): InstallerView {
   if (!canTransition(view.phase, message.state)) return view;
+  if (message.state === "preparing") {
+    if (view.mode === "uninstall" && message.session !== undefined) return view;
+    if (view.phase === "preparing" && (message.session ?? null) !== view.session) return view;
+    if (
+      view.phase === "failure" &&
+      message.session !== undefined &&
+      message.session === view.session
+    )
+      return view;
+    return {
+      ...view,
+      phase: message.state,
+      message: message.message,
+      session: message.session ?? null,
+      percentage: null,
+      extractionAttempt: 0,
+    };
+  }
+  if ((message.session ?? null) !== view.session) return view;
   return { ...view, phase: message.state, message: message.message };
 }
 
@@ -67,7 +119,8 @@ function canTransition(current: InstallerState, next: InstallerState): boolean {
   if (next === "installing") return current === "preparing";
   if (next === "finalizing") return current === "installing";
   if (next === "success") return current === "finalizing";
-  if (next === "failure") return current !== "ready" && current !== "failure";
+  if (next === "failure")
+    return current === "preparing" || current === "installing" || current === "finalizing";
   return false;
 }
 
@@ -119,7 +172,14 @@ export function InstallerApp() {
     view.phase === "installing" ||
     view.phase === "finalizing"
   ) {
-    state = <ProgressState mode={view.mode} stage={view.phase} />;
+    state = (
+      <ProgressState
+        mode={view.mode}
+        stage={view.phase}
+        percentage={view.percentage}
+        attempt={view.extractionAttempt}
+      />
+    );
   } else {
     state = (
       <ResultState
