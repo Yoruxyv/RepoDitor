@@ -16,7 +16,7 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
 )
 from repo_save_editor.services.items.installed_metadata import discover_installed_item_catalog
 from repo_save_editor.services.items.models import ItemRechargeCapability
-from tools.capabilities import workflow
+from tools.capabilities import oracles, workflow
 from tools.capabilities.schema import cosmetics_contract_fingerprint, sha256_file
 from tools.capabilities.tests.unity_serialized_fixture import (
     UNITY_VERSION,
@@ -337,7 +337,7 @@ def _write_cosmetics_oracle(path: Path, names: tuple[str, ...]) -> None:
     _write_json(
         path,
         {
-            "schema": workflow.COSMETICS_ORACLE_SCHEMA,
+            "schema": oracles.COSMETICS_ORACLE_SCHEMA,
             "researchOnly": True,
             "independentOracle": True,
             "steam": {

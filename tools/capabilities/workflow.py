@@ -33,13 +33,14 @@ from repo_save_editor.services.items.recharge_evidence import (
     RESOURCES_RELATIVE_PATH,
 )
 from repo_save_editor.services.unity_serialized import UNITY_VERSION
+from tools.capabilities.oracles import load_cosmetics_oracle, load_recharge_oracle
 from tools.capabilities.schema import (
     SCHEMA_VERSION,
     CapabilityDataError,
-    Compatibility,
     CosmeticsEvidence,
     cosmetics_contract_fingerprint,
     cosmetics_snapshot,
+    exact_object,
     load_cosmetics_evidence,
     load_recharge_evidence,
     read_json,
@@ -81,7 +82,6 @@ COSMETICS_PARSER_SOURCE_PATHS: Final = (
     "desktop/python/repo_save_editor/services/unity_serialized.py",
 )
 MANAGED_ASSEMBLY_RELATIVE_PATH: Final = Path("REPO_Data/Managed/Assembly-CSharp.dll")
-COSMETICS_ORACLE_SCHEMA: Final = "repoditor-cosmetic-gate2-unitypy-oracle-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,12 +100,6 @@ class ExpectedArtifacts:
     cosmetics: dict[str, object]
     desktop_cosmetics: str
     electron_cosmetics: str
-
-
-@dataclass(frozen=True, slots=True)
-class CosmeticsOracle:
-    compatibility: Compatibility
-    catalog: tuple[InstalledCosmeticMetadata, ...]
 
 
 def _parser_source_digests(paths: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
@@ -507,153 +501,6 @@ def check_installed(game_dir: Path | None = None) -> int:
     return 0
 
 
-def _load_recharge_oracle(path: Path) -> tuple[Compatibility, tuple[str, ...]]:
-    value = read_json(path)
-    if not isinstance(value, dict) or set(value) != {
-        "schemaVersion",
-        "tool",
-        "compatibility",
-        "itemBatteryIdentities",
-    }:
-        raise CapabilityDataError("Recharge oracle capture has unsupported or missing fields.")
-    if value["schemaVersion"] != SCHEMA_VERSION or value["tool"] != "UnityPy":
-        raise CapabilityDataError("Recharge oracle is not the supported UnityPy schema.")
-    compatibility_value = value["compatibility"]
-    if not isinstance(compatibility_value, dict) or set(compatibility_value) != {
-        "steamAppId",
-        "steamBuildId",
-        "unityVersion",
-    }:
-        raise CapabilityDataError("Recharge oracle compatibility metadata is malformed.")
-    app_id = compatibility_value["steamAppId"]
-    build_id = compatibility_value["steamBuildId"]
-    unity_version = compatibility_value["unityVersion"]
-    if app_id != STEAM_APP_ID or not isinstance(build_id, str) or not build_id.isdigit():
-        raise CapabilityDataError("Recharge oracle targets an unsupported game build.")
-    if unity_version != UNITY_VERSION:
-        raise CapabilityDataError("Recharge oracle targets an unsupported Unity version.")
-    raw_names = value["itemBatteryIdentities"]
-    if not isinstance(raw_names, list) or any(
-        not isinstance(name, str) or not name for name in raw_names
-    ):
-        raise CapabilityDataError("Recharge oracle identities are malformed.")
-    names = tuple(cast(list[str], raw_names))
-    if names != tuple(sorted(names, key=str.casefold)) or len(names) != len(set(names)):
-        raise CapabilityDataError("Recharge oracle identities are duplicated or unordered.")
-    return Compatibility(STEAM_APP_ID, build_id, UNITY_VERSION), names
-
-
-def _exact_object(value: object, keys: set[str], label: str) -> dict[str, object]:
-    if not isinstance(value, dict) or set(value) != keys:
-        raise CapabilityDataError(f"{label} has unsupported or missing fields.")
-    return cast(dict[str, object], value)
-
-
-def _oracle_integer(value: object, label: str) -> int:
-    if type(value) is not int:
-        raise CapabilityDataError(f"{label} must be an integer.")
-    return value
-
-
-def _load_cosmetics_oracle(path: Path) -> CosmeticsOracle:
-    root = _exact_object(
-        read_json(path),
-        {
-            "schema",
-            "researchOnly",
-            "independentOracle",
-            "steam",
-            "unity",
-            "metaManager",
-            "catalog",
-            "validation",
-            "fileHashes",
-        },
-        "Cosmetics UnityPy oracle",
-    )
-    if (
-        root["schema"] != COSMETICS_ORACLE_SCHEMA
-        or root["researchOnly"] is not True
-        or root["independentOracle"] is not True
-    ):
-        raise CapabilityDataError("Cosmetics oracle is not the supported UnityPy capture.")
-
-    steam = _exact_object(root["steam"], {"appId", "buildId", "manifest"}, "Oracle Steam")
-    build_id = steam["buildId"]
-    if (
-        steam["appId"] != STEAM_APP_ID
-        or not isinstance(build_id, str)
-        or not build_id.isascii()
-        or not build_id.isdigit()
-    ):
-        raise CapabilityDataError("Cosmetics oracle targets an unsupported game build.")
-    unity = _exact_object(
-        root["unity"],
-        {"unityPyVersion", "unityVersion", "serializedFileVersion"},
-        "Oracle Unity metadata",
-    )
-    if unity["unityVersion"] != UNITY_VERSION:
-        raise CapabilityDataError("Cosmetics oracle targets an unsupported Unity version.")
-    if not isinstance(unity["unityPyVersion"], str) or not unity["unityPyVersion"]:
-        raise CapabilityDataError("Cosmetics oracle has no UnityPy version.")
-
-    raw_catalog = root["catalog"]
-    if not isinstance(raw_catalog, list):
-        raise CapabilityDataError("Cosmetics oracle catalog must be an array.")
-    catalog: list[InstalledCosmeticMetadata] = []
-    for position, raw_entry in enumerate(raw_catalog):
-        entry = _exact_object(
-            raw_entry,
-            {
-                "id",
-                "serializedFile",
-                "pathId",
-                "sourceFileId",
-                "assetName",
-                "type",
-                "rarity",
-                "status",
-            },
-            "Cosmetics oracle entry",
-        )
-        cosmetic_id = _oracle_integer(entry["id"], "Cosmetics oracle ID")
-        asset_name = entry["assetName"]
-        if cosmetic_id != position or not isinstance(asset_name, str) or not asset_name:
-            raise CapabilityDataError(
-                "Cosmetics oracle entries are unordered or have malformed identities."
-            )
-        catalog.append(
-            InstalledCosmeticMetadata(
-                cosmetic_id=cosmetic_id,
-                asset_name=asset_name,
-                cosmetic_type=_oracle_integer(entry["type"], "Cosmetics oracle type"),
-                rarity=_oracle_integer(entry["rarity"], "Cosmetics oracle rarity"),
-                status=_oracle_integer(entry["status"], "Cosmetics oracle status"),
-            )
-        )
-
-    validation = _exact_object(
-        root["validation"],
-        {"count", "indexesContiguous", "duplicateTargetCount", "nullPointerCount"},
-        "Cosmetics oracle validation",
-    )
-    if (
-        validation["count"] != len(catalog)
-        or validation["indexesContiguous"] is not True
-        or validation["duplicateTargetCount"] != 0
-        or validation["nullPointerCount"] != 0
-    ):
-        raise CapabilityDataError("Cosmetics oracle did not complete exact validation.")
-    meta_manager = _exact_object(
-        root["metaManager"],
-        {"serializedFile", "pathId", "cosmeticAssetsCount", "rawCosmeticVector"},
-        "Cosmetics oracle MetaManager",
-    )
-    if meta_manager["cosmeticAssetsCount"] != len(catalog):
-        raise CapabilityDataError("Cosmetics oracle MetaManager count is inconsistent.")
-    return CosmeticsOracle(Compatibility(STEAM_APP_ID, build_id, UNITY_VERSION), tuple(catalog))
-
-
 def _cosmetics_catalog_projection(
     catalog: tuple[InstalledCosmeticMetadata, ...],
 ) -> tuple[tuple[int, str, int, int, int], ...]:
@@ -674,7 +521,7 @@ def _validate_cosmetics_oracle(
     installed_build_id: str | None,
     oracle_path: Path,
 ) -> None:
-    oracle = _load_cosmetics_oracle(oracle_path)
+    oracle = load_cosmetics_oracle(oracle_path)
     if installed_build_id != oracle.compatibility.steam_build_id:
         raise CapabilityDataError("Installed build and Cosmetics oracle build disagree.")
     if _cosmetics_catalog_projection(installed) != _cosmetics_catalog_projection(oracle.catalog):
@@ -688,7 +535,7 @@ def approve_installed_recharge(game_dir: Path | None, oracle_path: Path) -> int:
     try:
         previous = load_recharge_evidence(RECHARGE_EVIDENCE_PATH)
         installed, build_id = _installed_recharge_capabilities(game_dir)
-        compatibility, oracle_names = _load_recharge_oracle(oracle_path)
+        compatibility, oracle_names = load_recharge_oracle(oracle_path)
         if build_id != compatibility.steam_build_id:
             raise CapabilityDataError("Installed build and Recharge oracle build disagree.")
         candidates = tuple(
@@ -763,7 +610,7 @@ def _validate_cosmetics_contract(
             "--cosmetics-contract-proof or new full-unlock evidence."
         )
 
-    proof = _exact_object(
+    proof = exact_object(
         read_json(proof_path),
         {
             "schemaVersion",
@@ -782,7 +629,7 @@ def _validate_cosmetics_contract(
         or proof["managedAssemblySha256"] != assembly_digest
     ):
         raise CapabilityDataError("Cosmetics managed-code proof is invalid or stale.")
-    compatibility = _exact_object(
+    compatibility = exact_object(
         proof["compatibility"],
         {"steamAppId", "steamBuildId", "unityVersion"},
         "Cosmetics managed-code proof compatibility",
@@ -793,7 +640,7 @@ def _validate_cosmetics_contract(
         "unityVersion": UNITY_VERSION,
     }:
         raise CapabilityDataError("Cosmetics managed-code proof targets a different installation.")
-    contract = _exact_object(
+    contract = exact_object(
         proof["semanticContract"],
         {"sourceObject", "consumerMethod", "indexOperation", "fingerprint"},
         "Cosmetics managed-code semantic contract",

@@ -130,7 +130,7 @@ def cosmetics_contract_fingerprint(
     return f"{SHA256_PREFIX}{hashlib.sha256(normalized).hexdigest()}"
 
 
-def _object(value: object, keys: set[str], label: str) -> dict[str, object]:
+def exact_object(value: object, keys: set[str], label: str) -> dict[str, object]:
     if not isinstance(value, dict) or set(value) != keys:
         raise CapabilityDataError(f"{label} has unsupported or missing fields.")
     return cast(dict[str, object], value)
@@ -170,7 +170,7 @@ def _sha256(value: object, label: str, *, prefixed: bool) -> str:
 
 
 def _compatibility(value: object, *, allow_unknown_build: bool) -> Compatibility:
-    row = _object(
+    row = exact_object(
         value,
         {"steamAppId", "steamBuildId", "unityVersion"},
         "compatibility",
@@ -233,7 +233,7 @@ def _source_digests(value: object, label: str) -> tuple[tuple[str, str], ...]:
 
 
 def load_recharge_evidence(path: Path) -> RechargeEvidence:
-    root = _object(
+    root = exact_object(
         read_json(path),
         {
             "schemaVersion",
@@ -258,7 +258,7 @@ def load_recharge_evidence(path: Path) -> RechargeEvidence:
         raise CapabilityDataError("Recharge capability rows must be an array.")
     capabilities: list[tuple[str, ItemRechargeCapability]] = []
     for raw in raw_capabilities:
-        row = _object(raw, {"itemIdentity", "capability"}, "Desktop Recharge capability")
+        row = exact_object(raw, {"itemIdentity", "capability"}, "Desktop Recharge capability")
         identity = _text(row["itemIdentity"], "Recharge item identity")
         raw_capability = _text(row["capability"], "Recharge capability")
         try:
@@ -278,7 +278,7 @@ def load_recharge_evidence(path: Path) -> RechargeEvidence:
     if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
         raise CapabilityDataError("Desktop Recharge capability rows contain duplicates.")
 
-    oracle = _object(
+    oracle = exact_object(
         root["independentOracle"],
         {"schemaVersion", "tool", "itemBatteryIdentities"},
         "Independent Recharge oracle",
@@ -305,7 +305,7 @@ def load_recharge_evidence(path: Path) -> RechargeEvidence:
 
 
 def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
-    root = _object(
+    root = exact_object(
         read_json(path),
         {
             "schemaVersion",
@@ -327,7 +327,7 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
         root["parserSourceDigests"], "Cosmetics parser source digests"
     )
     source_digest = _sha256(root["sourceSaveSha256"], "Cosmetics source digest", prefixed=False)
-    catalog = _object(
+    catalog = exact_object(
         root["installedCatalog"],
         {"serializedFile", "object", "identity", "exactIds", "independentOracle"},
         "Installed Cosmetics catalog",
@@ -336,7 +336,7 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
     source_object = _text(catalog["object"], "Installed Cosmetics object")
     identity_semantics = _text(catalog["identity"], "Installed Cosmetics identity")
     ids = _cosmetic_ids(catalog["exactIds"], "Installed Cosmetics IDs")
-    oracle = _object(
+    oracle = exact_object(
         catalog["independentOracle"],
         {"tool", "captureSha256"},
         "Installed Cosmetics independent oracle",
@@ -347,7 +347,7 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
     oracle_capture_sha256 = _sha256(
         oracle["captureSha256"], "Installed Cosmetics oracle capture digest", prefixed=True
     )
-    ownership = _object(
+    ownership = exact_object(
         root["ownershipOracle"],
         {
             "fields",
@@ -373,7 +373,7 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
         "Cosmetics managed assembly digest",
         prefixed=True,
     )
-    contract = _object(
+    contract = exact_object(
         ownership["semanticContract"],
         {
             "sourceObject",
