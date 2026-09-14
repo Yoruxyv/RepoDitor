@@ -1,0 +1,15 @@
+{
+  "name": "RepoDitor Web",
+  "short_name": "RepoDitor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1110",
+  "theme_color": "#0d1110",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "504x495",
+      "type": "image/png"
+    }
+  ]
+}

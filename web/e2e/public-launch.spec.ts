@@ -2,11 +2,19 @@ import { expect, test } from "@playwright/test";
 
 const PUBLIC_ORIGIN = "https://repoditor.vercel.app/";
 const GITHUB_URL = "https://github.com/Yoruxyv/RepoDitor";
+const GOOGLE_VERIFICATION_PATH = "/google640d7641fe06cabc.html";
+const OG_IMAGE_URL = `${PUBLIC_ORIGIN}og-image.png`;
 const POLICIES = [
   { name: "Security", hash: "security" },
   { name: "Data & Privacy", hash: "privacy" },
   { name: "Terms", hash: "terms" },
 ] as const;
+
+function readPngDimensions(body: Buffer): { height: number; width: number } {
+  const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect(body.subarray(0, pngSignature.length).equals(pngSignature)).toBe(true);
+  return { width: body.readUInt32BE(16), height: body.readUInt32BE(20) };
+}
 
 test("public footer and policy deep links survive refresh without browser errors", async ({
   page,
@@ -88,26 +96,107 @@ test("footer wraps with keyboard focus and header GitHub at supported widths", a
   }
 });
 
-test("metadata, favicon, robots, and sitemap use the production origin", async ({
+test("metadata and public discovery assets use the production origin", async ({
   page,
   request,
 }) => {
   await page.goto("/");
   await expect(page).toHaveTitle("RepoDitor Web — Local R.E.P.O. Save Editor");
+
+  const uniqueMetadata = [
+    'link[rel="canonical"]',
+    'link[rel="manifest"]',
+    'meta[name="description"]',
+    'meta[name="theme-color"]',
+    'meta[property="og:type"]',
+    'meta[property="og:site_name"]',
+    'meta[property="og:url"]',
+    'meta[property="og:title"]',
+    'meta[property="og:description"]',
+    'meta[property="og:image"]',
+    'meta[property="og:image:width"]',
+    'meta[property="og:image:height"]',
+    'meta[property="og:image:alt"]',
+    'meta[name="twitter:card"]',
+    'meta[name="twitter:title"]',
+    'meta[name="twitter:description"]',
+    'meta[name="twitter:image"]',
+    'meta[name="twitter:image:alt"]',
+  ] as const;
+  for (const selector of uniqueMetadata) await expect(page.locator(selector)).toHaveCount(1);
+
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", PUBLIC_ORIGIN);
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/site.webmanifest");
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#0d1110");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "website");
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute(
+    "content",
+    "RepoDitor",
+  );
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", PUBLIC_ORIGIN);
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",
     "RepoDitor Web",
   );
-  for (const selector of ['meta[name="description"]', 'meta[property="og:description"]']) {
+  for (const selector of [
+    'meta[name="description"]',
+    'meta[property="og:description"]',
+    'meta[name="twitter:description"]',
+  ]) {
     await expect(page.locator(selector)).toHaveAttribute("content", /R\.E\.P\.O\. saves locally/u);
   }
-  expect(await page.locator("head").innerHTML()).not.toMatch(/localhost|127\.0\.0\.1/u);
+  for (const selector of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
+    await expect(page.locator(selector)).toHaveAttribute("content", OG_IMAGE_URL);
+  }
+  await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute("content", "1200");
+  await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute("content", "630");
+  for (const selector of ['meta[property="og:image:alt"]', 'meta[name="twitter:image:alt"]']) {
+    await expect(page.locator(selector)).toHaveAttribute(
+      "content",
+      "RepoDitor Web — R.E.P.O. Save Editor",
+    );
+  }
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    "content",
+    "summary_large_image",
+  );
+  await expect(page.locator('meta[name="twitter:title"]')).toHaveAttribute(
+    "content",
+    "RepoDitor Web",
+  );
+
+  const head = await page.locator("head").innerHTML();
+  expect(head).not.toMatch(/localhost|127\.0\.0\.1|PixelForge/iu);
+
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/icon.png");
   const icon = await request.get("/icon.png");
   expect(icon.status()).toBe(200);
   expect(icon.headers()["content-type"]).toContain("image/png");
+
+  const ogImage = await request.get("/og-image.png");
+  expect(ogImage.status()).toBe(200);
+  expect(ogImage.headers()["content-type"]).toContain("image/png");
+  expect(readPngDimensions(await ogImage.body())).toEqual({ width: 1200, height: 630 });
+
+  const manifestResponse = await request.get("/site.webmanifest");
+  expect(manifestResponse.status()).toBe(200);
+  expect(manifestResponse.headers()["content-type"]).toContain("application/manifest+json");
+  expect(await manifestResponse.json()).toEqual({
+    name: "RepoDitor Web",
+    short_name: "RepoDitor",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#0d1110",
+    theme_color: "#0d1110",
+    icons: [{ src: "/icon.png", sizes: "504x495", type: "image/png" }],
+  });
+
+  const verification = await request.get(GOOGLE_VERIFICATION_PATH);
+  expect(verification.status()).toBe(200);
+  expect((await verification.text()).trim()).toBe(
+    "google-site-verification: google640d7641fe06cabc.html",
+  );
+
   const robots = await request.get("/robots.txt");
   expect(robots.status()).toBe(200);
   expect(robots.headers()["content-type"]).toContain("text/plain");

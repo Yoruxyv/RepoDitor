@@ -20,3 +20,6 @@
 # Thunderstore may be rate-limited, redirected, or otherwise unstable for
 # automated CI link checks even when the official package page is valid.
 ^https\://thunderstore\.io/c/repo/p/RepoDitor/RepoDitor/?$
+# Vite serves /site.webmanifest from web/public at runtime/build time,
+# while Lychee resolves that absolute path against the repository root.
+^file://.*/site\.webmanifest$
