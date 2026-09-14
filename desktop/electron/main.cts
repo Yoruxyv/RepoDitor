@@ -18,11 +18,8 @@ import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerProjectIpc } from "./ipc/project.cjs";
 import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
-import {
-  decodedUpgradeTextureCache,
-  registerLocalIconProtocol,
-  registerLocalIconScheme,
-} from "./icons/protocol.cjs";
+import { registerLocalIconProtocol, registerLocalIconScheme } from "./icons/protocol.cjs";
+import { decodedUpgradeTextureCache } from "./icons/upgradeTextureCache.cjs";
 import { createPresentationCacheDiagnosticSink } from "./icons/cacheDiagnostics.cjs";
 
 const developmentRendererUrl = process.env.VITE_DEV_SERVER_URL;

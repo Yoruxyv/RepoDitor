@@ -9,10 +9,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { LocalIconRegistry, readIconKey } = require("../../dist-electron/icons/registry.cjs");
-const {
-  DecodedUpgradeTextureCache,
-  serveLocalIcon,
-} = require("../../dist-electron/icons/protocol.cjs");
+const { serveLocalIcon } = require("../../dist-electron/icons/protocol.cjs");
+const { DecodedUpgradeTextureCache } = require("../../dist-electron/icons/upgradeTextureCache.cjs");
 
 function png(width = 1, height = 1): Buffer {
   const data = Buffer.alloc(24);
@@ -41,6 +39,20 @@ function url(token: string): Request {
 }
 
 describe("local icon protocol", () => {
+  it("releases an unfinished preparation waiter and permits a later lazy retry", async () => {
+    const cache = new DecodedUpgradeTextureCache();
+    const key = "playerUpgradeHealth";
+    const client = { run: vi.fn().mockResolvedValue({ ok: true, texture: null }) };
+    cache.beginPreparation([key]);
+    const pending = cache.get(key, client);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(client.run).not.toHaveBeenCalled();
+    cache.finishPreparation(key);
+    await expect(pending).resolves.toBeNull();
+    await expect(cache.get(key, client)).resolves.toBeNull();
+    expect(client.run).toHaveBeenCalledTimes(1);
+  });
+
   it("serves only a valid registered PNG from its registered domain", async () => {
     const { roots } = await fixture();
     await writeFile(path.join(roots.item, "tool.png"), png());

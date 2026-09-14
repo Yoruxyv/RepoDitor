@@ -2,7 +2,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { PresentationCacheDiagnostic, PresentationCacheDiagnosticSink } from "./protocol.cjs";
+import type {
+  PresentationCacheDiagnostic,
+  PresentationCacheDiagnosticSink,
+} from "./upgradeTextureCache.cjs";
 
 const MAX_LOG_BYTES = 64 * 1024;
 const ROTATED_LOG_BYTES = MAX_LOG_BYTES / 2;
