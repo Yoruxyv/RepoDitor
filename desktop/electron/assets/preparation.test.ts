@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { AssetPreparationService } = require("../../dist-electron/assets/preparation.cjs");
-const { DecodedUpgradeTextureCache } = require("../../dist-electron/icons/protocol.cjs");
+const { DecodedUpgradeTextureCache } = require("../../dist-electron/icons/upgradeTextureCache.cjs");
 
 function png(): Buffer {
   const data = Buffer.alloc(24);

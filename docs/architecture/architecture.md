@@ -1,6 +1,11 @@
 # Architecture
 
-RepoDitor's Electron application is the only production user interface. Python remains authoritative for save-format and game behavior.
+RepoDitor has two production user interfaces: the Windows Desktop application and the hosted
+RepoDitor Web application at https://repoditor.vercel.app/. Python remains authoritative for
+save-format and game behavior inside Desktop; Web is an independent browser implementation that
+shares evidence-backed semantics rather than Desktop implementation code.
+
+The diagram below describes the Desktop boundary.
 
 ```text
 React renderer
@@ -21,8 +26,8 @@ R.E.P.O. .es3 files
 ## Boundaries
 
 - `desktop/src/` owns presentation, renderer-local theme/language preferences, and typed in-memory pending edits. It cannot read files, spawn processes, parse raw saves, or derive game mechanics.
-- `desktop/electron/` owns narrow IPC validation, the secure preload surface, Python process lifecycle, and the fixed GitHub repository-metadata request. It exposes no arbitrary renderer fetch API and caches successful metadata for the Electron session.
-- `desktop/python/repo_save_editor/desktop_api/` translates the stable command protocol into Python service calls. Standard output is reserved for one JSON response; diagnostics use standard error.
+- `desktop/electron/` owns narrow IPC validation, the secure preload surface, Python process lifecycle, and the fixed GitHub repository-metadata request. It exposes no arbitrary renderer fetch API and caches successful metadata for the Electron session. Within local artwork, `icons/protocol.cts` owns opaque-token protocol serving and trusted-root file checks, `icons/upgradeTextureCache.cts` owns decoded upgrade cache/manifest/watch state and cache diagnostics, and `icons/png.cts` owns the shared bounded-PNG validation.
+- `desktop/python/repo_save_editor/desktop_api/` translates the stable command protocol into Python service calls. Standard output is reserved for bounded NDJSON protocol records; commands that support streaming may emit multiple records, while diagnostics use standard error.
 - `desktop/python/repo_save_editor/services/` owns editor behavior for discovery, players, upgrades, run
   data, maps, advanced discovery/refill semantics, MetaSave cosmetic ownership, and save summaries.
 - `desktop/python/repo_save_editor/core/` owns encryption, schema validation, and shared save types.
@@ -43,15 +48,18 @@ URLs. It receives no save file, encrypted bytes, decrypted JSON, health, upgrade
 or unknown fields; it persists nothing. Failure leaves initials in place and cannot block editor or
 export behavior.
 
-The Vite application still builds as static assets. Phase 7 deployment must pair those assets with
-this narrow serverless route (currently provided in Vercel's `/api` function format) or accept that
-only avatar enrichment is unavailable. No server-side save-processing route is permitted.
+The production Web deployment is https://repoditor.vercel.app/. Its Vite application builds as
+static assets and the narrow avatar boundary is provided by Vercel's `/api` function format. A
+different static host may omit avatar enrichment or provide an equivalent same-origin function.
+No server-side save-processing route is permitted.
 
-Optional item and cosmetic thumbnails use the user's game-generated LocalLow cache. Python derives
-canonical cache keys from installed metadata; Electron replaces them with opaque in-memory tokens
-and serves only validated PNGs through the read-only `repoditor-icon:` protocol. The renderer never
-receives cache roots, filenames, or filesystem access. Missing or invalid images keep the existing
-Phosphor fallback and cannot affect save discovery, identity, or mutation eligibility.
+## Desktop local presentation assets
+
+Optional Desktop item and cosmetic thumbnails use the user's game-generated LocalLow cache. Python
+derives canonical cache keys from installed metadata; Electron replaces them with opaque in-memory
+tokens and serves only validated PNGs through the read-only `repoditor-icon:` protocol. The Desktop
+renderer never receives cache roots, filenames, or filesystem access. Missing or invalid images keep
+the existing Phosphor fallback and cannot affect save discovery, identity, or mutation eligibility.
 
 ## Local path discovery
 
@@ -86,6 +94,10 @@ Runtime selection is centralized in `desktop/electron/python/client.cts`:
 The package command builds the sidecar with Python 3.13. The packaged application does not fall back to a system Python installation.
 
 ## Installed item recharge capability
+
+The approval tooling keeps independent-oracle parsing in `tools/capabilities/oracles.py`;
+`tools/capabilities/workflow.py` retains evidence approval, generation, transaction, and rollback
+orchestration. Exact object-shape validation remains shared through `tools/capabilities/schema.py`.
 
 Item recharge support keeps three independent facts separate:
 

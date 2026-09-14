@@ -125,6 +125,9 @@ function Assert-Installed([string] $Scenario, [string] $ExpectedPath) {
   }
   Add-Observation $Scenario 'installed state' "valid at $registeredPath"
   Add-Observation $Scenario 'payload' 'RepoDitor.exe, installed uninstaller, app.asar, Python backend present'
+  $installedFiles = @(Get-ChildItem -LiteralPath $ExpectedPath -Recurse -File -Force)
+  $installedBytes = [long]($installedFiles | Measure-Object -Property Length -Sum).Sum
+  Add-Observation $Scenario 'installed footprint' "$installedBytes bytes in $($installedFiles.Count) files"
 }
 
 function Assert-Uninstalled([string] $Scenario, [string] $InstallPath) {

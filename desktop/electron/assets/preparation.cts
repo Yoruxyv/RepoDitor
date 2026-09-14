@@ -9,7 +9,10 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../channels.cjs";
 import type { AssetPreparationStage, AssetPreparationState } from "../contracts.cjs";
-import { decodedUpgradeTextureCache, type DecodedUpgradeTextureCache } from "../icons/protocol.cjs";
+import {
+  decodedUpgradeTextureCache,
+  type DecodedUpgradeTextureCache,
+} from "../icons/upgradeTextureCache.cjs";
 import { pythonClient, type PythonRecordClient } from "../python/client.cjs";
 
 const PREPARATION_ERROR_MESSAGE = {

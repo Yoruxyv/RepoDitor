@@ -8,7 +8,7 @@ import pytest
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.items.models import ItemRechargeCapability
-from tools.capabilities import workflow
+from tools.capabilities import oracles, workflow
 from tools.capabilities.schema import (
     CapabilityDataError,
     cosmetics_snapshot,
@@ -122,7 +122,7 @@ def _cosmetic_entry(cosmetic_id: int) -> InstalledCosmeticMetadata:
 
 def _cosmetics_oracle_value(ids: tuple[int, ...] = (0, 1)) -> dict[str, object]:
     return {
-        "schema": workflow.COSMETICS_ORACLE_SCHEMA,
+        "schema": oracles.COSMETICS_ORACLE_SCHEMA,
         "researchOnly": True,
         "independentOracle": True,
         "steam": {
@@ -295,7 +295,7 @@ def test_cosmetics_unitypy_oracle_is_independently_typed_and_ordered(
     path = tmp_path / "cosmetics-oracle.json"
     _write_json(path, _cosmetics_oracle_value())
 
-    oracle = workflow._load_cosmetics_oracle(path)
+    oracle = oracles.load_cosmetics_oracle(path)
 
     assert oracle.compatibility.steam_build_id == "23363152"
     assert tuple(entry.cosmetic_id for entry in oracle.catalog) == (0, 1)
@@ -311,6 +311,28 @@ def test_cosmetics_parser_oracle_disagreement_blocks_update(tmp_path: Path) -> N
 
     with pytest.raises(CapabilityDataError, match="oracle disagree"):
         workflow._validate_cosmetics_oracle(installed, "23363152", path)
+
+
+@pytest.mark.parametrize("damage", ["extra-field", "boolean-id", "reordered", "missing-field"])
+def test_cosmetics_oracle_rejects_malformed_capture(tmp_path: Path, damage: str) -> None:
+    value = _cosmetics_oracle_value()
+    catalog = value["catalog"]
+    assert isinstance(catalog, list)
+    if damage == "extra-field":
+        value["unexpected"] = True
+    elif damage == "boolean-id":
+        catalog[0]["id"] = False
+    elif damage == "reordered":
+        catalog.reverse()
+    else:
+        del catalog[0]["status"]
+    path = tmp_path / "malformed-oracle.json"
+    _write_json(path, value)
+    before = path.read_bytes()
+
+    with pytest.raises(CapabilityDataError):
+        oracles.load_cosmetics_oracle(path)
+    assert path.read_bytes() == before
 
 
 def test_installed_cosmetics_distinguishes_empty_catalog_from_parser_failure(

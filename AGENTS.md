@@ -208,10 +208,10 @@ Preserve zero-cycle architecture. File moves and extractions must not introduce 
 
 ## 6. RepoDitor Product Architecture
 
-RepoDitor has two intentionally separate product architecture boundaries: the
-existing Desktop application and the future Web product. Do not cross-import
-implementation code between Desktop and Web. Shared behavior must come from
-evidence-backed save semantics, research, and fixtures.
+RepoDitor has two intentionally separate production architecture boundaries: the
+Desktop application and the hosted Web product at https://repoditor.vercel.app/.
+Do not cross-import implementation code between Desktop and Web. Shared behavior
+must come from evidence-backed save semantics, research, and fixtures.
 
 ### Desktop
 
@@ -257,7 +257,7 @@ nodeIntegration: false
 
 Never expose raw `ipcRenderer`, generic IPC invocation, arbitrary filesystem APIs, arbitrary shell commands, or arbitrary Python execution.
 
-### Future Web
+### Web
 
 RepoDitor Web is an independent browser implementation:
 

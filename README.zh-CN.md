@@ -51,6 +51,8 @@ RepoDitor 独立于游戏运行，不需要 BepInEx、mod loader，也无需安�
 
 [下载最新版本](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
+不想安装桌面应用？可以直接使用 [🌐 Web 版](https://repoditor.vercel.app/)。
+
 </div>
 
 ---
@@ -66,6 +68,8 @@ RepoDitor Desktop 通过以下官方渠道分发：
 - **GitHub Releases（canonical 主发布源）：** https://github.com/Yoruxyv/RepoDitor/releases
 - **Nexus Mods：** https://www.nexusmods.com/repo/mods/319
 - **Thunderstore：** https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/
+
+如果更喜欢浏览器，可以使用 [RepoDitor Web](https://repoditor.vercel.app/) 手动导入/导出本地文件。Web 是独立的浏览器产品，并不包含所有 Desktop 专属功能。
 
 GitHub Releases 是 RepoDitor Desktop 的 canonical 主发布源；Nexus Mods 和
 Thunderstore 是官方分发渠道。RepoDitor Desktop 当前未进行代码签名，因此

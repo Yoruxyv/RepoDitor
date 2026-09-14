@@ -51,7 +51,7 @@ RepoDitor runs separately from the game and does not require BepInEx, a mod load
 
 [Download the latest release](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
-🌐 **Web:** [repoditor.vercel.app](https://repoditor.vercel.app/)
+Don't want to install the desktop app? Use the [🌐 web version](https://repoditor.vercel.app/) instead.
 
 </div>
 
@@ -70,6 +70,8 @@ RepoDitor Desktop is officially distributed through:
 - **GitHub Releases (canonical):** https://github.com/Yoruxyv/RepoDitor/releases
 - **Nexus Mods:** https://www.nexusmods.com/repo/mods/319
 - **Thunderstore:** https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/
+
+Prefer the browser? Open [RepoDitor Web](https://repoditor.vercel.app/) with manual local file import/export. It is a separate browser product and does not include every Desktop-only capability.
 
 GitHub Releases is the canonical RepoDitor Desktop release source. Nexus Mods
 and Thunderstore are official distribution channels. RepoDitor Desktop is
@@ -444,7 +446,7 @@ preserved historical v0.1.0 baseline.
 | Document | Purpose |
 |---|---|
 | [Documentation index](docs/README.md) | Organized entry point for technical and release documentation |
-| [Architecture](docs/architecture/architecture.md) | Desktop boundaries, ownership, and data flow |
+| [Architecture](docs/architecture/architecture.md) | Desktop and Web boundaries, ownership, and data flow |
 | [Electron UI](docs/architecture/electron-ui.md) | Renderer identity, responsiveness, appearance, and accessibility |
 | [Save format](docs/research/save-format.md) | Confirmed encrypted-save structure |
 | [Reverse engineering](docs/research/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics |

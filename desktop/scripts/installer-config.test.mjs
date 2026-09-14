@@ -53,6 +53,8 @@ test(
           "powershell",
           [
             "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
             "-File",
             path.join(desktopRoot, "scripts/run-installer-lifecycle.ps1"),
             "-Mode",

@@ -136,7 +136,7 @@ and installer checksum generation before publishing.
 1. Update every managed version source and verify alignment from `desktop/`:
 
    ```powershell
-   npm run update:version -- 0.1.2
+   npm run update:version -- <version>
    npm run release:check
    ```
 
@@ -155,7 +155,7 @@ and installer checksum generation before publishing.
 7. Confirm the downloaded installer repeats the accepted install, launch,
    uninstall, save-preservation, and reinstall behavior.
 
-## Temporary unsigned v0.1.1 procedure
+## Historical temporary unsigned v0.1.1 procedure
 
 After the unsigned-workflow change is merged, update and verify local `main` without creating a
 tag:
@@ -194,20 +194,22 @@ Run `npm run test:installer:host` on Windows for native stage, argument, failure
 and completion checks against temporary files and a unique HKCU fixture key. The
 installer lifecycle workflow runs this check before packaging.
 
-The embedded installer shows indeterminate progress only. Verify **Preparing
-installation… → Running installation… → Verifying installation… → RepoDitor is
-ready**, with corresponding removal wording for uninstall. Running means the
-NSIS engine has started; verification means its entry process exited and native
-completion checks are running. These stages do not measure extraction bytes or
-claim that removal finished before NSIS's inner process completes. Stages may be
-brief; do not require artificial delays to keep them visible. Failure must remove
-the progress bar, show Retry/Close, and never turn into success before a native
-retry completes. Also check the 960×640 minimum window and reduced motion.
-At normal and maximized sizes the approved card must stay centered on both axes
-and retain its 1160px width cap. Run `npm run test:installer:layout` for the
-production UI geometry regression (Windows uses installed Edge); the installer
-lifecycle workflow enforces it. See [the telemetry investigation](installer-progress.md)
-for the numeric progress decision and the native callback evidence.
+Install/update uses determinate percentage only while the production Nsis7z extraction callback
+provides genuine completed/total byte measurements. Verify preparation/running, measured extraction
+progress reaching 100%, native verification, and then the ready state. A displayed 100% means
+extraction completed; it does not replace authoritative install verification. Retry must start a
+fresh authenticated progress session and reject stale measurements. Explicit uninstall remains
+truthful stage text only — preparing removal, running removal, verifying removal, then finished —
+because the native removal path has no reliable completed/total metric. Do not add fake timers,
+smoothing, looping percentages, or artificial delays.
+
+Failure must remove the progress indicator, show Retry/Close, and never turn into success before a
+native retry completes. Run `npm run test:installer:extraction` for normal/fallback callback and
+authenticated-transport coverage, `npm run test:installer:layout` for the production UI geometry
+regression, and `npm run test:installer:lifecycle` only through the repository's disposable-account
+isolation. Also check the 960×640 minimum window and reduced motion. At normal and maximized sizes
+the approved card must stay centered on both axes and retain its 1160px width cap. See
+[installer progress](installer-progress.md) for the current telemetry and trust-boundary contract.
 
 All-users secure-desktop UAC approval/cancellation, Windows Settings launch, and visual/scaling QA
 remain manual. GitHub-hosted Windows runners disable UAC, so automating those paths there would not
@@ -333,7 +335,26 @@ $afterHashes = "$env:TEMP\repoditor-repo-save-hashes-after.csv"
     header/sidebar or Next/Back page may appear. Do not mark visual acceptance complete until a
     human has inspected the actual release-candidate installer.
 
-### Phase 16 local current-user acceptance — 2026-09-13
+### Final engineering disposable-account acceptance — 2026-09-14
+
+The unsigned developer setup produced after the approved S1/S2 refactors was **103,967,946 bytes**
+(SHA-256 `BBCA16B5E5359AE6696DDD3E60EB2D12144E382709DDA15E80B2B6CE93587964`). The full lifecycle ran
+under a newly created unelevated disposable Windows account/profile rather than the maintainer's
+normal profile.
+
+- Default install, registered update, explicit uninstall, custom-path install/uninstall, and a
+  deliberate native refusal followed by real **Retry** all passed authoritative postflight checks.
+- All verified installed states measured **398,998,627 bytes across 152 files**.
+- RepoDitor-owned AppData sentinels were retained across update and removed on explicit uninstall.
+- The synthetic R.E.P.O. LocalLow fingerprint remained unchanged throughout.
+- Install/update produced **40 observed extraction-percentage records** reaching 100%; separate native
+  extraction tests observed **34 normal callback samples** and **68 fallback samples**, with
+  authenticated transport, monotonicity, Retry-session isolation, and authoritative verification
+  after extraction reached 100%.
+
+All-users secure-desktop UAC approval/cancellation and visual/scaling acceptance remain manual.
+
+### Historical Phase 16 pre-numeric local current-user acceptance — 2026-09-13
 
 The current unsigned `RepoDitor-Setup-0.2.1-x64.exe` (103,968,668 bytes, SHA-256
 `D52BB4D61EE63DCD7F14DDD3D004256EA0163CB123FD661BF05670E3C0810896`) passed the
