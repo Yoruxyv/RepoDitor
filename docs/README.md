@@ -10,6 +10,8 @@ installation instructions, and user-facing feature summary remain in the
   ownership, and data flow.
 - [Electron UI](architecture/electron-ui.md) — renderer structure,
   responsiveness, appearance, and accessibility.
+- [RepoDitor Web](../web/README.md) — browser boundary, hosted deployment,
+  privacy/storage behavior, and Web validation.
 
 ## Save and game research
 
@@ -23,6 +25,9 @@ installation instructions, and user-facing feature summary remain in the
 
 - [Release checklist](release-checklist.md) — version, package, signing, and
   publication gates.
+- [Installer progress](installer-progress.md) — genuine extraction telemetry,
+  authenticated transport, Retry isolation, and truthful removal stages.
+- [Game-update capabilities](maintenance/game-update-capabilities.md) — evidence-backed installed-game capability and compatibility workflow.
 
 ## Media
 

@@ -51,6 +51,8 @@ RepoDitor는 게임과 별도로 실행되며 BepInEx, mod loader 또는 R.E.P.O
 
 [최신 릴리스 다운로드](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
+데스크톱 앱을 설치하고 싶지 않다면 [🌐 웹 버전](https://repoditor.vercel.app/)을 대신 사용할 수 있습니다.
+
 </div>
 
 ---
@@ -67,6 +69,8 @@ RepoDitor Desktop은 다음 공식 배포 경로를 통해 제공됩니다.
 - **GitHub Releases (canonical):** https://github.com/Yoruxyv/RepoDitor/releases
 - **Nexus Mods:** https://www.nexusmods.com/repo/mods/319
 - **Thunderstore:** https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/
+
+브라우저에서 사용하려면 로컬 파일을 수동으로 가져오고 내보내는 [RepoDitor Web](https://repoditor.vercel.app/)을 이용할 수 있습니다. Web은 별도의 브라우저 제품이며 Desktop 전용 기능을 모두 포함하지는 않습니다.
 
 GitHub Releases는 RepoDitor Desktop의 canonical 릴리스 소스입니다. Nexus Mods와 Thunderstore는
 공식 배포 채널입니다. RepoDitor Desktop은 현재 코드 서명이 되어 있지 않으므로 Windows SmartScreen에서

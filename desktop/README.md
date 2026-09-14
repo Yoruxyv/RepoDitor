@@ -17,16 +17,32 @@ Development launches the Python desktop API from the repository-root `.venv`.
 
 ## Quality gate
 
+Ordinary Desktop development changes should keep the fast application gates green:
+
 ```powershell
 npm run imports:check
+npm run format:check
 npm run lint
-npm run release:check
 npm run build
 npm run bundle:check
 npm test
 npm run test:e2e
-npm run test:e2e:packaged
 ```
+
+Packaging and installer changes additionally use the native/package gates:
+
+```powershell
+npm run release:check
+npm run test:installer:host
+npm run test:installer:extraction
+npm run test:installer:layout
+npm run package
+npm run test:installer:lifecycle
+```
+
+`npm run package` already runs the packaged Electron smoke test. The lifecycle command uses the
+repository's disposable-account isolation; do not run destructive lifecycle acceptance against a
+normal user profile.
 
 ## Windows package
 

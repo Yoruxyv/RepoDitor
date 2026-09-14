@@ -18,8 +18,8 @@ Identify the product or responsibility your change belongs to:
 
 - **Desktop** — the existing Windows Electron/React application and bundled
   Python backend.
-- **Web** — the future browser-based product with manual local file
-  import/export and a focused feature set.
+- **Web** — the hosted browser product at https://repoditor.vercel.app/ with
+  manual local file import/export and a focused feature set.
 - **Save format / research / shared semantics** — evidence, fixtures, format
   compatibility, and behavior that both products must agree on.
 - **Translations** — RepoDitor-owned interface localization and language assets.
@@ -42,7 +42,7 @@ raw-save parsing, filesystem writes, or game-mechanics calculations into React
 or Electron. Preserve `contextIsolation: true`, `nodeIntegration: false`,
 renderer sandboxing, and narrow preload methods.
 
-### Future Web architecture boundary
+### Web architecture boundary
 
 RepoDitor Web is a separate browser implementation with this conceptual
 dependency direction:

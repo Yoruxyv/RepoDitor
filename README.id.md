@@ -51,6 +51,8 @@ RepoDitor berjalan terpisah dari game dan tidak memerlukan BepInEx, mod loader, 
 
 [Unduh release terbaru](https://github.com/Yoruxyv/RepoDitor/releases/latest)
 
+Tidak ingin menginstal aplikasi desktop? Gunakan [🌐 versi web](https://repoditor.vercel.app/) sebagai gantinya.
+
 </div>
 
 ---
@@ -67,6 +69,8 @@ RepoDitor Desktop didistribusikan secara resmi melalui:
 - **GitHub Releases (kanonis):** https://github.com/Yoruxyv/RepoDitor/releases
 - **Nexus Mods:** https://www.nexusmods.com/repo/mods/319
 - **Thunderstore:** https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/
+
+Lebih suka menggunakan browser? Buka [RepoDitor Web](https://repoditor.vercel.app/) dengan impor/ekspor file lokal secara manual. Ini adalah produk browser terpisah dan tidak mencakup semua fitur khusus Desktop.
 
 GitHub Releases adalah sumber release kanonis untuk RepoDitor Desktop. Nexus
 Mods dan Thunderstore adalah kanal distribusi resmi. RepoDitor Desktop saat ini
