@@ -1,12 +1,13 @@
 export const saveEn = {
   landing: {
     documentTitle: "RepoDitor Web — Local R.E.P.O. Save Editor",
-    metaDescription: "Edit R.E.P.O. saves locally in your browser with RepoDitor Web.",
+    metaDescription:
+      "RepoDitor Web is a local R.E.P.O. save editor for supported .es3 saves. Edit R.E.P.O. saves locally in your browser without uploading save contents.",
     eyebrow: "Local save editor",
-    title: "Edit R.E.P.O. saves directly in your browser.",
-    titleOne: "Edit R.E.P.O. saves",
+    title: "R.E.P.O. Save Editor — directly in your browser.",
+    titleOne: "R.E.P.O. Save Editor",
     titleTwo: "directly in your browser.",
-    noInstall: "No installation required.",
+    noInstall: "Edit supported .es3 Run saves and MetaSave.es3 locally. No installation required.",
     privacy:
       "Save contents are processed locally and are not persisted by RepoDitor Web. Optional avatars send only validated Steam IDs; save files and decrypted JSON are not uploaded.",
   },
