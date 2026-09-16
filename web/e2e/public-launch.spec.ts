@@ -122,6 +122,7 @@ test("metadata and public discovery assets use the production origin", async ({
     'meta[name="twitter:description"]',
     'meta[name="twitter:image"]',
     'meta[name="twitter:image:alt"]',
+    'script[type="application/ld+json"]',
   ] as const;
   for (const selector of uniqueMetadata) await expect(page.locator(selector)).toHaveCount(1);
 
@@ -165,6 +166,17 @@ test("metadata and public discovery assets use the production origin", async ({
     "RepoDitor Web",
   );
 
+  const websiteSchema = JSON.parse(
+    (await page.locator('script[type="application/ld+json"]').textContent()) ?? "",
+  );
+  expect(websiteSchema).toEqual({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "RepoDitor",
+    alternateName: "RepoDitor Web",
+    url: PUBLIC_ORIGIN,
+  });
+
   const head = await page.locator("head").innerHTML();
   expect(head).not.toMatch(/localhost|127\.0\.0\.1|PixelForge/iu);
 
@@ -188,7 +200,7 @@ test("metadata and public discovery assets use the production origin", async ({
     display: "standalone",
     background_color: "#0d1110",
     theme_color: "#0d1110",
-    icons: [{ src: "/icon.png", sizes: "504x495", type: "image/png" }],
+    icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png" }],
   });
 
   const verification = await request.get(GOOGLE_VERIFICATION_PATH);
