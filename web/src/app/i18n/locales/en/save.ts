@@ -7,7 +7,7 @@ export const saveEn = {
     title: "R.E.P.O. Save Editor — directly in your browser.",
     titleOne: "R.E.P.O. Save Editor",
     titleTwo: "directly in your browser.",
-    noInstall: "Edit supported .es3 Run saves and MetaSave.es3 locally. No installation required.",
+    noInstall: "No installation required.",
     privacy:
       "Save contents are processed locally and are not persisted by RepoDitor Web. Optional avatars send only validated Steam IDs; save files and decrypted JSON are not uploaded.",
   },
