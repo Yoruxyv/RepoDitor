@@ -147,7 +147,7 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Edit R.E.P.O. saves directly in your browser.",
+        name: "R.E.P.O. Save Editor — directly in your browser.",
       }),
     ).toBeTruthy();
     expect(
@@ -246,7 +246,7 @@ describe("App", () => {
     expect(
       screen.queryByRole("heading", {
         level: 1,
-        name: "Edit R.E.P.O. saves directly in your browser.",
+        name: "R.E.P.O. Save Editor — directly in your browser.",
       }),
     ).toBeNull();
     expect(screen.queryByRole("link", { name: /get repoditor desktop/i })).toBeNull();
@@ -624,7 +624,7 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Edit R.E.P.O. saves directly in your browser.",
+        name: "R.E.P.O. Save Editor — directly in your browser.",
       }),
     ).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/drop a save here/i), { target: { files: [file] } });
