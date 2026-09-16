@@ -82,7 +82,7 @@ test("save session stays memory-only, makes no save request, and clears on refre
   ).toEqual({ indexedDb: 0, local: 0, session: 0 });
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Edit R.E.P.O. saves directly in your browser." }),
+    page.getByRole("heading", { name: "R.E.P.O. Save Editor — directly in your browser." }),
   ).toBeVisible();
   await expect(page.getByTestId("save-workspace")).toHaveCount(0);
 });
