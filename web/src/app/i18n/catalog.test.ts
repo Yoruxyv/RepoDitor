@@ -32,6 +32,12 @@ function placeholders(message: string): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
+const localeIndexModules = import.meta.glob("./locales/*/index.ts", { eager: true });
+const localeDirectories = Object.keys(localeIndexModules)
+  .map((path) => /^\.\/locales\/([^/]+)\/index\.ts$/u.exec(path)?.[1])
+  .filter((locale): locale is string => locale !== undefined)
+  .sort((left, right) => left.localeCompare(right));
+
 describe("localization catalog", () => {
   it("assembles every supported locale with a language name", () => {
     expect(LOCALES.map((locale) => LANGUAGE_NAMES[locale])).toEqual([
@@ -41,6 +47,19 @@ describe("localization catalog", () => {
       "한국어",
       "简体中文",
     ]);
+  });
+
+  it("keeps locale directories on disk aligned with the runtime registry", () => {
+    expect(localeDirectories).toEqual(
+      [...LOCALES].sort((left, right) => left.localeCompare(right)),
+    );
+    expect(
+      Object.keys(catalogs).sort((left, right) => left.localeCompare(right)),
+    ).toEqual([...LOCALES].sort((left, right) => left.localeCompare(right)));
+  });
+
+  it("keeps English as a non-trivial canonical message catalog", () => {
+    expect(flattenMessages(enMessages).size).toBeGreaterThanOrEqual(100);
   });
 
   it("interpolates and pluralizes without composing translated sentences", () => {
@@ -90,13 +109,26 @@ describe("localization catalog", () => {
     }
   });
 
+  it.each(LOCALES)("%s contains no empty translation leaves", (locale) => {
+    const emptyKeys = [...flattenMessages(catalogs[locale])]
+      .filter(([, message]) => message.trim() === "")
+      .map(([key]) => key);
+
+    expect(emptyKeys).toEqual([]);
+  });
+
   it("keeps every runtime key and interpolation placeholder aligned with English", () => {
     const english = flattenMessages(enMessages);
+
     for (const locale of LOCALES) {
       const translated = flattenMessages(catalogs[locale]);
       const sortKeys = (keys: Iterable<string>) =>
         [...keys].sort((left, right) => left.localeCompare(right));
+
+      // Comparing flattened leaf paths also catches shape drift, such as a
+      // plural { one, other } object becoming a plain string in one locale.
       expect(sortKeys(translated.keys())).toEqual(sortKeys(english.keys()));
+
       for (const [key, message] of english) {
         expect(placeholders(translated.get(key)!)).toEqual(placeholders(message));
       }
