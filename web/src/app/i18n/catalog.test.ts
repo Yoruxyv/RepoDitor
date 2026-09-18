@@ -53,9 +53,9 @@ describe("localization catalog", () => {
     expect(localeDirectories).toEqual(
       [...LOCALES].sort((left, right) => left.localeCompare(right)),
     );
-    expect(
-      Object.keys(catalogs).sort((left, right) => left.localeCompare(right)),
-    ).toEqual([...LOCALES].sort((left, right) => left.localeCompare(right)));
+    expect(Object.keys(catalogs).sort((left, right) => left.localeCompare(right))).toEqual(
+      [...LOCALES].sort((left, right) => left.localeCompare(right)),
+    );
   });
 
   it("keeps English as a non-trivial canonical message catalog", () => {
