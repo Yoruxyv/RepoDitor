@@ -77,9 +77,7 @@ describe("i18n translation values", () => {
         const actual = extractPlaceholders(TRANSLATIONS[locale][key]);
 
         if (expected.join("\0") !== actual.join("\0")) {
-          mismatches.push(
-            `${key}: en={${expected.join(", ")}} ${locale}={${actual.join(", ")}}`,
-          );
+          mismatches.push(`${key}: en={${expected.join(", ")}} ${locale}={${actual.join(", ")}}`);
         }
       }
 
