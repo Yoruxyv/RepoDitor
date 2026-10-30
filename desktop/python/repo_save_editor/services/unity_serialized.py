@@ -15,6 +15,8 @@ from typing import Final, cast
 
 SERIALIZED_FILE_VERSION: Final = 22
 UNITY_VERSION: Final = "2022.3.67f2"
+SUNSTONE_UNITY_VERSION: Final = "6000.3.17f1"
+SUPPORTED_UNITY_VERSIONS: Final = frozenset({UNITY_VERSION, SUNSTONE_UNITY_VERSION})
 TARGET_PLATFORM: Final = 19  # StandaloneWindows64 in the known build
 GAME_OBJECT_CLASS_ID: Final = 1
 TRANSFORM_CLASS_ID: Final = 4
@@ -285,7 +287,7 @@ class SerializedFileIndex:
 
     def _parse_types(self, reader: _Reader) -> None:
         unity_version = reader.cstring(maximum=64)
-        if unity_version != UNITY_VERSION:
+        if unity_version not in SUPPORTED_UNITY_VERSIONS:
             raise UnityMetadataError(f"Unsupported Unity version {unity_version!r}.")
         target_platform = reader.i32()
         if target_platform != TARGET_PLATFORM:
@@ -293,6 +295,7 @@ class SerializedFileIndex:
         enable_type_tree = reader.u8()
         if enable_type_tree not in (0, 1):
             raise UnityMetadataError("Serialized-file type-tree flag is malformed.")
+        self.unity_version = unity_version
         self.enable_type_tree = bool(enable_type_tree)
 
         type_count = reader.i32()

@@ -14,8 +14,10 @@ from typing import Final
 
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 from repo_save_editor.services.game.installed_build import (
+    SUNSTONE_ARTWORK_BUILD_ID,
+    VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
-    validated_installed_build,
+    validated_installed_artwork_build,
 )
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
 from repo_save_editor.services.player.upgrades import UPGRADE_PREFIX
@@ -54,6 +56,9 @@ RESOURCE_MANAGER_RELATIVE_PATH: Final = Path("REPO_Data/globalgamemanagers")
 ASSEMBLY_RELATIVE_PATH: Final = Path("REPO_Data/Managed/Assembly-CSharp.dll")
 VALIDATED_ASSEMBLY_SHA256: Final = (
     "ce995a182ddc884ea965e87786f1986248d9616300fa825bcc04bca671ee6526"
+)
+SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
+    "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
 )
 MAX_UPGRADE_KEY_BYTES: Final = 512
 MAX_PREFAB_OBJECTS: Final = 512
@@ -185,7 +190,9 @@ def _validated_paths(
     installation: GameInstallation,
     build: ValidatedInstalledBuild | None = None,
 ) -> tuple[Path, Path, Path, Path]:
-    resolved_build = build if build is not None else validated_installed_build(installation)
+    resolved_build = (
+        build if build is not None else validated_installed_artwork_build(installation)
+    )
     if resolved_build is None:
         raise UpgradeTextureError("Installed Steam build is not the validated build.")
     try:
@@ -199,7 +206,13 @@ def _validated_paths(
     resources = _regular_owned_file(game_root, RESOURCES_RELATIVE_PATH)
     resource_manager = _regular_owned_file(game_root, RESOURCE_MANAGER_RELATIVE_PATH)
     assembly = _regular_owned_file(game_root, ASSEMBLY_RELATIVE_PATH)
-    if _sha256_file(assembly) != VALIDATED_ASSEMBLY_SHA256:
+    if resolved_build.build_id == VALIDATED_BUILD_ID:
+        expected_assembly_sha256 = VALIDATED_ASSEMBLY_SHA256
+    elif resolved_build.build_id == SUNSTONE_ARTWORK_BUILD_ID:
+        expected_assembly_sha256 = SUNSTONE_ARTWORK_ASSEMBLY_SHA256
+    else:
+        raise UpgradeTextureError("Installed Steam build is not supported for artwork.")
+    if _sha256_file(assembly) != expected_assembly_sha256:
         raise UpgradeTextureError("Installed managed assembly does not match the validated build.")
     resolved_build.manifest_path.resolve(strict=True)
     return (game_root, data_root, resources, resource_manager)
@@ -779,7 +792,7 @@ def decode_installed_upgrade_texture(
         installation = discovery.installation
         if installation is None:
             return None
-        build = validated_installed_build(installation)
+        build = validated_installed_artwork_build(installation)
         if build is None:
             return None
         result = prepare_installed_upgrade_textures((key,), installation, build)

@@ -53,3 +53,27 @@ def test_find_records_still_rejects_missing_pointer(tmp_path: Path) -> None:
         pytest.raises(UnityMetadataError, match="could not be resolved"),
     ):
         index.find_records({9})
+
+
+@pytest.mark.parametrize("unity_version", ["2022.3.67f2", "6000.3.17f1"])
+def test_explicit_unity_version_allowlist_preserves_old_and_sunstone(
+    tmp_path: Path, unity_version: str
+) -> None:
+    assets = tmp_path / "supported.assets"
+    write_serialized_file(assets, [(7, 1, b"x")], unity_version=unity_version)
+
+    with SerializedFileIndex(assets) as index:
+        assert index.object_count == 1
+        assert index.find_records({7})[7].class_id == 1
+
+
+@pytest.mark.parametrize("unity_version", ["6000.3.18f1", "2021.3.67f2"])
+def test_unreviewed_unity_versions_remain_rejected(tmp_path: Path, unity_version: str) -> None:
+    assets = tmp_path / "unsupported.assets"
+    write_serialized_file(assets, [(7, 1, b"x")], unity_version=unity_version)
+
+    with (
+        pytest.raises(UnityMetadataError, match="Unsupported Unity version"),
+        SerializedFileIndex(assets),
+    ):
+        pass
