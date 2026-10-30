@@ -27,7 +27,11 @@ from repo_save_editor.services.items.recharge_capability import (
 from repo_save_editor.services.items.recharge_evidence import verify_recharge_evidence
 from repo_save_editor.services.player.state import get_player_health, get_players
 from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
-from repo_save_editor.services.run import get_resume_location_label, get_run_stat
+from repo_save_editor.services.run import (
+    get_resume_location_label,
+    get_run_stat,
+    get_run_stat_for_display,
+)
 from repo_save_editor.services.saves.discovery import (
     DiscoveredSave,
     SaveRootStatus,
@@ -173,7 +177,7 @@ def _canonical_applied_state(
                 "stats": [
                     {
                         "key": cast(str, change["field"]),
-                        "value": get_run_stat(data, cast(str, change["field"])),
+                        "value": get_run_stat_for_display(data, cast(str, change["field"])),
                     }
                     for change in run_changes
                     if change["field"] != "resumeLocation"

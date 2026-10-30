@@ -3,6 +3,7 @@ from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock
 
+from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability
@@ -148,6 +149,27 @@ def test_save_changes_returns_canonical_state_only_for_affected_domains(
     canonical = result["result"]["canonical"]
     assert set(canonical) == {"fingerprint", "run"}
     assert canonical["run"] == {"stats": [{"key": "currency", "value": 41}]}
+
+
+def test_save_changes_run_level_canonical_uses_display_value(tmp_path: Path, sample_save) -> None:
+    """Post-save canonical state must use UI units, not zero-based storage."""
+    path = _write_fixture(tmp_path, sample_save)
+    result = save_changes(
+        path.parent.name,
+        _fingerprint(tmp_path),
+        [{"feature": "run", "entity": "run", "field": "level", "after": 222}],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+
+    assert result["ok"] is True
+    assert result["result"]["canonical"]["run"] == {"stats": [{"key": "level", "value": 222}]}
+    saved = SaveRepository.load(path)
+    assert saved["dictionaryOfDictionaries"]["value"]["runStats"]["level"] == 221
+
+    reopened = get_run_state(path.parent.name, tmp_path)
+    assert reopened["ok"] is True
+    assert next(stat["value"] for stat in reopened["run"]["stats"] if stat["key"] == "level") == 222
 
 
 def test_validation_failure_does_not_create_backup_or_modify_source(tmp_path: Path, sample_save):
