@@ -1,6 +1,6 @@
 """Narrow Unity object relationships needed for installed material-texture fallbacks.
 
-This module intentionally supports only the validated Unity 2022.3 serialized layouts
+This module intentionally supports only inspected Unity 2022.3 and 6000.3 layouts
 used by RepoDitor's local presentation fallback. It is not a general asset extractor.
 """
 
@@ -22,7 +22,9 @@ from repo_save_editor.services.unity_serialized import (
     TRANSFORM_CLASS_ID,
     ObjectRecord,
     PPtr,
+    SUNSTONE_UNITY_VERSION,
     SerializedFileIndex,
+    UNITY_VERSION,
     UnityMetadataError,
     read_pptr,
 )
@@ -508,20 +510,24 @@ def material_main_texture(
 
 
 def parse_texture2d(index: SerializedFileIndex, record: ObjectRecord) -> Texture2DMetadata:
-    """Parse only the proven Unity 2022.3 Texture2D metadata layout."""
+    """Parse the explicitly reviewed Unity 2022.3 or Sunstone Texture2D layout."""
     if record.class_id != TEXTURE2D_CLASS_ID:
         raise UnityMetadataError("Material texture pointer does not resolve to Texture2D.")
     reader = index.object_reader(record)
     name = reader.aligned_string()
 
-    # Unity 2022.3 serializes two fallback fields before the image dimensions:
-    # m_ForcedFallbackFormat (int) followed by two boolean flags and alignment.
-    # These fields are presentation metadata only, but consuming them is required to
-    # reach the evidence-backed width/height/format layout used by this fallback.
+    # Both inspected layouts begin with m_ForcedFallbackFormat (int32).
+    # Unity 2022.3 then has two Boolean fallback flags and padding.
+    # Sunstone's Unity 6000.3.17f1 Texture2D places width immediately next.
+    # Select by the serialized file's validated version; never retry an
+    # alternative layout when malformed metadata is encountered.
     reader.i32()  # m_ForcedFallbackFormat
-    fallback_flags = (reader.u8(), reader.u8())
-    if any(flag not in (0, 1) for flag in fallback_flags):
-        raise UnityMetadataError("Texture2D fallback metadata is malformed.")
+    if index.unity_version == UNITY_VERSION:
+        fallback_flags = (reader.u8(), reader.u8())
+        if any(flag not in (0, 1) for flag in fallback_flags):
+            raise UnityMetadataError("Texture2D fallback metadata is malformed.")
+    elif index.unity_version != SUNSTONE_UNITY_VERSION:
+        raise UnityMetadataError("Unsupported Texture2D Unity layout.")
     reader.align4()
 
     width = reader.i32()

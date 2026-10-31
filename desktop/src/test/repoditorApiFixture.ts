@@ -314,6 +314,14 @@ export function createRepoDitorApi(
     run: { get: vi.fn().mockResolvedValue({ ok: true, data: runState }) },
     advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
     cosmetics: {
+      artworkState: vi.fn().mockResolvedValue({
+        phase: "idle",
+        completed: 0,
+        total: 0,
+        cached: 0,
+        failed: 0,
+      }),
+      onArtworkProgress: vi.fn(() => () => undefined),
       get: vi.fn().mockResolvedValue({ ok: true, data: cosmetics }),
       write: vi.fn().mockImplementation((_fingerprint, changes: CosmeticChange[]) => {
         const next = structuredClone(cosmetics);

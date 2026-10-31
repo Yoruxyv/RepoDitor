@@ -10,6 +10,17 @@ export const ja: Record<keyof typeof en, string> = {
   "app.projectSource": "プロジェクトソース",
   "app.workspaces": "RepoDitor ワークスペース",
   "app.runSaves": "ランセーブ",
+  "cosmetics.artwork.title": "コスメティック画像を準備中",
+  "cosmetics.artwork.checking": "保存済みの画像を確認しています…",
+  "cosmetics.artwork.scanning": "ゲームアセットを調べ、未準備のアイコンをデコードしています。",
+  "cosmetics.artwork.count": "{completed} / {total} 件の画像を準備",
+  "cosmetics.artwork.cached": "キャッシュから {cached} 件を再利用",
+  "cosmetics.artwork.hint":
+    "画像はバックグラウンドで準備されます。アンロック操作はそのまま利用できます。",
+  "cosmetics.artwork.background": "バックグラウンドで続行",
+  "cosmetics.artwork.expand": "画像の進行状況を表示",
+  "cosmetics.artwork.degraded":
+    "一部の画像を準備できませんでした。編集操作は引き続き利用できます。",
   "app.cosmetics": "コスメティック",
   "utility.group": "アプリケーション設定",
   "utility.githubUnavailable": "GitHub スター数を取得できません",

@@ -6,6 +6,10 @@ import argparse
 import json
 import sys
 
+from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
+from repo_save_editor.desktop_api.cosmetic_preparation import (
+    parse_cosmetic_ids, stream_cosmetic_artwork,
+)
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
 from repo_save_editor.desktop_api.discovery.maps import list_maps
@@ -54,6 +58,24 @@ def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
     if args.upgrade_key is None:
         return _invalid_request("The required upgrade identity is missing.")
     return get_upgrade_texture(args.upgrade_key)
+
+
+def _cosmetic_artwork(args: argparse.Namespace) -> dict[str, object]:
+    if args.cosmetic_id is None:
+        return _invalid_request("A canonical cosmetic ID is required.")
+    return get_cosmetic_artwork(args.cosmetic_id)
+
+
+def _prepare_cosmetics(_args: argparse.Namespace) -> None:
+    def emit(record: dict[str, object]) -> None:
+        print(json.dumps(record, separators=(",", ":")), flush=True)
+
+    try:
+        ids = parse_cosmetic_ids(sys.stdin.buffer)
+    except ValueError:
+        emit({"type": "final", "ok": False, "completed": 0, "total": 0})
+        return
+    stream_cosmetic_artwork(ids, emit)
 
 
 def _prepare_assets(_args: argparse.Namespace) -> None:
@@ -135,6 +157,10 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("maps-list").set_defaults(handler=lambda _args: list_maps())
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
     commands.add_parser("cosmetics-get").set_defaults(handler=lambda _args: get_cosmetics())
+    commands.add_parser("cosmetics-prepare").set_defaults(handler=_prepare_cosmetics, streaming=True)
+    cosmetic_artwork = commands.add_parser("cosmetic-artwork")
+    cosmetic_artwork.add_argument("cosmetic_id", nargs="?")
+    cosmetic_artwork.set_defaults(handler=_cosmetic_artwork)
 
     saves_open = commands.add_parser("saves-open")
     saves_open.add_argument("save_id", nargs="?")

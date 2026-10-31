@@ -10,6 +10,10 @@ import { pythonClient, type PythonClient } from "../python/client.cjs";
 import { localIconRegistry, type LocalIconRegistry } from "./registry.cjs";
 import { MAX_ICON_BYTES, validPng } from "./png.cjs";
 import { decodedUpgradeTextureCache, DecodedUpgradeTextureCache } from "./upgradeTextureCache.cjs";
+import {
+  decodedCosmeticArtworkCache,
+  type DecodedCosmeticArtworkCache,
+} from "./cosmeticArtworkCache.cjs";
 
 const ICON_SCHEME = "repoditor-icon";
 
@@ -107,6 +111,7 @@ export async function serveLocalIcon(
   registry: LocalIconRegistry = localIconRegistry,
   client: PythonClient = pythonClient,
   decodedCache: DecodedUpgradeTextureCache = new DecodedUpgradeTextureCache(),
+  cosmeticCache: DecodedCosmeticArtworkCache = decodedCosmeticArtworkCache,
 ): Promise<Response> {
   if (request.method !== "GET") {
     return new Response(null, { status: 405, headers: { Allow: "GET" } });
@@ -122,6 +127,14 @@ export async function serveLocalIcon(
   const entry = registry.get(parts[0]);
   if (entry === undefined) return notFound();
   if (entry.kind === "cache") return serveCacheIcon(entry, roots);
+  if (entry.kind === "cosmetic-visual") {
+    if (entry.cacheKey !== null) {
+      const cached = await serveCacheIcon({ domain: "cosmetic", key: entry.cacheKey }, roots);
+      if (cached.status === 200) return cached;
+    }
+    const png = await cosmeticCache.get(entry.cosmeticId, client);
+    return png === null ? notFound() : pngResponse(png);
+  }
   if (entry.cacheKey !== null) {
     const cached = await serveCacheIcon({ domain: entry.domain, key: entry.cacheKey }, roots);
     if (cached.status === 200) return cached;
@@ -139,6 +152,13 @@ export function registerLocalIconScheme(): void {
 export function registerLocalIconProtocol(client: PythonClient = pythonClient): void {
   const roots = loadRoots(client);
   protocol.handle(ICON_SCHEME, async (request) =>
-    serveLocalIcon(request, await roots, localIconRegistry, client, decodedUpgradeTextureCache),
+    serveLocalIcon(
+      request,
+      await roots,
+      localIconRegistry,
+      client,
+      decodedUpgradeTextureCache,
+      decodedCosmeticArtworkCache,
+    ),
   );
 }

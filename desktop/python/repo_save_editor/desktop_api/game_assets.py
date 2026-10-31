@@ -8,7 +8,7 @@ from typing import BinaryIO, Final
 
 from repo_save_editor.desktop_api.icons import serialize_upgrade_texture
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.game.installed_build import validated_installed_build
+from repo_save_editor.services.game.installed_build import validated_installed_artwork_build
 from repo_save_editor.services.player.upgrade_textures import (
     MAX_BATCH_UPGRADES,
     DecodedUpgradeTexture,
@@ -125,7 +125,7 @@ def prepare_game_assets(upgrade_keys: tuple[str, ...], emit: PreparationEmitter)
 
     if total == 0:
         emit_progress(UpgradePreparationStage.VALIDATING, True, False)
-    build = validated_installed_build(installation)
+    build = validated_installed_artwork_build(installation)
     if build is None:
         completed = total
         emit(

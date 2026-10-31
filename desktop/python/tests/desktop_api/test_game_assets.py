@@ -120,7 +120,7 @@ def test_preparation_emits_indeterminate_start_then_real_completed_total(
         "discover_game_installation",
         lambda: GameDiscoveryResult(GameDiscoveryStatus.FOUND, installation),
     )
-    monkeypatch.setattr(game_assets, "validated_installed_build", lambda _installation: build)
+    monkeypatch.setattr(game_assets, "validated_installed_artwork_build", lambda _installation: build)
 
     def prepare(
         requested: tuple[str, ...],
@@ -197,7 +197,7 @@ def test_zero_work_startup_keeps_progress_indeterminate(
         "discover_game_installation",
         lambda: GameDiscoveryResult(GameDiscoveryStatus.FOUND, installation),
     )
-    monkeypatch.setattr(game_assets, "validated_installed_build", lambda _installation: build)
+    monkeypatch.setattr(game_assets, "validated_installed_artwork_build", lambda _installation: build)
 
     def unexpected_prepare(*_args: object, **_kwargs: object) -> UpgradeTextureBatchResult:
         raise AssertionError("zero-work startup must not create a disposable Unity index")
@@ -240,7 +240,7 @@ def test_missing_or_unverified_installation_degrades_without_asset_parsing(
     )
     monkeypatch.setattr(
         game_assets,
-        "validated_installed_build",
+        "validated_installed_artwork_build",
         lambda _installation: _build(tmp_path) if build_verified else None,
     )
 
@@ -274,7 +274,7 @@ def test_partial_decode_failure_finishes_all_real_units_and_degrades(
         "discover_game_installation",
         lambda: GameDiscoveryResult(GameDiscoveryStatus.FOUND, installation),
     )
-    monkeypatch.setattr(game_assets, "validated_installed_build", lambda _installation: build)
+    monkeypatch.setattr(game_assets, "validated_installed_artwork_build", lambda _installation: build)
 
     def prepare(requested, _installation, _build, *, on_stage, on_texture, on_decode_start):
         on_stage(UpgradePreparationStage.INDEXING, True, True)
@@ -315,7 +315,7 @@ def test_asset_index_failure_degrades_all_requested_visuals_without_blocking(
         "discover_game_installation",
         lambda: GameDiscoveryResult(GameDiscoveryStatus.FOUND, installation),
     )
-    monkeypatch.setattr(game_assets, "validated_installed_build", lambda _installation: build)
+    monkeypatch.setattr(game_assets, "validated_installed_artwork_build", lambda _installation: build)
 
     def prepare(_requested, _installation, _build, *, on_stage, **_kwargs):
         on_stage(UpgradePreparationStage.INDEXING, True, True)

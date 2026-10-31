@@ -10,6 +10,17 @@ export const id: Record<keyof typeof en, string> = {
   "app.projectSource": "Sumber proyek",
   "app.workspaces": "Ruang kerja RepoDitor",
   "app.runSaves": "Save Run",
+  "cosmetics.artwork.title": "Menyiapkan gambar kosmetik",
+  "cosmetics.artwork.checking": "Memeriksa gambar kosmetik tersimpan…",
+  "cosmetics.artwork.scanning": "Memindai aset game dan memproses ikon yang belum tersedia.",
+  "cosmetics.artwork.count": "{completed} / {total} kosmetik disiapkan",
+  "cosmetics.artwork.cached": "{cached} digunakan dari cache",
+  "cosmetics.artwork.hint":
+    "Gambar kosmetik disiapkan secara lokal di latar belakang. Tindakan buka kunci tetap tersedia.",
+  "cosmetics.artwork.background": "Lanjutkan di latar belakang",
+  "cosmetics.artwork.expand": "Tampilkan progres gambar",
+  "cosmetics.artwork.degraded":
+    "Sebagian gambar kosmetik gagal disiapkan. Pengeditan tetap tersedia.",
   "app.cosmetics": "Kosmetik",
   "utility.group": "Utilitas aplikasi",
   "utility.githubUnavailable": "Jumlah bintang GitHub tidak tersedia",
