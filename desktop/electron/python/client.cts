@@ -19,9 +19,14 @@ const PYTHON_CLIENT_MESSAGE = {
 
 const PYTHON_TIMEOUT_MS = 30_000;
 const UPGRADE_TEXTURE_TIMEOUT_MS = 60_000;
+const COSMETIC_ARTWORK_TIMEOUT_MS = 120_000;
 const ASSET_PREPARATION_TIMEOUT_MS = 90_000;
+const COSMETIC_PREPARATION_TIMEOUT_MS = 240_000;
+const MAX_COSMETIC_PREPARATION_KEYS = 2_000;
+const MAX_COSMETIC_PREPARATION_STDOUT_BYTES = 192 * 1024 * 1024;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 const MAX_UPGRADE_TEXTURE_STDOUT_BYTES = 3 * 1024 * 1024;
+const MAX_COSMETIC_ARTWORK_STDOUT_BYTES = 3 * 1024 * 1024;
 const MAX_ASSET_RECORD_BYTES = 3 * 1024 * 1024;
 const MAX_ASSET_PREPARATION_STDIN_BYTES = 64 * 1024;
 const MAX_ASSET_PREPARATION_KEYS = 64;
@@ -32,6 +37,8 @@ const PYTHON_COMMAND = {
   advancedGet: "advanced-get",
   assetsPrepare: "assets-prepare",
   cosmeticsGet: "cosmetics-get",
+  cosmeticsPrepare: "cosmetics-prepare",
+  cosmeticArtwork: "cosmetic-artwork",
   cosmeticsWrite: "cosmetics-write",
   environment: "environment",
   gameStatus: "game-status",
@@ -72,7 +79,7 @@ export interface PythonClient {
 
 export interface PythonRecordClient extends PythonClient {
   runRecords(
-    command: typeof PYTHON_COMMAND.assetsPrepare,
+    command: typeof PYTHON_COMMAND.assetsPrepare | typeof PYTHON_COMMAND.cosmeticsPrepare,
     request: readonly string[],
     onRecord: (record: unknown) => void | Promise<void>,
   ): Promise<unknown>;
@@ -102,7 +109,7 @@ export function buildPythonArguments(
   arguments_: readonly string[],
   packaged: boolean,
 ): readonly string[] {
-  if (command === PYTHON_COMMAND.assetsPrepare && arguments_.length !== 0) {
+  if ((command === PYTHON_COMMAND.assetsPrepare || command === PYTHON_COMMAND.cosmeticsPrepare) && arguments_.length !== 0) {
     throw new Error("Asset preparation requests must use stdin, not process arguments.");
   }
   return packaged
@@ -153,11 +160,19 @@ class SpawnPythonClient implements PythonClient {
       let settled = false;
       let stdout = "";
       let stdoutBytes = 0;
-      const stdoutLimit =
-        command === PYTHON_COMMAND.upgradeTexture ? MAX_UPGRADE_TEXTURE_STDOUT_BYTES : MAX_STDOUT_BYTES;
+      let stdoutLimit = MAX_STDOUT_BYTES;
+      if (command === PYTHON_COMMAND.cosmeticArtwork) {
+        stdoutLimit = MAX_COSMETIC_ARTWORK_STDOUT_BYTES;
+      } else if (command === PYTHON_COMMAND.upgradeTexture) {
+        stdoutLimit = MAX_UPGRADE_TEXTURE_STDOUT_BYTES;
+      }
 
-      const timeoutMs =
-        command === PYTHON_COMMAND.upgradeTexture ? UPGRADE_TEXTURE_TIMEOUT_MS : PYTHON_TIMEOUT_MS;
+      let timeoutMs = PYTHON_TIMEOUT_MS;
+      if (command === PYTHON_COMMAND.cosmeticArtwork) {
+        timeoutMs = COSMETIC_ARTWORK_TIMEOUT_MS;
+      } else if (command === PYTHON_COMMAND.upgradeTexture) {
+        timeoutMs = UPGRADE_TEXTURE_TIMEOUT_MS;
+      }
       const timer = setTimeout(() => {
         child.kill();
         fail(new PythonClientError("process_timeout", "Python command timed out."));
@@ -242,7 +257,7 @@ class SpawnPythonClient implements PythonClient {
   }
 
   async runRecords(
-    command: typeof PYTHON_COMMAND.assetsPrepare,
+    command: typeof PYTHON_COMMAND.assetsPrepare | typeof PYTHON_COMMAND.cosmeticsPrepare,
     request: readonly string[],
     onRecord: (record: unknown) => void | Promise<void>,
   ): Promise<unknown> {
@@ -250,9 +265,13 @@ class SpawnPythonClient implements PythonClient {
       throw new PythonClientError("process_failed", PYTHON_CLIENT_MESSAGE.disposed);
     }
 
+    const isCosmeticBatch = command === PYTHON_COMMAND.cosmeticsPrepare;
     if (
-      request.length > MAX_ASSET_PREPARATION_KEYS ||
-      request.some((key) => Buffer.byteLength(key, "utf8") > MAX_ASSET_PREPARATION_KEY_BYTES)
+      (isCosmeticBatch && request.length === 0) ||
+      request.length > (isCosmeticBatch ? MAX_COSMETIC_PREPARATION_KEYS : MAX_ASSET_PREPARATION_KEYS) ||
+      request.some((key) => isCosmeticBatch
+        ? !/^(?:0|[1-9]\d{0,3})$/.test(key) || Number(key) >= MAX_COSMETIC_PREPARATION_KEYS
+        : Buffer.byteLength(key, "utf8") > MAX_ASSET_PREPARATION_KEY_BYTES)
     ) {
       throw new PythonClientError(
         "process_failed",
@@ -283,7 +302,7 @@ class SpawnPythonClient implements PythonClient {
       const timer = setTimeout(() => {
         child.kill();
         fail(new PythonClientError("process_timeout", "Python asset preparation timed out."));
-      }, ASSET_PREPARATION_TIMEOUT_MS);
+      }, isCosmeticBatch ? COSMETIC_PREPARATION_TIMEOUT_MS : ASSET_PREPARATION_TIMEOUT_MS);
 
       function finish(value: unknown): void {
         if (settled) return;
@@ -369,7 +388,9 @@ class SpawnPythonClient implements PythonClient {
       child.stderr.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
         stdoutBytes += Buffer.byteLength(chunk, "utf8");
-        if (stdoutBytes > MAX_ASSET_PREPARATION_STDOUT_BYTES) {
+        if (stdoutBytes > (isCosmeticBatch
+          ? MAX_COSMETIC_PREPARATION_STDOUT_BYTES
+          : MAX_ASSET_PREPARATION_STDOUT_BYTES)) {
           child.kill();
           fail(
             new PythonClientError(

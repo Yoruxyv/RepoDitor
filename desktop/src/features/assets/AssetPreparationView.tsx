@@ -33,6 +33,12 @@ const STAGE_KEYS: Record<AssetPreparationStage, TranslationKey> = {
 };
 
 interface AssetPreparationViewProps {
+  readonly copyOverrides?: Partial<PreparationCopy>;
+  readonly progressText?: string;
+  readonly progressLabel?: string;
+  readonly footerText?: readonly [string, string];
+  readonly continueImmediately?: boolean;
+  readonly continueLabel?: string;
   readonly state: AssetPreparationState;
   readonly mode?: "save" | "artwork";
   readonly saveDetail?: string;
@@ -126,10 +132,14 @@ function PreparationProgressDisplay({
   mode,
   progress,
   t,
+  progressText,
+  progressLabel,
 }: {
   readonly mode: "save" | "artwork";
   readonly progress: PreparationProgress | null;
   readonly t: Translate;
+  readonly progressText?: string;
+  readonly progressLabel?: string;
 }) {
   const filledSegments = countFilledSegments(progress);
   const labelKey = mode === "save" ? "entry.progressLabel" : "assets.progressLabel";
@@ -137,17 +147,19 @@ function PreparationProgressDisplay({
     mode === "save" ? "entry.progressCount" : PREPARATION_TRANSLATION_KEY.progressCount;
   const progressAttributes =
     progress === null
-      ? { role: "progressbar" as const, "aria-label": t(labelKey) }
+      ? { role: "progressbar" as const, "aria-label": progressLabel ?? t(labelKey) }
       : {
           role: "progressbar" as const,
-          "aria-label": t(labelKey),
+          "aria-label": progressLabel ?? t(labelKey),
           "aria-valuemin": 0,
           "aria-valuemax": progress.total,
           "aria-valuenow": progress.completed,
-          "aria-valuetext": t(countKey, {
-            completed: progress.completed,
-            total: progress.total,
-          }),
+          "aria-valuetext":
+            progressText ??
+            t(countKey, {
+              completed: progress.completed,
+              total: progress.total,
+            }),
         };
   const workingClass =
     progress === null ? PROGRESS_VISIBILITY_CLASS.visible : PROGRESS_VISIBILITY_CLASS.hidden;
@@ -156,10 +168,11 @@ function PreparationProgressDisplay({
   const progressCount =
     progress === null
       ? ""
-      : t(countKey, {
+      : (progressText ??
+        t(countKey, {
           completed: progress.completed,
           total: progress.total,
-        });
+        }));
 
   return (
     <div className="mt-7">
@@ -223,11 +236,21 @@ function visiblePreparationProgress(
 function AssetPreparationFooter({
   mode,
   state,
+  footerText,
 }: {
   readonly mode: "save" | "artwork";
   readonly state: AssetPreparationState;
+  readonly footerText?: readonly [string, string];
 }) {
   const { t } = usePreferences();
+  if (footerText !== undefined) {
+    return (
+      <>
+        <span>{footerText[0]}</span>
+        <span>{footerText[1]}</span>
+      </>
+    );
+  }
 
   if (mode === "save") {
     return (
@@ -253,6 +276,12 @@ function AssetPreparationFooter({
 
 export function AssetPreparationView({
   state,
+  copyOverrides,
+  progressText,
+  progressLabel,
+  footerText,
+  continueImmediately = false,
+  continueLabel,
   mode = "artwork",
   saveDetail,
   editorProgress = null,
@@ -280,7 +309,10 @@ export function AssetPreparationView({
   }, [hasDetailedProgress, mode]);
 
   const visibleProgress = visiblePreparationProgress(mode, progress, showDetailedProgress);
-  const copy = preparationCopy(state, mode, saveDetail, artworkDetail, slow, t);
+  const copy = {
+    ...preparationCopy(state, mode, saveDetail, artworkDetail, slow, t),
+    ...copyOverrides,
+  };
 
   return (
     <section
@@ -336,7 +368,13 @@ export function AssetPreparationView({
               {copy.detail}
             </p>
 
-            <PreparationProgressDisplay mode={mode} progress={visibleProgress} t={t} />
+            <PreparationProgressDisplay
+              mode={mode}
+              progress={visibleProgress}
+              {...(progressText === undefined ? {} : { progressText })}
+              {...(progressLabel === undefined ? {} : { progressLabel })}
+              t={t}
+            />
 
             {artworkDetail && state.completed !== null && state.total !== null ? (
               <p className="mt-2 text-right text-xs font-medium text-secondary">
@@ -354,20 +392,24 @@ export function AssetPreparationView({
             ) : null}
 
             <p className="mt-5 max-w-[58ch] text-sm/6 text-secondary">{copy.hint}</p>
-            {mode === "artwork" && slow && onContinue !== undefined ? (
+            {mode === "artwork" && (slow || continueImmediately) && onContinue !== undefined ? (
               <button
                 className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-accent bg-accent-muted px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised"
                 type="button"
                 onClick={onContinue}
               >
-                {t("assets.continueEditor")}
+                {continueLabel ?? t("assets.continueEditor")}
               </button>
             ) : null}
           </div>
         </div>
 
         <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          <AssetPreparationFooter mode={mode} state={state} />
+          <AssetPreparationFooter
+            {...(footerText === undefined ? {} : { footerText })}
+            mode={mode}
+            state={state}
+          />
         </footer>
       </div>
     </section>

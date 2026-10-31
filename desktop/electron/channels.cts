@@ -21,6 +21,8 @@ export const IPC_CHANNELS: IpcChannelMap = {
   upgradesPrepareEntry: "upgrades:prepare-entry",
   runGet: "run:get",
   advancedGet: "advanced:get",
+  cosmeticsArtworkState: "cosmetics:artwork-state",
+  cosmeticsArtworkProgress: "cosmetics:artwork-progress",
   cosmeticsGet: "cosmetics:get",
   cosmeticsWrite: "cosmetics:write",
   mapsList: "maps:list",

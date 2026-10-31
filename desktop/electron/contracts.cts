@@ -19,6 +19,8 @@ export interface IpcChannelMap {
   upgradesPrepareEntry: "upgrades:prepare-entry";
   runGet: "run:get";
   advancedGet: "advanced:get";
+  cosmeticsArtworkState: "cosmetics:artwork-state";
+  cosmeticsArtworkProgress: "cosmetics:artwork-progress";
   cosmeticsGet: "cosmetics:get";
   cosmeticsWrite: "cosmetics:write";
   mapsList: "maps:list";
@@ -52,6 +54,15 @@ export interface AssetPreparationState {
   currentAsset: string | null;
   currentAssetLabel: string | null;
   degraded: boolean;
+}
+
+/** Optional presentation work; never gates cosmetic ownership actions. */
+export interface CosmeticArtworkPreparationState {
+  phase: "idle" | "checking" | "preparing" | "ready" | "degraded";
+  completed: number;
+  total: number;
+  cached: number;
+  failed: number;
 }
 
 export interface ProjectMetadata {
@@ -443,6 +454,8 @@ export interface RepoDitorApi {
     get: (saveId: string) => Promise<DesktopOperationResult<AdvancedSaveDto>>;
   };
   cosmetics: {
+    artworkState: () => Promise<CosmeticArtworkPreparationState>;
+    onArtworkProgress: (listener: (state: CosmeticArtworkPreparationState) => void) => () => void;
     get: () => Promise<DesktopOperationResult<CosmeticsViewDto>>;
     write: (
       fingerprint: string,

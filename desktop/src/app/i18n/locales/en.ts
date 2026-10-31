@@ -8,6 +8,17 @@ export const en = {
   "app.projectSource": "Project source",
   "app.workspaces": "RepoDitor workspaces",
   "app.runSaves": "Run Saves",
+  "cosmetics.artwork.title": "Preparing cosmetic artwork",
+  "cosmetics.artwork.checking": "Checking saved cosmetic artwork…",
+  "cosmetics.artwork.scanning": "Scanning installed game assets and decoding missing icons.",
+  "cosmetics.artwork.count": "{completed} / {total} cosmetics prepared",
+  "cosmetics.artwork.cached": "{cached} reused from cache",
+  "cosmetics.artwork.hint":
+    "Cosmetic images are prepared locally in the background. Unlock and other actions stay available.",
+  "cosmetics.artwork.background": "Continue in background",
+  "cosmetics.artwork.expand": "Show artwork progress",
+  "cosmetics.artwork.degraded":
+    "Some cosmetic artwork could not be prepared. Editing remains available.",
   "app.cosmetics": "Cosmetics",
   "utility.group": "Application utilities",
   "utility.githubUnavailable": "GitHub star count unavailable",

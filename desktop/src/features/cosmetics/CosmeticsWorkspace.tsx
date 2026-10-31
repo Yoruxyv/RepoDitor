@@ -1,9 +1,11 @@
 /** Composes the isolated Cosmetics editor, source context, and pending action surface. */
 import { ShieldCheckIcon } from "@phosphor-icons/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
+import { CosmeticArtworkPreparation } from "@/features/cosmetics/CosmeticArtworkPreparation";
+import { useCosmeticArtworkPreparation } from "@/features/cosmetics/useCosmeticArtworkPreparation";
 import { useCosmetics } from "@/features/cosmetics/useCosmetics";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 
@@ -20,6 +22,15 @@ export function CosmeticsWorkspace({
 }: CosmeticsWorkspaceProps) {
   const { t } = usePreferences();
   const cosmetics = useCosmetics(!hidden, recoveryGeneration);
+  const artworkPreparation = useCosmeticArtworkPreparation();
+  const [continueInBackground, setContinueInBackground] = useState(false);
+  const artworkActive =
+    artworkPreparation.phase === "checking" || artworkPreparation.phase === "preparing";
+  const showFullPreparation = artworkActive && !continueInBackground;
+
+  useEffect(() => {
+    if (!artworkActive) setContinueInBackground(false);
+  }, [artworkActive]);
 
   useEffect(() => {
     onPendingCountChange(cosmetics.pendingEdits.length);
@@ -28,47 +39,66 @@ export function CosmeticsWorkspace({
 
   return (
     <section aria-label={t("app.cosmetics")} data-testid="cosmetics-workspace" hidden={hidden}>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
-        <span className="font-mono text-ink">MetaSave.es3</span>
-        <span className="inline-flex items-center gap-1.5 text-success">
-          <ShieldCheckIcon aria-hidden="true" size={15} />
-          {t("cosmetics.validatedShort")}
-        </span>
-      </div>
-      <div>
-        <div className="min-w-0">
-          <CosmeticsView
-            clearAllPresetsPending={cosmetics.clearAllPresetsPending}
-            error={cosmetics.loadError}
-            hasBulkPending={cosmetics.hasBulkPending}
-            hasPendingEdits={cosmetics.hasPendingEdits}
-            knownLockedCount={cosmetics.knownLockedCount}
-            knownOwnedCount={cosmetics.knownOwnedCount}
-            lockAllBlockedReason={cosmetics.lockAllBlockedReason}
-            saving={cosmetics.saving}
-            lockAllPending={cosmetics.lockAllPending}
-            loading={cosmetics.loading}
-            savedPresetCount={cosmetics.savedPresetCount}
-            unlockAllPending={cosmetics.unlockAllPending}
-            view={cosmetics.view}
-            onClearAllPresets={cosmetics.clearAllPresets}
-            onLockAll={cosmetics.lockAll}
-            onRetry={() => void cosmetics.reload()}
-            onUnlockAll={cosmetics.unlockAll}
-            onUnlockCosmetic={cosmetics.unlockCosmetic}
-          />
-        </div>
-      </div>
+      {showFullPreparation ? (
+        <CosmeticArtworkPreparation
+          compact={false}
+          state={artworkPreparation}
+          onContinueInBackground={() => setContinueInBackground(true)}
+          onShowProgress={() => setContinueInBackground(false)}
+        />
+      ) : (
+        <>
+          {artworkActive || artworkPreparation.phase === "degraded" ? (
+            <CosmeticArtworkPreparation
+              compact
+              state={artworkPreparation}
+              onContinueInBackground={() => setContinueInBackground(true)}
+              onShowProgress={() => setContinueInBackground(false)}
+            />
+          ) : null}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
+            <span className="font-mono text-ink">MetaSave.es3</span>
+            <span className="inline-flex items-center gap-1.5 text-success">
+              <ShieldCheckIcon aria-hidden="true" size={15} />
+              {t("cosmetics.validatedShort")}
+            </span>
+          </div>
+          <div>
+            <div className="min-w-0">
+              <CosmeticsView
+                clearAllPresetsPending={cosmetics.clearAllPresetsPending}
+                error={cosmetics.loadError}
+                hasBulkPending={cosmetics.hasBulkPending}
+                hasPendingEdits={cosmetics.hasPendingEdits}
+                knownLockedCount={cosmetics.knownLockedCount}
+                knownOwnedCount={cosmetics.knownOwnedCount}
+                lockAllBlockedReason={cosmetics.lockAllBlockedReason}
+                saving={cosmetics.saving}
+                lockAllPending={cosmetics.lockAllPending}
+                loading={cosmetics.loading}
+                savedPresetCount={cosmetics.savedPresetCount}
+                unlockAllPending={cosmetics.unlockAllPending}
+                view={cosmetics.view}
+                onClearAllPresets={cosmetics.clearAllPresets}
+                onLockAll={cosmetics.lockAll}
+                onRetry={() => void cosmetics.reload()}
+                onUnlockAll={cosmetics.unlockAll}
+                onUnlockCosmetic={cosmetics.unlockCosmetic}
+              />
+            </div>
+          </div>
 
-      <PendingChangesBar
-        backupPath={cosmetics.pendingEdits.length === 0 ? cosmetics.backupPath : null}
-        edits={cosmetics.pendingEdits}
-        error={cosmetics.writeError}
-        saving={cosmetics.saving}
-        testIdPrefix="cosmetics"
-        onRevert={cosmetics.revertAll}
-        onSave={() => void cosmetics.save()}
-      />
+          <PendingChangesBar
+            backupPath={cosmetics.pendingEdits.length === 0 ? cosmetics.backupPath : null}
+            edits={cosmetics.pendingEdits}
+            error={cosmetics.writeError}
+            saving={cosmetics.saving}
+            testIdPrefix="cosmetics"
+            onRevert={cosmetics.revertAll}
+            onSave={() => void cosmetics.save()}
+          />
+        </>
+      )}
     </section>
   );
 }

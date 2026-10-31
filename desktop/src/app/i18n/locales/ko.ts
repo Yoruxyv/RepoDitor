@@ -10,6 +10,17 @@ export const ko: Record<keyof typeof en, string> = {
   "app.projectSource": "프로젝트 소스",
   "app.workspaces": "RepoDitor 작업 공간",
   "app.runSaves": "런 세이브",
+  "cosmetics.artwork.title": "코스메틱 이미지 준비 중",
+  "cosmetics.artwork.checking": "저장된 코스메틱 이미지를 확인하는 중…",
+  "cosmetics.artwork.scanning": "게임 에셋을 확인하고 누락된 아이콘을 디코딩합니다.",
+  "cosmetics.artwork.count": "{completed} / {total} 코스메틱 준비됨",
+  "cosmetics.artwork.cached": "캐시에서 {cached}개 재사용",
+  "cosmetics.artwork.hint":
+    "이미지는 백그라운드에서 준비됩니다. 잠금 해제 등의 작업은 계속 사용할 수 있습니다.",
+  "cosmetics.artwork.background": "백그라운드로 계속",
+  "cosmetics.artwork.expand": "이미지 준비 진행률 보기",
+  "cosmetics.artwork.degraded":
+    "일부 이미지를 준비하지 못했습니다. 편집은 계속 사용할 수 있습니다.",
   "app.cosmetics": "코스메틱",
   "utility.group": "애플리케이션 도구",
   "utility.githubUnavailable": "GitHub 스타 수를 불러올 수 없음",

@@ -21,11 +21,20 @@ export interface UpgradeVisualRegistration {
   readonly upgradeKey: string;
 }
 
-export type IconRegistration = CacheIconRegistration | UpgradeVisualRegistration;
+export interface CosmeticVisualRegistration {
+  readonly kind: "cosmetic-visual";
+  readonly domain: "cosmetic";
+  readonly cosmeticId: number;
+  readonly cacheKey: string | null;
+}
+
+export type IconRegistration =
+  CacheIconRegistration | UpgradeVisualRegistration | CosmeticVisualRegistration;
 
 export interface IconVisualRequest {
   readonly cacheKey: string | null;
   readonly upgradeKey: string | null;
+  readonly cosmeticId?: number | null;
 }
 
 const SAFE_KEY_PATTERN = /^[^/\\\0]{1,256}\.png$/;
@@ -62,9 +71,11 @@ export function readUpgradeVisualKey(value: unknown): string | null {
 }
 
 function signature(entry: IconRegistration): string {
-  return entry.kind === "cache"
-    ? `cache:${entry.key}`
-    : `upgrade:${entry.upgradeKey}:cache:${entry.cacheKey ?? ""}`;
+  if (entry.kind === "cache") return `cache:${entry.key}`;
+  if (entry.kind === "cosmetic-visual") {
+    return `cosmetic:${entry.cosmeticId}:cache:${entry.cacheKey ?? ""}`;
+  }
+  return `upgrade:${entry.upgradeKey}:cache:${entry.cacheKey ?? ""}`;
 }
 
 function visualRegistration(
@@ -72,6 +83,17 @@ function visualRegistration(
   request: IconVisualRequest,
 ): IconRegistration | null {
   const cacheKey = readIconKey(request.cacheKey);
+  if (request.cosmeticId !== undefined && request.cosmeticId !== null) {
+    if (
+      domain !== "cosmetic" ||
+      !Number.isSafeInteger(request.cosmeticId) ||
+      request.cosmeticId < 0 ||
+      request.cosmeticId >= 2000
+    ) {
+      throw new Error("Invalid cosmetic visual ID.");
+    }
+    return { kind: "cosmetic-visual", domain, cosmeticId: request.cosmeticId, cacheKey };
+  }
   const upgradeKey = readUpgradeVisualKey(request.upgradeKey);
   if (upgradeKey !== null) {
     return { kind: "upgrade-visual", domain, cacheKey, upgradeKey };

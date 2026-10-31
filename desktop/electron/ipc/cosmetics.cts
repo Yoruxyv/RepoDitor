@@ -20,6 +20,7 @@ import {
 } from "../contracts.cjs";
 import { PythonClientError, pythonClient, type PythonClient } from "../python/client.cjs";
 import { localIconRegistry, readIconKey, type LocalIconRegistry } from "../icons/registry.cjs";
+import { decodedCosmeticArtworkCache } from "../icons/cosmeticArtworkCache.cjs";
 import { PROVEN_COSMETIC_IDS } from "./known-cosmetics.cjs";
 
 const INVALID_COSMETICS_RESPONSE_MESSAGE = "Invalid cosmetics response.";
@@ -208,9 +209,13 @@ function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
   ) {
     throw new CosmeticsProtocolError("Invalid cosmetics catalog projection.");
   }
-  const tokens = icons.replace(
+  const tokens = icons.replaceVisuals(
     "cosmetic",
-    cosmetics.map((cosmetic) => cosmetic.iconKey),
+    cosmetics.map((cosmetic) => ({
+      cacheKey: cosmetic.iconKey,
+      upgradeKey: null,
+      cosmeticId: cosmetic.known ? cosmetic.id : null,
+    })),
   );
   return {
     fingerprint: readFingerprint(value.fingerprint),
@@ -221,9 +226,9 @@ function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
     savedPresetCount,
     unknownOwnedIds,
     capabilities,
-    cosmetics: cosmetics.map(({ iconKey, ...cosmetic }) => ({
+    cosmetics: cosmetics.map(({ iconKey: _iconKey, ...cosmetic }, index) => ({
       ...cosmetic,
-      iconToken: iconKey === null ? null : (tokens.get(iconKey) ?? null),
+      iconToken: tokens[index] ?? null,
     })),
   };
 }
@@ -367,7 +372,14 @@ export async function getCosmetics(
   icons: LocalIconRegistry = localIconRegistry,
 ): Promise<DesktopOperationResult<CosmeticsViewDto>> {
   try {
-    return readGetResponse(await client.run("cosmetics-get"), icons);
+    const result = readGetResponse(await client.run("cosmetics-get"), icons);
+    if (result.ok) {
+      decodedCosmeticArtworkCache.prefetch(
+        result.data.cosmetics.filter((cosmetic) => cosmetic.known).map((cosmetic) => cosmetic.id),
+        client,
+      );
+    }
+    return result;
   } catch (error) {
     return failure(error);
   }

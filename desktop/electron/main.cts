@@ -13,6 +13,7 @@ import { assetPreparationService, registerAssetPreparationIpc } from "./assets/p
 import { registerEnvironmentIpc } from "./ipc/environment.cjs";
 import { registerGameIpc } from "./ipc/game.cjs";
 import { registerCosmeticsIpc } from "./ipc/cosmetics.cjs";
+import { registerCosmeticArtworkProgressIpc } from "./ipc/cosmeticArtworkProgress.cjs";
 import { registerEditorIpc } from "./ipc/editor.cjs";
 import { registerPlayerIpc } from "./ipc/players.cjs";
 import { registerProjectIpc } from "./ipc/project.cjs";
@@ -20,6 +21,7 @@ import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
 import { registerLocalIconProtocol, registerLocalIconScheme } from "./icons/protocol.cjs";
 import { decodedUpgradeTextureCache } from "./icons/upgradeTextureCache.cjs";
+import { decodedCosmeticArtworkCache } from "./icons/cosmeticArtworkCache.cjs";
 import { createPresentationCacheDiagnosticSink } from "./icons/cacheDiagnostics.cjs";
 
 const developmentRendererUrl = process.env.VITE_DEV_SERVER_URL;
@@ -90,6 +92,7 @@ registerAssetPreparationIpc();
 registerEnvironmentIpc();
 registerGameIpc();
 registerCosmeticsIpc();
+registerCosmeticArtworkProgressIpc();
 registerSaveIpc();
 registerPlayerIpc();
 const e2eStars = Number(process.env.REPODITOR_E2E_PROJECT_STARS);
@@ -104,6 +107,9 @@ void app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   const userDataRoot = app.getPath("userData");
   decodedUpgradeTextureCache.configurePersistentRoot(path.join(userDataRoot, "presentation"));
+  decodedCosmeticArtworkCache.configurePersistentRoot(
+    path.join(userDataRoot, "presentation", "cosmetics"),
+  );
   decodedUpgradeTextureCache.configureDiagnosticSink(
     createPresentationCacheDiagnosticSink(
       path.join(userDataRoot, "presentation-cache-diagnostics.jsonl"),
