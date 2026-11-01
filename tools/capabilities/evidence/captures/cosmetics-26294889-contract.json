@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "tool": "dnfile/dncil",
+  "compatibility": {
+    "steamAppId": "3241660",
+    "steamBuildId": "26294889",
+    "unityVersion": "6000.3.17f1"
+  },
+  "managedAssemblySha256": "sha256:aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888",
+  "relationshipVerified": true,
+  "semanticContract": {
+    "sourceObject": "MetaManager.cosmeticAssets",
+    "consumerMethod": "MenuElementCosmeticButton.Start",
+    "indexOperation": "List<CosmeticAsset>.IndexOf",
+    "fingerprint": "sha256:84d8de92fdf2cf9931ba8ad7bd181d4488433928718922ee423e7fb57c0981b9"
+  }
+}

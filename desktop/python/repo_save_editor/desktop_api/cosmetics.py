@@ -6,7 +6,7 @@ from collections.abc import Callable
 from hashlib import sha256
 from pathlib import Path
 
-from repo_save_editor.core.crypto import SaveCryptoError
+from repo_save_editor.core.crypto import SaveCryptoError, encrypt_save_fields
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
@@ -229,7 +229,18 @@ def save_cosmetics(
         installed_catalog = catalog_loader()
         _apply_changes(data, changes, installed_catalog)
         require_game_closed(game_status_loader)
-        backup, written = repository.overwrite(path, data, expected_source=source)
+        backup, written = repository.overwrite(
+            path,
+            data,
+            expected_source=source,
+            encoder=lambda edited, original: encrypt_save_fields(
+                edited,
+                original,
+                frozenset(
+                    {"cosmeticHistory", "cosmeticUnlocks", "cosmeticPresets", "colorPresets"}
+                ),
+            ),
+        )
         return {
             "ok": True,
             "result": {

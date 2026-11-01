@@ -11,6 +11,8 @@ from typing import Final, cast
 from repo_save_editor.services.cosmetics.schema import get_ownership_lists
 from repo_save_editor.services.items.models import ItemRechargeCapability
 
+CURRENT_COSMETICS_BUILD_ID: Final = "26294889"
+CURRENT_COSMETICS_UNITY_VERSION: Final = "6000.3.17f1"
 SCHEMA_VERSION: Final = 1
 GENERATOR_VERSION: Final = 1
 STEAM_APP_ID: Final = "3241660"
@@ -75,6 +77,7 @@ class CosmeticsEvidence:
     source_object: str
     identity_semantics: str
     cosmetic_ids: tuple[int, ...]
+    ownership_proven_ids: tuple[int, ...]
 
 
 def read_json(path: Path) -> object:
@@ -319,7 +322,9 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
         },
         "Cosmetics evidence",
     )
-    _version(root["schemaVersion"], "Cosmetics evidence")
+    evidence_version = root["schemaVersion"]
+    if type(evidence_version) is not int or evidence_version not in (1, 2):
+        raise CapabilityDataError("Cosmetics evidence uses an unsupported schema version.")
     compatibility = _compatibility(root["compatibility"], allow_unknown_build=False)
     game_compatibility = _text(root["gameCompatibility"], "Cosmetics game compatibility")
     provenance = _text(root["provenance"], "Cosmetics provenance")
@@ -355,9 +360,17 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
             "exactSetParity",
             "managedAssemblySha256",
             "semanticContract",
-        },
+        }
+        | ({"sourceSaveCosmeticIds"} if evidence_version == 2 else set()),
         "Cosmetics ownership oracle",
     )
+    ownership_ids = (
+        _cosmetic_ids(ownership["sourceSaveCosmeticIds"], "Source-save cosmetic IDs")
+        if evidence_version == 2
+        else ids
+    )
+    if not set(ownership_ids) <= set(ids):
+        raise CapabilityDataError("Source ownership proof exceeds the installed cosmetic catalog.")
     expected_fields = ("cosmeticHistory", "cosmeticUnlocks")
     if ownership["fields"] != list(expected_fields):
         raise CapabilityDataError("Cosmetics evidence does not prove both ownership fields.")
@@ -403,12 +416,12 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
 
     # Exercise the same Desktop ownership schema used by production without storing a real save.
     projected = {
-        "cosmeticHistory": {"value": list(ids)},
-        "cosmeticUnlocks": {"value": list(ids)},
+        "cosmeticHistory": {"value": list(ownership_ids)},
+        "cosmeticUnlocks": {"value": list(ownership_ids)},
         "cosmeticPresets": {"value": []},
     }
     history, unlocks = get_ownership_lists(projected)
-    if tuple(history) != ids or tuple(unlocks) != ids:
+    if tuple(history) != ownership_ids or tuple(unlocks) != ownership_ids:
         raise CapabilityDataError("Desktop cosmetics ownership projection changed unexpectedly.")
 
     return CosmeticsEvidence(
@@ -429,6 +442,7 @@ def load_cosmetics_evidence(path: Path) -> CosmeticsEvidence:
         source_object,
         identity_semantics,
         ids,
+        ownership_ids,
     )
 
 

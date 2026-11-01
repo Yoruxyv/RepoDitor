@@ -55,18 +55,20 @@ No server-side save-processing route is permitted.
 
 ## Desktop local presentation assets
 
-Optional Desktop item and cosmetic thumbnails use the user's game-generated LocalLow cache. Python
-derives canonical cache keys from installed metadata; Electron replaces them with opaque in-memory
-tokens and serves only validated PNGs through the read-only `repoditor-icon:` protocol. The Desktop
-renderer never receives cache roots, filenames, or filesystem access. Missing or invalid images keep
-the existing Phosphor fallback and cannot affect save discovery, identity, or mutation eligibility.
+Optional Desktop item and cosmetic thumbnails prefer verified installed BakedIcons. Cosmetics then
+use RepoDitor's persistent decoded Sprite cache and bounded direct extraction; regular items retain
+a placeholder when reconstruction is unavailable. Neither domain reads the game's LocalLow artwork
+cache. Player upgrades keep their existing validated pipeline. Electron serves validated images through
+opaque `repoditor-icon:` tokens; the renderer receives no paths or filesystem access. Artwork availability
+cannot grant mutation permission. Web remains independent and does not read installed Desktop artwork.
 
 ## Local path discovery
 
 RepoDitor derives R.E.P.O. user data from the Windows Known Folder API rather than from a
 physical profile layout. `FOLDERID_LocalAppDataLow` is the authoritative dynamic base; the
-product-owned suffix remains fixed as `semiwork/Repo`. Save slots, `MetaSave.es3`, and the
-game-generated icon cache all derive from that shared root. If the Known Folder lookup is
+product-owned suffix remains fixed as `semiwork/Repo`. Save slots and `MetaSave.es3` derive
+from that shared root. Legacy game-cache paths remain discovery metadata; item and cosmetic
+artwork resolution does not consult them. If the Known Folder lookup is
 unavailable, discovery fails soft without guessing `Path.home()/AppData`, a drive letter, or
 scanning user directories.
 
@@ -112,8 +114,9 @@ Item recharge support keeps three independent facts separate:
 3. **Mutation eligibility** remains the existing exact-instance refill rule. Only a confirmed
    rechargeable item with a stored charge entry may stage or write `Refill to Full`.
 
-No prefab path IDs, proof manifests, extracted game metadata, UnityPy, or TypeTreeGenerator are
-bundled. The reader is deliberately fixed to the validated `23363152` / Unity `2022.3.67f2` layout.
+The Recharge reader bundles no prefab path-ID tables or proof manifests and remains fixed to the
+validated `23363152` / Unity `2022.3.67f2` layout. Separately, optional cosmetic Sprite decoding ships
+UnityPy and TypeTreeGenerator; their presence does not approve a newer Recharge build.
 Missing assets, a future Steam/Unity/serialized-file version, incomplete pointers, exceptional
 `ItemBattery` metadata, or conflicting prefab variants all degrade the affected capability to
 `unknown`; ordinary save reading remains available. The authoritative Python save-write boundary

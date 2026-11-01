@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { loadSave, saveFixture } from "./fixtures";
+import { loadSave, saveFixture, loadBulkCosmeticFixture } from "./fixtures";
 
 test.beforeEach(async ({ page }) => page.goto("/"));
 
@@ -85,4 +85,97 @@ test("save session stays memory-only, makes no save request, and clears on refre
     page.getByRole("heading", { name: "R.E.P.O. Save Editor — directly in your browser." }),
   ).toBeVisible();
   await expect(page.getByTestId("save-workspace")).toHaveCount(0);
+});
+
+test("556/557 bulk locking confirms, cancels and survives encrypted export/re-import", async ({
+  page,
+}, testInfo) => {
+  await loadBulkCosmeticFixture(page);
+  await expect(page.getByText("556 of 557 supported cosmetics unlocked")).toBeVisible();
+  await expect(page.getByLabel("Cosmetic ID")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove ownership", exact: true })).toHaveCount(0);
+  const lock = page.getByRole("button", { name: "Lock All Cosmetics", exact: true });
+  await expect(lock).toBeEnabled();
+  await lock.click();
+  let dialog = page.getByRole("dialog", { name: "Lock All Cosmetics?" });
+  await expect(dialog).toContainText("556 supported cosmetics");
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(lock).toBeFocused();
+  await expect(page.getByText("556 of 557 supported cosmetics unlocked")).toBeVisible();
+  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  await lock.click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  await lock.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Lock 556 cosmetics", exact: true })
+    .click();
+  await expect(page.getByText("0 of 557 supported cosmetics unlocked")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unlock Remaining Cosmetics" })).toBeFocused();
+  await expect(page.getByText("1 unsupported owned cosmetic is preserved.")).toBeVisible();
+  await expect(lock).toBeDisabled();
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await expect(page.getByTestId("pending-changes-review")).toContainText(
+    "556 unlocked → 0 unlocked",
+  );
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download verified copy" }).click();
+  const output = testInfo.outputPath("bulk-locked.es3");
+  await (await download).saveAs(output);
+  await page.locator('input[type="file"]').setInputFiles(output);
+  await expect(page.getByText("0 of 557 supported cosmetics unlocked")).toBeVisible();
+  await expect(page.getByText("1 unsupported owned cosmetic is preserved.")).toBeVisible();
+  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+});
+
+for (const references of ["equipped", "preset"] as const) {
+  test(`556/557 Lock All explains ${references} restrictions without modifying ownership`, async ({
+    page,
+  }) => {
+    await loadBulkCosmeticFixture(page, references);
+    await expect(page.getByText("556 of 557 supported cosmetics unlocked")).toBeVisible();
+    const lock = page.getByRole("button", { name: "Lock All Cosmetics", exact: true });
+    await expect(lock).toBeDisabled();
+    await expect(page.locator("#cosmetics-lock-reason")).toContainText(
+      references === "equipped" ? "is equipped" : "saved preset",
+    );
+    await expect(page.locator("#cosmetics-lock-reason")).toContainText(
+      "import the updated MetaSave",
+    );
+    await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+}
+
+test("bulk cosmetic controls and confirmation stay usable across viewport sizes", async ({
+  page,
+}, testInfo) => {
+  await loadBulkCosmeticFixture(page);
+  for (const width of [375, 900, 1440]) {
+    await page.setViewportSize({ width, height: 812 });
+    const lock = page.getByRole("button", { name: "Lock All Cosmetics", exact: true });
+    await expect(lock).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Unlock Remaining Cosmetics" })).toBeInViewport();
+    await lock.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Lock 556 cosmetics" })).toBeFocused();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    const box = await dialog.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) throw new Error("Confirmation must have visible geometry");
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: testInfo.outputPath(`cosmetics-confirm-${width}.png`) });
+    await page.keyboard.press("Escape");
+    await expect(lock).toBeFocused();
+    await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  }
 });

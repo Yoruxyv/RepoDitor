@@ -10,6 +10,8 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.padding import PKCS7
 
+from repo_save_editor.core.json_fields import replace_es3_values
+
 
 class SaveCryptoError(ValueError):
     """Raised when a save cannot be decrypted, decoded, or encoded."""
@@ -55,6 +57,19 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
         SaveCryptoError: The container is too small, cannot be decrypted or decoded,
             or does not contain a JSON object.
     """
+    plaintext = _decrypt_plaintext(blob)
+    try:
+        data = json.loads(plaintext.decode("utf-8"))
+    except ValueError as exc:
+        raise SaveCryptoError("The decrypted save is not valid JSON.") from exc
+
+    if not isinstance(data, dict):
+        raise SaveCryptoError("The decrypted save root is not a JSON object.")
+
+    return data
+
+
+def _decrypt_plaintext(blob: bytes) -> bytes:
     if len(blob) <= ES3_COMPAT_IV_SIZE_BYTES:
         raise SaveCryptoError("The selected file is too small to be a supported save.")
 
@@ -70,18 +85,14 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
         unpadder = PKCS7(ES3_COMPAT_AES_BLOCK_SIZE_BITS).unpadder()
         plaintext = unpadder.update(padded) + unpadder.finalize()
 
-        decoded = plaintext.decode("utf-8")
-        data = json.loads(decoded)
+        plaintext.decode("utf-8")
     except ValueError as exc:
         raise SaveCryptoError(
             "Unable to decrypt this save. It may be corrupted or from an "
             "unsupported R.E.P.O. version."
         ) from exc
 
-    if not isinstance(data, dict):
-        raise SaveCryptoError("The decrypted save root is not a JSON object.")
-
-    return data
+    return plaintext
 
 
 def encrypt_save(data: dict[str, Any]) -> bytes:
@@ -105,6 +116,10 @@ def encrypt_save(data: dict[str, Any]) -> bytes:
     except (TypeError, ValueError) as exc:
         raise SaveCryptoError("The edited save cannot be serialized.") from exc
 
+    return _encrypt_plaintext(plaintext)
+
+
+def _encrypt_plaintext(plaintext: bytes) -> bytes:
     iv = os.urandom(ES3_COMPAT_IV_SIZE_BYTES)
     key = _derive_key(ES3_PASSWORD.encode("utf-8"), iv)
 
@@ -116,3 +131,30 @@ def encrypt_save(data: dict[str, Any]) -> bytes:
     ciphertext = encryptor.update(padded) + encryptor.finalize()
 
     return iv + ciphertext
+
+
+def encrypt_save_fields(data: dict[str, Any], source: bytes, fields: frozenset[str]) -> bytes:
+    """Replace only selected ES3 .value fields and preserve all other plaintext bytes."""
+    from_source = _decrypt_plaintext(source).decode("utf-8")
+    original = json.loads(from_source)
+    if set(data) != set(original) or any(
+        data[key] != original[key] for key in data.keys() - fields
+    ):
+        raise SaveCryptoError("An edit changed fields outside the declared write boundary.")
+    replacements = {}
+    for key in fields & data.keys():
+        before, after = original[key], data[key]
+        if (
+            not isinstance(before, dict)
+            or not isinstance(after, dict)
+            or "value" not in before
+            or set(before) != set(after)
+            or any(before[name] != after[name] for name in before.keys() - {"value"})
+        ):
+            raise SaveCryptoError("An edit changed metadata outside its ES3 value field.")
+        if before["value"] != after["value"]:
+            replacements[key] = after["value"]
+    plaintext = replace_es3_values(from_source, replacements)
+    if json.loads(plaintext) != data:
+        raise SaveCryptoError("Preserved JSON does not match the requested edit.")
+    return _encrypt_plaintext(plaintext.encode("utf-8"))

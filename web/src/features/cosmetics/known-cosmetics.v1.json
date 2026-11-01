@@ -3,16 +3,18 @@
   "generatorVersion": 1,
   "compatibility": {
     "steamAppId": "3241660",
-    "steamBuildId": "23363152",
-    "unityVersion": "2022.3.67f2"
+    "steamBuildId": "26294889",
+    "unityVersion": "6000.3.17f1"
   },
-  "gameCompatibility": "Installed MetaManager cosmeticAssets vector on Steam build 23363152, verified against UnityPy and the managed ownership/index contract",
-  "provenance": "docs/research/reverse-engineering.md#metasave-cosmetic-ownership and #installed-cosmetic-catalog-proof",
+  "gameCompatibility": "Installed MetaManager cosmeticAssets vector on Steam build 26294889, verified against UnityPy and the managed ownership/index contract",
+  "provenance": "docs/research/current-game-compatibility.md#independent-catalog-and-managed-semantics",
   "evidenceSha256": "22bbb9102d93d7fff8c4b2d3fb86dd6dc2c4475030ecb76a7c858c750741b483",
   "sourceDigests": {
-    "approvedEvidence": "sha256:9d56f933a8f648b7badc36bb10822e5228eba38753129bb6f3780287ca1349ab",
+    "approvedEvidence": "sha256:346f7ce9c1f04e17ab743a689bfac10e8d8f8ae7cd7ddf30241a024d79381c0f",
     "desktop/python/repo_save_editor/services/cosmetics/installed_catalog.py": "sha256:55c3a27514fc9ca7d749cf93d0d3c3303c784c22463f563a2a7173ebcf97c38b",
+    "desktop/python/repo_save_editor/services/cosmetics/installed_reader.py": "sha256:7c42c89b00d37548722d2e757192e8a88c6c8e21acdaeb5f0b7803b8e881293e",
     "desktop/python/repo_save_editor/services/game/discovery.py": "sha256:7baf6b52a1e83f2b4d2f09a18dbbe196bf2589cce956469fdff8496847c7939a",
+    "desktop/python/repo_save_editor/services/unity_artwork.py": "sha256:e554e5596850e642da3647e996e06b68d39ff7c6263ee810e2124d29efc31718",
     "desktop/python/repo_save_editor/services/unity_serialized.py": "sha256:028a0f1b59d289a0436684f5f59c3b51a0ebbf77e52c656ba766df7cb07556cf"
   },
   "cosmeticIds": [
@@ -562,6 +564,16 @@
     543,
     544,
     545,
-    546
+    546,
+    547,
+    548,
+    549,
+    550,
+    551,
+    552,
+    553,
+    554,
+    555,
+    556
   ]
 }

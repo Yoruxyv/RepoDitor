@@ -14,6 +14,8 @@ from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import STEAM_APP_ID
 from repo_save_editor.services.unity_serialized import UNITY_VERSION
 from tools.capabilities.schema import (
+    CURRENT_COSMETICS_BUILD_ID,
+    CURRENT_COSMETICS_UNITY_VERSION,
     SCHEMA_VERSION,
     CapabilityDataError,
     Compatibility,
@@ -28,6 +30,8 @@ COSMETICS_ORACLE_SCHEMA: Final = "repoditor-cosmetic-gate2-unitypy-oracle-v1"
 class CosmeticsOracle:
     compatibility: Compatibility
     catalog: tuple[InstalledCosmeticMetadata, ...]
+    targets: tuple[tuple[str, int, int], ...]
+    source_digests: tuple[tuple[str, str], ...]
 
 
 def load_recharge_oracle(path: Path) -> tuple[Compatibility, tuple[str, ...]]:
@@ -72,6 +76,25 @@ def _oracle_integer(value: object, label: str) -> int:
     return value
 
 
+def _cosmetic_unity_version(value: object, build_id: str) -> str:
+    unity = exact_object(
+        value,
+        {"unityPyVersion", "unityVersion", "serializedFileVersion"},
+        "Oracle Unity metadata",
+    )
+    expected_unity = (
+        CURRENT_COSMETICS_UNITY_VERSION if build_id == CURRENT_COSMETICS_BUILD_ID else UNITY_VERSION
+    )
+    if unity["unityVersion"] != expected_unity:
+        raise CapabilityDataError("Cosmetics oracle targets an unsupported Unity version.")
+    if type(unity["serializedFileVersion"]) is not int or unity["serializedFileVersion"] != 22:
+        raise CapabilityDataError("Cosmetics oracle targets an unsupported serialized-file format.")
+    if not isinstance(unity["unityPyVersion"], str) or not unity["unityPyVersion"]:
+        raise CapabilityDataError("Cosmetics oracle has no UnityPy version.")
+
+    return expected_unity
+
+
 def load_cosmetics_oracle(path: Path) -> CosmeticsOracle:
     root = exact_object(
         read_json(path),
@@ -104,20 +127,13 @@ def load_cosmetics_oracle(path: Path) -> CosmeticsOracle:
         or not build_id.isdigit()
     ):
         raise CapabilityDataError("Cosmetics oracle targets an unsupported game build.")
-    unity = exact_object(
-        root["unity"],
-        {"unityPyVersion", "unityVersion", "serializedFileVersion"},
-        "Oracle Unity metadata",
-    )
-    if unity["unityVersion"] != UNITY_VERSION:
-        raise CapabilityDataError("Cosmetics oracle targets an unsupported Unity version.")
-    if not isinstance(unity["unityPyVersion"], str) or not unity["unityPyVersion"]:
-        raise CapabilityDataError("Cosmetics oracle has no UnityPy version.")
+    expected_unity = _cosmetic_unity_version(root["unity"], build_id)
 
     raw_catalog = root["catalog"]
     if not isinstance(raw_catalog, list):
         raise CapabilityDataError("Cosmetics oracle catalog must be an array.")
     catalog: list[InstalledCosmeticMetadata] = []
+    targets: list[tuple[str, int, int]] = []
     for position, raw_entry in enumerate(raw_catalog):
         entry = exact_object(
             raw_entry,
@@ -139,6 +155,16 @@ def load_cosmetics_oracle(path: Path) -> CosmeticsOracle:
             raise CapabilityDataError(
                 "Cosmetics oracle entries are unordered or have malformed identities."
             )
+        target = (entry["serializedFile"], entry["pathId"], entry["sourceFileId"])
+        if (
+            not isinstance(target[0], str)
+            or type(target[1]) is not int
+            or target[1] == 0
+            or type(target[2]) is not int
+            or target[2] < 0
+        ):
+            raise CapabilityDataError("Cosmetics oracle serialized target is invalid.")
+        targets.append(cast(tuple[str, int, int], target))
         catalog.append(
             InstalledCosmeticMetadata(
                 cosmetic_id=cosmetic_id,
@@ -168,4 +194,21 @@ def load_cosmetics_oracle(path: Path) -> CosmeticsOracle:
     )
     if meta_manager["cosmeticAssetsCount"] != len(catalog):
         raise CapabilityDataError("Cosmetics oracle MetaManager count is inconsistent.")
-    return CosmeticsOracle(Compatibility(STEAM_APP_ID, build_id, UNITY_VERSION), tuple(catalog))
+    if len({target[:2] for target in targets}) != len(targets):
+        raise CapabilityDataError("Cosmetics oracle contains duplicate serialized targets.")
+    if build_id == CURRENT_COSMETICS_BUILD_ID:
+        vector = meta_manager["rawCosmeticVector"]
+        expected_vector = [{"m_FileID": row[2], "m_PathID": row[1]} for row in targets]
+        if vector != expected_vector:
+            raise CapabilityDataError("Current cosmetic raw vector and ordered targets disagree.")
+    hashes = root["fileHashes"]
+    if not isinstance(hashes, dict) or any(
+        not isinstance(k, str) or not isinstance(v, str) for k, v in hashes.items()
+    ):
+        raise CapabilityDataError("Cosmetics oracle source fingerprints are invalid.")
+    return CosmeticsOracle(
+        Compatibility(STEAM_APP_ID, build_id, expected_unity),
+        tuple(catalog),
+        tuple(targets),
+        tuple(sorted(hashes.items())),
+    )

@@ -10,6 +10,9 @@ hand-maintained runtime arrays. The committed evidence is data-only:
   ownership/index contract, and historical parity with both ownership lists of an approved
   game-generated full-unlock MetaSave. The source save remains private and outside the repository.
 
+- `tools/capabilities/evidence/cosmetics.v2.json` is the active current-build approval;
+  the historical V1 record remains separate. See the current-approval section below.
+
 `npm run capabilities:update` generates the Web snapshots plus Desktop Python and Electron cosmetic
 policy modules from those files. Generated files must not be edited by hand. Output is
 deterministic, contains no timestamps, and preserves non-contiguous cosmetic IDs exactly; a gap is
@@ -101,7 +104,7 @@ The sanitized proof shape is:
   "compatibility": {
     "steamAppId": "3241660",
     "steamBuildId": "<exact Steam build ID>",
-    "unityVersion": "2022.3.67f2"
+    "unityVersion": "<exact reviewed Unity version>"
   },
   "managedAssemblySha256": "sha256:<exact Assembly-CSharp.dll digest>",
   "relationshipVerified": true,
@@ -146,3 +149,47 @@ After an evidence update:
 
 The required CI status is `Compatibility / Desktop-Web Alignment`. It validates committed evidence
 and generated artifacts only; it does not claim that a live local game installation was scanned.
+
+## Current cosmetic approval and per-capability status
+
+`cosmetics.v1.json` remains immutable historical evidence for build 23363152 and IDs 0–546.
+`cosmetics.v2.json` is the active approval record for build 26294889 / Unity 6000.3.17f1 and
+IDs 0–556. Its evidence schema v2 records `ownershipOracle.sourceSaveCosmeticIds` separately:
+the historical game-generated full-unlock save proved 547 IDs, while the current 557-ID policy
+uses exact independent catalog/target agreement and the unchanged managed ownership contract.
+It does not claim a fresh 557-ID in-game capture. The user confirmed in-game Unlock All recognition
+for all 557 on 2026-11-01; individual unlock, removal and game-restart persistence were not separately
+confirmed. Snapshot/IPC formats remain v1. `known-cosmetics.v1.json` and the generated Python/Electron
+policies are active runtime artifacts populated from V2 evidence, not obsolete historical snapshots;
+their consumers have not migrated to a different payload format.
+
+The historical reader stays pinned. `cosmetics/installed_reader.py` reuses its bounded
+traversal and the reviewed header specialization for the maintainer's current-build scan.
+It performs no image decoding or caching. Current approval additionally verifies exact
+serialized targets and the four source-file SHA-256 values in the independent capture.
+An unsupported header, changed source, mismatched target or changed managed contract blocks approval.
+
+Reproduce the independent capture in a separate research environment (no new production dependency):
+
+```powershell
+$env:PYTHONPATH = "desktop/python"
+uv run --no-project --with "UnityPy[ttgen]==1.25.4" python -m tools.capabilities.capture_cosmetics --game-dir "E:/SteamLibrary/steamapps/common/REPO" --output "$env:TEMP/cosmetics-oracle.json"
+```
+
+The capture uses canonical UTF-8/LF bytes so its SHA-256 remains stable after Git normalization.
+
+Review the managed IL independently before supplying a contract proof. Then run the existing
+`update --game-dir ... --cosmetics-oracle ... --cosmetics-contract-proof ...` route, followed
+by `check` and a second identical update to verify determinism. Never edit generated ID arrays.
+Recharge approval is a separate operation and continues to require its own build-specific oracle
+and game/save evidence. Its active record remains `recharge.v1.json` for build 23363152.
+
+`python -m tools.capabilities status --game-dir ...` reports the installed build and the separately
+approved build/count for each domain. `check-installed` remains non-mutating and exits nonzero
+when Recharge is unsupported, while still reporting the current cosmetic comparison. Neither
+command launches the game or certifies in-game recognition. The GitHub **Desktop-Web Alignment**
+check retains its required context name; it verifies committed evidence/fingerprints and generation,
+not the contents of a maintainer's latest game installation.
+
+See [the current compatibility investigation](../research/current-game-compatibility.md) for
+the reviewed IL, user-confirmed bulk observation, remaining in-game coverage and safe manual procedure.

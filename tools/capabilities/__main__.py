@@ -11,6 +11,7 @@ from tools.capabilities.workflow import (
     approve_installed_recharge,
     check,
     check_installed,
+    report_status,
     update,
 )
 
@@ -19,6 +20,11 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="RepoDitor capability automation")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check", help="validate committed evidence and snapshots")
+
+    status = subparsers.add_parser(
+        "status", help="report installation and approved build per capability"
+    )
+    status.add_argument("--game-dir", type=Path)
 
     installed = subparsers.add_parser("check-installed", help="compare a local R.E.P.O. install")
     installed.add_argument("--game-dir", type=Path)
@@ -37,6 +43,8 @@ def main() -> int:
     arguments = _parser().parse_args()
     if arguments.command == "check":
         return check()
+    if arguments.command == "status":
+        return report_status(arguments.game_dir)
     if arguments.command == "check-installed":
         return check_installed(arguments.game_dir)
     if arguments.recharge_oracle is not None and any(

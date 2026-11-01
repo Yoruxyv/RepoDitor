@@ -50,14 +50,20 @@ function projectIndividualOwnership(
   for (const edit of pendingEdits) {
     if (edit.field === "owned") ownershipById.set(edit.entity, edit.after);
   }
-  if (ownershipById.size === 0) return view;
+  const bulk = pendingEdits.find(isBulkEdit);
+  if (ownershipById.size === 0 && !bulk) return view;
 
   return {
     ...view,
     knownOwnedCount,
     knownLockedCount,
     cosmetics: view.cosmetics.map((cosmetic) => {
-      const owned = ownershipById.get(String(cosmetic.id));
+      const owned =
+        cosmetic.known &&
+        cosmetic.mutationEligible &&
+        (bulk?.field === "unlockAll" || bulk?.field === "lockAll")
+          ? bulk.field === "unlockAll"
+          : ownershipById.get(String(cosmetic.id));
       if (owned === undefined) return cosmetic;
       return {
         ...cosmetic,
@@ -148,7 +154,16 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   }
 
   function unlockAll(): void {
-    if (!state.view || state.view.knownLockedCount === 0 || hasPending) return;
+    if (
+      !state.view ||
+      writeInFlight.current ||
+      !state.view.capabilities.canUnlockAll ||
+      !state.view.cosmetics.some(
+        (entry) => entry.known && entry.mutationEligible && !entry.owned,
+      ) ||
+      hasPending
+    )
+      return;
     capturePendingSource();
     setPendingEdits([
       {
@@ -165,11 +180,22 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
 
   const lockAllBlockedReason =
     state.view?.cosmetics.find(
-      (cosmetic) => cosmetic.known && cosmetic.owned && cosmetic.removalBlockedReason,
+      (cosmetic) =>
+        cosmetic.known &&
+        cosmetic.mutationEligible &&
+        cosmetic.owned &&
+        cosmetic.removalBlockedReason,
     )?.removalBlockedReason ?? null;
 
   function lockAll(): void {
-    if (!state.view || state.view.knownOwnedCount === 0 || lockAllBlockedReason || hasPending)
+    if (
+      !state.view ||
+      writeInFlight.current ||
+      !state.view.capabilities.canRemoveOwnership ||
+      !state.view.cosmetics.some((entry) => entry.known && entry.mutationEligible && entry.owned) ||
+      lockAllBlockedReason ||
+      hasPending
+    )
       return;
     capturePendingSource();
     setPendingEdits([
@@ -250,8 +276,12 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   }
 
   let knownOwnedCount = state.view?.knownOwnedCount ?? 0;
-  if (bulkPending?.field === "unlockAll") knownOwnedCount = state.view?.knownCatalogCount ?? 0;
-  if (bulkPending?.field === "lockAll") knownOwnedCount = 0;
+  const eligible =
+    state.view?.cosmetics.filter((entry) => entry.known && entry.mutationEligible) ?? [];
+  if (bulkPending?.field === "unlockAll")
+    knownOwnedCount += eligible.filter((entry) => !entry.owned).length;
+  if (bulkPending?.field === "lockAll")
+    knownOwnedCount -= eligible.filter((entry) => entry.owned).length;
   for (const edit of pendingEdits) {
     if (edit.field === "owned" && edit.before !== edit.after) {
       knownOwnedCount += edit.after ? 1 : -1;

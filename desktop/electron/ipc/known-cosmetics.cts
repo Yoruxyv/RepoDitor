@@ -1,6 +1,6 @@
 /** Generated exact cosmetic mutation capability. Do not edit by hand. */
 export const SNAPSHOT_VERSION = 1;
-export const SOURCE_EVIDENCE = "tools/capabilities/evidence/cosmetics.v1.json";
+export const SOURCE_EVIDENCE = "tools/capabilities/evidence/cosmetics.v2.json";
 export const PROVEN_COSMETIC_IDS = new Set<number>([
   0,
   1,
@@ -549,4 +549,14 @@ export const PROVEN_COSMETIC_IDS = new Set<number>([
   544,
   545,
   546,
+  547,
+  548,
+  549,
+  550,
+  551,
+  552,
+  553,
+  554,
+  555,
+  556,
 ]);

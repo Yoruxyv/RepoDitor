@@ -14,7 +14,7 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
 _HEADER = struct.Struct(">IIIIB3sIqqq")
 _OBJECT = struct.Struct("<qqIi")
 UNITY_VERSION = "2022.3.67f2"
-COSMETIC_COUNT = 28
+COSMETIC_COUNT = int(sys.argv[2]) if len(sys.argv) == 3 else 28
 META_MANAGER_SCRIPT_ID = 1001
 COSMETIC_ASSET_SCRIPT_ID = 1002
 
@@ -175,8 +175,10 @@ def _verify_catalog(game_root: Path) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: create-cosmetic-game-assets.py <game-root>")
+    if len(sys.argv) not in (2, 3) or not 28 <= COSMETIC_COUNT <= 2000:
+        raise SystemExit(
+            "usage: create-cosmetic-game-assets.py <game-root> [cosmetic-count:28..2000]"
+        )
     game_root = Path(sys.argv[1]).resolve()
     _build_catalog(game_root)
     _verify_catalog(game_root)

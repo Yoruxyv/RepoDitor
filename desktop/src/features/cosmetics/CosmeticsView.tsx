@@ -182,7 +182,13 @@ export function CosmeticsView({
       <div className="mt-7 flex flex-wrap gap-3" aria-label={t("cosmetics.actions")}>
         <button
           className="ui-feedback inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!view.capabilities.canUnlockAll || knownLockedCount === 0 || hasPendingEdits}
+          disabled={
+            !view.capabilities.canUnlockAll ||
+            !view.cosmetics.some(
+              (entry) => entry.known && entry.mutationEligible && !entry.owned,
+            ) ||
+            hasPendingEdits
+          }
           type="button"
           onClick={onUnlockAll}
         >
@@ -202,7 +208,7 @@ export function CosmeticsView({
           className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           disabled={
             !view.capabilities.canRemoveOwnership ||
-            knownOwnedCount === 0 ||
+            !view.cosmetics.some((entry) => entry.known && entry.mutationEligible && entry.owned) ||
             hasPendingEdits ||
             lockAllBlockedReason !== null
           }

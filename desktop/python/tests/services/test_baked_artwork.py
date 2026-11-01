@@ -192,7 +192,7 @@ def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, cache = _installation(tmp_path, monkeypatch)
-    catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in (0, 546, 547, 556))
+    catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in (0, 546, 547, 556, 557))
     before = mutation_eligible_ids(catalog)
     cold = baked.discover_baked_artwork(root, cache_dir=cache)
     assert cold is not None
@@ -202,7 +202,8 @@ def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     monkeypatch.setattr(baked, "_item_keys", lambda _: pytest.fail("warm launch rescanned items"))
     assert baked.discover_baked_artwork(root, cache_dir=cache) == cold
     assert mutation_eligible_ids(catalog) == before
-    assert not set(range(547, 557)) & set(before)
+    assert before == (0, 546, 547, 556)
+    assert 557 not in before
     assert {p.suffix for p in cache.iterdir()} == {".json"}
 
 

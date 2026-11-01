@@ -35,7 +35,7 @@ export interface SourceE2eHarness {
   dispose(): Promise<void>;
 }
 
-export async function createGameFixture(home: string): Promise<string> {
+export async function createGameFixture(home: string, cosmeticCount = 28): Promise<string> {
   const gameRoot = path.join(home, "SteamLibrary", "steamapps", "common", "RepoDitor E2E Install");
   const catalogPath = path.join(gameRoot, "REPO_Data", "StreamingAssets", "aa", "catalog.json");
   await mkdir(path.dirname(catalogPath), { recursive: true });
@@ -62,6 +62,7 @@ export async function createGameFixture(home: string): Promise<string> {
     [
       path.join(DESKTOP_ROOT, "e2e", "fixture_generators", "create-cosmetic-game-assets.py"),
       gameRoot,
+      String(cosmeticCount),
     ],
     {
       cwd: PYTHON_ROOT,
@@ -155,14 +156,14 @@ async function cleanup(application: ElectronApplication | undefined, home: strin
   });
 }
 
-export async function launchSourceE2eHarness(): Promise<SourceE2eHarness> {
+export async function launchSourceE2eHarness(cosmeticCount = 28): Promise<SourceE2eHarness> {
   const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
   try {
     const savePath = await createRunSaveFixture(home);
     const metaPath = createMetaSaveFixture(home);
-    const gameRoot = await createGameFixture(home);
+    const gameRoot = await createGameFixture(home, cosmeticCount);
     const localAppDataLow = await createIconFixture(home);
     await createDecodedCosmeticFixture(home, gameRoot);
     const sourceBefore = await readFile(savePath);
