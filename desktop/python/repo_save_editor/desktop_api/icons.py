@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import base64
 
+from repo_save_editor.services.baked_artwork import discover_baked_artwork
 from repo_save_editor.services.icon_cache import get_icon_cache_roots
 from repo_save_editor.services.player.upgrade_textures import (
     DecodedUpgradeTexture,
     decode_installed_upgrade_texture,
 )
+
+
+def get_baked_artwork() -> dict[str, object]:
+    """Return optional verified mappings for Electron main; never renderer paths."""
+    return {"ok": True, "artwork": discover_baked_artwork()}
 
 
 def get_icon_roots() -> dict[str, object]:
@@ -55,4 +61,9 @@ def get_upgrade_texture(save_key: str) -> dict[str, object]:
     }
 
 
-__all__ = ["get_icon_roots", "get_upgrade_texture", "serialize_upgrade_texture"]
+__all__ = [
+    "get_baked_artwork",
+    "get_icon_roots",
+    "get_upgrade_texture",
+    "serialize_upgrade_texture",
+]

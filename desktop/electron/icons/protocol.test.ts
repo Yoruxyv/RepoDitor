@@ -58,7 +58,7 @@ describe("local icon protocol", () => {
     await writeFile(path.join(roots.item, "tool.png"), png());
     await writeFile(path.join(roots.cosmetic, "tool.png"), Buffer.from("wrong domain"));
     const registry = new LocalIconRegistry();
-    const token = registry.replace("item", ["tool.png"]).get("tool.png");
+    const token = registry.replace("upgrade", ["tool.png"]).get("tool.png");
 
     const response = await serveLocalIcon(url(token), roots, registry);
 
@@ -66,6 +66,34 @@ describe("local icon protocol", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Content-Type")).toBe("image/png");
     expect(Buffer.from(await response.arrayBuffer())).toEqual(png());
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "accepts native Windows filename case differences",
+    async () => {
+      const { roots } = await fixture();
+      await writeFile(path.join(roots.item, "TOOL.PNG"), png());
+      const registry = new LocalIconRegistry();
+      const token = registry.replace("upgrade", ["tool.png"]).get("tool.png");
+      expect((await serveLocalIcon(url(token), roots, registry)).status).toBe(200);
+    },
+  );
+
+  it("rejects LocalLow item and cosmetic registrations before reading artwork", async () => {
+    const { roots } = await fixture();
+    await writeFile(path.join(roots.item, "tool.png"), png());
+    await writeFile(path.join(roots.cosmetic, "tool.png"), png());
+    const registry = new LocalIconRegistry();
+    const item = registry.replace("item", ["tool.png"]).get("tool.png");
+    const cosmetic = registry.replace("cosmetic", ["tool.png"]).get("tool.png");
+    const read = vi.spyOn(fs, "open");
+    try {
+      expect((await serveLocalIcon(url(item), roots, registry)).status).toBe(404);
+      expect((await serveLocalIcon(url(cosmetic), roots, registry)).status).toBe(404);
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it("preserves unchanged opaque tokens and invalidates removed registrations", () => {
@@ -952,4 +980,46 @@ describe("local icon protocol", () => {
       expect.arrayContaining(["source-decode-required", "persist-failed", "memory-hit"]),
     );
   });
+});
+
+describe("baked artwork source order", () => {
+  it.each(["item", "cosmetic"] as const)(
+    "prefers verified baked %s artwork and preserves its fallback",
+    async (domain) => {
+      const { roots } = await fixture();
+      const registry = new LocalIconRegistry();
+      const request =
+        domain === "item"
+          ? { itemName: "Item Tool", cacheKey: "cached.png", upgradeKey: null }
+          : { cosmeticId: 547, cacheKey: "cached.png", upgradeKey: null };
+      const token = registry.replaceVisuals(domain, [request])[0];
+      await writeFile(path.join(roots[domain], "cached.png"), png());
+      const baked = { get: vi.fn().mockResolvedValue(png(2, 2)) };
+      const cosmetic = { get: vi.fn().mockResolvedValue(png(3, 3)) };
+      const client = { run: vi.fn(), dispose: vi.fn() };
+      const serve = () =>
+        serveLocalIcon(
+          url(token),
+          roots,
+          registry,
+          client,
+          new DecodedUpgradeTextureCache(),
+          cosmetic,
+          baked,
+        );
+      expect(Buffer.from(await (await serve()).arrayBuffer())).toEqual(png(2, 2));
+      expect(cosmetic.get).not.toHaveBeenCalled();
+      baked.get.mockResolvedValue(null);
+      const withoutBaked = await serve();
+      if (domain === "cosmetic")
+        expect(Buffer.from(await withoutBaked.arrayBuffer())).toEqual(png(3, 3));
+      else expect(withoutBaked.status).toBe(404);
+      await rm(path.join(roots[domain], "cached.png"));
+      const fallback = await serve();
+      if (domain === "cosmetic")
+        expect(Buffer.from(await fallback.arrayBuffer())).toEqual(png(3, 3));
+      else expect(fallback.status).toBe(404);
+      expect(client.run).not.toHaveBeenCalled();
+    },
+  );
 });

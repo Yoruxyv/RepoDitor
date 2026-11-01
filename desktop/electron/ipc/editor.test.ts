@@ -432,7 +432,7 @@ describe("editor data IPC", () => {
     });
     expect(result.data.items[0]).not.toHaveProperty("rawValue");
     expect(result.data.items[0]).not.toHaveProperty("iconKey");
-    expect(result.data.items[0].iconToken).toMatch(/^[\da-f-]{36}$/);
+    expect(result.data.items[0].iconToken).toBeNull();
     expect(result.data).not.toHaveProperty("rawSave");
     expect(result.data.domains[1].capabilities).toMatchObject({
       canEdit: false,

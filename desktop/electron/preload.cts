@@ -10,6 +10,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import {
   type AdvancedSaveDto,
   type AssetPreparationState,
+  type CosmeticArtworkPreparationState,
   type CosmeticChange,
   type CosmeticsViewDto,
   type CosmeticsWriteResult,
@@ -47,6 +48,8 @@ const IPC_CHANNELS: IpcChannelMap = {
   upgradesPrepareEntry: "upgrades:prepare-entry",
   runGet: "run:get",
   advancedGet: "advanced:get",
+  cosmeticsArtworkState: "cosmetics:artwork-state",
+  cosmeticsArtworkProgress: "cosmetics:artwork-progress",
   cosmeticsGet: "cosmetics:get",
   cosmeticsWrite: "cosmetics:write",
   mapsList: "maps:list",
@@ -129,6 +132,17 @@ const repoditorApi: RepoDitorApi = {
       >,
   },
   cosmetics: {
+    artworkState: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.cosmeticsArtworkState,
+      ) as Promise<CosmeticArtworkPreparationState>,
+    onArtworkProgress: (listener) => {
+      const handler = (_event: IpcRendererEvent, state: CosmeticArtworkPreparationState) => {
+        listener(state);
+      };
+      ipcRenderer.on(IPC_CHANNELS.cosmeticsArtworkProgress, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.cosmeticsArtworkProgress, handler);
+    },
     get: () =>
       ipcRenderer.invoke(IPC_CHANNELS.cosmeticsGet) as Promise<
         DesktopOperationResult<CosmeticsViewDto>

@@ -1,6 +1,6 @@
 """Narrow Unity object relationships needed for installed material-texture fallbacks.
 
-This module intentionally supports only the validated Unity 2022.3 serialized layouts
+This module intentionally supports only inspected Unity 2022.3 and 6000.3 layouts
 used by RepoDitor's local presentation fallback. It is not a general asset extractor.
 """
 
@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from typing import Final
 
 from repo_save_editor.services.texture_codec import MAX_TEXTURE_DIMENSION, top_mip_size
+from repo_save_editor.services.unity_artwork import (
+    RECT_TRANSFORM_CLASS_ID,
+    SUNSTONE_UNITY_VERSION,
+    ArtworkFileIndex,
+)
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MATERIAL_CLASS_ID,
@@ -20,6 +25,7 @@ from repo_save_editor.services.unity_serialized import (
     MESH_RENDERER_CLASS_ID,
     TEXTURE2D_CLASS_ID,
     TRANSFORM_CLASS_ID,
+    UNITY_VERSION,
     ObjectRecord,
     PPtr,
     SerializedFileIndex,
@@ -29,6 +35,8 @@ from repo_save_editor.services.unity_serialized import (
 
 MAX_COMPONENTS: Final = 4_096
 MAX_TRANSFORM_CHILDREN: Final = 4_096
+MAX_PREFAB_OBJECTS: Final = 512
+TRANSFORM_CLASS_IDS: Final = frozenset({TRANSFORM_CLASS_ID, RECT_TRANSFORM_CLASS_ID})
 MAX_RENDERER_MATERIALS: Final = 64
 MAX_RENDERER_BYTES: Final = 2 * 1024 * 1024
 MAX_MATERIAL_BYTES: Final = 2 * 1024 * 1024
@@ -142,9 +150,9 @@ def parse_game_object(index: SerializedFileIndex, record: ObjectRecord) -> GameO
 
 
 def parse_transform(index: SerializedFileIndex, record: ObjectRecord) -> TransformData:
-    """Parse the local ownership links from one supported Transform record."""
+    """Parse the common Transform/RectTransform owner and child prefix."""
 
-    if record.class_id != TRANSFORM_CLASS_ID:
+    if record.class_id not in TRANSFORM_CLASS_IDS:
         raise UnityMetadataError("Expected a Transform record.")
     reader = index.object_reader(record)
     game_object = read_pptr(reader)
@@ -159,6 +167,58 @@ def parse_transform(index: SerializedFileIndex, record: ObjectRecord) -> Transfo
     if any(pointer.file_id != 0 or pointer.path_id == 0 for pointer in children):
         raise UnityMetadataError("Transform contains an unsupported child pointer.")
     return TransformData(game_object, children)
+
+
+def find_prefab_renderers(
+    index: SerializedFileIndex,
+    root_record: ObjectRecord,
+) -> tuple[tuple[ObjectRecord, int], ...]:
+    """Walk an installed prefab with bounded Transform/RectTransform support."""
+    pending = [root_record]
+    visited: set[int] = set()
+    renderers: list[tuple[ObjectRecord, int]] = []
+    while pending:
+        record = pending.pop()
+        if record.path_id in visited:
+            raise UnityMetadataError("Prefab Transform hierarchy contains a cycle.")
+        visited.add(record.path_id)
+        if len(visited) > MAX_PREFAB_OBJECTS:
+            raise UnityMetadataError("Prefab hierarchy exceeds the supported bound.")
+        game_object = parse_game_object(index, record)
+        component_records = index.find_records(
+            {pointer.path_id for pointer in game_object.components}
+        )
+        transforms = [
+            component_record
+            for component_record in component_records.values()
+            if component_record.class_id in TRANSFORM_CLASS_IDS
+        ]
+        if len(transforms) != 1:
+            raise UnityMetadataError("Prefab GameObject Transform relationship is ambiguous.")
+        transform = parse_transform(index, transforms[0])
+        if transform.game_object.path_id != record.path_id:
+            raise UnityMetadataError("Transform does not point back to its GameObject.")
+        renderers.extend(
+            (component_record, record.path_id)
+            for component_record in component_records.values()
+            if component_record.class_id == MESH_RENDERER_CLASS_ID
+        )
+        child_transforms = index.find_records({pointer.path_id for pointer in transform.children})
+        children = []
+        for child_pointer in transform.children:
+            child_transform = child_transforms[child_pointer.path_id]
+            if child_transform.class_id not in TRANSFORM_CLASS_IDS:
+                raise UnityMetadataError("Transform child pointer has an unsupported class.")
+            children.append(parse_transform(index, child_transform))
+        child_game_objects = index.find_records({child.game_object.path_id for child in children})
+        for child in children:
+            child_game_object = child_game_objects[child.game_object.path_id]
+            if child_game_object.class_id != GAME_OBJECT_CLASS_ID:
+                raise UnityMetadataError("Transform child does not resolve to a GameObject.")
+            pending.append(child_game_object)
+    if not renderers:
+        raise UnityMetadataError("Prefab contains no MeshRenderer candidates.")
+    return tuple(renderers)
 
 
 def mesh_filter_mesh(
@@ -508,20 +568,25 @@ def material_main_texture(
 
 
 def parse_texture2d(index: SerializedFileIndex, record: ObjectRecord) -> Texture2DMetadata:
-    """Parse only the proven Unity 2022.3 Texture2D metadata layout."""
+    """Parse the explicitly reviewed Unity 2022.3 or Sunstone Texture2D layout."""
     if record.class_id != TEXTURE2D_CLASS_ID:
         raise UnityMetadataError("Material texture pointer does not resolve to Texture2D.")
     reader = index.object_reader(record)
     name = reader.aligned_string()
 
-    # Unity 2022.3 serializes two fallback fields before the image dimensions:
-    # m_ForcedFallbackFormat (int) followed by two boolean flags and alignment.
-    # These fields are presentation metadata only, but consuming them is required to
-    # reach the evidence-backed width/height/format layout used by this fallback.
+    # Both inspected layouts begin with m_ForcedFallbackFormat (int32).
+    # Unity 2022.3 then has two Boolean fallback flags and padding.
+    # Sunstone's Unity 6000.3.17f1 Texture2D places width immediately next.
+    # Select by the serialized file's validated version; never retry an
+    # alternative layout when malformed metadata is encountered.
     reader.i32()  # m_ForcedFallbackFormat
-    fallback_flags = (reader.u8(), reader.u8())
-    if any(flag not in (0, 1) for flag in fallback_flags):
-        raise UnityMetadataError("Texture2D fallback metadata is malformed.")
+    version = index.unity_version if isinstance(index, ArtworkFileIndex) else UNITY_VERSION
+    if version == UNITY_VERSION:
+        fallback_flags = (reader.u8(), reader.u8())
+        if any(flag not in (0, 1) for flag in fallback_flags):
+            raise UnityMetadataError("Texture2D fallback metadata is malformed.")
+    elif version != SUNSTONE_UNITY_VERSION:
+        raise UnityMetadataError("Unsupported Texture2D Unity layout.")
     reader.align4()
 
     width = reader.i32()

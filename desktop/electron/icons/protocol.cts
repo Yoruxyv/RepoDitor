@@ -2,16 +2,23 @@
  * Missing or invalid optional artwork fails soft; decoded upgrade caching is owned
  * by upgradeTextureCache, independently of Electron protocol registration.
  */
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { protocol } from "electron";
 
 import { pythonClient, type PythonClient } from "../python/client.cjs";
-import { localIconRegistry, type LocalIconRegistry } from "./registry.cjs";
-import { MAX_ICON_BYTES, validPng } from "./png.cjs";
+import { localIconRegistry, type LocalIconRegistry, type IconRegistration } from "./registry.cjs";
+import { readLocalPng } from "./localPng.cjs";
 import { decodedUpgradeTextureCache, DecodedUpgradeTextureCache } from "./upgradeTextureCache.cjs";
+import {
+  decodedCosmeticArtworkCache,
+  type DecodedCosmeticArtworkCache,
+} from "./cosmeticArtworkCache.cjs";
+
+import { installedBakedArtwork, type InstalledBakedArtwork } from "./bakedArtwork.cjs";
 
 const ICON_SCHEME = "repoditor-icon";
+const ITEM_VISUAL_KIND = "item-visual";
+const UPGRADE_VISUAL_KIND = "upgrade-visual";
 
 interface IconRoots {
   readonly item: string;
@@ -51,44 +58,13 @@ async function loadRoots(client: PythonClient): Promise<IconRoots | null> {
   }
 }
 
-function inside(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
-  return (
-    relative !== "" &&
-    !relative.startsWith(`..${path.sep}`) &&
-    relative !== ".." &&
-    !path.isAbsolute(relative)
-  );
-}
-
 async function serveCacheIcon(
   entry: { readonly domain: "item" | "upgrade" | "cosmetic"; readonly key: string },
   roots: IconRoots | null,
 ): Promise<Response> {
-  if (roots === null || path.extname(entry.key) !== ".png") return notFound();
-  const root = roots[entry.domain];
-  const candidate = path.join(root, entry.key);
-  try {
-    const rootReal = await fs.realpath(root);
-    const initial = await fs.lstat(candidate);
-    if (!initial.isFile() || initial.isSymbolicLink() || initial.size > MAX_ICON_BYTES) {
-      return notFound();
-    }
-    const candidateReal = await fs.realpath(candidate);
-    if (!inside(rootReal, candidateReal)) return notFound();
-    const handle = await fs.open(candidateReal, "r");
-    try {
-      const stat = await handle.stat();
-      if (!stat.isFile() || stat.size > MAX_ICON_BYTES) return notFound();
-      const data = await handle.readFile();
-      if (data.length !== stat.size || !validPng(data)) return notFound();
-      return pngResponse(data);
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return notFound();
-  }
+  if (roots === null) return notFound();
+  const png = await readLocalPng(roots[entry.domain], entry.key);
+  return png === null ? notFound() : pngResponse(png);
 }
 
 function pngResponse(data: Buffer): Response {
@@ -101,12 +77,39 @@ function pngResponse(data: Buffer): Response {
   });
 }
 
+async function serveVisual(
+  entry: Exclude<IconRegistration, { readonly kind: "cache" }>,
+  roots: IconRoots | null,
+  client: PythonClient,
+  decodedCache: DecodedUpgradeTextureCache,
+  cosmeticCache: DecodedCosmeticArtworkCache,
+  baked: Pick<InstalledBakedArtwork, "get">,
+): Promise<Response> {
+  if (entry.kind !== UPGRADE_VISUAL_KIND) {
+    const id = entry.kind === ITEM_VISUAL_KIND ? entry.itemName : String(entry.cosmeticId);
+    const png = await baked.get(entry.domain, id, client);
+    if (png !== null) return pngResponse(png);
+  }
+  if (entry.kind === UPGRADE_VISUAL_KIND && entry.cacheKey !== null) {
+    const cached = await serveCacheIcon({ domain: entry.domain, key: entry.cacheKey }, roots);
+    if (cached.status === 200) return cached;
+  }
+  if (entry.kind === ITEM_VISUAL_KIND) return notFound();
+  const png =
+    entry.kind === "cosmetic-visual"
+      ? await cosmeticCache.get(entry.cosmeticId, client)
+      : await decodedCache.get(entry.upgradeKey, client);
+  return png === null ? notFound() : pngResponse(png);
+}
+
 export async function serveLocalIcon(
   request: Request,
   roots: IconRoots | null,
   registry: LocalIconRegistry = localIconRegistry,
   client: PythonClient = pythonClient,
   decodedCache: DecodedUpgradeTextureCache = new DecodedUpgradeTextureCache(),
+  cosmeticCache: DecodedCosmeticArtworkCache = decodedCosmeticArtworkCache,
+  baked: Pick<InstalledBakedArtwork, "get"> = installedBakedArtwork,
 ): Promise<Response> {
   if (request.method !== "GET") {
     return new Response(null, { status: 405, headers: { Allow: "GET" } });
@@ -121,13 +124,9 @@ export async function serveLocalIcon(
   if (url.hostname !== "local" || parts.length !== 1 || url.search || url.hash) return notFound();
   const entry = registry.get(parts[0]);
   if (entry === undefined) return notFound();
-  if (entry.kind === "cache") return serveCacheIcon(entry, roots);
-  if (entry.cacheKey !== null) {
-    const cached = await serveCacheIcon({ domain: entry.domain, key: entry.cacheKey }, roots);
-    if (cached.status === 200) return cached;
-  }
-  const png = await decodedCache.get(entry.upgradeKey, client);
-  return png === null ? notFound() : pngResponse(png);
+  if (entry.kind === "cache")
+    return entry.domain === "upgrade" ? serveCacheIcon(entry, roots) : notFound();
+  return serveVisual(entry, roots, client, decodedCache, cosmeticCache, baked);
 }
 
 export function registerLocalIconScheme(): void {
@@ -139,6 +138,13 @@ export function registerLocalIconScheme(): void {
 export function registerLocalIconProtocol(client: PythonClient = pythonClient): void {
   const roots = loadRoots(client);
   protocol.handle(ICON_SCHEME, async (request) =>
-    serveLocalIcon(request, await roots, localIconRegistry, client, decodedUpgradeTextureCache),
+    serveLocalIcon(
+      request,
+      await roots,
+      localIconRegistry,
+      client,
+      decodedUpgradeTextureCache,
+      decodedCosmeticArtworkCache,
+    ),
   );
 }

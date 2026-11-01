@@ -6,7 +6,8 @@
  * writes the maintainer's real R.E.P.O. saves.
  */
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
@@ -120,6 +121,30 @@ async function createIconFixture(home: string): Promise<string> {
   return localLow;
 }
 
+async function createDecodedCosmeticFixture(home: string, gameRoot: string): Promise<void> {
+  const root = path.join(home, "electron-profile", "presentation", "cosmetics");
+  const watch = path.join(gameRoot, "REPO_Data", "level0");
+  const stat = await lstat(watch, { bigint: true });
+  const sourceIdentity = createHash("sha256").update("synthetic cosmetic Sprite 27").digest("hex");
+  const png = syntheticPng();
+  const file = createHash("sha256").update(`cosmetic:27:${sourceIdentity}`).digest("hex") + ".png";
+  await mkdir(root, { recursive: true });
+  await writeFile(path.join(root, file), png);
+  await writeFile(
+    path.join(root, "manifest.json"),
+    JSON.stringify({
+      formatVersion: 1,
+      entries: {
+        "27": {
+          sourceIdentity,
+          pngHash: createHash("sha256").update(png).digest("hex"),
+          watches: [{ path: watch, size: String(stat.size), mtimeNs: String(stat.mtimeNs) }],
+        },
+      },
+    }),
+  );
+}
+
 async function cleanup(application: ElectronApplication | undefined, home: string): Promise<void> {
   await application?.close();
   await rm(home, {
@@ -139,6 +164,7 @@ export async function launchSourceE2eHarness(): Promise<SourceE2eHarness> {
     const metaPath = createMetaSaveFixture(home);
     const gameRoot = await createGameFixture(home);
     const localAppDataLow = await createIconFixture(home);
+    await createDecodedCosmeticFixture(home, gameRoot);
     const sourceBefore = await readFile(savePath);
     const metaBefore = await readFile(metaPath);
     const applicationEnvironment = isolatedApplicationEnvironment(home, localAppDataLow);

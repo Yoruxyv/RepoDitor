@@ -17,6 +17,11 @@ from repo_save_editor.services.game.discovery import (
 )
 
 VALIDATED_BUILD_ID: Final = "23363152"
+SUNSTONE_ARTWORK_BUILD_ID: Final = "26294889"
+SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
+    "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
+)
+_ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, SUNSTONE_ARTWORK_BUILD_ID})
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,8 +45,10 @@ def steam_manifest_path(installation: GameInstallation) -> Path | None:
     return installation.manifest_path
 
 
-def validated_installed_build(installation: GameInstallation) -> ValidatedInstalledBuild | None:
-    """Validate supported build identity independently from installation discovery."""
+def _validated_for_build_ids(
+    installation: GameInstallation, supported_build_ids: frozenset[str]
+) -> ValidatedInstalledBuild | None:
+    """Check authoritative Steam provenance against a domain-specific build set."""
     manifest_path = steam_manifest_path(installation)
     library_root = installation.steam_library_root
     if manifest_path is None or library_root is None:
@@ -54,7 +61,7 @@ def validated_installed_build(installation: GameInstallation) -> ValidatedInstal
         manifest = read_steam_app_manifest(manifest_path)
     except (OSError, SteamAppManifestError):
         return None
-    if manifest.build_id != VALIDATED_BUILD_ID:
+    if manifest.build_id not in supported_build_ids:
         return None
     if installation.steam_build_id is not None and installation.steam_build_id != manifest.build_id:
         return None
@@ -69,13 +76,28 @@ def validated_installed_build(installation: GameInstallation) -> ValidatedInstal
             return None
     except OSError:
         return None
-    return ValidatedInstalledBuild(VALIDATED_BUILD_ID, manifest_path)
+    return ValidatedInstalledBuild(manifest.build_id, manifest_path)
+
+
+def validated_installed_build(installation: GameInstallation) -> ValidatedInstalledBuild | None:
+    """Require the historical approved build for Recharge-sensitive readers."""
+    return _validated_for_build_ids(installation, frozenset({VALIDATED_BUILD_ID}))
+
+
+def validated_installed_artwork_build(
+    installation: GameInstallation,
+) -> ValidatedInstalledBuild | None:
+    """Allow explicitly reviewed artwork-only builds without authorizing Recharge."""
+    return _validated_for_build_ids(installation, _ARTWORK_BUILD_IDS)
 
 
 __all__ = [
     "STEAM_APP_ID",
+    "SUNSTONE_ARTWORK_ASSEMBLY_SHA256",
+    "SUNSTONE_ARTWORK_BUILD_ID",
     "VALIDATED_BUILD_ID",
     "ValidatedInstalledBuild",
     "steam_manifest_path",
+    "validated_installed_artwork_build",
     "validated_installed_build",
 ]
