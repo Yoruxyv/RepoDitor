@@ -3,7 +3,7 @@
 from typing import Final
 
 SNAPSHOT_VERSION: Final = 1
-SOURCE_EVIDENCE: Final = "tools/capabilities/evidence/cosmetics.v1.json"
+SOURCE_EVIDENCE: Final = "tools/capabilities/evidence/cosmetics.v2.json"
 SOURCE_SAVE_SHA256: Final = "22bbb9102d93d7fff8c4b2d3fb86dd6dc2c4475030ecb76a7c858c750741b483"
 PROVEN_COSMETIC_IDS: Final = (
     0,
@@ -553,4 +553,14 @@ PROVEN_COSMETIC_IDS: Final = (
     544,
     545,
     546,
+    547,
+    548,
+    549,
+    550,
+    551,
+    552,
+    553,
+    554,
+    555,
+    556,
 )

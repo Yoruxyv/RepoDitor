@@ -13,7 +13,7 @@ from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
 def test_readable_artwork_catalog_keeps_unproved_tail_read_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in range(557))
+    catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in range(558))
     monkeypatch.setattr(
         presentation,
         "discover_baked_artwork",
@@ -28,7 +28,7 @@ def test_readable_artwork_catalog_keeps_unproved_tail_read_only(
     )
     result = presentation.discover_cosmetic_presentation_catalog()
     assert result == catalog
-    assert mutation_eligible_ids(result) == tuple(range(547))
+    assert mutation_eligible_ids(result) == tuple(range(557))
     assert all(entry.icon_cache_key is None for entry in result)
 
 

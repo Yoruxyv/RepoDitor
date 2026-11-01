@@ -44,7 +44,7 @@ export const saveJa: TranslationShape<typeof saveEn> = {
     clear: "クリア",
   },
   pending: {
-    clean: "変更なし",
+    clean: "保留中の変更はありません",
     count: { one: "保留中の変更 {count} 件", other: "保留中の変更 {count} 件" },
     reviewLabel: "保留中の変更の確認",
     review: "変更を確認",

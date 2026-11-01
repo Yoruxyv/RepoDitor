@@ -76,6 +76,8 @@ def removal_blocked_reason(data: SaveData, cosmetic_id: int) -> str | None:
     ):
         try:
             value = _typed_value(data, key)
+            if not isinstance(value, (list, dict)):
+                raise SaveSchemaError("Invalid cosmetic reference container.")
         except SaveSchemaError:
             return (
                 "Removal unavailable because equipment and preset references could not be verified."

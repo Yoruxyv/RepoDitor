@@ -42,7 +42,7 @@ export const saveEn = {
     clear: "Clear",
   },
   pending: {
-    clean: "Clean",
+    clean: "No pending changes",
     count: { one: "{count} pending change", other: "{count} pending changes" },
     reviewLabel: "Pending change review",
     review: "Review changes",

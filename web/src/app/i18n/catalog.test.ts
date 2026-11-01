@@ -69,6 +69,16 @@ describe("localization catalog", () => {
     expect(resolveLocalizedMessage("ja", key, { count: 2 }, 2)).toBe("保留中の変更 2 件");
   });
 
+  it("describes no pending changes consistently in every supported locale", () => {
+    expect(LOCALES.map((locale) => resolveLocalizedMessage(locale, "save.pending.clean"))).toEqual([
+      "No pending changes",
+      "Tidak ada perubahan tertunda",
+      "保留中の変更はありません",
+      "보류 중인 변경 사항 없음",
+      "没有待处理的更改",
+    ]);
+  });
+
   it("falls back to canonical English when a requested message is absent", () => {
     expect(resolveLocalizedMessage("id", "save.picker.drop", {}, undefined, {})).toBe(
       "Drop a save here",

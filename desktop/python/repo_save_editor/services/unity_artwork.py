@@ -1,7 +1,8 @@
-"""Version-specific serialized headers for read-only installed artwork.
+"""Reviewed serialized headers shared by read-only installed asset readers.
 
-The historical capability reader is evidence-pinned. Artwork specializes only
-its small type-header hook and inherits all record parsing, bounds and cleanup.
+The historical capability reader is evidence-pinned. This specialization changes
+only its type-header hook and inherits all record parsing, bounds and cleanup.
+Header readability grants no authority; cosmetic approval has separate evidence.
 """
 
 from __future__ import annotations

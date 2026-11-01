@@ -59,7 +59,7 @@ describe("known cosmetic snapshot", () => {
     expect(snapshot.gameCompatibility).toMatch(/installed MetaManager cosmeticAssets/iu);
     expect(snapshot.gameCompatibility).toMatch(/verified against UnityPy/iu);
     expect(snapshot.provenance).toBe(
-      "docs/research/reverse-engineering.md#metasave-cosmetic-ownership and #installed-cosmetic-catalog-proof",
+      "docs/research/current-game-compatibility.md#independent-catalog-and-managed-semantics",
     );
     expect(snapshot.evidenceSha256).toMatch(/^[a-f\d]{64}$/u);
     expect(Array.isArray(snapshot.cosmeticIds)).toBe(true);

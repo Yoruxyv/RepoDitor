@@ -17,13 +17,15 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from typing import Final
 
-from repo_save_editor.services.cosmetics.installed_artwork import _ArtworkResolver
 from repo_save_editor.services.cosmetics.installed_catalog import (
     _catalog_payload,
     _find_cosmetic_vector,
     _find_unique_meta_manager,
     _parse_cached_catalog,
     _parse_cosmetic_metadata,
+)
+from repo_save_editor.services.cosmetics.installed_reader import (
+    CosmeticCatalogResolver as _ArtworkResolver,
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import (

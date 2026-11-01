@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import os
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -23,12 +22,12 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 from repo_save_editor.services.cosmetics.installed_catalog import (
-    MAX_OPEN_FILES,
-    InstalledCosmeticCatalogError,
     _find_cosmetic_vector,
     _find_unique_meta_manager,
     _parse_cosmetic_metadata,
-    _Resolver,
+)
+from repo_save_editor.services.cosmetics.installed_reader import (
+    CosmeticCatalogResolver as _ArtworkResolver,
 )
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
@@ -37,8 +36,6 @@ from repo_save_editor.services.game.discovery import (
     validate_game_installation,
 )
 from repo_save_editor.services.game.installed_build import validated_installed_artwork_build
-from repo_save_editor.services.unity_artwork import ArtworkFileIndex
-from repo_save_editor.services.unity_serialized import SerializedFileIndex
 
 GUID: Final = re.compile(r"^[a-f0-9]{32}$")
 MAX_COSMETICS: Final = 2_000
@@ -49,21 +46,6 @@ MAX_IMAGE_BYTES: Final = 16 * 1024 * 1024
 MAX_TOTAL_PNG_BYTES: Final = 128 * 1024 * 1024
 UNITY_VERSION: Final = "6000.3.17f1"
 SUNSTONE_STEAM_BUILD: Final = "26294889"
-
-
-class _ArtworkResolver(_Resolver):
-    """Reuse catalog pointer/ownership checks with an artwork-only file opener."""
-
-    def open(self, path: Path) -> SerializedFileIndex:
-        resolved = path.resolve()
-        key = os.path.normcase(os.fspath(resolved))
-        if key not in self._indexes:
-            if len(self._indexes) >= MAX_OPEN_FILES:
-                raise InstalledCosmeticCatalogError("Too many serialized files were required.")
-            if not resolved.is_file():
-                raise InstalledCosmeticCatalogError("A required serialized file is missing.")
-            self._indexes[key] = ArtworkFileIndex(resolved)
-        return self._indexes[key]
 
 
 class CosmeticArtworkError(ValueError):

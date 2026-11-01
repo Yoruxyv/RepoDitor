@@ -9,6 +9,7 @@ import {
   E2E_SAVE_ID,
   EXPECTED_DESKTOP_VERSION,
   createRunSaveFixture,
+  createMetaSaveFixture,
   isolatedApplicationEnvironment,
 } from "./support/fixtureEnvironment";
 import { createGameFixture } from "./support/harness";
@@ -34,7 +35,8 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
 
   try {
     await createRunSaveFixture(home);
-    const gameRoot = await createGameFixture(home);
+    createMetaSaveFixture(home);
+    const gameRoot = await createGameFixture(home, 557);
     const localAppDataLow = path.join(home, "AppData", "LocalLow");
     const applicationEnvironment = isolatedApplicationEnvironment(home, localAppDataLow);
     applicationEnvironment["REPODITOR_E2E_STEAM_ROOT"] = path.resolve(gameRoot, "..", "..", "..");
@@ -92,6 +94,23 @@ test("packaged RepoDitor launches and reaches the Python-backed workspace", asyn
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByTestId("editor-content")).not.toHaveAttribute("inert", "");
     const openReadyMs = performance.now() - openStarted;
+
+    const cosmetic = await page.evaluate(() => window.repoditor.cosmetics.get());
+    if (!cosmetic.ok) throw new Error(`Packaged cosmetics failed: ${cosmetic.error.code}`);
+    expect(cosmetic.data.knownCatalogCount).toBe(557);
+    const cosmeticWrite = await page.evaluate(async () => {
+      const current = await window.repoditor.cosmetics.get();
+      if (!current.ok) return current;
+      return window.repoditor.cosmetics.write(current.data.fingerprint, [
+        { feature: "cosmetics", entity: "547", field: "owned", after: true },
+      ]);
+    });
+    expect(cosmeticWrite.ok).toBe(true);
+    if (cosmeticWrite.ok && "cosmetics" in cosmeticWrite.data) {
+      expect(cosmeticWrite.data.cosmetics.cosmetics.find((entry) => entry.id === 547)?.owned).toBe(
+        true,
+      );
+    }
 
     const readStarted = performance.now();
     const runResult = await page.evaluate((id) => window.repoditor.run.get(id), saveId);

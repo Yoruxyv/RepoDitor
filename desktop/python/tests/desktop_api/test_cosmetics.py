@@ -3,6 +3,8 @@ from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.desktop_api import cosmetics as cosmetics_api
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
@@ -478,3 +480,37 @@ def test_noncanonical_numeric_entity_is_rejected_before_mutation(tmp_path: Path)
     assert "canonical cosmetic ID" in result["error"]["message"]
     assert meta_path.read_bytes() == original
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
+
+
+@pytest.mark.parametrize("cosmetic_id", range(547, 557))
+def test_current_cosmetic_individual_unlock_remove_and_encrypted_reopen(tmp_path, cosmetic_id):
+    root, path = _write_fixture(tmp_path)
+
+    def loader():
+        return _catalog(557)
+
+    before = decrypt_save(path.read_bytes())
+    original = path.read_bytes()
+    result = save_cosmetics(
+        sha256(original).hexdigest(),
+        [{"feature": "cosmetics", "entity": str(cosmetic_id), "field": "owned", "after": True}],
+        root,
+        catalog_loader=loader,
+        game_status_loader=_game_closed,
+    )
+    assert result["ok"] is True
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+    reopened = decrypt_save(path.read_bytes())
+    for key in ("cosmeticHistory", "cosmeticUnlocks"):
+        assert reopened[key]["value"] == [27, 999, cosmetic_id]
+    for key in before.keys() - {"cosmeticHistory", "cosmeticUnlocks"}:
+        assert reopened[key] == before[key]
+    result = save_cosmetics(
+        sha256(path.read_bytes()).hexdigest(),
+        [{"feature": "cosmetics", "entity": str(cosmetic_id), "field": "owned", "after": False}],
+        root,
+        catalog_loader=loader,
+        game_status_loader=_game_closed,
+    )
+    assert result["ok"] is True
+    assert decrypt_save(path.read_bytes()) == before

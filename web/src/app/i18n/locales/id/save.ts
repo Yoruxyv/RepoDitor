@@ -44,7 +44,7 @@ export const saveId: TranslationShape<typeof saveEn> = {
     clear: "Bersihkan",
   },
   pending: {
-    clean: "Bersih",
+    clean: "Tidak ada perubahan tertunda",
     count: { one: "{count} perubahan tertunda", other: "{count} perubahan tertunda" },
     reviewLabel: "Tinjauan perubahan tertunda",
     review: "Tinjau perubahan",

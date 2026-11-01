@@ -1,0 +1,7834 @@
+{
+  "schema": "repoditor-cosmetic-gate2-unitypy-oracle-v1",
+  "researchOnly": true,
+  "independentOracle": true,
+  "steam": {
+    "appId": "3241660",
+    "buildId": "26294889",
+    "manifest": "appmanifest_3241660.acf"
+  },
+  "unity": {
+    "unityPyVersion": "1.25.4",
+    "unityVersion": "6000.3.17f1",
+    "serializedFileVersion": 22
+  },
+  "metaManager": {
+    "serializedFile": "REPO_Data/level0",
+    "pathId": 2873,
+    "cosmeticAssetsCount": 557,
+    "rawCosmeticVector": [
+      {
+        "m_FileID": 2,
+        "m_PathID": 12987
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13002
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12955
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13044
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13059
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13012
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13098
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13110
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13068
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13145
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13151
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13171
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13120
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13181
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13201
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13247
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13264
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13289
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13294
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13345
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13355
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13393
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13457
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13459
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13427
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13500
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13502
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13470
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13348
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13174
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13114
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13004
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13061
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13135
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13082
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13410
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13369
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13026
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12969
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13484
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13441
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13111
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13168
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13343
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13460
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13503
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13106
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13162
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13334
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13005
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13062
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13115
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13176
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13349
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13385
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13462
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13505
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12989
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13046
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13101
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13155
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13326
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13455
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13498
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12980
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13037
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13094
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13148
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13296
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13423
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13466
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13499
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13456
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13184
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13161
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13104
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13050
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12993
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13298
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12996
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13053
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13163
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13245
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13262
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13366
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13406
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13401
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13413
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13099
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13154
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13324
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13454
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13497
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13376
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13419
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13491
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13448
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13143
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13090
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13033
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12976
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13420
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13463
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13121
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13338
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13384
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12983
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13040
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13152
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13107
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13269
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13193
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13188
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13209
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13208
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13205
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13207
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13199
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13283
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13285
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13302
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13322
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13332
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13183
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13278
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13219
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13383
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13342
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13333
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13259
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13242
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13327
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13156
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13102
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13047
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12990
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13122
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13069
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13391
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13284
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13492
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13449
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13144
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13091
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13035
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12978
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13377
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12954
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13011
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13469
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13426
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13392
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13003
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13060
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13113
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13172
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13250
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13267
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13461
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13504
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13063
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13170
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13428
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13471
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12956
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13013
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13341
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13108
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13146
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13286
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13092
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12979
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13036
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13236
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13253
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13450
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13493
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12971
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13028
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13085
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13138
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13372
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13415
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13443
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13486
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13136
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13370
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13411
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13083
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13192
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13187
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13067
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13119
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13354
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13344
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13093
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13147
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13177
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13179
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13180
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13185
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13186
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13271
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13272
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13275
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13335
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12974
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13031
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13088
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13141
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13280
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13446
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13489
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13488
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13445
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13418
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13375
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13140
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13087
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13030
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12973
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13414
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13478
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13435
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13399
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13362
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13129
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13076
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13020
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12963
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12964
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13021
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13077
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13130
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13361
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13400
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13436
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13479
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13477
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13434
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13398
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13360
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13128
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13075
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13019
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12962
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13481
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13438
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13407
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13132
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13079
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13023
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12966
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12958
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13015
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13071
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13124
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13430
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13473
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12970
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13027
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13084
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13137
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13371
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13412
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13442
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13485
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13365
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13405
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13000
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13057
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13165
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13293
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12975
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13032
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13089
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13142
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13197
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13235
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13252
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13281
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13447
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13490
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13351
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13388
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13495
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13452
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13381
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13303
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13150
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13096
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13039
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12982
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13321
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13204
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13206
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13336
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13404
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13222
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13374
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13417
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13339
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13319
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13295
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13323
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13282
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13200
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13330
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12992
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13049
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13346
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13234
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13287
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13288
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13178
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13211
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12981
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13038
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13095
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13149
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13451
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13494
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13304
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13380
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12967
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13024
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13080
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13367
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13408
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13439
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13482
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13133
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12961
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13018
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13074
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13127
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13359
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13397
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13433
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13476
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12972
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13029
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13086
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13139
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13373
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13416
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13444
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13487
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12968
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13025
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13081
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13134
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13409
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13368
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13440
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13483
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13340
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13109
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13034
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12977
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13453
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13496
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13266
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13249
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13157
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13103
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13167
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13379
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13213
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12960
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13017
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13073
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13126
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13191
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13196
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13277
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13358
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13396
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13432
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13475
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13464
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13421
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13387
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13350
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13116
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13064
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13006
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12949
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13214
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13215
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13220
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13221
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13231
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13228
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13229
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13224
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13223
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13226
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13227
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13232
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13306
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13230
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13225
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13001
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13058
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13169
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13158
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13198
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13403
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13364
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12984
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13041
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13153
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13112
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13233
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13274
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13279
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13237
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13254
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13202
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13160
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12952
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13009
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13066
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13118
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13189
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13194
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13273
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13353
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13390
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13424
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13467
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13210
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13378
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13182
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13329
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12985
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13042
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13175
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13239
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13256
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13246
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13263
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13386
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12965
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13022
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13078
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13131
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13363
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13402
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13437
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13480
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13292
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12950
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13007
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13065
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13117
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13352
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13389
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13422
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13465
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13270
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13243
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13260
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12999
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13056
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13240
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13257
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13291
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13325
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13173
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12957
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13014
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13070
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13123
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13190
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13195
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13276
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13356
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13394
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13429
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13472
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13314
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13308
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13309
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12995
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13052
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13105
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13290
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13164
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12998
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13055
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12997
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13054
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12994
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13051
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12986
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13043
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13458
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13501
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12953
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13010
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13425
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13468
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12951
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13008
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13218
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13347
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13216
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13395
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12959
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13016
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13072
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13125
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13357
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13431
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13474
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13217
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13331
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12991
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13048
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13305
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13313
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13310
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13307
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13311
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13312
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13320
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13315
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13316
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13317
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13318
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13212
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13203
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 12988
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13045
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13100
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13241
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13258
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13248
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13265
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13251
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13268
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13299
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13301
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13337
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13300
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13297
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13238
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13255
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13166
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13382
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13328
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13244
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13261
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13097
+      },
+      {
+        "m_FileID": 2,
+        "m_PathID": 13159
+      }
+    ]
+  },
+  "catalog": [
+    {
+      "id": 0,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12987,
+      "sourceFileId": 2,
+      "assetName": "Long Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 1,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13002,
+      "sourceFileId": 2,
+      "assetName": "Short Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 2,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12955,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 10,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 3,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13044,
+      "sourceFileId": 2,
+      "assetName": "Long Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 4,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13059,
+      "sourceFileId": 2,
+      "assetName": "Short Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 5,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13012,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 9,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 6,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13098,
+      "sourceFileId": 2,
+      "assetName": "Jeans",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 7,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13110,
+      "sourceFileId": 2,
+      "assetName": "Sporty Pants",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 8,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13068,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 9,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13145,
+      "sourceFileId": 2,
+      "assetName": "Basic Shirt",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 10,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13151,
+      "sourceFileId": 2,
+      "assetName": "Formal Shirt",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 11,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13171,
+      "sourceFileId": 2,
+      "assetName": "Tie",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 12,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13120,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 13,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13181,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 14,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13201,
+      "sourceFileId": 2,
+      "assetName": "Glasses 1",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 15,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13247,
+      "sourceFileId": 2,
+      "assetName": "Sock",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 16,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13264,
+      "sourceFileId": 2,
+      "assetName": "Sock",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 17,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13289,
+      "sourceFileId": 2,
+      "assetName": "Beanie",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 18,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13294,
+      "sourceFileId": 2,
+      "assetName": "Cap",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 19,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13345,
+      "sourceFileId": 2,
+      "assetName": "Top Hat",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 20,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13355,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 6,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 21,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13393,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 22,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13457,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Long",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 23,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13459,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Short",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 24,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13427,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 12,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 25,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13500,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Long",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 26,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13502,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Short",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 27,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13470,
+      "sourceFileId": 2,
+      "assetName": "Monkey",
+      "type": 11,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 28,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13348,
+      "sourceFileId": 2,
+      "assetName": "Wizard Hat",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 29,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13174,
+      "sourceFileId": 2,
+      "assetName": "Wizard Shirt",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 30,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13114,
+      "sourceFileId": 2,
+      "assetName": "Wizard Bottom",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 31,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13004,
+      "sourceFileId": 2,
+      "assetName": "Wizard Sleeve",
+      "type": 2,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 32,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13061,
+      "sourceFileId": 2,
+      "assetName": "Wizard Sleeve",
+      "type": 1,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 33,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13135,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 34,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13082,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 35,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13410,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 36,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13369,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 37,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13026,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 38,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12969,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 39,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13484,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 40,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13441,
+      "sourceFileId": 2,
+      "assetName": "Rusty",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 41,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13111,
+      "sourceFileId": 2,
+      "assetName": "Sticky Notes",
+      "type": 21,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 42,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13168,
+      "sourceFileId": 2,
+      "assetName": "Sticky notes",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 43,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13343,
+      "sourceFileId": 2,
+      "assetName": "Sticky Notes",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 44,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13460,
+      "sourceFileId": 2,
+      "assetName": "Sticky Notes",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 45,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13503,
+      "sourceFileId": 2,
+      "assetName": "Sticky Notes",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 46,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13106,
+      "sourceFileId": 2,
+      "assetName": "Robo Part",
+      "type": 21,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 47,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13162,
+      "sourceFileId": 2,
+      "assetName": "Robo Part",
+      "type": 20,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 48,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13334,
+      "sourceFileId": 2,
+      "assetName": "Robo Part",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 49,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13005,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 2,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 50,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13062,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 1,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 51,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13115,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 21,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 52,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13176,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 53,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13349,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 54,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13385,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 30,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 55,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13462,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 56,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13505,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 57,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12989,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 58,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13046,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 59,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13101,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 60,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13155,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 61,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13326,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 62,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13455,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 4,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 63,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13498,
+      "sourceFileId": 2,
+      "assetName": "Mechanic",
+      "type": 3,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 64,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12980,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 2,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 65,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13037,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 1,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 66,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13094,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 67,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13148,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 68,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13296,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 69,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13423,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 70,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13466,
+      "sourceFileId": 2,
+      "assetName": "Constructor",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 71,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13499,
+      "sourceFileId": 2,
+      "assetName": "Network",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 72,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13456,
+      "sourceFileId": 2,
+      "assetName": "Networker",
+      "type": 4,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 73,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13184,
+      "sourceFileId": 2,
+      "assetName": "Networker",
+      "type": 17,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 74,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13161,
+      "sourceFileId": 2,
+      "assetName": "Network",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 75,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13104,
+      "sourceFileId": 2,
+      "assetName": "Networker",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 76,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13050,
+      "sourceFileId": 2,
+      "assetName": "Networker",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 77,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12993,
+      "sourceFileId": 2,
+      "assetName": "Networker",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 78,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13298,
+      "sourceFileId": 2,
+      "assetName": "Crown",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 79,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12996,
+      "sourceFileId": 2,
+      "assetName": "Royal Sleeve",
+      "type": 2,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 80,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13053,
+      "sourceFileId": 2,
+      "assetName": "Royal Sleeve",
+      "type": 1,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 81,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13163,
+      "sourceFileId": 2,
+      "assetName": "Royal Shirt",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 82,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13245,
+      "sourceFileId": 2,
+      "assetName": "Royal Boot",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 83,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13262,
+      "sourceFileId": 2,
+      "assetName": "Royal Boot",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 84,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13366,
+      "sourceFileId": 2,
+      "assetName": "Lipstick",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 85,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13406,
+      "sourceFileId": 2,
+      "assetName": "Lipstick",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 86,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13401,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 87,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13413,
+      "sourceFileId": 2,
+      "assetName": "Sleepless",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 88,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13099,
+      "sourceFileId": 2,
+      "assetName": "Logistics",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 89,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13154,
+      "sourceFileId": 2,
+      "assetName": "Logistics",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 90,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13324,
+      "sourceFileId": 2,
+      "assetName": "Logistics",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 91,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13454,
+      "sourceFileId": 2,
+      "assetName": "Logistics",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 92,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13497,
+      "sourceFileId": 2,
+      "assetName": "Logistics",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 93,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13376,
+      "sourceFileId": 2,
+      "assetName": "War Paint",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 94,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13419,
+      "sourceFileId": 2,
+      "assetName": "War Paint",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 95,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13491,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 96,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13448,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 97,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13143,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 98,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13090,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 99,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13033,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 100,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12976,
+      "sourceFileId": 2,
+      "assetName": "Arctic",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 101,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13420,
+      "sourceFileId": 2,
+      "assetName": "Armor Leg",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 102,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13463,
+      "sourceFileId": 2,
+      "assetName": "Armor Leg",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 103,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13121,
+      "sourceFileId": 2,
+      "assetName": "Skeleton Armor",
+      "type": 7,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 104,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13338,
+      "sourceFileId": 2,
+      "assetName": "Skeleton Teeth",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 105,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13384,
+      "sourceFileId": 2,
+      "assetName": "Skeleton Teeth",
+      "type": 30,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 106,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12983,
+      "sourceFileId": 2,
+      "assetName": "Hoodie Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 107,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13040,
+      "sourceFileId": 2,
+      "assetName": "Hoodie Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 108,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13152,
+      "sourceFileId": 2,
+      "assetName": "Hoodie",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 109,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13107,
+      "sourceFileId": 2,
+      "assetName": "Skirt",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 110,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13269,
+      "sourceFileId": 2,
+      "assetName": "Banana",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 111,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13193,
+      "sourceFileId": 2,
+      "assetName": "Eyelash",
+      "type": 14,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 112,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13188,
+      "sourceFileId": 2,
+      "assetName": "Eyelash",
+      "type": 15,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 113,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13209,
+      "sourceFileId": 2,
+      "assetName": "Visor",
+      "type": 18,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 114,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13208,
+      "sourceFileId": 2,
+      "assetName": "Ugly Glasses",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 115,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13205,
+      "sourceFileId": 2,
+      "assetName": "Shades",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 116,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13207,
+      "sourceFileId": 2,
+      "assetName": "Thermal Goggles",
+      "type": 18,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 117,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13199,
+      "sourceFileId": 2,
+      "assetName": "Clerk Glasses",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 118,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13283,
+      "sourceFileId": 2,
+      "assetName": "Banana Peel",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 119,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13285,
+      "sourceFileId": 2,
+      "assetName": "Bandaid",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 120,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13302,
+      "sourceFileId": 2,
+      "assetName": "Ear Muffs",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 121,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13322,
+      "sourceFileId": 2,
+      "assetName": "Headphones",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 122,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13332,
+      "sourceFileId": 2,
+      "assetName": "Paper Bag",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 123,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13183,
+      "sourceFileId": 2,
+      "assetName": "Mushrooms",
+      "type": 17,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 124,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13278,
+      "sourceFileId": 2,
+      "assetName": "2000s Beanie",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 125,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13219,
+      "sourceFileId": 2,
+      "assetName": "Eyebrow Piercing",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 126,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13383,
+      "sourceFileId": 2,
+      "assetName": "Lip Piercing",
+      "type": 30,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 127,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13342,
+      "sourceFileId": 2,
+      "assetName": "Sprout",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 128,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13333,
+      "sourceFileId": 2,
+      "assetName": "Plant Top",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 129,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13259,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 130,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13242,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 131,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13327,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 132,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13156,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 133,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13102,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 21,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 134,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13047,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 1,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 135,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12990,
+      "sourceFileId": 2,
+      "assetName": "Medic",
+      "type": 2,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 136,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13122,
+      "sourceFileId": 2,
+      "assetName": "Skinny",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 137,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13069,
+      "sourceFileId": 2,
+      "assetName": "Skinny",
+      "type": 8,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 138,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13391,
+      "sourceFileId": 2,
+      "assetName": "Green house",
+      "type": 5,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 139,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13284,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 140,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13492,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 141,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13449,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 142,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13144,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 143,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13091,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 144,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13035,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 145,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12978,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 146,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13377,
+      "sourceFileId": 2,
+      "assetName": "Bandages",
+      "type": 30,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 147,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12954,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 10,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 148,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13011,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 9,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 149,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13469,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 11,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 150,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13426,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 12,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 151,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13392,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 5,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 152,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13003,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 153,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13060,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 154,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13113,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 155,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13172,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 156,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13250,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 157,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13267,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 158,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13461,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 159,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13504,
+      "sourceFileId": 2,
+      "assetName": "Tuxedo",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 160,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13063,
+      "sourceFileId": 2,
+      "assetName": "Barrel",
+      "type": 8,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 161,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13170,
+      "sourceFileId": 2,
+      "assetName": "Suspenders",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 162,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13428,
+      "sourceFileId": 2,
+      "assetName": "Robo leg 2",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 163,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13471,
+      "sourceFileId": 2,
+      "assetName": "Robo Leg 2",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 164,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12956,
+      "sourceFileId": 2,
+      "assetName": "Robo arm",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 165,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13013,
+      "sourceFileId": 2,
+      "assetName": "Robo arm",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 166,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13341,
+      "sourceFileId": 2,
+      "assetName": "Spike band",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 167,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13108,
+      "sourceFileId": 2,
+      "assetName": "Skull belt",
+      "type": 21,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 168,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13146,
+      "sourceFileId": 2,
+      "assetName": "Basic Side Tech",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 169,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13286,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 170,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13092,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 171,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12979,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 172,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13036,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 173,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13236,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 174,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13253,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 175,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13450,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 176,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13493,
+      "sourceFileId": 2,
+      "assetName": "Bandana Brawler",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 177,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12971,
+      "sourceFileId": 2,
+      "assetName": "Spray Paint",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 178,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13028,
+      "sourceFileId": 2,
+      "assetName": "Spray Paint",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 179,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13085,
+      "sourceFileId": 2,
+      "assetName": "Spray Paint",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 180,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13138,
+      "sourceFileId": 2,
+      "assetName": "Spray paint",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 181,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13372,
+      "sourceFileId": 2,
+      "assetName": "Spray Paint",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 182,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13415,
+      "sourceFileId": 2,
+      "assetName": "Spray paint",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 183,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13443,
+      "sourceFileId": 2,
+      "assetName": "Spray paint",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 184,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13486,
+      "sourceFileId": 2,
+      "assetName": "Spray Paint",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 185,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13136,
+      "sourceFileId": 2,
+      "assetName": "Scifi Lines",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 186,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13370,
+      "sourceFileId": 2,
+      "assetName": "Scifi lines",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 187,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13411,
+      "sourceFileId": 2,
+      "assetName": "Scifi lines",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 188,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13083,
+      "sourceFileId": 2,
+      "assetName": "Scifi lines",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 189,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13192,
+      "sourceFileId": 2,
+      "assetName": "Eyelash Separate",
+      "type": 14,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 190,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13187,
+      "sourceFileId": 2,
+      "assetName": "Eyelash Separate",
+      "type": 15,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 191,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13067,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 8,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 192,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13119,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 7,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 193,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13354,
+      "sourceFileId": 2,
+      "assetName": "Internals",
+      "type": 6,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 194,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13344,
+      "sourceFileId": 2,
+      "assetName": "Sun Hat",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 195,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13093,
+      "sourceFileId": 2,
+      "assetName": "Bikini",
+      "type": 21,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 196,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13147,
+      "sourceFileId": 2,
+      "assetName": "Bikini",
+      "type": 20,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 197,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13177,
+      "sourceFileId": 2,
+      "assetName": "Anime Robot Ears",
+      "type": 17,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 198,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13179,
+      "sourceFileId": 2,
+      "assetName": "Elf ears",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 199,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13180,
+      "sourceFileId": 2,
+      "assetName": "Low Headphones",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 200,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13185,
+      "sourceFileId": 2,
+      "assetName": "Robot sticks",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 201,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13186,
+      "sourceFileId": 2,
+      "assetName": "Triangle ears",
+      "type": 17,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 202,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13271,
+      "sourceFileId": 2,
+      "assetName": "Chunky grabber",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 203,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13272,
+      "sourceFileId": 2,
+      "assetName": "Complex grabber",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 204,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13275,
+      "sourceFileId": 2,
+      "assetName": "Skeleton grabber",
+      "type": 13,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 205,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13335,
+      "sourceFileId": 2,
+      "assetName": "Robot Stick",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 206,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12974,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 2,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 207,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13031,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 1,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 208,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13088,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 209,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13141,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 210,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13280,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 211,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13446,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 4,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 212,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13489,
+      "sourceFileId": 2,
+      "assetName": "Aratal Uniform",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 213,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13488,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 214,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13445,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 215,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13418,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 216,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13375,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 217,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13140,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 218,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13087,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 219,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13030,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 220,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12973,
+      "sourceFileId": 2,
+      "assetName": "Testing",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 221,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13414,
+      "sourceFileId": 2,
+      "assetName": "Soot Eyes",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 222,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13478,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 223,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13435,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 224,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13399,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 225,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13362,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 226,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13129,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 227,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13076,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 228,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13020,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 229,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12963,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 230,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12964,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 231,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13021,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 232,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13077,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 233,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13130,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 234,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13361,
+      "sourceFileId": 2,
+      "assetName": "Cracks",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 235,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13400,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 236,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13436,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 237,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13479,
+      "sourceFileId": 2,
+      "assetName": "Damaged",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 238,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13477,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 239,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13434,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 240,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13398,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 241,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13360,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 242,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13128,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 243,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13075,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 244,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13019,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 245,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12962,
+      "sourceFileId": 2,
+      "assetName": "Checkers",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 246,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13481,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 247,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13438,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 248,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13407,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 249,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13132,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 250,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13079,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 251,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13023,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 252,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12966,
+      "sourceFileId": 2,
+      "assetName": "Paint Splats",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 253,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12958,
+      "sourceFileId": 2,
+      "assetName": "Tr arm",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 254,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13015,
+      "sourceFileId": 2,
+      "assetName": "Tr arm",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 255,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13071,
+      "sourceFileId": 2,
+      "assetName": "Tr body bot",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 256,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13124,
+      "sourceFileId": 2,
+      "assetName": "Tr Top",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 257,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13430,
+      "sourceFileId": 2,
+      "assetName": "Tr leg",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 258,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13473,
+      "sourceFileId": 2,
+      "assetName": "Tr leg",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 259,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12970,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 27,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 260,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13027,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 26,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 261,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13084,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 23,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 262,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13137,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 16,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 263,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13371,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 25,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 264,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13412,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 24,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 265,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13442,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 29,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 266,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13485,
+      "sourceFileId": 2,
+      "assetName": "Skeleton",
+      "type": 28,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 267,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13365,
+      "sourceFileId": 2,
+      "assetName": "Kiwi",
+      "type": 25,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 268,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13405,
+      "sourceFileId": 2,
+      "assetName": "Kiwi",
+      "type": 24,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 269,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13000,
+      "sourceFileId": 2,
+      "assetName": "Scout",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 270,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13057,
+      "sourceFileId": 2,
+      "assetName": "Scout",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 271,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13165,
+      "sourceFileId": 2,
+      "assetName": "Scout",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 272,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13293,
+      "sourceFileId": 2,
+      "assetName": "B\u00f8lle",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 273,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12975,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 274,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13032,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 275,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13089,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 21,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 276,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13142,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 277,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13197,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 18,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 278,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13235,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 279,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13252,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 280,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13281,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 281,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13447,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 282,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13490,
+      "sourceFileId": 2,
+      "assetName": "Arctic Explorer",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 283,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13351,
+      "sourceFileId": 2,
+      "assetName": "Burger",
+      "type": 6,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 284,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13388,
+      "sourceFileId": 2,
+      "assetName": "Burger",
+      "type": 5,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 285,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13495,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 3,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 286,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13452,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 4,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 287,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13381,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 30,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 288,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13303,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 289,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13150,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 290,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13096,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 21,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 291,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13039,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 1,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 292,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12982,
+      "sourceFileId": 2,
+      "assetName": "Elite",
+      "type": 2,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 293,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13321,
+      "sourceFileId": 2,
+      "assetName": "Hardhat",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 294,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13204,
+      "sourceFileId": 2,
+      "assetName": "Pilot Glasses",
+      "type": 18,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 295,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13206,
+      "sourceFileId": 2,
+      "assetName": "Square Glasses",
+      "type": 18,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 296,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13336,
+      "sourceFileId": 2,
+      "assetName": "Screw Loose",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 297,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13404,
+      "sourceFileId": 2,
+      "assetName": "Half Dome",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 298,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13222,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Mono",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 299,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13374,
+      "sourceFileId": 2,
+      "assetName": "Taxman",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 300,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13417,
+      "sourceFileId": 2,
+      "assetName": "Taxman",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 301,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13339,
+      "sourceFileId": 2,
+      "assetName": "Snow Hat",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 302,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13319,
+      "sourceFileId": 2,
+      "assetName": "Hair",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 303,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13295,
+      "sourceFileId": 2,
+      "assetName": "Cone",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 304,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13323,
+      "sourceFileId": 2,
+      "assetName": "Leather Mask",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 305,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13282,
+      "sourceFileId": 2,
+      "assetName": "Arrow",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 306,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13200,
+      "sourceFileId": 2,
+      "assetName": "Eyepatch",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 307,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13330,
+      "sourceFileId": 2,
+      "assetName": "Moss",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 308,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12992,
+      "sourceFileId": 2,
+      "assetName": "Mushroom",
+      "type": 2,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 309,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13049,
+      "sourceFileId": 2,
+      "assetName": "Mushroom",
+      "type": 1,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 310,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13346,
+      "sourceFileId": 2,
+      "assetName": "Unicorm",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 311,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13234,
+      "sourceFileId": 2,
+      "assetName": "Mask",
+      "type": 31,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 312,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13287,
+      "sourceFileId": 2,
+      "assetName": "Bandana Coloorful",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 313,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13288,
+      "sourceFileId": 2,
+      "assetName": "Bandana Tintable",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 314,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13178,
+      "sourceFileId": 2,
+      "assetName": "Bat ears",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 315,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13211,
+      "sourceFileId": 2,
+      "assetName": "Clown nose",
+      "type": 32,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 316,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12981,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 317,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13038,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 318,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13095,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 319,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13149,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 320,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13451,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 4,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 321,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13494,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 3,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 322,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13304,
+      "sourceFileId": 2,
+      "assetName": "Expert Goggles",
+      "type": 0,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 323,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13380,
+      "sourceFileId": 2,
+      "assetName": "Danger Tape",
+      "type": 30,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 324,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12967,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 325,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13024,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 326,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13080,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 327,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13367,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 328,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13408,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 329,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13439,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 330,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13482,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 331,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13133,
+      "sourceFileId": 2,
+      "assetName": "Plasma",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 332,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12961,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 333,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13018,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 334,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13074,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 335,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13127,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 336,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13359,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 337,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13397,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 338,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13433,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 339,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13476,
+      "sourceFileId": 2,
+      "assetName": "Camo",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 340,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12972,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 341,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13029,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 342,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13086,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 343,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13139,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 344,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13373,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 345,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13416,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 346,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13444,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 347,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13487,
+      "sourceFileId": 2,
+      "assetName": "Stripes",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 348,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12968,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 349,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13025,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 350,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13081,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 351,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13134,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 352,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13409,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 353,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13368,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 354,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13440,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 355,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13483,
+      "sourceFileId": 2,
+      "assetName": "Polka",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 356,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13340,
+      "sourceFileId": 2,
+      "assetName": "Soldier",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 357,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13109,
+      "sourceFileId": 2,
+      "assetName": "Soldier",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 358,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13034,
+      "sourceFileId": 2,
+      "assetName": "Armpad",
+      "type": 1,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 359,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12977,
+      "sourceFileId": 2,
+      "assetName": "Armpad",
+      "type": 2,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 360,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13453,
+      "sourceFileId": 2,
+      "assetName": "Kneepad",
+      "type": 4,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 361,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13496,
+      "sourceFileId": 2,
+      "assetName": "Kneepad",
+      "type": 3,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 362,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13266,
+      "sourceFileId": 2,
+      "assetName": "Tube Sock",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 363,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13249,
+      "sourceFileId": 2,
+      "assetName": "Tube Sock",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 364,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13157,
+      "sourceFileId": 2,
+      "assetName": "Messenger",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 365,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13103,
+      "sourceFileId": 2,
+      "assetName": "Messenger",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 366,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13167,
+      "sourceFileId": 2,
+      "assetName": "Soldier",
+      "type": 20,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 367,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13379,
+      "sourceFileId": 2,
+      "assetName": "Beard",
+      "type": 30,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 368,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13213,
+      "sourceFileId": 2,
+      "assetName": "Moustache Petite Handlebar",
+      "type": 32,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 369,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12960,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 10,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 370,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13017,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 9,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 371,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13073,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 372,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13126,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 373,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13191,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 15,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 374,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13196,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 14,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 375,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13277,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 376,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13358,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 6,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 377,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13396,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 378,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13432,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 12,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 379,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13475,
+      "sourceFileId": 2,
+      "assetName": "Yarn",
+      "type": 11,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 380,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13464,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 381,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13421,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 382,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13387,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 383,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13350,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 6,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 384,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13116,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 385,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13064,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 386,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13006,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 387,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12949,
+      "sourceFileId": 2,
+      "assetName": "Broken",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 388,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13214,
+      "sourceFileId": 2,
+      "assetName": "Moustache Thin",
+      "type": 32,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 389,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13215,
+      "sourceFileId": 2,
+      "assetName": "Moustache Toothbrush",
+      "type": 32,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 390,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13220,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Bushy",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 391,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13221,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Huge",
+      "type": 31,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 392,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13231,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thin Surprised",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 393,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13228,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thin Angry",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 394,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13229,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thin Flat",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 395,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13224,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thick Flat",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 396,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13223,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thick Angry",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 397,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13226,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thick Surprised",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 398,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13227,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thick Worried",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 399,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13232,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thin Worried",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 400,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13306,
+      "sourceFileId": 2,
+      "assetName": "Hair Horseshoe",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 401,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13230,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thin Short",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 402,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13225,
+      "sourceFileId": 2,
+      "assetName": "Eyebrows Thick Short",
+      "type": 31,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 403,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13001,
+      "sourceFileId": 2,
+      "assetName": "Short Sleeve Striped",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 404,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13058,
+      "sourceFileId": 2,
+      "assetName": "Short Sleeve Striped",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 405,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13169,
+      "sourceFileId": 2,
+      "assetName": "Striped shirt",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 406,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13158,
+      "sourceFileId": 2,
+      "assetName": "Monkey shirt",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 407,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13198,
+      "sourceFileId": 2,
+      "assetName": "Big Round Glasses",
+      "type": 18,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 408,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13403,
+      "sourceFileId": 2,
+      "assetName": "Grime Dirt",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 409,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13364,
+      "sourceFileId": 2,
+      "assetName": "Grime Dirt",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 410,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12984,
+      "sourceFileId": 2,
+      "assetName": "Jacket Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 411,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13041,
+      "sourceFileId": 2,
+      "assetName": "Jacket Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 412,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13153,
+      "sourceFileId": 2,
+      "assetName": "Jacket",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 413,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13112,
+      "sourceFileId": 2,
+      "assetName": "Torn fabric",
+      "type": 21,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 414,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13233,
+      "sourceFileId": 2,
+      "assetName": "Face Jewel",
+      "type": 31,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 415,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13274,
+      "sourceFileId": 2,
+      "assetName": "Petals",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 416,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13279,
+      "sourceFileId": 2,
+      "assetName": "Antennas",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 417,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13237,
+      "sourceFileId": 2,
+      "assetName": "Big Boot",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 418,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13254,
+      "sourceFileId": 2,
+      "assetName": "Big Boot",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 419,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13202,
+      "sourceFileId": 2,
+      "assetName": "Monocle",
+      "type": 18,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 420,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13160,
+      "sourceFileId": 2,
+      "assetName": "Neck Ruffle",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 421,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12952,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 10,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 422,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13009,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 9,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 423,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13066,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 424,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13118,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 425,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13189,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 15,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 426,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13194,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 14,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 427,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13273,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 428,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13353,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 6,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 429,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13390,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 430,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13424,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 431,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13467,
+      "sourceFileId": 2,
+      "assetName": "Golden Semibot",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 432,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13210,
+      "sourceFileId": 2,
+      "assetName": "Beak",
+      "type": 32,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 433,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13378,
+      "sourceFileId": 2,
+      "assetName": "Beak",
+      "type": 30,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 434,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13182,
+      "sourceFileId": 2,
+      "assetName": "Moose Ears",
+      "type": 17,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 435,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13329,
+      "sourceFileId": 2,
+      "assetName": "Moose Antlers",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 436,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12985,
+      "sourceFileId": 2,
+      "assetName": "Knit Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 437,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13042,
+      "sourceFileId": 2,
+      "assetName": "Knit Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 438,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13175,
+      "sourceFileId": 2,
+      "assetName": "Wool Sweater",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 439,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13239,
+      "sourceFileId": 2,
+      "assetName": "Emo Boot",
+      "type": 22,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 440,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13256,
+      "sourceFileId": 2,
+      "assetName": "Emo Boot",
+      "type": 19,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 441,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13246,
+      "sourceFileId": 2,
+      "assetName": "Sneaker",
+      "type": 22,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 442,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13263,
+      "sourceFileId": 2,
+      "assetName": "Sneaker",
+      "type": 19,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 443,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13386,
+      "sourceFileId": 2,
+      "assetName": "Broken Cords",
+      "type": 5,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 444,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12965,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 27,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 445,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13022,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 26,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 446,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13078,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 23,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 447,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13131,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 16,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 448,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13363,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 25,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 449,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13402,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 24,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 450,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13437,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 29,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 451,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13480,
+      "sourceFileId": 2,
+      "assetName": "Graffiti",
+      "type": 28,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 452,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13292,
+      "sourceFileId": 2,
+      "assetName": "Branch Antlers",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 453,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12950,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 10,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 454,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13007,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 9,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 455,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13065,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 456,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13117,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 457,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13352,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 6,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 458,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13389,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 459,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13422,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 460,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13465,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 461,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13270,
+      "sourceFileId": 2,
+      "assetName": "Cheese Semibot",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 462,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13243,
+      "sourceFileId": 2,
+      "assetName": "Pencil",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 463,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13260,
+      "sourceFileId": 2,
+      "assetName": "Pencil",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 464,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12999,
+      "sourceFileId": 2,
+      "assetName": "Ruffle",
+      "type": 2,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 465,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13056,
+      "sourceFileId": 2,
+      "assetName": "Ruffle",
+      "type": 1,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 466,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13240,
+      "sourceFileId": 2,
+      "assetName": "Heel",
+      "type": 22,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 467,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13257,
+      "sourceFileId": 2,
+      "assetName": "Heel",
+      "type": 19,
+      "rarity": 1,
+      "status": 1
+    },
+    {
+      "id": 468,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13291,
+      "sourceFileId": 2,
+      "assetName": "Bow",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 469,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13325,
+      "sourceFileId": 2,
+      "assetName": "Mailer Hat",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 470,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13173,
+      "sourceFileId": 2,
+      "assetName": "Visibility vest",
+      "type": 20,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 471,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12957,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 10,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 472,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13014,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 9,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 473,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13070,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 8,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 474,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13123,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 7,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 475,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13190,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 15,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 476,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13195,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 14,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 477,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13276,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 13,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 478,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13356,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 6,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 479,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13394,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 5,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 480,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13429,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 481,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13472,
+      "sourceFileId": 2,
+      "assetName": "Sparkly Semibot",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 482,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13314,
+      "sourceFileId": 2,
+      "assetName": "Hair Pageboy",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 483,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13308,
+      "sourceFileId": 2,
+      "assetName": "Hair Mohawk",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 484,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13309,
+      "sourceFileId": 2,
+      "assetName": "Hair Mohawk",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 485,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12995,
+      "sourceFileId": 2,
+      "assetName": "Puff Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 486,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13052,
+      "sourceFileId": 2,
+      "assetName": "Puff Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 487,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13105,
+      "sourceFileId": 2,
+      "assetName": "Puffy Skirt",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 488,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13290,
+      "sourceFileId": 2,
+      "assetName": "Beret",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 489,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13164,
+      "sourceFileId": 2,
+      "assetName": "Ruffle Shirt",
+      "type": 20,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 490,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12998,
+      "sourceFileId": 2,
+      "assetName": "Ruffle Sleeve",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 491,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13055,
+      "sourceFileId": 2,
+      "assetName": "Ruffle Sleeve",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 492,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12997,
+      "sourceFileId": 2,
+      "assetName": "Ruffle Sleeve Long",
+      "type": 2,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 493,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13054,
+      "sourceFileId": 2,
+      "assetName": "Ruffle Sleeve Long",
+      "type": 1,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 494,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12994,
+      "sourceFileId": 2,
+      "assetName": "Puff Sleeve Long",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 495,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13051,
+      "sourceFileId": 2,
+      "assetName": "Puff Sleeve Long",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 496,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12986,
+      "sourceFileId": 2,
+      "assetName": "Long Sleeve Ruffle Tip",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 497,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13043,
+      "sourceFileId": 2,
+      "assetName": "Long Sleeve Ruffle Tip",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 498,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13458,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Short Ruffle",
+      "type": 4,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 499,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13501,
+      "sourceFileId": 2,
+      "assetName": "Pant Leg Short Ruffle",
+      "type": 3,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 500,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12953,
+      "sourceFileId": 2,
+      "assetName": "Heavy",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 501,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13010,
+      "sourceFileId": 2,
+      "assetName": "Heavy",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 502,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13425,
+      "sourceFileId": 2,
+      "assetName": "Heavy",
+      "type": 12,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 503,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13468,
+      "sourceFileId": 2,
+      "assetName": "Heavy",
+      "type": 11,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 504,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12951,
+      "sourceFileId": 2,
+      "assetName": "Chunky Tech",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 505,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13008,
+      "sourceFileId": 2,
+      "assetName": "Chunky Tech",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 506,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13218,
+      "sourceFileId": 2,
+      "assetName": "Domino Mask",
+      "type": 31,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 507,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13347,
+      "sourceFileId": 2,
+      "assetName": "Witch",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 508,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13216,
+      "sourceFileId": 2,
+      "assetName": "Mushroom Attire",
+      "type": 32,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 509,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13395,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 5,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 510,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12959,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 10,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 511,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13016,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 9,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 512,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13072,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 8,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 513,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13125,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 7,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 514,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13357,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 6,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 515,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13431,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 12,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 516,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13474,
+      "sourceFileId": 2,
+      "assetName": "Transparent",
+      "type": 11,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 517,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13217,
+      "sourceFileId": 2,
+      "assetName": "Crest",
+      "type": 31,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 518,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13331,
+      "sourceFileId": 2,
+      "assetName": "Mushroom Attire",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 519,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12991,
+      "sourceFileId": 2,
+      "assetName": "Mushroom Attire",
+      "type": 2,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 520,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13048,
+      "sourceFileId": 2,
+      "assetName": "Mushroom Attire",
+      "type": 1,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 521,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13305,
+      "sourceFileId": 2,
+      "assetName": "Hair Emo",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 522,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13313,
+      "sourceFileId": 2,
+      "assetName": "Hair Old Lob",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 523,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13310,
+      "sourceFileId": 2,
+      "assetName": "Hair Mohawk Spikes",
+      "type": 0,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 524,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13307,
+      "sourceFileId": 2,
+      "assetName": "Hair Medium 01",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 525,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13311,
+      "sourceFileId": 2,
+      "assetName": "Hair Mullet 01",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 526,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13312,
+      "sourceFileId": 2,
+      "assetName": "Hair Mullet 02",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 527,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13320,
+      "sourceFileId": 2,
+      "assetName": "Hair Short 01",
+      "type": 0,
+      "rarity": 0,
+      "status": 3
+    },
+    {
+      "id": 528,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13315,
+      "sourceFileId": 2,
+      "assetName": "Hair Pigtails 01",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 529,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13316,
+      "sourceFileId": 2,
+      "assetName": "Hair Pigtails 02",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 530,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13317,
+      "sourceFileId": 2,
+      "assetName": "Hair Pompadour",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 531,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13318,
+      "sourceFileId": 2,
+      "assetName": "Hair Posh Lad",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 532,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13212,
+      "sourceFileId": 2,
+      "assetName": "Moustache Huge",
+      "type": 32,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 533,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13203,
+      "sourceFileId": 2,
+      "assetName": "Night Vision",
+      "type": 18,
+      "rarity": 3,
+      "status": 3
+    },
+    {
+      "id": 534,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 12988,
+      "sourceFileId": 2,
+      "assetName": "Magic Gear",
+      "type": 2,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 535,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13045,
+      "sourceFileId": 2,
+      "assetName": "Magic Gear",
+      "type": 1,
+      "rarity": 2,
+      "status": 1
+    },
+    {
+      "id": 536,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13100,
+      "sourceFileId": 2,
+      "assetName": "Magic Gear",
+      "type": 21,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 537,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13241,
+      "sourceFileId": 2,
+      "assetName": "Magic Gear",
+      "type": 22,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 538,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13258,
+      "sourceFileId": 2,
+      "assetName": "Magic Gear",
+      "type": 19,
+      "rarity": 2,
+      "status": 3
+    },
+    {
+      "id": 539,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13248,
+      "sourceFileId": 2,
+      "assetName": "Tiny Shoe",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 540,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13265,
+      "sourceFileId": 2,
+      "assetName": "Tiny Shoe",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 541,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13251,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 22,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 542,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13268,
+      "sourceFileId": 2,
+      "assetName": "Wrangler",
+      "type": 19,
+      "rarity": 0,
+      "status": 1
+    },
+    {
+      "id": 543,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13299,
+      "sourceFileId": 2,
+      "assetName": "Curly Bob",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 544,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13301,
+      "sourceFileId": 2,
+      "assetName": "Dreads",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 545,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13337,
+      "sourceFileId": 2,
+      "assetName": "Short Afro",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 546,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13300,
+      "sourceFileId": 2,
+      "assetName": "Curly Bun",
+      "type": 0,
+      "rarity": 1,
+      "status": 3
+    },
+    {
+      "id": 547,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13297,
+      "sourceFileId": 2,
+      "assetName": "Cowboy Hat",
+      "type": 0,
+      "rarity": 1,
+      "status": 0
+    },
+    {
+      "id": 548,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13238,
+      "sourceFileId": 2,
+      "assetName": "Cowboy boot",
+      "type": 22,
+      "rarity": 1,
+      "status": 0
+    },
+    {
+      "id": 549,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13255,
+      "sourceFileId": 2,
+      "assetName": "Cowboy boot",
+      "type": 19,
+      "rarity": 1,
+      "status": 0
+    },
+    {
+      "id": 550,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13166,
+      "sourceFileId": 2,
+      "assetName": "Sheriff star",
+      "type": 20,
+      "rarity": 1,
+      "status": 0
+    },
+    {
+      "id": 551,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13382,
+      "sourceFileId": 2,
+      "assetName": "Hay",
+      "type": 30,
+      "rarity": 0,
+      "status": 0
+    },
+    {
+      "id": 552,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13328,
+      "sourceFileId": 2,
+      "assetName": "Miner's hat",
+      "type": 0,
+      "rarity": 1,
+      "status": 0
+    },
+    {
+      "id": 553,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13244,
+      "sourceFileId": 2,
+      "assetName": "Rain boot",
+      "type": 22,
+      "rarity": 0,
+      "status": 0
+    },
+    {
+      "id": 554,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13261,
+      "sourceFileId": 2,
+      "assetName": "Rain boot",
+      "type": 19,
+      "rarity": 0,
+      "status": 0
+    },
+    {
+      "id": 555,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13097,
+      "sourceFileId": 2,
+      "assetName": "Holster",
+      "type": 21,
+      "rarity": 0,
+      "status": 0
+    },
+    {
+      "id": 556,
+      "serializedFile": "sharedassets0.assets",
+      "pathId": 13159,
+      "sourceFileId": 2,
+      "assetName": "Neck Bandana",
+      "type": 20,
+      "rarity": 0,
+      "status": 0
+    }
+  ],
+  "validation": {
+    "count": 557,
+    "indexesContiguous": true,
+    "duplicateTargetCount": 0,
+    "nullPointerCount": 0
+  },
+  "fileHashes": {
+    "REPO_Data/level0": "827f60a95e205c595be5549bbd081cbe99148270b35542f1b6d889b49ba8228e",
+    "REPO_Data/globalgamemanagers.assets": "cead17d403fd5b5041ebc18d2244a33e5c99789911a9cf71c3d06939a4d93e59",
+    "REPO_Data/sharedassets0.assets": "531d9fe2f51fc526e16358645e51aa1aa2ed5ea89c49c4a115b15bb989e4dd4b",
+    "REPO_Data/Managed/Assembly-CSharp.dll": "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
+  }
+}

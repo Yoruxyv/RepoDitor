@@ -124,11 +124,11 @@ def test_save_owned_id_absent_from_installed_catalog_is_unknown_and_preserved() 
 
 
 def test_future_installed_id_is_known_but_outside_mutation_trust() -> None:
-    catalog = _catalog(count=548)
-    view = discover_cosmetics(_meta_save(history=[547], unlocks=[547]), catalog)
+    catalog = _catalog(count=558)
+    view = discover_cosmetics(_meta_save(history=[557], unlocks=[557]), catalog)
 
-    future = view.cosmetics[547]
-    assert future.cosmetic_id == 547
+    future = view.cosmetics[557]
+    assert future.cosmetic_id == 557
     assert future.known is True
     assert future.owned is True
     assert future.mutation_eligible is False
@@ -198,13 +198,13 @@ def test_unlock_all_uses_installed_intersection_without_deleting_unknowns() -> N
 
 def test_unlock_all_does_not_broaden_to_future_discovered_ids() -> None:
     data = _meta_save()
-    catalog = _catalog(count=548)
+    catalog = _catalog(count=558)
 
     assert unlock_all_cosmetics(data, catalog) is True
 
     unlocks = data["cosmeticUnlocks"]["value"]
     assert set(unlocks) == set(PROVEN_MUTATION_IDS)
-    assert 547 not in unlocks
+    assert 557 not in unlocks
 
 
 def test_clear_all_presets_preserves_outer_lengths_and_unrelated_meta_save_fields() -> None:
@@ -261,13 +261,13 @@ def test_lock_all_composes_proven_removals_and_preserves_unknown_ids() -> None:
 
 
 def test_lock_all_preserves_installed_future_ids_outside_trust() -> None:
-    data = _meta_save(history=[27, 547], unlocks=[27, 547])
-    catalog = _catalog(count=548)
+    data = _meta_save(history=[27, 557], unlocks=[27, 557])
+    catalog = _catalog(count=558)
 
     assert lock_all_cosmetics(data, catalog) is True
 
-    assert data["cosmeticHistory"]["value"] == [547]
-    assert data["cosmeticUnlocks"]["value"] == [547]
+    assert data["cosmeticHistory"]["value"] == [557]
+    assert data["cosmeticUnlocks"]["value"] == [557]
 
 
 def test_lock_all_is_atomic_when_any_mutation_eligible_cosmetic_is_referenced() -> None:
@@ -313,13 +313,13 @@ def test_remove_ownership_is_blocked_when_referenced(field, value, message) -> N
 
 
 def test_mutations_reject_installed_future_ids_outside_proven_trust() -> None:
-    data = _meta_save(history=[547], unlocks=[547])
-    catalog = _catalog(count=548)
+    data = _meta_save(history=[557], unlocks=[557])
+    catalog = _catalog(count=558)
 
     with pytest.raises(CosmeticMutationError, match="proven mutation trust"):
-        unlock_cosmetic(data, 547, catalog)
+        unlock_cosmetic(data, 557, catalog)
     with pytest.raises(CosmeticMutationError, match="proven mutation trust"):
-        remove_cosmetic_ownership(data, 547, catalog)
+        remove_cosmetic_ownership(data, 557, catalog)
 
 
 def test_mutations_reject_trusted_id_when_absent_from_installed_catalog() -> None:
@@ -343,3 +343,17 @@ def test_unavailable_catalog_disables_ownership_mutation_without_touching_save()
 
     assert CATALOG_UNAVAILABLE_REASON.startswith("Installed cosmetic catalog")
     assert data == before
+
+
+@pytest.mark.parametrize("value", [None, "unknown", False])
+def test_removal_rejects_unverifiable_reference_containers(value) -> None:
+    data = _meta_save(history=[28], unlocks=[28])
+    data["cosmeticEquipped"]["value"] = value
+    before = deepcopy(data)
+    for operation in (
+        lambda: remove_cosmetic_ownership(data, 28, _catalog()),
+        lambda: lock_all_cosmetics(data, _catalog()),
+    ):
+        with pytest.raises(CosmeticMutationError, match="references could not be verified"):
+            operation()
+        assert data == before

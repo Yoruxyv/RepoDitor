@@ -83,3 +83,44 @@ test("covers cosmetic catalog and pending-edit behavior", async () => {
     await harness?.dispose();
   }
 });
+
+test("new cosmetic IDs unlock individually, survive writes and support both bulk operations", async () => {
+  const harness = await launchSourceE2eHarness(557);
+  try {
+    const { page, metaPath, metaBefore, savePath, sourceBefore } = harness;
+    await waitForDiscoveredSave(page);
+    await page.getByRole("button", { name: "Cosmetics", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Cosmetics", exact: true })).toBeVisible();
+    for (let id = 547; id <= 556; id += 1) {
+      await page.getByRole("searchbox", { name: "Search cosmetics" }).fill(`E2E Cosmetic ${id}`);
+      await page.getByRole("button", { name: `Unlock E2E Cosmetic ${id}`, exact: true }).click();
+    }
+    expect((await readFile(metaPath)).equals(metaBefore)).toBe(true);
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    await expect(page.getByText("Saved safely · Backup created")).toBeVisible();
+    let result = await page.evaluate(() => window.repoditor.cosmetics.get());
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.code);
+    expect(
+      result.data.cosmetics
+        .filter((entry) => entry.id >= 547 && entry.id <= 556)
+        .every((entry) => entry.owned && entry.mutationEligible),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Lock All Cosmetics", exact: true }).click();
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("No pending changes");
+    result = await page.evaluate(() => window.repoditor.cosmetics.get());
+    if (!result.ok) throw new Error(result.error.code);
+    expect(result.data.knownOwnedCount).toBe(0);
+    expect(result.data.unknownOwnedIds).toContain(999);
+    await page.getByRole("button", { name: "Unlock All Cosmetics", exact: true }).click();
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    await expect(page.getByTestId("cosmetics-pending-edit-count")).toHaveText("No pending changes");
+    result = await page.evaluate(() => window.repoditor.cosmetics.get());
+    if (!result.ok) throw new Error(result.error.code);
+    expect(result.data.knownOwnedCount).toBe(557);
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
+  } finally {
+    await harness.dispose();
+  }
+});

@@ -1,5 +1,11 @@
 # Installed item and cosmetic artwork
 
+Historical record for PR #122: its artwork-only integration deliberately retained the 547-ID
+mutation policy. The later [current-game compatibility investigation](../research/current-game-compatibility.md)
+records independent approval of 557 cosmetic IDs and user-confirmed in-game Unlock All recognition.
+Individual unlock, removal and game-restart persistence remain unconfirmed in-game.
+The observations below retain their original provenance.
+
 This is presentation evidence for the reviewed installation, not save-mutation
 authorization. The existing RectTransform investigation remains in
 `sunstone-truck-artwork.md`; that work has been preserved rather than renamed.
@@ -215,7 +221,6 @@ The two pre-existing Python symlink tests can be skipped when Windows does not
 permit creating symlinks; the new junction-escape regression runs successfully.
 The renderer bundle budget is warning-only and remains exceeded. Packaged installer
 smoke tests are deferred to release validation.
-
 
 ## Focused architecture review
 

@@ -13,6 +13,7 @@ from repo_save_editor.core.crypto import decrypt_save
 from repo_save_editor.services.cosmetics.installed_catalog import (
     discover_installed_cosmetic_catalog,
 )
+from repo_save_editor.services.cosmetics.installed_reader import read_installed_catalog
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.schema import get_ownership_lists
 from repo_save_editor.services.game.discovery import (
@@ -35,6 +36,8 @@ from repo_save_editor.services.items.recharge_evidence import (
 from repo_save_editor.services.unity_serialized import UNITY_VERSION
 from tools.capabilities.oracles import load_cosmetics_oracle, load_recharge_oracle
 from tools.capabilities.schema import (
+    CURRENT_COSMETICS_BUILD_ID,
+    CURRENT_COSMETICS_UNITY_VERSION,
     SCHEMA_VERSION,
     CapabilityDataError,
     CosmeticsEvidence,
@@ -52,7 +55,7 @@ from tools.capabilities.schema import (
 REPOSITORY_ROOT: Final = Path(__file__).resolve().parents[2]
 EVIDENCE_ROOT: Final = REPOSITORY_ROOT / "tools" / "capabilities" / "evidence"
 RECHARGE_EVIDENCE_PATH: Final = EVIDENCE_ROOT / "recharge.v1.json"
-COSMETICS_EVIDENCE_PATH: Final = EVIDENCE_ROOT / "cosmetics.v1.json"
+COSMETICS_EVIDENCE_PATH: Final = EVIDENCE_ROOT / "cosmetics.v2.json"
 WEB_RECHARGE_PATH: Final = (
     REPOSITORY_ROOT / "web" / "src" / "features" / "recharge" / "recharge-capabilities.v1.json"
 )
@@ -78,7 +81,9 @@ RECHARGE_PARSER_SOURCE_PATHS: Final = (
 )
 COSMETICS_PARSER_SOURCE_PATHS: Final = (
     "desktop/python/repo_save_editor/services/cosmetics/installed_catalog.py",
+    "desktop/python/repo_save_editor/services/cosmetics/installed_reader.py",
     "desktop/python/repo_save_editor/services/game/discovery.py",
+    "desktop/python/repo_save_editor/services/unity_artwork.py",
     "desktop/python/repo_save_editor/services/unity_serialized.py",
 )
 MANAGED_ASSEMBLY_RELATIVE_PATH: Final = Path("REPO_Data/Managed/Assembly-CSharp.dll")
@@ -125,7 +130,7 @@ def _desktop_cosmetics_module(evidence: CosmeticsEvidence) -> str:
         "from typing import Final",
         "",
         f"SNAPSHOT_VERSION: Final = {SCHEMA_VERSION}",
-        'SOURCE_EVIDENCE: Final = "tools/capabilities/evidence/cosmetics.v1.json"',
+        'SOURCE_EVIDENCE: Final = "tools/capabilities/evidence/cosmetics.v2.json"',
         f'SOURCE_SAVE_SHA256: Final = "{evidence.source_save_sha256}"',
         "PROVEN_COSMETIC_IDS: Final = (",
     ]
@@ -138,12 +143,46 @@ def _electron_cosmetics_module(evidence: CosmeticsEvidence) -> str:
     lines = [
         "/** Generated exact cosmetic mutation capability. Do not edit by hand. */",
         f"export const SNAPSHOT_VERSION = {SCHEMA_VERSION};",
-        'export const SOURCE_EVIDENCE = "tools/capabilities/evidence/cosmetics.v1.json";',
+        'export const SOURCE_EVIDENCE = "tools/capabilities/evidence/cosmetics.v2.json";',
         "export const PROVEN_COSMETIC_IDS = new Set<number>([",
     ]
     lines.extend(f"  {value}," for value in evidence.cosmetic_ids)
     lines.extend(("]);", ""))
     return "\n".join(lines)
+
+
+def _validate_committed_cosmetic_proof(evidence: CosmeticsEvidence) -> None:
+    if evidence.compatibility.steam_build_id != CURRENT_COSMETICS_BUILD_ID:
+        return
+    capture = EVIDENCE_ROOT / "captures/cosmetics-26294889-unitypy.json"
+    if sha256_file(capture) != evidence.oracle_capture_sha256:
+        raise CapabilityDataError("Committed current cosmetic capture fingerprint changed.")
+    oracle = load_cosmetics_oracle(capture)
+    if (
+        oracle.compatibility != evidence.compatibility
+        or tuple(entry.cosmetic_id for entry in oracle.catalog) != evidence.cosmetic_ids
+    ):
+        raise CapabilityDataError("Committed cosmetic oracle and approved identities disagree.")
+    proof = read_json(EVIDENCE_ROOT / "captures/cosmetics-26294889-contract.json")
+    expected = {
+        "schemaVersion": SCHEMA_VERSION,
+        "tool": "dnfile/dncil",
+        "relationshipVerified": True,
+        "compatibility": {
+            "steamAppId": STEAM_APP_ID,
+            "steamBuildId": evidence.compatibility.steam_build_id,
+            "unityVersion": evidence.compatibility.unity_version,
+        },
+        "managedAssemblySha256": evidence.managed_assembly_sha256,
+        "semanticContract": {
+            "sourceObject": evidence.contract_source_object,
+            "consumerMethod": evidence.contract_consumer_method,
+            "indexOperation": evidence.contract_index_operation,
+            "fingerprint": evidence.contract_fingerprint,
+        },
+    }
+    if proof != expected:
+        raise CapabilityDataError("Committed current managed-code proof and evidence disagree.")
 
 
 def expected_artifacts() -> ExpectedArtifacts:
@@ -159,6 +198,7 @@ def expected_artifacts() -> ExpectedArtifacts:
         COSMETICS_PARSER_SOURCE_PATHS,
         "Cosmetics",
     )
+    _validate_committed_cosmetic_proof(cosmetics_evidence)
     return ExpectedArtifacts(
         recharge_snapshot(recharge_evidence, RECHARGE_EVIDENCE_PATH),
         cosmetics_snapshot(cosmetics_evidence, COSMETICS_EVIDENCE_PATH),
@@ -403,8 +443,19 @@ def _installed_cosmetics(
     game_dir: Path | None,
 ) -> tuple[tuple[InstalledCosmeticMetadata, ...], str | None, Path]:
     installation, build_id = _installation(game_dir)
-    with tempfile.TemporaryDirectory(prefix="repoditor-capabilities-") as cache_dir:
-        catalog = discover_installed_cosmetic_catalog(installation.root, cache_dir=Path(cache_dir))
+    catalog: tuple[InstalledCosmeticMetadata, ...] | None
+    if build_id == CURRENT_COSMETICS_BUILD_ID:
+        try:
+            catalog, _ = read_installed_catalog(installation.root)
+        except (OSError, ValueError) as error:
+            raise CapabilityDataError(
+                "Current cosmetic catalog is missing, malformed or unsupported."
+            ) from error
+    else:
+        with tempfile.TemporaryDirectory(prefix="repoditor-capabilities-") as cache_dir:
+            catalog = discover_installed_cosmetic_catalog(
+                installation.root, cache_dir=Path(cache_dir)
+            )
     if catalog is None:
         raise CapabilityDataError(
             "Installed Cosmetics metadata is missing, malformed, or unsupported."
@@ -413,6 +464,55 @@ def _installed_cosmetics(
     if ids != tuple(sorted(set(ids))):
         raise CapabilityDataError("Installed Cosmetics identities are duplicated or unordered.")
     return catalog, build_id, installation.root
+
+
+def report_status(game_dir: Path | None = None) -> int:
+    """Report approved builds per domain without treating discovery as full support."""
+    try:
+        _, build_id = _installation(game_dir)
+        recharge = load_recharge_evidence(RECHARGE_EVIDENCE_PATH)
+        cosmetics = load_cosmetics_evidence(COSMETICS_EVIDENCE_PATH)
+    except CapabilityDataError as error:
+        print(f"Compatibility status unavailable: {error}")
+        return 1
+    print(f"Observed Steam build: {build_id or 'unknown'} (installation discovery only)")
+    for name, approved, count in (
+        ("Recharge", recharge.compatibility.steam_build_id, len(recharge.rechargeable_identities)),
+        ("Cosmetics", cosmetics.compatibility.steam_build_id, len(cosmetics.cosmetic_ids)),
+    ):
+        state = "build matches evidence" if build_id == approved else "UNAPPROVED installed build"
+        print(f"  {name}: approved build {approved}; {count} identities; {state}")
+    print(
+        "Artwork availability grants no mutation permission. This command performs no in-game validation."
+    )
+    return 0
+
+
+def _report_current_cosmetics(game_dir: Path | None) -> None:
+    try:
+        catalog, build_id, game_root = _installed_cosmetics(game_dir)
+        evidence = load_cosmetics_evidence(COSMETICS_EVIDENCE_PATH)
+        if (
+            build_id != CURRENT_COSMETICS_BUILD_ID
+            or build_id != evidence.compatibility.steam_build_id
+        ):
+            print("Cosmetics: installed build requires separate evidence review.")
+            return
+        capture = EVIDENCE_ROOT / "captures/cosmetics-26294889-unitypy.json"
+        if sha256_file(capture) != evidence.oracle_capture_sha256:
+            raise CapabilityDataError("Current cosmetic capture fingerprint changed.")
+        _validate_cosmetics_oracle(catalog, build_id, capture, game_root=game_root)
+        if (
+            sha256_file(game_root / MANAGED_ASSEMBLY_RELATIVE_PATH)
+            != evidence.managed_assembly_sha256
+        ):
+            raise CapabilityDataError("Current cosmetic managed assembly changed.")
+        print(
+            f"Cosmetics: current installed metadata, targets and sources match reviewed evidence ({len(catalog)} IDs)."
+        )
+        print("Actual in-game confirmation is a separate gate; no saves were opened or changed.")
+    except (CapabilityDataError, OSError, ValueError) as error:
+        print(f"Cosmetics verification unavailable: {error}")
 
 
 def check_installed(game_dir: Path | None = None) -> int:
@@ -424,6 +524,8 @@ def check_installed(game_dir: Path | None = None) -> int:
         installed_cosmetics, cosmetics_build_id = _installed_cosmetic_ids(game_dir)
     except CapabilityDataError as error:
         print(f"Installed capability check FAILED\n  {error}")
+        report_status(game_dir)
+        _report_current_cosmetics(game_dir)
         return 1
 
     expected = set(recharge_evidence.rechargeable_identities)
@@ -520,6 +622,8 @@ def _validate_cosmetics_oracle(
     installed: tuple[InstalledCosmeticMetadata, ...],
     installed_build_id: str | None,
     oracle_path: Path,
+    *,
+    game_root: Path | None = None,
 ) -> None:
     oracle = load_cosmetics_oracle(oracle_path)
     if installed_build_id != oracle.compatibility.steam_build_id:
@@ -528,6 +632,34 @@ def _validate_cosmetics_oracle(
         raise CapabilityDataError(
             "Desktop parser and independent UnityPy Cosmetics oracle disagree."
         )
+
+    if installed_build_id == CURRENT_COSMETICS_BUILD_ID:
+        if game_root is None:
+            raise CapabilityDataError(
+                "Current Cosmetics approval requires installed source verification."
+            )
+        _, targets = read_installed_catalog(game_root)
+        if targets != oracle.targets:
+            raise CapabilityDataError("Desktop and UnityPy serialized cosmetic targets disagree.")
+        required = {
+            "REPO_Data/level0",
+            "REPO_Data/globalgamemanagers.assets",
+            "REPO_Data/sharedassets0.assets",
+            "REPO_Data/Managed/Assembly-CSharp.dll",
+        }
+        if set(dict(oracle.source_digests)) != required:
+            raise CapabilityDataError(
+                "Current Cosmetics oracle lacks exact installed source fingerprints."
+            )
+        for relative, digest in oracle.source_digests:
+            path = (game_root / relative).resolve(strict=True)
+            if (
+                not path.is_relative_to(game_root.resolve())
+                or sha256_file(path) != "sha256:" + digest
+            ):
+                raise CapabilityDataError(
+                    "Current Cosmetics oracle source is changed or outside the installation."
+                )
 
 
 def approve_installed_recharge(game_dir: Path | None, oracle_path: Path) -> int:
@@ -637,7 +769,9 @@ def _validate_cosmetics_contract(
     if compatibility != {
         "steamAppId": STEAM_APP_ID,
         "steamBuildId": build_id,
-        "unityVersion": UNITY_VERSION,
+        "unityVersion": CURRENT_COSMETICS_UNITY_VERSION
+        if build_id == CURRENT_COSMETICS_BUILD_ID
+        else UNITY_VERSION,
     }:
         raise CapabilityDataError("Cosmetics managed-code proof targets a different installation.")
     contract = exact_object(
@@ -672,17 +806,23 @@ def _cosmetics_evidence_value(
     source_save_build_id: str | None = None,
 ) -> dict[str, object]:
     return {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": 2 if installed_build_id == CURRENT_COSMETICS_BUILD_ID else SCHEMA_VERSION,
         "compatibility": {
             "steamAppId": STEAM_APP_ID,
             "steamBuildId": installed_build_id,
-            "unityVersion": UNITY_VERSION,
+            "unityVersion": CURRENT_COSMETICS_UNITY_VERSION
+            if installed_build_id == CURRENT_COSMETICS_BUILD_ID
+            else UNITY_VERSION,
         },
         "gameCompatibility": (
             f"Installed MetaManager cosmeticAssets vector on Steam build {installed_build_id}, "
             "verified against UnityPy and the managed ownership/index contract"
         ),
-        "provenance": previous.provenance,
+        "provenance": (
+            "docs/research/current-game-compatibility.md#independent-catalog-and-managed-semantics"
+            if installed_build_id == CURRENT_COSMETICS_BUILD_ID
+            else previous.provenance
+        ),
         "parserSourceDigests": dict(_parser_source_digests(COSMETICS_PARSER_SOURCE_PATHS)),
         "sourceSaveSha256": source_save_sha256 or previous.source_save_sha256,
         "installedCatalog": {
@@ -696,6 +836,15 @@ def _cosmetics_evidence_value(
             "exactIds": list(installed_ids),
         },
         "ownershipOracle": {
+            **(
+                {
+                    "sourceSaveCosmeticIds": list(
+                        installed_ids if source_save_sha256 else previous.ownership_proven_ids
+                    )
+                }
+                if installed_build_id == CURRENT_COSMETICS_BUILD_ID
+                else {}
+            ),
             "fields": ["cosmeticHistory", "cosmeticUnlocks"],
             "steamBuildId": (
                 source_save_build_id
@@ -727,7 +876,7 @@ def approve_installed_cosmetics(
             raise CapabilityDataError(
                 "Installed Cosmetics evidence has no authoritative Steam build ID."
             )
-        _validate_cosmetics_oracle(installed, build_id, oracle_path)
+        _validate_cosmetics_oracle(installed, build_id, oracle_path, game_root=game_root)
         assembly_digest = _validate_cosmetics_contract(
             previous, game_root, build_id, contract_proof_path
         )
@@ -761,7 +910,7 @@ def approve_cosmetics_save(
             raise CapabilityDataError(
                 "Installed Cosmetics evidence has no authoritative Steam build ID."
             )
-        _validate_cosmetics_oracle(installed, installed_build_id, oracle_path)
+        _validate_cosmetics_oracle(installed, installed_build_id, oracle_path, game_root=game_root)
         installed_ids = tuple(entry.cosmetic_id for entry in installed)
         try:
             data = decrypt_save(save_path.read_bytes())

@@ -53,6 +53,7 @@ class EncryptedSaveRepository:
         data: SaveData,
         *,
         expected_source: bytes | None = None,
+        encoder: Callable[[SaveData, bytes], bytes] | None = None,
     ) -> tuple[Path, bytes]:
         """Back up and atomically replace one encrypted save.
 
@@ -60,6 +61,8 @@ class EncryptedSaveRepository:
             path: Existing save to replace.
             data: Validated decrypted data to persist.
             expected_source: Optional exact-byte snapshot used for stale-file checks.
+            encoder: Optional Python-owned serializer using the original encrypted snapshot.
+                Its output must still pass the same staged schema/data verification.
 
         Returns:
             The backup path and final encrypted bytes.
@@ -76,7 +79,7 @@ class EncryptedSaveRepository:
             raise SaveStaleError("The save changed after it was opened.")
 
         backup = self._create_backup(path, source)
-        written = encrypt_save(data)
+        written = encrypt_save(data) if encoder is None else encoder(data, source)
         temp_path: Path | None = None
         try:
             temp_path = self._write_temp(path, written)

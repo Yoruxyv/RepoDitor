@@ -44,7 +44,7 @@ export const saveKo: TranslationShape<typeof saveEn> = {
     clear: "지우기",
   },
   pending: {
-    clean: "변경 없음",
+    clean: "보류 중인 변경 사항 없음",
     count: { one: "대기 중인 변경 {count}개", other: "대기 중인 변경 {count}개" },
     reviewLabel: "대기 중인 변경 검토",
     review: "변경 검토",
