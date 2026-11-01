@@ -59,7 +59,7 @@ test("invalid input fails safely and changing files resets the session", async (
     name: "MetaSave.es3",
   });
   await expect(page.getByText("MetaSave", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Clean")).toBeVisible();
+  await expect(page.getByText("No pending changes")).toBeVisible();
 });
 
 test("save session stays memory-only, makes no save request, and clears on refresh", async ({
@@ -104,11 +104,11 @@ test("556/557 bulk locking confirms, cancels and survives encrypted export/re-im
   await expect(dialog).toBeHidden();
   await expect(lock).toBeFocused();
   await expect(page.getByText("556 of 557 supported cosmetics unlocked")).toBeVisible();
-  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  await expect(page.getByText("No pending changes", { exact: true })).toBeVisible();
   await lock.click();
   dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  await expect(page.getByText("No pending changes", { exact: true })).toBeVisible();
   await lock.click();
   await page
     .getByRole("dialog")
@@ -129,7 +129,7 @@ test("556/557 bulk locking confirms, cancels and survives encrypted export/re-im
   await page.locator('input[type="file"]').setInputFiles(output);
   await expect(page.getByText("0 of 557 supported cosmetics unlocked")).toBeVisible();
   await expect(page.getByText("1 unsupported owned cosmetic is preserved.")).toBeVisible();
-  await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+  await expect(page.getByText("No pending changes", { exact: true })).toBeVisible();
 });
 
 for (const references of ["equipped", "preset"] as const) {
@@ -146,7 +146,7 @@ for (const references of ["equipped", "preset"] as const) {
     await expect(page.locator("#cosmetics-lock-reason")).toContainText(
       "import the updated MetaSave",
     );
-    await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+    await expect(page.getByText("No pending changes", { exact: true })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 }
@@ -176,6 +176,6 @@ test("bulk cosmetic controls and confirmation stay usable across viewport sizes"
     await page.screenshot({ path: testInfo.outputPath(`cosmetics-confirm-${width}.png`) });
     await page.keyboard.press("Escape");
     await expect(lock).toBeFocused();
-    await expect(page.getByText("Clean", { exact: true })).toBeVisible();
+    await expect(page.getByText("No pending changes", { exact: true })).toBeVisible();
   }
 });

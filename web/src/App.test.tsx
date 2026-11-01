@@ -111,10 +111,13 @@ function avatarEndpointResponse(avatars: Record<string, string>): Response {
 async function metaFile(
   unlocks: readonly number[] = [27],
   presets: readonly unknown[] = [[]],
+  equipped?: readonly number[],
+  history: readonly number[] = unlocks,
 ): Promise<File> {
   const plaintext = JSON.stringify({
-    cosmeticHistory: { value: unlocks },
+    cosmeticHistory: { value: history },
     cosmeticUnlocks: { value: unlocks },
+    ...(equipped ? { cosmeticEquipped: { value: equipped } } : {}),
     cosmeticPresets: { value: presets },
     colorPresets: { value: [[1, 2], []] },
     unrelated: { future: "preserved" },
@@ -229,7 +232,7 @@ describe("App", () => {
     expect(await screen.findByTestId("save-workspace")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "REPO_SAVE.es3" })).toBeTruthy();
     expect(screen.getByText("Run save")).toBeTruthy();
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
     expect(screen.queryByTestId("pending-changes-review")).toBeNull();
     expect(screen.getByText("Validated locally")).toBeTruthy();
@@ -308,7 +311,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
 
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
     expect(screen.queryByTestId("pending-changes-review")).toBeNull();
     await waitFor(() =>
@@ -357,7 +360,7 @@ describe("App", () => {
     expect(screen.getByText("1 pending change")).toBeTruthy();
 
     fireEvent.change(health, { target: { value: "80" } });
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
     expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(true);
   });
@@ -383,7 +386,7 @@ describe("App", () => {
     expect(screen.getByRole("listitem").textContent).toBe("Run · Currency12 → 69");
 
     fireEvent.change(currency, { target: { value: "12" } });
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
   });
 
@@ -439,7 +442,7 @@ describe("App", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.getByText("2 items need recharging")).toBeTruthy();
     expect((recharge as HTMLButtonElement).disabled).toBe(false);
   });
@@ -464,7 +467,7 @@ describe("App", () => {
         }),
       ).disabled,
     ).toBe(true);
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
   });
 
   it("does not expose recharge mutation for malformed stored charge", async () => {
@@ -481,7 +484,7 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Recharge unavailable" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("signed Int32 integer");
     expect(screen.queryByRole("button", { name: "Recharge All Supported Items" })).toBeNull();
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
   });
 
   it("loads optional Steam avatars automatically and fails independently", async () => {
@@ -548,7 +551,7 @@ describe("App", () => {
     });
 
     expect((await screen.findByRole("alert")).textContent).toMatch(/between 0 and 2,147,483,647/iu);
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(true);
   });
 
@@ -563,7 +566,7 @@ describe("App", () => {
 
     for (const value of ["", "-", "1.5", "2147483648"]) {
       fireEvent.change(health, { target: { value } });
-      expect(screen.getByText("Clean")).toBeTruthy();
+      expect(screen.getByText("No pending changes")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
     }
 
@@ -648,9 +651,59 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { level: 2, name: "Cosmetics" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "MetaSave.es3" })).toBeTruthy();
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: "Run editor sections" })).toBeNull();
     expect(screen.queryByText(/REPO_SAVE\.repoditor\.es3 was verified/iu)).toBeNull();
+  });
+
+  it("discards Lock All back to imported ownership and history", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/drop a save here/i), {
+      target: { files: [await metaFile([547, 999], [[]], [])] },
+    });
+    await screen.findByTestId("save-workspace");
+    expect(screen.getByText("No pending changes")).toBeTruthy();
+    expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(true);
+    expect(button(screen.getByRole("button", { name: "Download verified copy" })).disabled).toBe(
+      false,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Lock All Cosmetics" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Lock 1 cosmetic" }),
+    );
+    expect(screen.getByText("1 pending change")).toBeTruthy();
+    expect(screen.getByText(`0 of ${cosmeticCount} supported cosmetics unlocked`)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByText("No pending changes")).toBeTruthy();
+    expect(screen.getByText(`1 of ${cosmeticCount} supported cosmetics unlocked`)).toBeTruthy();
+    expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(true);
+  });
+
+  it("keeps history changes pending after bulk operations restore original ownership", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/drop a save here/i), {
+      target: { files: [await metaFile([999], [[]], [], [547, 999])] },
+    });
+    await screen.findByTestId("save-workspace");
+    expect(screen.getByText("No pending changes")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unlock Remaining Cosmetics" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock All Cosmetics" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: `Lock ${cosmeticCount} cosmetics`,
+      }),
+    );
+    expect(screen.getByText(`0 of ${cosmeticCount} supported cosmetics unlocked`)).toBeTruthy();
+    expect(screen.getByText("1 pending change")).toBeTruthy();
+    expect(screen.queryByText("No pending changes")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+    expect(screen.getByTestId("pending-changes-review").textContent).toContain(
+      "Cosmetic historyOriginal history → Updated history",
+    );
+    expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByText("No pending changes")).toBeTruthy();
+    expect(screen.getByText(`0 of ${cosmeticCount} supported cosmetics unlocked`)).toBeTruthy();
   });
 
   it("unlocks remaining supported cosmetics with one immediate semantic pending edit", async () => {
@@ -684,7 +737,7 @@ describe("App", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(
       screen.getByText(`${partialCount} of ${cosmeticCount} supported cosmetics unlocked`),
     ).toBeTruthy();
@@ -712,7 +765,7 @@ describe("App", () => {
         }),
       ).disabled,
     ).toBe(true);
-    expect(screen.getByText("Clean")).toBeTruthy();
+    expect(screen.getByText("No pending changes")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     const malformed = JSON.stringify({

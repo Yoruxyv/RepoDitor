@@ -59,7 +59,7 @@ export function PendingChangesBar({
   }, [edits.length]);
 
   return (
-    <footer className="mt-8 border-t border-line py-3">
+    <footer className="mt-8 py-3">
       {edits.length > 0 ? (
         <section
           aria-label={t("save.pending.reviewLabel")}

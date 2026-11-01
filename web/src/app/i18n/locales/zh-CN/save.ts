@@ -44,7 +44,7 @@ export const saveZhCn: TranslationShape<typeof saveEn> = {
     clear: "清除",
   },
   pending: {
-    clean: "无更改",
+    clean: "没有待处理的更改",
     count: { one: "{count} 项待处理更改", other: "{count} 项待处理更改" },
     reviewLabel: "待处理更改审查",
     review: "审查更改",
