@@ -21,6 +21,7 @@ import {
   readUpgradeVisualKey,
   type LocalIconRegistry,
 } from "../icons/registry.cjs";
+import { installedBakedArtwork } from "../icons/bakedArtwork.cjs";
 import { rechargeEvidenceStore, type RechargeEvidenceStore } from "../items/rechargeEvidence.cjs";
 import { type PythonClient } from "../python/client.cjs";
 import {
@@ -179,10 +180,11 @@ function parseAdvancedItem(value: unknown): ParsedAdvancedItem {
   };
 }
 
-function parseAdvanced(
+async function parseAdvanced(
   value: unknown,
   icons: LocalIconRegistry,
-): DesktopOperationResult<AdvancedSaveDto> {
+  client: PythonClient,
+): Promise<DesktopOperationResult<AdvancedSaveDto>> {
   if (!isRecord(value)) {
     throw new EditorProtocolError("Invalid advanced response.");
   }
@@ -211,11 +213,18 @@ function parseAdvanced(
     throw new EditorProtocolError(ADVANCED_PROTOCOL_MESSAGE.invalidData);
   }
   const parsedItems = value.advanced.items.map(parseAdvancedItem);
+  const itemName = (item: ParsedAdvancedItem) =>
+    item.saveKey.slice(0, -(item.instanceId.length + 1));
+  const bakedItems = await installedBakedArtwork.availableItems(
+    parsedItems.filter((item) => !item.isUpgrade).map(itemName),
+    client,
+  );
   const tokens = icons.replaceVisuals(
     "item",
     parsedItems.map((item) => ({
-      cacheKey: item.iconKey,
+      cacheKey: item.isUpgrade ? item.iconKey : null,
       upgradeKey: item.upgradeVisualKey,
+      itemName: bakedItems.has(itemName(item)) ? itemName(item) : null,
     })),
   );
   return {
@@ -244,7 +253,7 @@ export async function getAdvancedSave(
   }
   try {
     const response = await client.run("advanced-get", [saveId]);
-    const result = parseAdvanced(response, icons);
+    const result = await parseAdvanced(response, icons, client);
     if (result.ok && isRecord(response)) {
       evidenceStore.remember(response.rechargeEvidence);
     }

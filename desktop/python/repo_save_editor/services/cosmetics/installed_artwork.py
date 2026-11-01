@@ -5,19 +5,40 @@ binary Addressables catalog, never from probe CSVs or a game's generated PNGs.
 Only the artwork-approved Steam build is accepted. This module does not make any
 save-mutation decision and does not write caches or PNGs to disk.
 
-UnityPy, TypeTreeGeneratorAPI, and addressablestools are intentionally imported
-lazily while their desktop packaging integration is being validated.
+Sprite dependencies are imported lazily and shipped by the locked packaging group;
+baked artwork does not load them or require a Sprite extraction job.
 """
 
 from __future__ import annotations
 
 import hashlib
 import io
+import os
 import re
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
-from typing import Any, Callable, Final, Iterable
+from typing import Any, Final, cast
+
+from repo_save_editor.services.cosmetics.installed_catalog import (
+    MAX_OPEN_FILES,
+    InstalledCosmeticCatalogError,
+    _find_cosmetic_vector,
+    _find_unique_meta_manager,
+    _parse_cosmetic_metadata,
+    _Resolver,
+)
+from repo_save_editor.services.game.discovery import (
+    APP_MANIFEST_NAME,
+    discover_game_installation,
+    read_steam_app_manifest,
+    validate_game_installation,
+)
+from repo_save_editor.services.game.installed_build import validated_installed_artwork_build
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
+from repo_save_editor.services.unity_serialized import SerializedFileIndex
 
 GUID: Final = re.compile(r"^[a-f0-9]{32}$")
 MAX_COSMETICS: Final = 2_000
@@ -28,6 +49,21 @@ MAX_IMAGE_BYTES: Final = 16 * 1024 * 1024
 MAX_TOTAL_PNG_BYTES: Final = 128 * 1024 * 1024
 UNITY_VERSION: Final = "6000.3.17f1"
 SUNSTONE_STEAM_BUILD: Final = "26294889"
+
+
+class _ArtworkResolver(_Resolver):
+    """Reuse catalog pointer/ownership checks with an artwork-only file opener."""
+
+    def open(self, path: Path) -> SerializedFileIndex:
+        resolved = path.resolve()
+        key = os.path.normcase(os.fspath(resolved))
+        if key not in self._indexes:
+            if len(self._indexes) >= MAX_OPEN_FILES:
+                raise InstalledCosmeticCatalogError("Too many serialized files were required.")
+            if not resolved.is_file():
+                raise InstalledCosmeticCatalogError("A required serialized file is missing.")
+            self._indexes[key] = ArtworkFileIndex(resolved)
+        return self._indexes[key]
 
 
 class CosmeticArtworkError(ValueError):
@@ -67,9 +103,7 @@ def normalize_asset_path(raw: str) -> str:
         return ""
     canonical = value[index:].casefold()
     parts = canonical.split("/")
-    if len(parts) < 3 or parts[0] != "assets" or any(
-        part in ("", ".", "..") for part in parts
-    ):
+    if len(parts) < 3 or parts[0] != "assets" or any(part in ("", ".", "..") for part in parts):
         return ""
     return canonical
 
@@ -89,7 +123,7 @@ def _find_named_value(node: object, names: frozenset[str], depth: int = 0) -> ob
         return None
     for key, value in node.items():
         if isinstance(key, str) and key.casefold() in names:
-            return value
+            return cast(object, value)
     for value in node.values():
         if isinstance(value, dict):
             found = _find_named_value(value, names, depth + 1)
@@ -104,9 +138,7 @@ def _read_icon_guid(tree: object, expected_name: str) -> str:
     icon = tree.get("iconRef")
     if not isinstance(icon, dict):
         raise CosmeticArtworkError("CosmeticAsset has no typed iconRef field.")
-    return normalized_guid(_find_named_value(
-        icon, frozenset({"m_assetguid", "assetguid", "guid"})
-    ))
+    return normalized_guid(_find_named_value(icon, frozenset({"m_assetguid", "assetguid", "guid"})))
 
 
 def _sprite_location_paths(catalog: Any, guids: dict[int, str]) -> dict[int, str]:
@@ -192,7 +224,8 @@ def _png_from_sprite(sprite: Any) -> tuple[bytes, int, int]:
     picture = sprite.image
     width, height = picture.size
     if (
-        type(width) is not int or type(height) is not int
+        type(width) is not int
+        or type(height) is not int
         or not 0 < width <= MAX_IMAGE_SIDE
         or not 0 < height <= MAX_IMAGE_SIDE
         or width * height > MAX_IMAGE_SIDE * MAX_IMAGE_SIDE
@@ -206,34 +239,34 @@ def _png_from_sprite(sprite: Any) -> tuple[bytes, int, int]:
     png = buffer.getvalue()
     if len(png) > MAX_IMAGE_BYTES or not png.startswith(b"\x89PNG\r\n\x1a\n"):
         raise CosmeticArtworkError("Sprite PNG failed the output size/type check.")
-    from PIL import Image
+    image_module = import_module("PIL.Image")
 
-    with Image.open(io.BytesIO(png)) as check:
+    with image_module.open(io.BytesIO(png)) as check:
         check.verify()
     return png, width, height
 
 
 def _source_identity(
-    game_root: Path, cosmetic_id: int, guid: str, asset_path: str,
+    game_root: Path,
+    cosmetic_id: int,
+    guid: str,
+    asset_path: str,
     watches: tuple[ArtworkWatch, ...],
 ) -> str:
     payload = [str(cosmetic_id), guid, asset_path, "sunstone-cosmetic-sprite-v1"]
     for watch in watches:
-        payload.extend((
-            watch.path.relative_to(game_root).as_posix(),
-            str(watch.size),
-            str(watch.mtime_ns),
-        ))
+        payload.extend(
+            (
+                watch.path.relative_to(game_root).as_posix(),
+                str(watch.size),
+                str(watch.mtime_ns),
+            )
+        )
     return hashlib.sha256("\x00".join(payload).encode("utf-8")).hexdigest()
 
 
 def _installed_game_root(game_dir: Path | None) -> Path:
     """Require the independently approved Sunstone artwork build, not a mutation gate."""
-    from repo_save_editor.services.game.discovery import (
-        APP_MANIFEST_NAME, discover_game_installation, read_steam_app_manifest,
-        validate_game_installation,
-    )
-    from repo_save_editor.services.game.installed_build import validated_installed_artwork_build
 
     if game_dir is None:
         installation = discover_game_installation().installation
@@ -258,17 +291,14 @@ def _installed_game_root(game_dir: Path | None) -> Path:
 
 def _installed_guids(game_root: Path) -> tuple[dict[int, str], tuple[Path, ...]]:
     """Derive cosmetic ID to GUID directly from the authoritative installed vector."""
-    import UnityPy
-    from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
-    from repo_save_editor.services.cosmetics.installed_catalog import (
-        _Resolver, _find_cosmetic_vector, _find_unique_meta_manager, _parse_cosmetic_metadata,
-    )
+    unity_py = import_module("UnityPy")
+    generator_type = import_module("UnityPy.helpers.TypeTreeGenerator").TypeTreeGenerator
 
-    generator = TypeTreeGenerator(UNITY_VERSION)
+    generator = generator_type(UNITY_VERSION)
     generator.load_local_game(str(game_root))
     nodes = generator.get_nodes_up("Assembly-CSharp", "CosmeticAsset")
     grouped: dict[Path, list[tuple[int, int, str]]] = defaultdict(list)
-    with _Resolver(game_root / "REPO_Data") as resolver:
+    with _ArtworkResolver(game_root / "REPO_Data") as resolver:
         level0 = resolver.open(game_root / "REPO_Data" / "level0")
         meta_record, meta_prefix, _ = _find_unique_meta_manager(resolver, level0)
         pointers = _find_cosmetic_vector(resolver, level0, meta_record, meta_prefix)
@@ -281,7 +311,7 @@ def _installed_guids(game_root: Path) -> tuple[dict[int, str], tuple[Path, ...]]
 
     result: dict[int, str] = {}
     for path, records in grouped.items():
-        env = UnityPy.load(str(path))
+        env = unity_py.load(str(path))
         try:
             wanted = {path_id for _, path_id, _ in records}
             objects = {obj.path_id: obj for obj in env.objects if obj.path_id in wanted}
@@ -302,7 +332,7 @@ def _installed_guids(game_root: Path) -> tuple[dict[int, str], tuple[Path, ...]]
 
 
 def _catalog_sprite_paths(game_root: Path, guids: dict[int, str]) -> dict[int, str]:
-    from addressablestools import parse_binary
+    parse_binary = import_module("addressablestools").parse_binary
 
     catalog_path = game_root / "REPO_Data" / "StreamingAssets" / "aa" / "catalog.bin"
     watch = _watch(catalog_path, game_root)
@@ -315,10 +345,11 @@ def _catalog_sprite_paths(game_root: Path, guids: dict[int, str]) -> dict[int, s
 
 
 def _find_unique_bundle_paths(
-    game_root: Path, paths: dict[int, str],
+    game_root: Path,
+    paths: dict[int, str],
 ) -> dict[int, Path]:
     """Match exact Sprite-class objects, never a Texture2D sharing the same path."""
-    import UnityPy
+    unity_py = import_module("UnityPy")
 
     by_asset: dict[str, list[int]] = defaultdict(list)
     for cosmetic_id, asset_path in paths.items():
@@ -327,7 +358,7 @@ def _find_unique_bundle_paths(
         raise CosmeticArtworkError("Multiple cosmetic IDs share one Sprite asset path.")
     matched: dict[int, list[Path]] = defaultdict(list)
     for bundle in _bundle_files(game_root):
-        env = UnityPy.load(str(bundle))
+        env = unity_py.load(str(bundle))
         try:
             for container_path, pointer in env.container.items():
                 if getattr(getattr(pointer, "type", None), "name", None) != "Sprite":
@@ -345,7 +376,9 @@ def _find_unique_bundle_paths(
 
 
 def prepare_installed_cosmetic_artwork(
-    cosmetic_ids: Iterable[int], *, game_dir: Path | None = None,
+    cosmetic_ids: Iterable[int],
+    *,
+    game_dir: Path | None = None,
     on_decoded: Callable[[DecodedCosmeticArtwork], None] | None = None,
 ) -> tuple[DecodedCosmeticArtwork, ...]:
     """Decode selected installed-game Sprites, with no generated-file side effects.
@@ -354,8 +387,10 @@ def prepare_installed_cosmetic_artwork(
     mutation capabilities. Cache and Electron integration are separate stages.
     """
     requested = tuple(dict.fromkeys(cosmetic_ids))
-    if not requested or len(requested) > MAX_COSMETICS or any(
-        type(cid) is not int or not 0 <= cid < MAX_COSMETICS for cid in requested
+    if (
+        not requested
+        or len(requested) > MAX_COSMETICS
+        or any(type(cid) is not int or not 0 <= cid < MAX_COSMETICS for cid in requested)
     ):
         raise CosmeticArtworkError("A bounded set of canonical cosmetic IDs is required.")
     game_root = _installed_game_root(game_dir)
@@ -373,29 +408,29 @@ def prepare_installed_cosmetic_artwork(
     catalog = game_root / "REPO_Data" / "StreamingAssets" / "aa" / "catalog.bin"
     level0 = game_root / "REPO_Data" / "level0"
     managed = game_root / "REPO_Data" / "Managed" / "Assembly-CSharp.dll"
-    from repo_save_editor.services.game.discovery import APP_MANIFEST_NAME
 
     manifest = game_root.parent.parent / APP_MANIFEST_NAME
     input_paths = tuple(dict.fromkeys((catalog, level0, managed, manifest, *metadata_paths)))
     watches_common = tuple(_watch(path, game_root.parent.parent.parent) for path in input_paths)
     output: dict[int, DecodedCosmeticArtwork] = {}
     total_bytes = 0
-    import UnityPy
+    unity_py = import_module("UnityPy")
 
     for bundle_path, ids in by_bundle.items():
-        source_watches = watches_common + (_watch(bundle_path, game_root),)
+        source_watches = (*watches_common, _watch(bundle_path, game_root))
         if len(source_watches) > 8:
             raise CosmeticArtworkError("Too many source files for the presentation watch budget.")
         expected: dict[str, int] = {paths[cid]: cid for cid in ids}
-        env = UnityPy.load(str(bundle_path))
+        env = unity_py.load(str(bundle_path))
         try:
             matches: dict[int, list[Any]] = defaultdict(list)
             for container_path, pointer in env.container.items():
-                if getattr(getattr(pointer, "type", None), "name", None) != "Sprite":
-                    continue
-                cid = expected.get(normalize_asset_path(container_path))
-                if cid is not None:
-                    matches[cid].append(pointer)
+                sprite_id = expected.get(normalize_asset_path(container_path))
+                if (
+                    sprite_id is not None
+                    and getattr(getattr(pointer, "type", None), "name", None) == "Sprite"
+                ):
+                    matches[sprite_id].append(pointer)
             for cid in ids:
                 if len(matches[cid]) != 1:
                     raise CosmeticArtworkError("Sprite count changed during source preparation.")
@@ -428,6 +463,9 @@ def prepare_installed_cosmetic_artwork(
 
 
 __all__ = [
-    "ArtworkWatch", "CosmeticArtworkError", "DecodedCosmeticArtwork",
-    "normalize_asset_path", "prepare_installed_cosmetic_artwork",
+    "ArtworkWatch",
+    "CosmeticArtworkError",
+    "DecodedCosmeticArtwork",
+    "normalize_asset_path",
+    "prepare_installed_cosmetic_artwork",
 ]

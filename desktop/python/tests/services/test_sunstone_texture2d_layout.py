@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import (
-    SUNSTONE_UNITY_VERSION,
     UNITY_VERSION,
-    SerializedFileIndex,
     UnityMetadataError,
 )
 from repo_save_editor.services.unity_textures import parse_texture2d
@@ -46,7 +45,7 @@ def _texture_bytes(*, legacy: bool) -> bytes:
 def _parse(tmp_path: Path, *, version: str, payload: bytes):
     path = tmp_path / "texture.assets"
     write_serialized_file(path, [(4233, 28, payload)], unity_version=version)
-    with SerializedFileIndex(path) as index:
+    with ArtworkFileIndex(path) as index:
         assert index.unity_version == version
         return parse_texture2d(index, index.find_records({4233})[4233])
 

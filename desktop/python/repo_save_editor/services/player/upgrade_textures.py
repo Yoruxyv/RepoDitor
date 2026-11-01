@@ -14,6 +14,7 @@ from typing import Final
 
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 from repo_save_editor.services.game.installed_build import (
+    SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
     SUNSTONE_ARTWORK_BUILD_ID,
     VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
@@ -28,25 +29,22 @@ from repo_save_editor.services.texture_codec import (
     encode_rgba_png,
     flip_rgba_vertical,
 )
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
-    MESH_RENDERER_CLASS_ID,
-    TRANSFORM_CLASS_ID,
     ObjectRecord,
-    SerializedFileIndex,
     UnityMetadataError,
     find_resource_manager_pointer,
 )
 from repo_save_editor.services.unity_textures import (
     MeshVertexData,
     Texture2DMetadata,
+    find_prefab_renderers,
     material_main_texture,
     mesh_filter_mesh,
-    parse_game_object,
     parse_mesh_stream_metadata,
     parse_mesh_vertex_data,
     parse_texture2d,
-    parse_transform,
     read_game_object_name,
     renderer_materials,
 )
@@ -57,11 +55,7 @@ ASSEMBLY_RELATIVE_PATH: Final = Path("REPO_Data/Managed/Assembly-CSharp.dll")
 VALIDATED_ASSEMBLY_SHA256: Final = (
     "ce995a182ddc884ea965e87786f1986248d9616300fa825bcc04bca671ee6526"
 )
-SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
-    "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
-)
 MAX_UPGRADE_KEY_BYTES: Final = 512
-MAX_PREFAB_OBJECTS: Final = 512
 MAX_STREAM_BYTES: Final = 64 * 1024 * 1024
 MAX_BATCH_UPGRADES: Final = 64
 MAX_BATCH_PNG_BYTES: Final = 16 * 1024 * 1024
@@ -190,9 +184,7 @@ def _validated_paths(
     installation: GameInstallation,
     build: ValidatedInstalledBuild | None = None,
 ) -> tuple[Path, Path, Path, Path]:
-    resolved_build = (
-        build if build is not None else validated_installed_artwork_build(installation)
-    )
+    resolved_build = build if build is not None else validated_installed_artwork_build(installation)
     if resolved_build is None:
         raise UpgradeTextureError("Installed Steam build is not the validated build.")
     try:
@@ -227,8 +219,8 @@ def _candidate_prefab_names(key: str) -> tuple[str, ...]:
 
 
 def _find_prefab(
-    managers: SerializedFileIndex,
-    resources: SerializedFileIndex,
+    managers: ArtworkFileIndex,
+    resources: ArtworkFileIndex,
     names: tuple[str, ...],
 ) -> ObjectRecord:
     resource_keys = tuple(f"items/{name}".casefold() for name in names)
@@ -246,57 +238,6 @@ def _find_prefab(
             "ResourceManager prefab identity does not match the installed item."
         )
     return prefab
-
-
-def _find_renderers(
-    index: SerializedFileIndex,
-    root_record: ObjectRecord,
-) -> tuple[tuple[ObjectRecord, int], ...]:
-    pending = [root_record]
-    visited: set[int] = set()
-    renderers: list[tuple[ObjectRecord, int]] = []
-    while pending:
-        record = pending.pop()
-        if record.path_id in visited:
-            raise UnityMetadataError("Prefab Transform hierarchy contains a cycle.")
-        visited.add(record.path_id)
-        if len(visited) > MAX_PREFAB_OBJECTS:
-            raise UnityMetadataError("Prefab hierarchy exceeds the supported bound.")
-        game_object = parse_game_object(index, record)
-        component_records = index.find_records(
-            {pointer.path_id for pointer in game_object.components}
-        )
-        transforms = [
-            component_record
-            for component_record in component_records.values()
-            if component_record.class_id == TRANSFORM_CLASS_ID
-        ]
-        if len(transforms) != 1:
-            raise UnityMetadataError("Prefab GameObject Transform relationship is ambiguous.")
-        transform = parse_transform(index, transforms[0])
-        if transform.game_object.path_id != record.path_id:
-            raise UnityMetadataError("Transform does not point back to its GameObject.")
-        renderers.extend(
-            (component_record, record.path_id)
-            for component_record in component_records.values()
-            if component_record.class_id == MESH_RENDERER_CLASS_ID
-        )
-        child_transforms = index.find_records({pointer.path_id for pointer in transform.children})
-        children = []
-        for child_pointer in transform.children:
-            child_transform = child_transforms[child_pointer.path_id]
-            if child_transform.class_id != TRANSFORM_CLASS_ID:
-                raise UnityMetadataError("Transform child pointer has an unsupported class.")
-            children.append(parse_transform(index, child_transform))
-        child_game_objects = index.find_records({child.game_object.path_id for child in children})
-        for child in children:
-            child_game_object = child_game_objects[child.game_object.path_id]
-            if child_game_object.class_id != GAME_OBJECT_CLASS_ID:
-                raise UnityMetadataError("Transform child does not resolve to a GameObject.")
-            pending.append(child_game_object)
-    if not renderers:
-        raise UnityMetadataError("Upgrade prefab contains no MeshRenderer candidates.")
-    return tuple(renderers)
 
 
 def _front_uv_bounds(mesh: MeshVertexData) -> tuple[float, float, float, float]:
@@ -340,14 +281,14 @@ def _front_uv_bounds(mesh: MeshVertexData) -> tuple[float, float, float, float]:
 
 
 def _resolve_upgrade_visual_from_indexes(
-    managers: SerializedFileIndex,
-    resources: SerializedFileIndex,
+    managers: ArtworkFileIndex,
+    resources: ArtworkFileIndex,
     names: tuple[str, ...],
     *,
     data_root: Path | None = None,
 ) -> _ResolvedUpgradeVisual:
     prefab = _find_prefab(managers, resources, names)
-    renderers = _find_renderers(resources, prefab)
+    renderers = find_prefab_renderers(resources, prefab)
     textures: dict[int, Texture2DMetadata] = {}
     framings: dict[int, dict[tuple[int, tuple[float, float, float, float]], _VisualFraming]] = {}
     for renderer, game_object_id in renderers:
@@ -425,8 +366,8 @@ def _resolve_upgrade_visual(
     data_root: Path | None = None,
 ) -> _ResolvedUpgradeVisual:
     with (
-        SerializedFileIndex(resource_manager_path) as managers,
-        SerializedFileIndex(resources_path) as resources,
+        ArtworkFileIndex(resource_manager_path) as managers,
+        ArtworkFileIndex(resources_path) as resources,
     ):
         return _resolve_upgrade_visual_from_indexes(
             managers,
@@ -636,8 +577,8 @@ def _decode_resolved_upgrade_texture(
 
 def _resolve_upgrade_batch(
     upgrade_keys: tuple[str, ...],
-    managers: SerializedFileIndex,
-    resources: SerializedFileIndex,
+    managers: ArtworkFileIndex,
+    resources: ArtworkFileIndex,
     data_root: Path,
     resolved: PreparationTextureCallback,
 ) -> tuple[dict[str, DecodedUpgradeTexture | None], list[tuple[str, _ResolvedUpgradeVisual]]]:
@@ -743,8 +684,8 @@ def prepare_installed_upgrade_textures(
             return UpgradeTextureBatchResult(True, True, True, ())
 
         with (
-            SerializedFileIndex(resource_manager_path) as managers,
-            SerializedFileIndex(resources_path) as resources,
+            ArtworkFileIndex(resource_manager_path) as managers,
+            ArtworkFileIndex(resources_path) as resources,
         ):
             stage(UpgradePreparationStage.RESOLVING)
             outcomes, pending = _resolve_upgrade_batch(

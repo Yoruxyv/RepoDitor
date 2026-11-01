@@ -23,13 +23,17 @@ export function CosmeticsWorkspace({
   const { t } = usePreferences();
   const cosmetics = useCosmetics(!hidden, recoveryGeneration);
   const artworkPreparation = useCosmeticArtworkPreparation();
-  const [continueInBackground, setContinueInBackground] = useState(false);
-  const artworkActive =
-    artworkPreparation.phase === "checking" || artworkPreparation.phase === "preparing";
-  const showFullPreparation = artworkActive && !continueInBackground;
+  const [artworkDisplay, setArtworkDisplay] = useState<"automatic" | "background" | "progress">(
+    "automatic",
+  );
+  const artworkActive = artworkPreparation.phase === "preparing";
+  const showFullPreparation =
+    artworkActive &&
+    (artworkDisplay === "progress" ||
+      (artworkPreparation.cached === 0 && artworkDisplay === "automatic"));
 
   useEffect(() => {
-    if (!artworkActive) setContinueInBackground(false);
+    if (!artworkActive) setArtworkDisplay("automatic");
   }, [artworkActive]);
 
   useEffect(() => {
@@ -43,8 +47,8 @@ export function CosmeticsWorkspace({
         <CosmeticArtworkPreparation
           compact={false}
           state={artworkPreparation}
-          onContinueInBackground={() => setContinueInBackground(true)}
-          onShowProgress={() => setContinueInBackground(false)}
+          onContinueInBackground={() => setArtworkDisplay("background")}
+          onShowProgress={() => setArtworkDisplay("progress")}
         />
       ) : (
         <>
@@ -52,8 +56,8 @@ export function CosmeticsWorkspace({
             <CosmeticArtworkPreparation
               compact
               state={artworkPreparation}
-              onContinueInBackground={() => setContinueInBackground(true)}
-              onShowProgress={() => setContinueInBackground(false)}
+              onContinueInBackground={() => setArtworkDisplay("background")}
+              onShowProgress={() => setArtworkDisplay("progress")}
             />
           ) : null}
           <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">

@@ -669,10 +669,10 @@ def test_stream_size_outside_file_rejected(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("build_id", "hash_constant"),
-    (
+    [
         ("23363152", "VALIDATED_ASSEMBLY_SHA256"),
         ("26294889", "SUNSTONE_ARTWORK_ASSEMBLY_SHA256"),
-    ),
+    ],
 )
 def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     tmp_path: Path,
@@ -735,6 +735,6 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     def unexpected_index(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("assembly validation must block extraction")
 
-    monkeypatch.setattr(upgrade_textures, "SerializedFileIndex", unexpected_index)
+    monkeypatch.setattr(upgrade_textures, "ArtworkFileIndex", unexpected_index)
     assembly.write_bytes(b"changed assembly")
     assert decode_installed_upgrade_texture("playerUpgradeHealth") is None

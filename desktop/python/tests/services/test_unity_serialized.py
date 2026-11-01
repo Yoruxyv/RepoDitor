@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
 from tests.unity_serialized_fixture import write_serialized_file
 
@@ -62,7 +63,7 @@ def test_explicit_unity_version_allowlist_preserves_old_and_sunstone(
     assets = tmp_path / "supported.assets"
     write_serialized_file(assets, [(7, 1, b"x")], unity_version=unity_version)
 
-    with SerializedFileIndex(assets) as index:
+    with ArtworkFileIndex(assets) as index:
         assert index.object_count == 1
         assert index.find_records({7})[7].class_id == 1
 

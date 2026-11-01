@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
+import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
 
 import { EXPECTED_DESKTOP_VERSION } from "./support/fixtureEnvironment";
 import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
@@ -12,16 +12,6 @@ import {
 } from "./support/waits";
 
 const expectedVersion = EXPECTED_DESKTOP_VERSION;
-
-async function imageNaturalWidth(locator: Locator): Promise<number> {
-  return locator.evaluate((element) => {
-    if (!(element instanceof HTMLImageElement)) {
-      throw new Error("Expected locator to resolve to an HTMLImageElement.");
-    }
-
-    return element.naturalWidth;
-  });
-}
 
 async function setWindowSize(
   application: ElectronApplication,
@@ -198,7 +188,7 @@ test("covers the source workspace, shell, and editor domains", async () => {
       upgrades: ["list", "prepareEntry"],
       run: ["get"],
       advanced: ["get"],
-      cosmetics: ["get", "write"],
+      cosmetics: ["artworkState", "get", "onArtworkProgress", "write"],
       maps: ["list"],
       requireType: "undefined",
       saves: ["list", "open", "write"],
@@ -236,8 +226,10 @@ test("covers the source workspace, shell, and editor domains", async () => {
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
     const hammerIcon = page.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
-    await expect(hammerIcon.locator("img")).toBeVisible();
-    await expect.poll(() => imageNaturalWidth(hammerIcon.locator("img"))).toBeGreaterThan(0);
+    // This synthetic installation has no approved baked artwork or renderer output.
+    // Even an available game-generated icon must not enter regular-item resolution.
+    await expect(hammerIcon).not.toHaveAttribute("data-icon-source", "local");
+    await expect(hammerIcon.locator("img")).toHaveCount(0);
     await expect(page.getByTestId("item-icon-Item Cart Medium/1")).not.toHaveAttribute(
       "data-icon-source",
       "local",
@@ -288,7 +280,7 @@ test("covers the source workspace, shell, and editor domains", async () => {
     const hammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
     await expect(page.getByTestId("item-icon-Item Melee Inflatable Hammer/1")).toHaveAttribute(
       "data-icon-source",
-      "local",
+      "specific",
     );
     await expect(hammer.getByText("Current charge: 99")).toBeVisible();
     await expect(page.getByText("Item Melee Inflatable Hammer/1", { exact: true })).toHaveCount(0);

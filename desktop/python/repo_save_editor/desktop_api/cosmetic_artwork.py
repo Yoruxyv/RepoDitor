@@ -34,7 +34,12 @@ def serialize_cosmetic_artwork(decoded: DecodedCosmeticArtwork) -> dict[str, obj
 
 def get_cosmetic_artwork(value: str) -> dict[str, object]:
     """Decode a single installed cosmetic and fail soft on unsupported assets."""
-    if not value.isascii() or not value.isdecimal() or (value != "0" and value.startswith("0")):
+    if (
+        len(value) > 4
+        or not value.isascii()
+        or not value.isdecimal()
+        or (value != "0" and value.startswith("0"))
+    ):
         return {"ok": False, "error": "invalid_cosmetic_id"}
     cosmetic_id = int(value)
     if cosmetic_id >= MAX_ID:

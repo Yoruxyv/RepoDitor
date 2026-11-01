@@ -7,8 +7,10 @@ import path from "node:path";
 
 import type { PythonClient, PythonRecordClient } from "../python/client.cjs";
 import { MAX_ICON_BYTES, validPng } from "./png.cjs";
+import { installedBakedArtwork, type InstalledBakedArtwork } from "./bakedArtwork.cjs";
 
 const FORMAT_VERSION = 1;
+const MANIFEST_NAME = "manifest.json";
 const MAX_ENTRIES = 2_000;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_WATCHES = 8;
@@ -165,6 +167,9 @@ async function atomicFile(target: string, contents: Buffer | string): Promise<vo
 }
 
 export class DecodedCosmeticArtworkCache {
+  constructor(
+    readonly baked: Pick<InstalledBakedArtwork, "availableCosmetics"> = installedBakedArtwork,
+  ) {}
   #root: string | null = null;
   readonly #memory = new Map<number, Decoded>();
   readonly #entries = new Map<number, Entry>();
@@ -209,7 +214,7 @@ export class DecodedCosmeticArtworkCache {
     if (this.#loaded === null)
       this.#loaded = (async () => {
         try {
-          const candidate = path.join(root, "manifest.json");
+          const candidate = path.join(root, MANIFEST_NAME);
           const stat = await fs.lstat(candidate);
           if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_MANIFEST_BYTES) return;
           const parsed: unknown = JSON.parse(await fs.readFile(candidate, "utf8"));
@@ -283,7 +288,7 @@ export class DecodedCosmeticArtworkCache {
         const entries: Record<string, unknown> = {};
         for (const [key, entry] of this.#entries) entries[String(key)] = serializableEntry(entry);
         await atomicFile(
-          path.join(root, "manifest.json"),
+          path.join(root, MANIFEST_NAME),
           JSON.stringify({ formatVersion: FORMAT_VERSION, entries }),
         );
       } catch {
@@ -329,7 +334,7 @@ export class DecodedCosmeticArtworkCache {
       const entries: Record<string, unknown> = {};
       for (const [key, entry] of this.#entries) entries[String(key)] = serializableEntry(entry);
       await atomicFile(
-        path.join(this.#root, "manifest.json"),
+        path.join(this.#root, MANIFEST_NAME),
         JSON.stringify({
           formatVersion: FORMAT_VERSION,
           entries,
@@ -340,7 +345,7 @@ export class DecodedCosmeticArtworkCache {
     }
   }
 
-  /** Prepare missing cosmetics in one Python invocation, never one full scan per icon. */
+  /** Verify readiness silently, then prepare only missing artwork in one batch. */
   prefetch(ids: readonly number[], client: PythonClient): void {
     if (
       this.#prefetchTask !== null ||
@@ -348,128 +353,93 @@ export class DecodedCosmeticArtworkCache {
       typeof client.runRecords !== "function"
     )
       return;
-    const records = client as PythonRecordClient;
-    const total = [...new Set(ids)].filter(
+    const unique = [...new Set(ids)].filter(
       (id) => Number.isSafeInteger(id) && id >= 0 && id < MAX_ENTRIES,
-    ).length;
-    if (total === 0) return;
-    this.#publishProgress({ phase: "checking", completed: 0, total, cached: 0, failed: 0 });
-    let cached = 0;
-    let completed = 0;
-    let failed = 0;
-    let observedBatch = false;
-    const observer: PythonRecordClient = {
-      run: (command, args) => records.run(command, args),
-      dispose: () => undefined,
-      runRecords: (command, request, onRecord) => {
-        if (command !== "cosmetics-prepare") return records.runRecords(command, request, onRecord);
-        observedBatch = true;
-        cached = Math.max(0, total - request.length);
-        this.#publishProgress({ phase: "preparing", completed: cached, total, cached, failed });
-        const stride = Math.max(1, Math.ceil(request.length / 80));
-        return records.runRecords(command, request, async (value) => {
-          // Preserve the existing batch's validation and persistence semantics.
-          await onRecord(value);
-          if (!isObject(value) || value.type !== "texture") return;
-          completed += 1;
-          if (value.artwork === null) failed += 1;
-          if (completed % stride === 0 || completed === request.length) {
-            this.#publishProgress({
-              phase: "preparing",
-              completed: Math.min(total, cached + completed),
-              total,
-              cached,
-              failed,
-            });
-          }
-        });
-      },
-    };
-    const task = this.#prefetch(ids, observer)
-      .then(() => {
-        this.#publishProgress({
-          phase: failed > 0 ? "degraded" : "ready",
-          completed: total,
-          total,
-          cached: observedBatch ? cached : total,
-          failed,
-        });
-      })
-      .catch(() => {
-        this.#publishProgress({ ...this.#progress, phase: "degraded" });
-      });
+    );
+    if (unique.length === 0) return;
+    const records = client as PythonRecordClient;
+    const task = this.#decodeTail.then(() => this.#prefetch(unique, records));
     this.#prefetchTask = task;
+    this.#decodeTail = task.catch(() => undefined);
     void task.finally(() => {
       if (this.#prefetchTask === task) this.#prefetchTask = null;
     });
   }
 
   async #prefetch(ids: readonly number[], client: PythonRecordClient): Promise<void> {
-    await this.#load();
-    const unique = [...new Set(ids)].filter(
-      (id) => Number.isSafeInteger(id) && id >= 0 && id < MAX_ENTRIES,
-    );
-    // Deduplicate filesystem checks for source watches shared by all cosmetics.
-    const checks = new Map<string, Promise<boolean>>();
-    const validEntry = async (entry: Entry): Promise<boolean> => {
-      const values = await Promise.all(
-        entry.watches.map((watch) => {
-          const key = `${watch.path}:${watch.size}:${watch.mtimeNs}`;
-          let check = checks.get(key);
-          if (check === undefined) {
-            check = sourceValid([watch]);
-            checks.set(key, check);
-          }
-          return check;
-        }),
-      );
-      return values.every(Boolean);
-    };
-    const missing: number[] = [];
-    for (const id of unique) {
-      const entry = this.#entries.get(id);
-      if (entry === undefined || !(await validEntry(entry))) missing.push(id);
-    }
-    if (missing.length === 0) return;
-    missing.forEach((id) => this.#prefetchAttempted.add(id));
-    const requested = new Set(missing);
-    const seen = new Set<number>();
+    let cached = 0;
     let completed = 0;
-    const rawFinal = await client.runRecords(
-      "cosmetics-prepare",
-      missing.map(String),
-      async (value) => {
-        if (
-          !isObject(value) ||
-          value.type !== "texture" ||
-          typeof value.cosmeticId !== "number" ||
-          !requested.has(value.cosmeticId) ||
-          seen.has(value.cosmeticId) ||
-          value.total !== missing.length ||
-          value.completed !== completed + 1
-        ) {
-          throw new Error("Invalid or duplicate cosmetic preparation record.");
-        }
-        const id = value.cosmeticId;
-        seen.add(id);
-        completed += 1;
-        const decoded = parseDecoded({ ok: true, artwork: value.artwork }, id);
-        if (decoded === null || !(await sourceValid(decoded.entry.watches))) return;
-        this.#remember(id, decoded);
-        await this.#persistPrepared(id, decoded);
-      },
-    );
-    await this.#flushPreparedManifest();
-    if (
-      !isObject(rawFinal) ||
-      rawFinal.type !== "final" ||
-      rawFinal.ok !== true ||
-      rawFinal.total !== missing.length ||
-      rawFinal.completed !== missing.length ||
-      completed !== missing.length ||
-      seen.size !== missing.length
-    ) {
-      throw new Error("Cosmetic batch did not finish successfully.");
+    let failed = 0;
+    const total = ids.length;
+    let preparing = false;
+    const publish = (phase: CosmeticArtworkPreparationPhase) =>
+      this.#publishProgress({ phase, completed, total, cached, failed });
+    try {
+      await this.#load();
+      const baked = await this.baked.availableCosmetics(ids, client);
+      const remaining = ids.filter((id) => !baked.has(id));
+      cached = total - remaining.length;
+      const missing: number[] = [];
+      for (const id of remaining) {
+        if (((await this.#fromMemory(id)) ?? (await this.#fromDisk(id))) !== null) cached += 1;
+        else if (this.#prefetchAttempted.has(id)) failed += 1;
+        else missing.push(id);
+      }
+      completed = cached + failed;
+      if (missing.length === 0) {
+        publish(failed === 0 ? "ready" : "degraded");
+        return;
+      }
+      missing.forEach((id) => this.#prefetchAttempted.add(id));
+      const requested = new Set(missing);
+      const seen = new Set<number>();
+      preparing = true;
+      publish("preparing");
+      const stride = Math.max(1, Math.ceil(missing.length / 80));
+      const final = await client.runRecords(
+        "cosmetics-prepare",
+        missing.map(String),
+        async (value) => {
+          if (
+            !isObject(value) ||
+            value.type !== "texture" ||
+            typeof value.cosmeticId !== "number" ||
+            !requested.has(value.cosmeticId) ||
+            seen.has(value.cosmeticId) ||
+            value.total !== missing.length ||
+            value.completed !== seen.size + 1
+          ) {
+            throw new Error("Invalid or duplicate cosmetic preparation record.");
+          }
+          const id = value.cosmeticId;
+          seen.add(id);
+          completed += 1;
+          const decoded = parseDecoded({ ok: true, artwork: value.artwork }, id);
+          if (decoded === null || !(await sourceValid(decoded.entry.watches))) failed += 1;
+          else {
+            this.#remember(id, decoded);
+            await this.#persistPrepared(id, decoded);
+            this.#prefetchAttempted.delete(id);
+          }
+          if (seen.size % stride === 0 || seen.size === missing.length) publish("preparing");
+        },
+      );
+      if (
+        !isObject(final) ||
+        final.type !== "final" ||
+        final.ok !== true ||
+        final.total !== missing.length ||
+        final.completed !== missing.length ||
+        seen.size !== missing.length
+      ) {
+        throw new Error("Cosmetic batch did not finish successfully.");
+      }
+      publish(failed === 0 ? "ready" : "degraded");
+    } catch {
+      failed += total - completed;
+      publish("degraded");
+    } finally {
+      if (preparing) await this.#flushPreparedManifest();
     }
   }
 

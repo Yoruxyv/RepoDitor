@@ -3,6 +3,8 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -299,7 +301,7 @@ def test_advanced_read_returns_private_recharge_evidence_from_authoritative_meta
     }
 
 
-def test_advanced_read_enriches_only_currently_available_canonical_item_icons(
+def test_advanced_read_never_requests_regular_item_locallow_artwork(
     tmp_path: Path, sample_save
 ) -> None:
     sample_save["dictionaryOfDictionaries"]["value"]["item"] = {
@@ -316,10 +318,12 @@ def test_advanced_read_enriches_only_currently_available_canonical_item_icons(
             )
             for name in names
         },
-        icon_availability_loader=lambda _domain, keys: frozenset(keys),
+        icon_availability_loader=lambda _domain, _keys: pytest.fail(
+            "Regular items must not probe LocalLow"
+        ),
     )
 
-    assert result["advanced"]["items"][0]["iconKey"] == "item melee inflatable hammer.png"
+    assert result["advanced"]["items"][0]["iconKey"] is None
 
 
 def test_editor_reads_reuse_stable_missing_save_failure(tmp_path: Path) -> None:

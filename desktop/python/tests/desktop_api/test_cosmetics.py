@@ -119,7 +119,7 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
     assert meta_path.read_bytes() == original
 
 
-def test_get_cosmetics_maps_canonical_id_to_available_object_icon_key(tmp_path: Path) -> None:
+def test_get_cosmetics_never_uses_game_generated_icon_keys(tmp_path: Path) -> None:
     save_root, _meta_path = _write_fixture(tmp_path)
     catalog = list(_catalog())
     catalog[27] = InstalledCosmeticMetadata(
@@ -134,10 +134,9 @@ def test_get_cosmetics_maps_canonical_id_to_available_object_icon_key(tmp_path: 
     result = get_cosmetics(
         save_root,
         catalog_loader=lambda: tuple(catalog),
-        icon_availability_loader=lambda _domain, keys: frozenset(keys),
     )
 
-    assert result["cosmetics"]["cosmetics"][27]["iconKey"] == "cosmetic-object-27.png"
+    assert result["cosmetics"]["cosmetics"][27]["iconKey"] is None
 
 
 def test_save_cosmetics_creates_exact_backup_and_reopens_output(tmp_path: Path) -> None:

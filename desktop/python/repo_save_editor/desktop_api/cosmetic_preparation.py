@@ -60,18 +60,21 @@ def stream_cosmetic_artwork(ids: tuple[int, ...], emit: Emit) -> None:
         def on_decoded(artwork: DecodedCosmeticArtwork) -> None:
             nonlocal completed
             completed += 1
-            emit({
-                "type": "texture",
-                "cosmeticId": artwork.cosmetic_id,
-                "artwork": serialize_cosmetic_artwork(artwork),
-                "completed": completed,
-                "total": requested,
-            })
+            emit(
+                {
+                    "type": "texture",
+                    "cosmeticId": artwork.cosmetic_id,
+                    "artwork": serialize_cosmetic_artwork(artwork),
+                    "completed": completed,
+                    "total": requested,
+                }
+            )
 
         prepared = prepare_installed_cosmetic_artwork(ids, on_decoded=on_decoded)
         if (
-            completed != requested or len(prepared) != requested
-            or set(v.cosmetic_id for v in prepared) != set(ids)
+            completed != requested
+            or len(prepared) != requested
+            or {v.cosmetic_id for v in prepared} != set(ids)
         ):
             raise CosmeticArtworkError("Decoder returned incomplete cosmetic artwork.")
         emit({"type": "final", "ok": True, "completed": completed, "total": requested})

@@ -43,6 +43,7 @@ const PYTHON_COMMAND = {
   environment: "environment",
   gameStatus: "game-status",
   iconsRoots: "icons-roots",
+  bakedArtwork: "baked-artwork",
   mapsList: "maps-list",
   playersAvatar: "players-avatar",
   playersList: "players-list",

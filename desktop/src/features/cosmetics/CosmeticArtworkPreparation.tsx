@@ -50,6 +50,8 @@ export function CosmeticArtworkPreparation({
 }: CosmeticArtworkPreparationProps) {
   const { t } = usePreferences();
   if (state.phase === "idle" || state.phase === "ready") return null;
+  const title = t("cosmetics.artwork.title");
+  const localPreparation = t("assets.localPreparation");
 
   const count = t("cosmetics.artwork.count", {
     completed: Math.max(0, state.completed),
@@ -65,13 +67,13 @@ export function CosmeticArtworkPreparation({
   if (compact || state.phase === "degraded") {
     return (
       <section
-        aria-label={t("cosmetics.artwork.title")}
+        aria-label={title}
         className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-line-strong bg-surface px-4 py-3"
         data-testid="cosmetic-artwork-compact"
       >
         <span className="flex min-w-0 items-center gap-2 text-sm text-secondary">
           <PackageIcon aria-hidden="true" className="shrink-0 text-accent" size={19} />
-          <span className="font-semibold text-ink">{t("cosmetics.artwork.title")}</span>
+          <span className="font-semibold text-ink">{title}</span>
           <span aria-live="polite" className="font-mono text-xs tabular-nums">
             {state.phase === "checking" ? detail : count}
           </span>
@@ -98,15 +100,15 @@ export function CosmeticArtworkPreparation({
         mode="artwork"
         state={toAssetPreparationState(state)}
         copyOverrides={{
-          localPreparation: t("assets.localPreparation"),
-          preparing: t("assets.localPreparation"),
-          title: t("cosmetics.artwork.title"),
+          localPreparation: localPreparation,
+          preparing: localPreparation,
+          title: title,
           detail,
           hint: t("cosmetics.artwork.hint"),
         }}
         {...(state.total > 0 ? { progressText: count } : {})}
-        progressLabel={t("cosmetics.artwork.title")}
-        footerText={[detail, t("cosmetics.artwork.title")]}
+        progressLabel={title}
+        footerText={[detail, title]}
         continueImmediately
         continueLabel={t("cosmetics.artwork.background")}
         onContinue={onContinueInBackground}

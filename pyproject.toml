@@ -60,7 +60,9 @@ test = [
     "pytest>=8.3,<9",
 ]
 package = [
+    "addressablestools==1.1.1 ; python_full_version >= '3.12'",
     "pyinstaller>=6,<7",
+    "unitypy[ttgen]==1.25.4",
 ]
 
 [tool.ruff]

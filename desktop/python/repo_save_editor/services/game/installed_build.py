@@ -18,6 +18,9 @@ from repo_save_editor.services.game.discovery import (
 
 VALIDATED_BUILD_ID: Final = "23363152"
 SUNSTONE_ARTWORK_BUILD_ID: Final = "26294889"
+SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
+    "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
+)
 _ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, SUNSTONE_ARTWORK_BUILD_ID})
 
 
@@ -90,10 +93,11 @@ def validated_installed_artwork_build(
 
 __all__ = [
     "STEAM_APP_ID",
-    "VALIDATED_BUILD_ID",
+    "SUNSTONE_ARTWORK_ASSEMBLY_SHA256",
     "SUNSTONE_ARTWORK_BUILD_ID",
-    "validated_installed_artwork_build",
+    "VALIDATED_BUILD_ID",
     "ValidatedInstalledBuild",
     "steam_manifest_path",
+    "validated_installed_artwork_build",
     "validated_installed_build",
 ]

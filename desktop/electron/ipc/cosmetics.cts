@@ -212,7 +212,7 @@ function readView(value: unknown, icons: LocalIconRegistry): CosmeticsViewDto {
   const tokens = icons.replaceVisuals(
     "cosmetic",
     cosmetics.map((cosmetic) => ({
-      cacheKey: cosmetic.iconKey,
+      cacheKey: null,
       upgradeKey: null,
       cosmeticId: cosmetic.known ? cosmetic.id : null,
     })),

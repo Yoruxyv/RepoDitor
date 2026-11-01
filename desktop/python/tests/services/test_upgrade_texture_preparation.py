@@ -108,7 +108,7 @@ def test_batch_opens_unity_indexes_once_for_dynamic_upgrade_set(
     stages: list[UpgradePreparationStage] = []
     completed: list[tuple[str, bool]] = []
 
-    monkeypatch.setattr(upgrade_textures, "SerializedFileIndex", FakeIndex)
+    monkeypatch.setattr(upgrade_textures, "ArtworkFileIndex", FakeIndex)
     monkeypatch.setattr(
         upgrade_textures,
         "_resolve_upgrade_visual_from_indexes",
@@ -154,7 +154,7 @@ def test_zero_work_startup_validates_asset_sources_without_opening_unity_indexes
         def __init__(self, _path: Path) -> None:
             raise AssertionError("zero-work startup should not mmap Unity object indexes")
 
-    monkeypatch.setattr(upgrade_textures, "SerializedFileIndex", UnexpectedIndex)
+    monkeypatch.setattr(upgrade_textures, "ArtworkFileIndex", UnexpectedIndex)
 
     result = prepare_installed_upgrade_textures(
         (),
@@ -186,7 +186,7 @@ def test_batch_keeps_individual_resolve_and_decode_failures_fail_soft(
             return None
 
     keys = ("playerUpgradeHealth", "playerUpgradeBroken", "playerUpgradeStrength")
-    monkeypatch.setattr(upgrade_textures, "SerializedFileIndex", FakeIndex)
+    monkeypatch.setattr(upgrade_textures, "ArtworkFileIndex", FakeIndex)
 
     def resolve(_managers: object, _resources: object, names: tuple[str, ...], **_kwargs: object):
         if any("Broken" in name for name in names):

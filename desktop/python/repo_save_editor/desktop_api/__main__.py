@@ -8,7 +8,8 @@ import sys
 
 from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
 from repo_save_editor.desktop_api.cosmetic_preparation import (
-    parse_cosmetic_ids, stream_cosmetic_artwork,
+    parse_cosmetic_ids,
+    stream_cosmetic_artwork,
 )
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
@@ -18,7 +19,11 @@ from repo_save_editor.desktop_api.game_assets import (
     read_upgrade_keys_stdin,
 )
 from repo_save_editor.desktop_api.game_status import get_game_status
-from repo_save_editor.desktop_api.icons import get_icon_roots, get_upgrade_texture
+from repo_save_editor.desktop_api.icons import (
+    get_baked_artwork,
+    get_icon_roots,
+    get_upgrade_texture,
+)
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.players import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -156,8 +161,11 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())
     commands.add_parser("maps-list").set_defaults(handler=lambda _args: list_maps())
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
+    commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
     commands.add_parser("cosmetics-get").set_defaults(handler=lambda _args: get_cosmetics())
-    commands.add_parser("cosmetics-prepare").set_defaults(handler=_prepare_cosmetics, streaming=True)
+    commands.add_parser("cosmetics-prepare").set_defaults(
+        handler=_prepare_cosmetics, streaming=True
+    )
     cosmetic_artwork = commands.add_parser("cosmetic-artwork")
     cosmetic_artwork.add_argument("cosmetic_id", nargs="?")
     cosmetic_artwork.set_defaults(handler=_cosmetic_artwork)

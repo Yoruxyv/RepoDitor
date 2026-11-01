@@ -60,16 +60,16 @@ def test_catalog_preserves_sprite_type_and_rejects_duplicate_sprite_locations() 
     assert artwork._sprite_location_paths(catalog, {0: guid}) == {
         0: "assets/cosmetics/head/first.png"
     }
-    catalog.resources[guid].append(_location(
-        "Sprite", "Assets/Cosmetics/Head/Other.png", primary="different"
-    ))
+    catalog.resources[guid].append(
+        _location("Sprite", "Assets/Cosmetics/Head/Other.png", primary="different")
+    )
     with pytest.raises(artwork.CosmeticArtworkError, match="2 unique Sprite"):
         artwork._sprite_location_paths(catalog, {0: guid})
 
 
 def test_sprite_dereference_requires_a_real_sprite() -> None:
-    Image = pytest.importorskip("PIL.Image")
-    sprite = SimpleNamespace(image=Image.new("RGBA", (32, 32), (10, 50, 40, 255)))
+    image_module = pytest.importorskip("PIL.Image")
+    sprite = SimpleNamespace(image=image_module.new("RGBA", (32, 32), (10, 50, 40, 255)))
     reader = SimpleNamespace(type=SimpleNamespace(name="Sprite"), parse_as_object=lambda: sprite)
     pointer = SimpleNamespace(type=SimpleNamespace(name="Sprite"), deref=lambda: reader)
     assert artwork._sprite_pointer_object(pointer) is sprite
@@ -77,9 +77,9 @@ def test_sprite_dereference_requires_a_real_sprite() -> None:
         artwork._sprite_pointer_object(SimpleNamespace(type=SimpleNamespace(name="Texture2D")))
     png, width, height = artwork._png_from_sprite(sprite)
     assert (width, height) == (32, 32)
-    with Image.open(io.BytesIO(png)) as loaded:
+    with image_module.open(io.BytesIO(png)) as loaded:
         assert loaded.size == (32, 32)
-    invisible = SimpleNamespace(image=Image.new("RGBA", (10, 10), (0, 0, 0, 0)))
+    invisible = SimpleNamespace(image=image_module.new("RGBA", (10, 10), (0, 0, 0, 0)))
     with pytest.raises(artwork.CosmeticArtworkError, match="transparent"):
         artwork._png_from_sprite(invisible)
 
@@ -88,9 +88,7 @@ def test_source_identity_changes_with_file_metadata(tmp_path: Path) -> None:
     source = tmp_path / "source.bundle"
     source.write_bytes(b"one")
     before = artwork._watch(source, tmp_path)
-    original = artwork._source_identity(
-        tmp_path, 7, "a" * 32, "assets/a/b.png", (before,)
-    )
+    original = artwork._source_identity(tmp_path, 7, "a" * 32, "assets/a/b.png", (before,))
     source.write_bytes(b"different-size")
     after = artwork._watch(source, tmp_path)
     changed = artwork._source_identity(tmp_path, 7, "a" * 32, "assets/a/b.png", (after,))
@@ -119,9 +117,10 @@ def test_ids_are_rejected_before_loading_the_game() -> None:
 
 
 def test_prepare_uses_typed_sprite_and_does_not_write_any_presentation_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    Image = pytest.importorskip("PIL.Image")
+    image_module = pytest.importorskip("PIL.Image")
     game_root = tmp_path / "steam" / "steamapps" / "common" / "REPO"
     aa = game_root / "REPO_Data" / "StreamingAssets" / "aa"
     aa.mkdir(parents=True)
@@ -139,19 +138,25 @@ def test_prepare_uses_typed_sprite_and_does_not_write_any_presentation_cache(
     monkeypatch.setattr(artwork, "_installed_guids", lambda _root: ({0: guid}, ()))
     monkeypatch.setattr(artwork, "_catalog_sprite_paths", lambda _root, _guids: {0: asset_path})
     monkeypatch.setattr(artwork, "_find_unique_bundle_paths", lambda _root, _paths: {0: bundle})
-    sprite = SimpleNamespace(image=Image.new("RGBA", (32, 30), (5, 8, 10, 255)))
+    sprite = SimpleNamespace(image=image_module.new("RGBA", (32, 30), (5, 8, 10, 255)))
     reader = SimpleNamespace(type=SimpleNamespace(name="Sprite"), parse_as_object=lambda: sprite)
     pointer = SimpleNamespace(type=SimpleNamespace(name="Sprite"), deref=lambda: reader)
     closed: list[bool] = []
     environment = SimpleNamespace(
-        container={"Assets/Cosmetics/Head/First.png": pointer,
-                   "Assets/Cosmetics/Head/Second.png": SimpleNamespace(
-                       type=SimpleNamespace(name="Texture2D"))},
+        container={
+            "Assets/Cosmetics/Head/First.png": pointer,
+            "Assets/Cosmetics/Head/Second.png": SimpleNamespace(
+                type=SimpleNamespace(name="Texture2D")
+            ),
+        },
         close=lambda: closed.append(True),
     )
     monkeypatch.setitem(sys.modules, "UnityPy", SimpleNamespace(load=lambda _path: environment))
-    monkeypatch.setitem(sys.modules, "repo_save_editor.services.game.discovery",
-                        SimpleNamespace(APP_MANIFEST_NAME="appmanifest_3241660.acf"))
+    monkeypatch.setitem(
+        sys.modules,
+        "repo_save_editor.services.game.discovery",
+        SimpleNamespace(APP_MANIFEST_NAME="appmanifest_3241660.acf"),
+    )
     result = artwork.prepare_installed_cosmetic_artwork([0], game_dir=game_root)
     assert len(result) == 1
     assert result[0].asset_guid == guid

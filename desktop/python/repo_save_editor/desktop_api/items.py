@@ -66,16 +66,19 @@ def get_advanced_save(
         else:
             metadata, evidence = metadata_evidence_loader(item_type_names)
             capabilities = {name: value.recharge_capability for name, value in metadata.items()}
+        advanced = discover_advanced_save(data, capabilities)
+        upgrade_types = {f"Item {item.name}" for item in advanced.items if item.is_upgrade}
         icon_keys = {
-            value.icon_cache_key for value in metadata.values() if value.icon_cache_key is not None
+            value.icon_cache_key
+            for name, value in metadata.items()
+            if name in upgrade_types and value.icon_cache_key is not None
         }
-        available_icons = icon_availability_loader("item", icon_keys)
+        available_icons = icon_availability_loader("item", icon_keys) if icon_keys else frozenset()
         icons_by_type = {
             name: value.icon_cache_key
             for name, value in metadata.items()
-            if value.icon_cache_key in available_icons
+            if name in upgrade_types and value.icon_cache_key in available_icons
         }
-        advanced = discover_advanced_save(data, capabilities)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
     except AdvancedSaveError:

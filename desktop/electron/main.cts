@@ -21,6 +21,7 @@ import { registerSaveIpc } from "./ipc/saves.cjs";
 import { pythonClient } from "./python/client.cjs";
 import { registerLocalIconProtocol, registerLocalIconScheme } from "./icons/protocol.cjs";
 import { decodedUpgradeTextureCache } from "./icons/upgradeTextureCache.cjs";
+import { installedBakedArtwork } from "./icons/bakedArtwork.cjs";
 import { decodedCosmeticArtworkCache } from "./icons/cosmeticArtworkCache.cjs";
 import { createPresentationCacheDiagnosticSink } from "./icons/cacheDiagnostics.cjs";
 
@@ -110,6 +111,7 @@ void app.whenReady().then(() => {
   decodedCosmeticArtworkCache.configurePersistentRoot(
     path.join(userDataRoot, "presentation", "cosmetics"),
   );
+  installedBakedArtwork.configurePersistentRoot(path.join(userDataRoot, "presentation", "baked"));
   decodedUpgradeTextureCache.configureDiagnosticSink(
     createPresentationCacheDiagnosticSink(
       path.join(userDataRoot, "presentation-cache-diagnostics.jsonl"),

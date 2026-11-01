@@ -28,14 +28,28 @@ export interface CosmeticVisualRegistration {
   readonly cacheKey: string | null;
 }
 
+export interface ItemVisualRegistration {
+  readonly kind: "item-visual";
+  readonly domain: "item";
+  readonly itemName: string;
+  readonly cacheKey: string | null;
+}
+
 export type IconRegistration =
-  CacheIconRegistration | UpgradeVisualRegistration | CosmeticVisualRegistration;
+  | CacheIconRegistration
+  | UpgradeVisualRegistration
+  | CosmeticVisualRegistration
+  | ItemVisualRegistration;
 
 export interface IconVisualRequest {
   readonly cacheKey: string | null;
   readonly upgradeKey: string | null;
   readonly cosmeticId?: number | null;
+  readonly itemName?: string | null;
 }
+
+const ITEM_VISUAL_KIND = "item-visual";
+const COSMETIC_VISUAL_KIND = "cosmetic-visual";
 
 const SAFE_KEY_PATTERN = /^[^/\\\0]{1,256}\.png$/;
 const MAX_UPGRADE_KEY_BYTES = 512;
@@ -72,7 +86,9 @@ export function readUpgradeVisualKey(value: unknown): string | null {
 
 function signature(entry: IconRegistration): string {
   if (entry.kind === "cache") return `cache:${entry.key}`;
-  if (entry.kind === "cosmetic-visual") {
+  if (entry.kind === ITEM_VISUAL_KIND)
+    return `item:${entry.itemName}:cache:${entry.cacheKey ?? ""}`;
+  if (entry.kind === COSMETIC_VISUAL_KIND) {
     return `cosmetic:${entry.cosmeticId}:cache:${entry.cacheKey ?? ""}`;
   }
   return `upgrade:${entry.upgradeKey}:cache:${entry.cacheKey ?? ""}`;
@@ -83,6 +99,17 @@ function visualRegistration(
   request: IconVisualRequest,
 ): IconRegistration | null {
   const cacheKey = readIconKey(request.cacheKey);
+  if (request.itemName !== undefined && request.itemName !== null) {
+    if (
+      domain !== "item" ||
+      !request.itemName.startsWith("Item ") ||
+      request.itemName.length > 191 ||
+      /[/\\\0]/.test(request.itemName)
+    ) {
+      throw new Error("Invalid item artwork identity.");
+    }
+    return { kind: ITEM_VISUAL_KIND, domain, itemName: request.itemName, cacheKey };
+  }
   if (request.cosmeticId !== undefined && request.cosmeticId !== null) {
     if (
       domain !== "cosmetic" ||
@@ -92,7 +119,7 @@ function visualRegistration(
     ) {
       throw new Error("Invalid cosmetic visual ID.");
     }
-    return { kind: "cosmetic-visual", domain, cosmeticId: request.cosmeticId, cacheKey };
+    return { kind: COSMETIC_VISUAL_KIND, domain, cosmeticId: request.cosmeticId, cacheKey };
   }
   const upgradeKey = readUpgradeVisualKey(request.upgradeKey);
   if (upgradeKey !== null) {

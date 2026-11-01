@@ -9,7 +9,7 @@ const {
 
 describe("non-blocking cosmetic artwork preparation", () => {
   it("reports real progress while leaving the calling thread free", async () => {
-    const cache = new DecodedCosmeticArtworkCache();
+    const cache = new DecodedCosmeticArtworkCache({ availableCosmetics: async () => new Set() });
     const phases: string[] = [];
     let resolved!: () => void;
     const degraded = new Promise<void>((resolve) => {
@@ -24,7 +24,7 @@ describe("non-blocking cosmetic artwork preparation", () => {
     });
     expect(cache.prefetch([3, 4], { runRecords })).toBeUndefined();
     await degraded;
-    expect(phases).toEqual(expect.arrayContaining(["checking", "preparing", "degraded"]));
+    expect(phases).toEqual(expect.arrayContaining(["preparing", "degraded"]));
     expect(cache.getPreparationState()).toMatchObject({
       phase: "degraded",
       total: 2,
@@ -34,7 +34,7 @@ describe("non-blocking cosmetic artwork preparation", () => {
   });
 
   it("counts streamed cosmetic records without waiting for all source decoding", async () => {
-    const cache = new DecodedCosmeticArtworkCache();
+    const cache = new DecodedCosmeticArtworkCache({ availableCosmetics: async () => new Set() });
     const snapshots: Array<{ phase: string; completed: number; failed: number }> = [];
     const unsubscribe = cache.subscribePreparation(
       (state: { phase: string; completed: number; failed: number }) => {
@@ -60,7 +60,7 @@ describe("non-blocking cosmetic artwork preparation", () => {
     });
     expect(snapshots).toEqual(
       expect.arrayContaining([
-        { phase: "checking", completed: 0, failed: 0 },
+        { phase: "preparing", completed: 0, failed: 0 },
         { phase: "preparing", completed: 1, failed: 1 },
         { phase: "preparing", completed: 2, failed: 2 },
       ]),
