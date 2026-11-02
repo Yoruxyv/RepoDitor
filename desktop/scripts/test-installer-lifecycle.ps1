@@ -199,16 +199,6 @@ function Invoke-Setup([string] $Scenario, [string] $ExpectedPath) {
   Assert-GameData "$Scenario setup"
 }
 
-function Find-Button($Window, [string] $Name) {
-  return $Window.FindAll(
-    [System.Windows.Automation.TreeScope]::Descendants,
-    [System.Windows.Automation.Condition]::TrueCondition
-  ) | Where-Object {
-    $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
-    $_.Current.Name -eq $Name -and $_.Current.IsEnabled
-  } | Select-Object -First 1
-}
-
 function Invoke-WebViewOperation(
   [string] $Scenario,
   [string] $InstallPath,
@@ -223,8 +213,8 @@ function Invoke-WebViewOperation(
   $entry = if ($Mode -eq 'install') { $script:setupPath } else { Join-Path $InstallPath 'Uninstall RepoDitor.exe' }
   Assert-True (Test-Path -LiteralPath $entry -PathType Leaf) "$Scenario production entry is missing."
 
-  Add-Type -AssemblyName UIAutomationClient
-  Add-Type -AssemblyName UIAutomationTypes
+  . (Join-Path $PSScriptRoot 'installer-lifecycle-ui.ps1')
+  Assert-InstallerAutomationThread
   $existingHosts = @(Get-Process -Name RepoDitorInstallerHost -ErrorAction SilentlyContinue |
     ForEach-Object Id)
   Write-LifecycleLog "$Scenario | $Mode UI start | executable=$entry arguments=/currentuser"
@@ -246,6 +236,7 @@ function Invoke-WebViewOperation(
   $null = $installerHost.Handle
   $script:ownedProcesses.Add($installerHost)
   Add-Observation $Scenario 'WebView2 host' "pid=$($installerHost.Id)"
+  Add-Observation $Scenario 'automation context' ((Get-InstallerAutomationContext $installerHost) | ConvertTo-Json -Compress)
 
   Write-LifecycleLog "$Scenario | readiness | locating host window and enabled action through UI Automation"
   $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -258,6 +249,7 @@ function Invoke-WebViewOperation(
   $actionName = if ($Mode -eq 'install') { 'Install' } else { 'Uninstall' }
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   while ($null -eq $actionButton -and [DateTime]::UtcNow -lt $deadline) {
+    $queryClock = [Diagnostics.Stopwatch]::StartNew()
     $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCondition)
     if ($null -ne $window) {
       $actionButton = Find-Button $window $actionName
@@ -266,9 +258,18 @@ function Invoke-WebViewOperation(
         if ($null -ne $actionButton) { $actionName = 'Update' }
       }
     }
+    if ($queryClock.Elapsed.TotalSeconds -gt 1) {
+      Add-Observation $Scenario 'slow automation query' "$($queryClock.ElapsedMilliseconds)ms"
+    }
     if ($null -eq $actionButton) { Start-Sleep -Milliseconds 100 }
   }
   Write-LifecycleLog "$Scenario | readiness | windowFound=$($null -ne $window) actionFound=$($null -ne $actionButton) hostExited=$($installerHost.HasExited)"
+  try {
+    Add-Observation $Scenario 'readiness controls (64 nodes, depth 16)' (@(Get-InstallerControlSnapshot $window) | ConvertTo-Json -Compress)
+  }
+  catch {
+    Add-Observation $Scenario 'readiness controls unavailable' $_.Exception.GetType().FullName
+  }
   Assert-True ($null -ne $actionButton) "$Scenario WebView2 $actionName button was not available."
 
   if ($Mode -eq 'install') {
