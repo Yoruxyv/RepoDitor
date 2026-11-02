@@ -73,6 +73,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-installer-lifecycle-process.ps1
 
+      - name: Verify installer UI diagnostics and action eligibility
+        shell: powershell
+        run: ./scripts/test-installer-lifecycle-ui.ps1
+
       - name: Verify native installer stages and completion checks
         run: npm run test:installer:host
 
@@ -94,6 +98,7 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item scripts/test-installer-lifecycle.ps1 (Join-Path $stage "lifecycle.ps1")
+          Copy-Item scripts/installer-lifecycle-ui.ps1 $stage
           Copy-Item (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName (Join-Path $stage "setup.exe")
 
           . ./scripts/installer-lifecycle-process.ps1
@@ -143,6 +148,7 @@ jobs:
               -WindowStyle Hidden `
               -ArgumentList @(
                 "-NoProfile",
+                "-Mta",
                 "-ExecutionPolicy Bypass",
                 ('-File "' + $stage + '\lifecycle.ps1"'),
                 ('-SetupPath "' + $stage + '\setup.exe"'),

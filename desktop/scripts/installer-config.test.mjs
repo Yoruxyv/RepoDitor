@@ -41,6 +41,9 @@ test("the bare npm lifecycle command isolates its visible production worker and 
   assert.match(worker, /Assert-GameData 'synthetic cleanup'/);
   assert.match(worker, /Authoritative final registry\/filesystem state remains/);
   assert.match(workflow, /-ObserveSetupUi[\s\S]*-ExpectedDisposableSID/);
+  assert.match(runner, /\$worker = Start-Process[\s\S]*'-Mta'/);
+  assert.match(workflow, /\$worker = Start-Process[\s\S]*"-Mta"/);
+  assert.match(worker, /Assert-InstallerAutomationThread/);
 });
 
 test(

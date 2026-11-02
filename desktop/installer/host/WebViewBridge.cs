@@ -33,6 +33,7 @@ internal sealed class WebViewBridge
         InstallerLog.Write("Creating WebView2 environment; userData=" + userData);
         var environment = await CoreWebView2Environment.CreateAsync(null, userData, null);
         InstallerLog.Write("WebView2 environment created; version=" + environment.BrowserVersionString);
+        InstallerLog.Write("Initializing WebView2 control.");
         await _webView.EnsureCoreWebView2Async(environment);
         InstallerLog.Write("WebView2 control initialized; browserPid=" + _webView.CoreWebView2.BrowserProcessId);
         ConfigureWebView();
@@ -72,6 +73,10 @@ internal sealed class WebViewBridge
         core.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs args)
         {
             InstallerLog.Write("Navigation completed; success=" + args.IsSuccess + " error=" + args.WebErrorStatus);
+        };
+        core.DOMContentLoaded += delegate
+        {
+            InstallerLog.Write("Installer document DOM content loaded.");
         };
         core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs args)
         {
