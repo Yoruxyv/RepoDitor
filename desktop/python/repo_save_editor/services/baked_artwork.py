@@ -30,18 +30,16 @@ from repo_save_editor.services.cosmetics.installed_reader import (
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
-    GameInstallation,
-    discover_game_installation,
-    read_steam_app_manifest,
-    validate_game_installation,
 )
 from repo_save_editor.services.game.installed_build import (
     SUNSTONE_ARTWORK_ASSEMBLY_SHA256 as ASSEMBLY_SHA256,
 )
 from repo_save_editor.services.game.installed_build import (
     SUNSTONE_ARTWORK_BUILD_ID,
+    owned_file,
     validated_installed_artwork_build,
 )
+from repo_save_editor.services.game.installed_build import artwork_installation as _installation
 from repo_save_editor.services.items.installed_metadata import _resolve_mono_scripts
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
 from repo_save_editor.services.unity_hash import unity_hash128
@@ -50,6 +48,9 @@ from repo_save_editor.services.unity_serialized import (
     parse_mono_behaviour_prefix,
     read_pptr,
 )
+
+# Preserve existing probe imports while installed-source ownership stays in installed_build.
+__all__ = ["_installation", "discover_baked_artwork", "owned_file"]
 
 MAX_CACHE_BYTES: Final = 1024 * 1024
 MAX_IDENTITIES: Final = 2_000
@@ -63,22 +64,6 @@ _SOURCE_NAMES: Final = (
 )
 
 
-def owned_file(root: Path, path: Path) -> Path:
-    """Reject links/reparse points at every owned path component."""
-    relative = path.relative_to(root)
-    if not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
-        raise ValueError("Invalid artwork source path.")
-    current = root
-    for part in ("", *relative.parts):
-        current = current / part
-        info = current.lstat()
-        if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
-            raise ValueError("Artwork sources may not contain reparse points.")
-    if not stat.S_ISREG(info.st_mode) or path.resolve(strict=True) != path:
-        raise ValueError("Artwork source is not a regular owned file.")
-    return path
-
-
 def _watch(root: Path, path: Path) -> dict[str, str]:
     info = owned_file(root, path).stat()
     # libuv exposes the low 32 bits of the Windows volume serial number.
@@ -90,22 +75,6 @@ def _watch(root: Path, path: Path) -> dict[str, str]:
         "device": str(device),
         "inode": str(info.st_ino),
     }
-
-
-def _installation(game_dir: Path | None) -> GameInstallation | None:
-    installation = discover_game_installation(game_dir).installation
-    if installation is None or installation.manifest_path is not None:
-        return installation
-    root = installation.root.resolve(strict=True)
-    library = root.parents[2]
-    manifest_path = library / "steamapps" / APP_MANIFEST_NAME
-    manifest = read_steam_app_manifest(manifest_path)
-    return validate_game_installation(
-        root,
-        steam_library_root=library,
-        manifest_path=manifest_path,
-        steam_build_id=manifest.build_id,
-    )
 
 
 def _cosmetic_keys(

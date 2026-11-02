@@ -98,8 +98,8 @@ export const maps: InstalledMapsDto = {
   available: true,
   catalogPath: "C:\\fixture\\game\\catalog.json",
   maps: [
-    { internalName: "Arctic", displayName: "McJannek Station", knownLabel: true },
-    { internalName: "Modded Moon", displayName: "Modded Moon", knownLabel: false },
+    { internalName: "Arctic", displayName: "McJannek Station", knownLabel: true, iconToken: null },
+    { internalName: "Modded Moon", displayName: "Modded Moon", knownLabel: false, iconToken: null },
   ],
 };
 const readOnlyAdvancedCapabilities = {
