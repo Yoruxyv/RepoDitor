@@ -69,6 +69,10 @@ jobs:
       - name: Verify installer configuration
         run: npm run release:check
 
+      - name: Verify lifecycle supervision failure paths
+        shell: pwsh
+        run: ./scripts/test-installer-lifecycle-process.ps1
+
       - name: Verify native installer stages and completion checks
         run: npm run test:installer:host
 
@@ -92,13 +96,28 @@ jobs:
           Copy-Item scripts/test-installer-lifecycle.ps1 (Join-Path $stage "lifecycle.ps1")
           Copy-Item (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName (Join-Path $stage "setup.exe")
 
-          $userCreated = $false
-          $sid = $null
+          . ./scripts/installer-lifecycle-process.ps1
+          Copy-Item scripts/installer-lifecycle-process.ps1 $stage
+          $controlRoot = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle-control"
+          New-Item -ItemType Directory -Path $controlRoot | Out-Null
+          $acl = [Security.AccessControl.DirectorySecurity]::new()
+          $acl.SetAccessRuleProtection($true, $false)
+          foreach ($ownerSID in @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-32-544', 'S-1-5-18')) {
+            $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+              [Security.Principal.SecurityIdentifier]::new($ownerSID),
+              'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
+            ))
+          }
+          Set-Acl -LiteralPath $controlRoot -AclObject $acl
+          $control = Join-Path $controlRoot "run.json"
           try {
             & net.exe user $ciUser $passwordText /add /passwordchg:no
             if ($LASTEXITCODE -ne 0) { throw "Could not create isolated standard lifecycle user." }
-            $userCreated = $true
             $sid = (Get-LocalUser -Name $ciUser).SID.Value
+            $profileRoot = Join-Path 'C:\Users' $ciUser
+            # Kept outside the worker-writable stage; never store credentials.
+            @{ account=$ciUser; sid=$sid; profile=$profileRoot; cleaned=$false } |
+              ConvertTo-Json | Set-Content -LiteralPath $control
 
             & icacls.exe $stage /grant "${ciUser}:(OI)(CI)M" /T /Q
             if ($LASTEXITCODE -ne 0) { throw "Could not grant the lifecycle user access to its QA stage." }
@@ -107,7 +126,6 @@ jobs:
               "$env:COMPUTERNAME\$ciUser",
               (ConvertTo-SecureString $passwordText -AsPlainText -Force)
             )
-            $profileRoot = Join-Path $env:SystemDrive "Users\$ciUser"
             $workerEnvironment = @{
               USERPROFILE = $profileRoot
               HOMEDRIVE = $env:SystemDrive
@@ -126,36 +144,28 @@ jobs:
               -ArgumentList @(
                 "-NoProfile",
                 "-ExecutionPolicy Bypass",
-                "-File $stage\lifecycle.ps1",
-                "-SetupPath $stage\setup.exe",
-                "-ResultsPath $stage\results",
+                ('-File "' + $stage + '\lifecycle.ps1"'),
+                ('-SetupPath "' + $stage + '\setup.exe"'),
+                ('-ResultsPath "' + $stage + '\results"'),
                 "-RequireUnelevated",
                 "-ObserveSetupUi",
-                "-ExpectedDisposableProfile $profileRoot",
+                ('-ExpectedDisposableProfile "' + $profileRoot + '"'),
                 "-ExpectedDisposableSID $sid"
               ) `
               -RedirectStandardOutput (Join-Path $stage "worker.stdout.log") `
               -RedirectStandardError (Join-Path $stage "worker.stderr.log") `
-              -PassThru `
-              -Wait
+              -PassThru
 
-            Get-Content (Join-Path $stage "worker.stdout.log") -ErrorAction SilentlyContinue
-            Get-Content (Join-Path $stage "worker.stderr.log") -ErrorAction SilentlyContinue
-            if ($null -ne $worker.ExitCode -and $worker.ExitCode -ne 0) {
-              throw "Installer lifecycle worker exited $($worker.ExitCode)."
-            }
-            # Start-Process -Credential can return an unavailable ExitCode.
-            # Require the completed worker journal and every authoritative check.
-            $summary = Get-Content (Join-Path $stage "results/summary.json") | ConvertFrom-Json
-            if (-not $summary.succeeded) { throw "Installer lifecycle checks failed: $($summary.failure)" }
+            Wait-LifecycleWorker $worker $stage
           }
           finally {
-            if ($userCreated) { & net.exe user $ciUser /delete | Out-Null }
-            if ($sid) {
-              Get-CimInstance Win32_UserProfile -Filter "SID='$sid'" -ErrorAction SilentlyContinue |
-                Remove-CimInstance -ErrorAction SilentlyContinue
-            }
+            ./scripts/cleanup-installer-lifecycle-ci.ps1
           }
+
+      - name: Clean up disposable installer account after interruption
+        if: ${{ always() }}
+        shell: pwsh
+        run: ./scripts/cleanup-installer-lifecycle-ci.ps1
 
       - name: Upload installer lifecycle diagnostics
         if: ${{ always() }}
@@ -164,6 +174,7 @@ jobs:
           name: installer-lifecycle-diagnostics
           path: |
             ${{ runner.temp }}/repoditor-installer-lifecycle/results
+            ${{ runner.temp }}/repoditor-installer-lifecycle/worker-timeout-processes.json
             ${{ runner.temp }}/repoditor-installer-lifecycle/worker.stdout.log
             ${{ runner.temp }}/repoditor-installer-lifecycle/worker.stderr.log
           if-no-files-found: warn

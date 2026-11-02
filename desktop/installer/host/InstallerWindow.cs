@@ -65,12 +65,14 @@ internal sealed class InstallerWindow : Form
     protected override async void OnShown(EventArgs eventArgs)
     {
         base.OnShown(eventArgs);
+        InstallerLog.Write("Window shown; starting WebView2 initialization.");
         try
         {
             await _bridge.InitializeAsync();
         }
         catch (Exception error)
         {
+            LogFailure(error);
             MessageBox.Show(
                 this,
                 "RepoDitor Setup could not start Microsoft Edge WebView2.\n\n" + error.Message,
@@ -89,6 +91,7 @@ internal sealed class InstallerWindow : Form
             return;
         }
 
+        InstallerLog.Write("Window closing: " + eventArgs.CloseReason);
         base.OnFormClosing(eventArgs);
     }
 
@@ -257,14 +260,7 @@ internal sealed class InstallerWindow : Form
 
     private static void LogFailure(Exception error)
     {
-        Trace.TraceError(error.ToString());
-        try
-        {
-            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "installer.log"),
-                DateTime.UtcNow.ToString("O") + " " + error + Environment.NewLine);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        InstallerLog.Write(error.ToString());
     }
 
     private void SendState(InstallerState state, string message)

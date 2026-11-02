@@ -30,8 +30,11 @@ internal sealed class WebViewBridge
     internal async Task InitializeAsync()
     {
         var userData = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebView2Data");
+        InstallerLog.Write("Creating WebView2 environment; userData=" + userData);
         var environment = await CoreWebView2Environment.CreateAsync(null, userData, null);
+        InstallerLog.Write("WebView2 environment created; version=" + environment.BrowserVersionString);
         await _webView.EnsureCoreWebView2Async(environment);
+        InstallerLog.Write("WebView2 control initialized; browserPid=" + _webView.CoreWebView2.BrowserProcessId);
         ConfigureWebView();
     }
 
@@ -65,6 +68,14 @@ internal sealed class WebViewBridge
         core.DownloadStarting += delegate(object sender, CoreWebView2DownloadStartingEventArgs args)
         {
             args.Cancel = true;
+        };
+        core.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs args)
+        {
+            InstallerLog.Write("Navigation completed; success=" + args.IsSuccess + " error=" + args.WebErrorStatus);
+        };
+        core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs args)
+        {
+            InstallerLog.Write("WebView2 process failed: " + args.ProcessFailedKind);
         };
         core.WebMessageReceived += OnWebMessageReceived;
 
@@ -103,6 +114,7 @@ internal sealed class WebViewBridge
             case "window:close":
                 if (command == "ready")
                 {
+                    InstallerLog.Write("Installer UI ready message received.");
                     _ready = true;
                 }
                 _onCommand(command);
