@@ -54,11 +54,11 @@
 ## Save safety and compatibility
 
 - [ ] No save-writing behavior changed
-- [ ] Changed save semantics are implemented in Python and supported by evidence
+- [ ] Changed save semantics are evidence-backed: Desktop semantics stay in Python; Web uses its independent browser boundary and agrees where behavior overlaps
 - [ ] Existing stale-file, backup, staged-verification, and atomic-write protections remain intact
 - [ ] Tests use generated/sanitized fixtures or temporary copies, never real user saves
 - [ ] Electron retains `contextIsolation: true`, `nodeIntegration: false`, and narrow typed IPC
-- [ ] No raw decrypted save JSON or arbitrary filesystem access is exposed to the renderer
+- [ ] No raw decrypted save JSON or arbitrary filesystem access is exposed to the Desktop renderer
 
 ## Checklist
 
