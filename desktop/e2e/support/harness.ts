@@ -7,7 +7,16 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
@@ -161,7 +170,10 @@ export async function launchSourceE2eHarness(
   cosmeticCount = 28,
   installedGameRoot?: string,
 ): Promise<SourceE2eHarness> {
-  const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
+  // Windows TEMP may use an 8.3 alias; source-watched fixtures require canonical paths.
+  const home = await mkdtemp(
+    path.join(await realpath(os.tmpdir()), "repoditor-e2e-isolated-profile-"),
+  );
   let application: ElectronApplication | undefined;
 
   try {
