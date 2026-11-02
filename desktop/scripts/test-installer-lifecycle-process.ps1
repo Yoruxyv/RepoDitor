@@ -125,6 +125,20 @@ $child.Id | Set-Content (Join-Path $PSScriptRoot 'child.pid')
       catch { $refused = $_ -match $case.error }
       Assert-Check $refused "Unsafe receipt was not rejected: $($case.error)"
     }
+    $global:repoDitorSyntheticUserRemoved = $false
+    function Get-LocalUser {
+      if (-not $global:repoDitorSyntheticUserRemoved) {
+        return [pscustomobject]@{ SID=[pscustomobject]@{ Value='synthetic-sid' } }
+      }
+    }
+    function Get-CimInstance { }
+    function Disable-LocalUser { }
+    function Remove-LocalUser { $global:repoDitorSyntheticUserRemoved = $true }
+    & (Join-Path $PSScriptRoot 'cleanup-installer-lifecycle-ci.ps1')
+    $snapshot = Join-Path $root 'repoditor-installer-lifecycle\results\cleanup-processes.json'
+    Assert-Check ((Get-Content -LiteralPath $snapshot -Raw).Trim() -eq '[]') 'Empty process snapshot was not preserved.'
+    Assert-Check $global:repoDitorSyntheticUserRemoved 'Synthetic account cleanup did not complete.'
+    Write-Host 'PASS: mocked account teardown preserves an explicit empty process snapshot.'
   }
   finally {
     foreach ($name in $savedEnvironment.Keys) {

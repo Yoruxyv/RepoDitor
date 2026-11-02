@@ -23,8 +23,8 @@ function Get-DisposableProcesses {
 $owned = @(Get-DisposableProcesses)
 $diagnosticError = $null
 try {
-  $owned | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine, CreationDate |
-    ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $stage 'results\cleanup-processes.json')
+  ConvertTo-Json -InputObject @($owned | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine, CreationDate) -Depth 4 |
+    Set-Content -LiteralPath (Join-Path $stage 'results\cleanup-processes.json')
   # Copy startup evidence even if the worker was interrupted before its finally block.
   $tempRoot = Join-Path $run.profile 'AppData\Local\Temp'
   Get-ChildItem -LiteralPath $tempRoot -Directory -Filter 'RepoDitorInstaller-*' -ErrorAction SilentlyContinue |
