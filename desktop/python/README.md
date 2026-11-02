@@ -36,20 +36,19 @@ charge, battery-upgrade, purchase, or item lifecycle write rules.
 
 ```text
 desktop/python/
-Γö£ΓöÇΓöÇ README.md
-Γö£ΓöÇΓöÇ pyproject.toml
-Γö£ΓöÇΓöÇ uv.lock
-Γö£ΓöÇΓöÇ repo_save_editor/
-Γöé   Γö£ΓöÇΓöÇ core/         # crypto, schema validation, and shared save primitives
-Γöé   Γö£ΓöÇΓöÇ desktop_api/  # JSON command boundary used by Electron
-Γöé   Γö£ΓöÇΓöÇ services/     # domain semantics
-Γöé   Γöé   Γö£ΓöÇΓöÇ game/     # installation and map discovery
-Γöé   Γöé   Γö£ΓöÇΓöÇ items/    # item models, validation, discovery, and mutations
-Γöé   Γöé   Γö£ΓöÇΓöÇ player/   # player state, Steam profiles, and upgrades
-Γöé   Γöé   Γö£ΓöÇΓöÇ saves/    # save discovery and summaries
-Γöé   Γöé   ΓööΓöÇΓöÇ run.py    # run stats and resume state
-Γöé   ΓööΓöÇΓöÇ storage/      # repository access, backups, verification, atomic writes
-ΓööΓöÇΓöÇ tests/            # Python package and desktop API tests
+|-- README.md
+|-- repo_save_editor/
+|   |-- core/         # crypto, schema validation, shared save primitives
+|   |-- desktop_api/  # JSON command boundary used by Electron
+|   |-- services/     # discovery and save-domain behavior
+|   |   |-- game/     # installation, maps and process discovery
+|   |   |-- items/    # item identity, charge and mutation rules
+|   |   |-- cosmetics/ # catalog, ownership and presentation
+|   |   |-- player/   # player state, Steam profiles and upgrades
+|   |   |-- saves/    # save discovery and summaries
+|   |   `-- run.py    # run stats and resume state
+|   `-- storage/      # backups, verification and atomic writes
+`-- tests/
 ```
 
 ## Development
@@ -58,11 +57,11 @@ Python dependency and tooling configuration lives in the repository-root
 `pyproject.toml` and `uv.lock`. Run Python commands from the repository root:
 
 ```powershell
-uv sync --locked --group package
+uv sync --locked --group package --group test
 
-uv run ruff check .
-uv run ruff format --check .
-uv run --with "pytest>=8.3,<9" pytest
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked --group test pytest
 ```
 
 The package remains imported normally:

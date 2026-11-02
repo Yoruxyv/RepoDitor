@@ -1,18 +1,18 @@
 # Security Policy
 
-RepoDitor is a local Windows desktop application that handles encrypted game
-saves. Its renderer is sandboxed behind narrow Electron IPC contracts, while
-the bundled Python backend owns save parsing, validation, backups, encryption,
-and writes.
+RepoDitor has a Windows Desktop application and an independent browser-based Web
+application. Both handle encrypted game saves. Desktop's renderer is sandboxed
+behind narrow Electron IPC contracts; its Python backend owns save parsing,
+validation, backups, encryption and writes. Web processes saves in the browser.
 
 ## Supported versions
 
-| Version | Supported |
-|---|:---:|
-| `main` branch | Yes |
-| Latest tagged release | Yes |
-| Older releases and historical commits | No |
-| Third-party forks | No |
+| Version                               | Supported |
+| ------------------------------------- | :-------: |
+| `main` branch                         |    Yes    |
+| Latest tagged release                 |    Yes    |
+| Older releases and historical commits |    No     |
+| Third-party forks                     |    No     |
 
 ## Reporting a vulnerability
 
@@ -47,7 +47,7 @@ Useful reports include concrete issues involving:
 
 ## Security expectations
 
-RepoDitor's supported boundary requires:
+The Desktop boundary requires:
 
 - `contextIsolation: true` and `nodeIntegration: false`;
 - optional local game icons are exposed only through opaque tokens and a read-only,
@@ -59,6 +59,11 @@ RepoDitor's supported boundary requires:
 - a fail-closed validated-game-process check before editing and writes;
 - optional Steam avatar enrichment that fails safely and is never stored in a save;
 - an installer and uninstaller that leave R.E.P.O. saves and RepoDitor backups intact.
+
+Web keeps save import, decryption, validation, editing and export in the browser.
+Its optional same-origin avatar endpoint accepts only validated Steam IDs, returns
+allowlisted HTTPS image URLs and receives no save contents. Browser code does not
+import Desktop implementation code or gain access to installed-game files.
 
 ## Known design limitations
 

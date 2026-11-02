@@ -55,7 +55,6 @@ Don't want to install the desktop app? Use the [🌐 web version](https://repodi
 
 </div>
 
-
 ---
 
 > [!IMPORTANT]
@@ -88,14 +87,14 @@ certification, endorsement, or safety guarantee by either platform.
 
 ### Run Saves
 
-| Workspace | Current support |
-|---|---|
-| **Overview** | Review the selected run, its summary, and pending changes |
-| **Players** | Edit current health, heal to the Python-calculated maximum, and show optional Steam avatars |
-| **Upgrades** | Edit upgrades discovered dynamically from the save, with installed metadata and artwork enrichment when available |
-| **Run** | Edit supported run values through typed, validated fields |
-| **Items** | Search, filter, and sort discovered instances; stage **Refill to Full** only when installed metadata confirms the item type is rechargeable and that exact instance has stored charge |
-| **Maps** | List locally installed maps without injecting code or forcing a map selection |
+| Workspace    | Current support                                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview** | Review the selected run, its summary, and pending changes                                                                                                                             |
+| **Players**  | Edit current health, heal to the Python-calculated maximum, and show optional Steam avatars                                                                                           |
+| **Upgrades** | Edit upgrades discovered dynamically from the save, with installed metadata and artwork enrichment when available                                                                     |
+| **Run**      | Edit supported run values through typed, validated fields                                                                                                                             |
+| **Items**    | Search, filter, and sort discovered instances; stage **Refill to Full** only when installed metadata confirms the item type is rechargeable and that exact instance has stored charge |
+| **Maps**     | List locally installed maps without injecting code or forcing a map selection                                                                                                         |
 
 ### Cosmetics / MetaSave
 
@@ -121,16 +120,16 @@ not been established safely.
 
 ## 🖼️ Preview
 
-| Run overview | Cosmetics catalog |
-|---|---|
+| Run overview                                                                                                               | Cosmetics catalog                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | ![RepoDitor Run overview showing the selected save summary and editor navigation](docs/screenshots/repoditor-overview.png) | ![RepoDitor Cosmetics catalog showing installed metadata, local icons, filters, and bulk actions](docs/screenshots/cosmetic-unlocker.png) |
 
-| Player Editor | Player Upgrades  |
-|---|---|
+| Player Editor                                                                                               | Player Upgrades                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | ![RepoDitor Player editor showing the selected player health](docs/screenshots/repoditor-player-editor.png) | ![RepoDitor Player upgrades showing the available upgrade options](docs/screenshots/repoditor-upgrades-editor.png) |
 
-| Run editor | Truck Items Recharge |
-|---|---|
+| Run editor                                                                                                                    | Truck Items Recharge                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | ![RepoDitor Run editor with typed level, currency, lives, haul, and resume fields](docs/screenshots/repoditor-run-editor.png) | ![RepoDitor staging several supported item refills before saving](docs/screenshots/recharge-truck-items.png) |
 
 ### Manual in-game compatibility check
@@ -260,59 +259,20 @@ usage telemetry, crash-report upload, or remote logging integration.
 
 ## 💾 Save Freshness & Presentation Cache
 
-Save authority and presentation caching are deliberately separate:
+Opening a save reads, decrypts and validates its current `.es3` bytes. Typed editor
+data can be reused only after its fingerprint is rechecked; a successful write
+invalidates that entry. Decrypted save JSON is not persisted.
 
-| Data | Current behavior |
-|---|---|
-| **Save state** | Every explicit open asks Python to read, decrypt, and validate the current `.es3`, then returns only typed projections and a source fingerprint. Decrypted save JSON is not persisted. The renderer may reuse typed editor-entry data during the current app session only after another open confirms the same fingerprint; a successful write invalidates that entry. |
-| **Game-generated item/cosmetic icons** | PNGs remain in R.E.P.O.'s LocalLow icon cache. Electron serves validated files through opaque in-memory tokens; cache paths and filenames do not cross into React. |
-| **Derived upgrade artwork** | Python resolves and decodes supported textures from the installed game. Electron stores validated derived PNGs under `%APPDATA%\repoditor-desktop\presentation`, reuses them only while watched artifact-source identities are unchanged, prunes unreferenced derived PNGs, and regenerates or falls back to Phosphor when an entry is missing, changed, malformed, or unreadable. |
-| **Installed cosmetic metadata** | A derived catalog cache under `%LOCALAPPDATA%\RepoDitor\cache\cosmetics` is accepted only when its schema, Steam build, game root, and relevant installed-file identities still match. It provides presentation data, never ownership evidence or mutation authority. |
+Item and cosmetic thumbnails prefer verified installed baked PNGs. Cosmetics can
+fall back to locally decoded Sprites; missing regular-item images use Phosphor.
+Neither reads the game's LocalLow artwork cache. Player upgrades retain their
+separate validated cache and texture-decoding path. All images reach React through
+opaque tokens, never filesystem paths.
 
-Theme and language preferences use renderer storage. RepoDitor writes R.E.P.O.
-data only after an explicit supported save action; backups are created beside
-the source rather than inside the presentation caches.
-
-To audit the derived presentation cache after restarting RepoDitor, run:
-
-```powershell
-.\desktop\scripts\check-presentation-cache.ps1
-```
-
-The read-only script compares `manifest.json` with the stored hash-named PNGs
-and reports unreferenced or missing artifacts.
-
-Presentation-cache manifest format 2 maps each dynamic upgrade key to a derived
-PNG identity and the exact files used to produce it: `resources.assets`,
-`globalgamemanagers`, the texture stream (normally `resources.assets.resS`), and
-an independent mesh stream only when it supplied crop framing. Validation uses
-their size and mtime, avoiding large-file hashing during warm startup.
-
-`appmanifest_3241660.acf`, Steam App ID/BuildID, the install location, and the
-validated `Assembly-CSharp.dll` are discovery or compatibility provenance, not
-artwork inputs. Python still validates them before a decode, but their metadata
-is excluded from the artwork identity and source watches. A Steam metadata-only
-rewrite therefore remains a `persistent-hit`; a watched Unity source change is
-reported as `source-changed`, followed by `source-decode-required` and
-`persisted`, then `persistent-hit` on the next unchanged run. Existing format-1
-caches rebuild once so they acquire the narrower source watches.
-
-These are separate safety boundaries: a persistent artwork hit neither marks the
-installed build as verified nor authorizes a new extraction or any save mutation.
-Cold artwork extraction still requires the supported BuildID and validated assembly.
-Installed-build-dependent editing features revalidate their own evidence, while
-ordinary save edits retain their independent fingerprint, validation, backup, and
-atomic-write protections.
-
-The bounded local diagnostic log contains reasons such as `memory-hit`,
-`persistent-hit`, `source-changed`, `source-missing`, `source-decode-required`,
-`persisted`, `artifact-missing`, `artifact-invalid`, `manifest-invalid`, and
-cache read/write failures. It contains no local paths or save contents. Inspect
-recent decisions with:
-
-```powershell
-Get-Content "$env:APPDATA\repoditor-desktop\presentation-cache-diagnostics.jsonl" -Tail 100
-```
+Presentation caches are disposable and grant no save-mutation permission. Theme
+and language preferences use renderer storage; save backups remain beside the
+source file. See [local presentation assets](docs/architecture/architecture.md#desktop-local-presentation-assets)
+for cache locations, invalidation and diagnostic commands.
 
 ## 🌐 Languages & Appearance
 
@@ -443,16 +403,16 @@ preserved historical v0.1.0 baseline.
 
 ## 📚 Documentation
 
-| Document | Purpose |
-|---|---|
-| [Documentation index](docs/README.md) | Organized entry point for technical and release documentation |
-| [Architecture](docs/architecture/architecture.md) | Desktop and Web boundaries, ownership, and data flow |
-| [Electron UI](docs/architecture/electron-ui.md) | Renderer identity, responsiveness, appearance, and accessibility |
-| [Save format](docs/research/save-format.md) | Confirmed encrypted-save structure |
-| [Reverse engineering](docs/research/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics |
-| [Release checklist](docs/release-checklist.md) | Current release gates and historical v0.1.0 baseline |
-| [Asset research](docs/research/asset-research.md) | Local asset-discovery evidence and redistribution boundary |
-| [Third-party notices](THIRD_PARTY_NOTICES.md) | Bundled asset and dependency attribution |
+| Document                                                    | Purpose                                                          |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| [Documentation index](docs/README.md)                       | Organized entry point for technical and release documentation    |
+| [Architecture](docs/architecture/architecture.md)           | Desktop and Web boundaries, ownership, and data flow             |
+| [Electron UI](docs/architecture/electron-ui.md)             | Renderer identity, responsiveness, appearance, and accessibility |
+| [Save format](docs/research/save-format.md)                 | Confirmed encrypted-save structure                               |
+| [Reverse engineering](docs/research/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics   |
+| [Release checklist](docs/release-checklist.md)              | Current release gates and historical v0.1.0 baseline             |
+| [Asset research](docs/research/asset-research.md)           | Local asset-discovery evidence and redistribution boundary       |
+| [Third-party notices](THIRD_PARTY_NOTICES.md)               | Bundled asset and dependency attribution                         |
 
 ## 🤝 Contributing
 

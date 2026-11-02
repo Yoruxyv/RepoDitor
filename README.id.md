@@ -87,14 +87,14 @@ sertifikasi, endorsement, atau jaminan keamanan dari kedua platform.
 
 ### Save Run
 
-| Ruang kerja | Dukungan saat ini |
-|---|---|
-| **Ringkasan** | Tinjau run yang dipilih, ringkasannya, dan perubahan tertunda |
-| **Pemain** | Edit kesehatan saat ini, pulihkan hingga maksimum yang dihitung Python, dan tampilkan avatar Steam secara opsional |
-| **Peningkatan** | Edit upgrade yang ditemukan secara dinamis dari save, dengan metadata instalasi dan gambar tambahan jika tersedia |
-| **Permainan** | Edit nilai run yang didukung melalui field bertipe dan tervalidasi |
-| **Item** | Cari, filter, dan urutkan instance yang ditemukan; siapkan **Isi Ulang** hingga penuh hanya jika metadata instalasi memastikan tipe item dapat diisi ulang dan instance tersebut memang memiliki daya tersimpan |
-| **Peta** | Daftar map yang terpasang secara lokal tanpa menyuntikkan kode atau memaksa pemilihan map |
+| Ruang kerja     | Dukungan saat ini                                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ringkasan**   | Tinjau run yang dipilih, ringkasannya, dan perubahan tertunda                                                                                                                                                   |
+| **Pemain**      | Edit kesehatan saat ini, pulihkan hingga maksimum yang dihitung Python, dan tampilkan avatar Steam secara opsional                                                                                              |
+| **Peningkatan** | Edit upgrade yang ditemukan secara dinamis dari save, dengan metadata instalasi dan gambar tambahan jika tersedia                                                                                               |
+| **Permainan**   | Edit nilai run yang didukung melalui field bertipe dan tervalidasi                                                                                                                                              |
+| **Item**        | Cari, filter, dan urutkan instance yang ditemukan; siapkan **Isi Ulang** hingga penuh hanya jika metadata instalasi memastikan tipe item dapat diisi ulang dan instance tersebut memang memiliki daya tersimpan |
+| **Peta**        | Daftar map yang terpasang secara lokal tanpa menyuntikkan kode atau memaksa pemilihan map                                                                                                                       |
 
 ### Kosmetik / MetaSave
 
@@ -121,16 +121,16 @@ bebas belum didukung karena semantik gamenya belum ditetapkan dengan cukup aman.
 
 ## 🖼️ Preview
 
-| Ringkasan save Run | Katalog kosmetik |
-|---|---|
+| Ringkasan save Run                                                                                                 | Katalog kosmetik                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Ringkasan RepoDitor yang menampilkan save terpilih dan navigasi editor](docs/screenshots/repoditor-overview.png) | ![Katalog kosmetik RepoDitor dengan metadata instalasi, ikon lokal, filter, dan tindakan massal](docs/screenshots/cosmetic-unlocker.png) |
 
-| Editor Pemain | Upgrade Pemain |
-|---|---|
+| Editor Pemain                                                                                                       | Upgrade Pemain                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | ![Editor Pemain RepoDitor yang menampilkan kesehatan pemain terpilih](docs/screenshots/repoditor-player-editor.png) | ![Upgrade Pemain RepoDitor yang menampilkan pilihan upgrade yang tersedia](docs/screenshots/repoditor-upgrades-editor.png) |
 
-| Editor Permainan | Isi Ulang Item Truk |
-|---|---|
+| Editor Permainan                                                                                                                                       | Isi Ulang Item Truk                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | ![Editor Permainan RepoDitor dengan field level, mata uang, nyawa, hasil, dan lokasi lanjutan yang bertipe](docs/screenshots/repoditor-run-editor.png) | ![RepoDitor menyiapkan beberapa isi ulang item yang didukung sebelum menyimpan](docs/screenshots/recharge-truck-items.png) |
 
 ### Pemeriksaan kompatibilitas manual di dalam game
@@ -272,12 +272,12 @@ upload laporan crash, atau integrasi remote logging.
 
 Sumber data otoritatif untuk save dan cache presentasi sengaja dipisahkan:
 
-| Data | Perilaku saat ini |
-|---|---|
-| **Status save** | Setiap kali save dibuka secara eksplisit, Python diminta membaca, mendekripsi, dan memvalidasi `.es3` saat ini, lalu hanya mengembalikan proyeksi bertipe dan fingerprint sumber. JSON save yang telah didekripsi tidak dipersistenkan. Renderer hanya boleh memakai kembali data entri editor yang bertipe selama session aplikasi saat ini setelah pembukaan lain memastikan fingerprint yang sama; penulisan yang berhasil membatalkan entri tersebut. |
-| **Ikon item/kosmetik yang dihasilkan game** | PNG tetap berada di cache ikon LocalLow milik R.E.P.O. Electron menyajikan file yang sudah divalidasi melalui token dalam memori yang opaque; path dan nama file cache tidak diteruskan ke React. |
-| **Gambar upgrade turunan** | Python mencari dan mendekode texture yang didukung dari game yang terpasang. Electron menyimpan PNG turunan yang telah divalidasi di `%APPDATA%\repoditor-desktop\presentation`, menggunakannya kembali hanya selama identitas sumber yang diawasi tidak berubah, membersihkan PNG turunan yang tidak lagi direferensikan, lalu membuat ulang atau fallback ke Phosphor jika sebuah entri hilang, berubah, malformed, atau tidak dapat dibaca. |
-| **Metadata kosmetik terpasang** | Cache katalog turunan di `%LOCALAPPDATA%\RepoDitor\cache\cosmetics` hanya diterima jika schema, Steam build, game root, dan identitas file terpasang yang relevan masih cocok. Cache ini hanya menyediakan data presentasi, bukan bukti kepemilikan atau otoritas mutasi. |
+| Data                            | Perilaku saat ini                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Status save**                 | Setiap kali save dibuka secara eksplisit, Python diminta membaca, mendekripsi, dan memvalidasi `.es3` saat ini, lalu hanya mengembalikan proyeksi bertipe dan fingerprint sumber. JSON save yang telah didekripsi tidak dipersistenkan. Renderer hanya boleh memakai kembali data entri editor yang bertipe selama session aplikasi saat ini setelah pembukaan lain memastikan fingerprint yang sama; penulisan yang berhasil membatalkan entri tersebut. |
+| **Gambar item/kosmetik**        | Mengutamakan PNG baked yang terverifikasi dari instalasi game. Kosmetik dapat memakai Sprite lokal yang didekode; item tanpa gambar memakai Phosphor. Keduanya tidak membaca cache gambar LocalLow. Electron hanya meneruskan token opaque ke React.                                                                                                                                                                                                      |
+| **Gambar upgrade turunan**      | Python mencari dan mendekode texture yang didukung dari game yang terpasang. Electron menyimpan PNG turunan yang telah divalidasi di `%APPDATA%\repoditor-desktop\presentation`, menggunakannya kembali hanya selama identitas sumber yang diawasi tidak berubah, membersihkan PNG turunan yang tidak lagi direferensikan, lalu membuat ulang atau fallback ke Phosphor jika sebuah entri hilang, berubah, malformed, atau tidak dapat dibaca.            |
+| **Metadata kosmetik terpasang** | Indeks `baked-artwork.json` untuk build yang didukung memvalidasi schema, instalasi dan identitas sumber. Build historis memakai cache katalog terpisah. Metadata hanya untuk presentasi, bukan bukti kepemilikan atau izin mutasi.                                                                                                                                                                                                                       |
 
 Preferensi tema dan bahasa menggunakan storage renderer. RepoDitor hanya menulis
 data R.E.P.O. setelah tindakan simpan yang didukung dilakukan secara eksplisit;
@@ -430,16 +430,16 @@ baseline historis v0.1.0 yang dipertahankan.
 
 ## 📚 Dokumentasi
 
-| Dokumen | Kegunaan |
-|---|---|
-| [Indeks dokumentasi](docs/README.md) | Titik masuk terorganisir untuk dokumentasi teknis dan release |
-| [Arsitektur](docs/architecture/architecture.md) | Batas desktop, kepemilikan, dan alur data |
-| [Electron UI](docs/architecture/electron-ui.md) | Identitas renderer, responsivitas, tampilan, dan aksesibilitas |
-| [Format save](docs/research/save-format.md) | Struktur save terenkripsi yang telah dikonfirmasi |
+| Dokumen                                                     | Kegunaan                                                                    |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Indeks dokumentasi](docs/README.md)                        | Titik masuk terorganisir untuk dokumentasi teknis dan release               |
+| [Arsitektur](docs/architecture/architecture.md)             | Batas desktop, kepemilikan, dan alur data                                   |
+| [Electron UI](docs/architecture/electron-ui.md)             | Identitas renderer, responsivitas, tampilan, dan aksesibilitas              |
+| [Format save](docs/research/save-format.md)                 | Struktur save terenkripsi yang telah dikonfirmasi                           |
 | [Reverse engineering](docs/research/reverse-engineering.md) | Evidence historis, dukungan saat ini, dan semantik yang belum terselesaikan |
-| [Release checklist](docs/release-checklist.md) | Gate release saat ini dan baseline historis v0.1.0 |
-| [Riset aset](docs/research/asset-research.md) | Evidence penemuan aset lokal dan batas redistribusi |
-| [Third-party notices](THIRD_PARTY_NOTICES.md) | Atribusi aset dan dependency yang dibundel |
+| [Release checklist](docs/release-checklist.md)              | Gate release saat ini dan baseline historis v0.1.0                          |
+| [Riset aset](docs/research/asset-research.md)               | Evidence penemuan aset lokal dan batas redistribusi                         |
+| [Third-party notices](THIRD_PARTY_NOTICES.md)               | Atribusi aset dan dependency yang dibundel                                  |
 
 ## 🤝 Berkontribusi
 
