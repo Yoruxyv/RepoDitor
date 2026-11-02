@@ -28,6 +28,7 @@ $buildRoot = Join-Path $desktopRoot 'build'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdministrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $shell = (Get-Process -Id $PID).Path
+. (Join-Path $PSScriptRoot 'installer-lifecycle-process.ps1')
 
 function Quote-Path([string] $Path) { return '"' + $Path + '"' }
 
@@ -126,6 +127,7 @@ $profile = Join-Path 'C:\Users' $account
 [ordered]@{Account=$account;Profile=$profile;RequesterSID=$identity.User.Value} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ControlPath 'run.json')
 Copy-Item -LiteralPath $artifacts[0].FullName -Destination (Join-Path $stage 'setup.exe')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test-installer-lifecycle.ps1') -Destination (Join-Path $stage 'lifecycle.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-lifecycle-process.ps1') -Destination $stage
 if ((Get-FileHash -LiteralPath $artifacts[0].FullName).Hash -ne (Get-FileHash -LiteralPath (Join-Path $stage 'setup.exe')).Hash) { throw 'Staged installer differs from production artifact.' }
 Write-Host "Visible installer QA: disposable account $account. Watch the windows; do not click them."
 Write-Host "Results: $stage\results. Windows UAC manages only this test account."
@@ -144,11 +146,8 @@ try {
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Quote-Path (Join-Path $stage 'lifecycle.ps1')),
     '-SetupPath', (Quote-Path (Join-Path $stage 'setup.exe')), '-ResultsPath', (Quote-Path (Join-Path $stage 'results')),
     '-ObserveSetupUi', '-RequireUnelevated', '-ExpectedDisposableProfile', (Quote-Path $profile), '-ExpectedDisposableSID', $created.SID
-  ) -RedirectStandardOutput (Join-Path $stage 'worker.stdout.log') -RedirectStandardError (Join-Path $stage 'worker.stderr.log') -PassThru -Wait
-  Get-Content -LiteralPath (Join-Path $stage 'worker.stdout.log')
-  Get-Content -LiteralPath (Join-Path $stage 'worker.stderr.log')
-  $summary = Get-Content -LiteralPath (Join-Path $stage 'results\summary.json') | ConvertFrom-Json
-  if (($null -ne $worker.ExitCode -and $worker.ExitCode -ne 0) -or -not $summary.succeeded) { throw "Lifecycle failed: $($summary.failure)" }
+  ) -RedirectStandardOutput (Join-Path $stage 'worker.stdout.log') -RedirectStandardError (Join-Path $stage 'worker.stderr.log') -PassThru
+  Wait-LifecycleWorker $worker $stage
 }
 catch { $exitCode = 1; Write-Error $_ -ErrorAction Continue }
 finally {

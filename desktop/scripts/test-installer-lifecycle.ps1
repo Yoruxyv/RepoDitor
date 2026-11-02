@@ -8,6 +8,8 @@ param(
   [string] $ExpectedDisposableSID
 )
 
+. (Join-Path $PSScriptRoot 'installer-lifecycle-process.ps1')
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -43,6 +45,8 @@ $createdGameData = $false
 $gameDataRoot = $null
 $succeeded = $false
 $failure = $null
+$ownedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
+$local = $null
 
 function Write-LifecycleLog([string] $Message) {
   $line = '[{0:O}] {1}' -f [DateTime]::UtcNow, $Message
@@ -160,7 +164,8 @@ function Invoke-Setup([string] $Scenario, [string] $ExpectedPath) {
   # authoritative selected path, including the normal default location.
   $arguments = @('/S', '/currentuser', "/D=$ExpectedPath")
   Write-LifecycleLog "$Scenario | setup start | executable=$script:setupPath arguments=$($arguments -join ' ')"
-  $process = Start-Process -FilePath $script:setupPath -ArgumentList $arguments -PassThru
+  $process = Start-Process -FilePath $script:setupPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
+  $script:ownedProcesses.Add($process)
 
   if (-not $process.WaitForExit(180000)) {
     Write-LifecycleLog "$Scenario | setup timeout | pid=$($process.Id)"
@@ -224,6 +229,7 @@ function Invoke-WebViewOperation(
     ForEach-Object Id)
   Write-LifecycleLog "$Scenario | $Mode UI start | executable=$entry arguments=/currentuser"
   $entryProcess = Start-Process -FilePath $entry -ArgumentList '/currentuser' -WindowStyle Normal -PassThru
+  $script:ownedProcesses.Add($entryProcess)
 
   $installerHost = $null
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -237,8 +243,11 @@ function Invoke-WebViewOperation(
     if ($null -eq $installerHost) { Start-Sleep -Milliseconds 100 }
   }
   Assert-True ($null -ne $installerHost) "$Scenario WebView2 $Mode host did not start."
+  $null = $installerHost.Handle
+  $script:ownedProcesses.Add($installerHost)
   Add-Observation $Scenario 'WebView2 host' "pid=$($installerHost.Id)"
 
+  Write-LifecycleLog "$Scenario | readiness | locating host window and enabled action through UI Automation"
   $root = [System.Windows.Automation.AutomationElement]::RootElement
   $pidCondition = [System.Windows.Automation.PropertyCondition]::new(
     [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
@@ -259,6 +268,7 @@ function Invoke-WebViewOperation(
     }
     if ($null -eq $actionButton) { Start-Sleep -Milliseconds 100 }
   }
+  Write-LifecycleLog "$Scenario | readiness | windowFound=$($null -ne $window) actionFound=$($null -ne $actionButton) hostExited=$($installerHost.HasExited)"
   Assert-True ($null -ne $actionButton) "$Scenario WebView2 $actionName button was not available."
 
   if ($Mode -eq 'install') {
@@ -481,6 +491,30 @@ catch {
   Write-LifecycleLog "FAILED | $failure"
 }
 finally {
+  try {
+    if ($local) {
+      $hostRoots = @(Get-ChildItem -LiteralPath (Join-Path $local 'Temp') -Directory -Filter 'RepoDitorInstaller-*' -ErrorAction SilentlyContinue)
+      foreach ($hostRoot in $hostRoots) {
+        $hostLog = Join-Path $hostRoot.FullName 'installer.log'
+        if (Test-Path -LiteralPath $hostLog) {
+          Copy-Item -LiteralPath $hostLog -Destination (Join-Path $resultsRoot ($hostRoot.Name + '.log'))
+        }
+      }
+    }
+  }
+  catch {
+    $succeeded = $false
+    $failure = "$failure`nDiagnostic copy failed: $_"
+    Write-LifecycleLog "DIAGNOSTIC COPY FAILED | $_"
+  }
+  foreach ($ownedProcess in $ownedProcesses) {
+    try { Stop-LifecycleProcess $ownedProcess }
+    catch {
+      $succeeded = $false
+      $failure = "$failure`nProcess cleanup failed: $_"
+      Write-LifecycleLog "PROCESS CLEANUP FAILED | $_"
+    }
+  }
   if ($createdGameData -and (Test-Path -LiteralPath $gameDataRoot)) {
     try {
       Assert-True ($gameDataRoot -eq (Join-Path $profile 'AppData\LocalLow\semiwork\Repo')) 'Synthetic cleanup path escaped its verified profile.'

@@ -168,6 +168,38 @@ CI already stages the same worker into its own disposable account and passes
 `ObserveSetupUi`, `RequireUnelevated`, and the expected SID/profile explicitly.
 Its production lifecycle job remains independent of the local interactive launcher.
 
+Both launchers supervise the worker process itself with an eight-minute deadline,
+leaving time inside CI's twelve-minute step limit for diagnostics and teardown.
+Do not use `Start-Process -Wait` for the lifecycle worker: on Windows it waits for
+the entire descendant tree. A failed UI-readiness assertion can write a failed
+`summary.json` and exit while an installer host/WebView2 descendant stays alive,
+masking the actual failure as a CI timeout. Missing/partial journals, nonzero exits,
+failed checks and missing postflight remain failures. There are no automatic retries.
+
+Read the worker's timestamped `lifecycle.log` first, then `summary.json` and
+`postflight.json`. CI prints a heartbeat and the latest stages every fifteen seconds,
+even if a UI Automation call blocks. Host `installer.log` files record window
+creation, WebView2 environment/control initialization, navigation, the UI-ready
+handshake, browser-process failures and shutdown. These are copied into diagnostics
+before profile deletion; `cleanup-processes.json` records remaining disposable
+processes and their parent IDs. A host existing without an enabled Install button
+does not prove that navigation or the ready handshake completed.
+
+Failure cleanup stops tracked installer trees. CI also has an independent
+`always()` teardown for interruption: it uses a runner-private, credential-free
+account/SID receipt, terminates only processes whose owner SID and creation time
+still match, checks the profile path and unloaded/non-special state, and verifies
+account/profile removal. This teardown refuses to run outside a GitHub-hosted
+runner. Local interactive QA retains its stricter postflight-based account cleanup
+and keeps failed disposable profiles for diagnosis. Never run the worker directly
+against an existing Windows profile.
+
+Run `pwsh -NoProfile -File scripts/test-installer-lifecycle-process.ps1` from
+`desktop` for synthetic supervision regressions. These exercise process exit,
+nonzero status, missing/partial/failed output, missing postflight, timeout tree
+termination and a completed worker with a surviving descendant, without invoking
+an installer or modifying Windows accounts.
+
 Run `npm run test:installer:extraction` for the installed compiler/plug-in, owned
 macro, real normal/fallback callbacks, copied payload bytes, stack/register contract,
 byte bounds/rounding, malformed framing, PID rejection, missing-registration failure
