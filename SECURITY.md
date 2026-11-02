@@ -21,7 +21,7 @@ Do not open a public issue for a suspected vulnerability.
 Use the repository **Security** tab and select **Report a vulnerability** to submit
 the report privately through GitHub's private vulnerability reporting.
 
-Include the affected version or commit, Windows version, affected application
+Include the affected version or commit, OS/browser version as applicable, affected application
 layer, reproducible steps, expected and observed behavior, realistic impact,
 sanitized evidence, and a suggested remediation when known.
 
@@ -35,7 +35,7 @@ Useful reports include concrete issues involving:
 
 - arbitrary filesystem access, path traversal, or command execution;
 - renderer escape or bypass of Electron context isolation;
-- exposure of raw decrypted save JSON, encryption material, or unrestricted IPC;
+- unauthorized disclosure of save data, encryption material, or credentials; unrestricted Desktop IPC;
 - unsafe Python-sidecar command or argument handling;
 - failure of stale-file detection, exact-byte backups, staged verification, or
   atomic replacement in a way that risks unrecoverable data loss;

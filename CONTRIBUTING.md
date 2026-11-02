@@ -6,8 +6,15 @@ and safe for users' local saves.
 ## Before you start
 
 - Search existing issues and pull requests.
-- Use a focused branch and a Conventional Commit title.
-- Read `AGENTS.md` when using an AI coding tool in this repository.
+- Use a focused conventional branch such as `fix/stale-save-check` or
+  `docs/engineering-rules`, with lowercase kebab-case after the category prefix,
+  and a Conventional Commit title. Do not use `codex/` or commit/push directly to
+  `main`, `master`, or another protected/default branch.
+- Read [AGENTS.md](AGENTS.md), the authoritative coding-agent policy, when using
+  an AI coding tool. Keep other agent instructions linked to it rather than
+  duplicating policy.
+- Inspect the active checkout and preserve unrelated edits, untracked files,
+  evidence, and staging state. Define observable acceptance criteria before editing.
 - Never commit real `.es3` files, backups, credentials, Steam identifiers,
   usernames, or local paths. Use generated/sanitized fixtures and temporary
   copies.
@@ -76,6 +83,18 @@ in comments.
 When adding a feature, document its local service/adapter/hook or view modules
 and update shared architecture documentation only if a cross-layer boundary or
 project-wide invariant actually changed.
+
+### Maintained documentation
+
+Use the [documentation index](docs/README.md) to find the existing owner before
+creating a document. Explain actual behavior, boundaries, provenance, reproducible
+methods, decisions, and known limitations for a reader without chat context.
+Link to authoritative details rather than duplicating them. Keep progress,
+temporary plans, and agent-session narration in the conversation or PR.
+
+Preserve dates, versions, hashes, release history, compatibility evidence, and
+unsuccessful research when they explain technical constraints. Avoid unrelated
+Markdown rewrites; synchronize only documentation affected by the change.
 
 ## Translations
 
@@ -193,9 +212,13 @@ New save mutations require controlled evidence. Record what changed, what did
 not, and what remains causally ambiguous in `docs/research/reverse-engineering.md`.
 Never infer a general mutation rule from a field name or a third-party editor.
 
-All production writes must retain game-process checks, typed validation, stale
+Desktop production writes must retain game-process checks, typed validation, stale
 fingerprints, exact-byte backups, staging, reopen verification, and atomic
-replacement. Tests must never target a real user save.
+replacement. Web must retain equivalent validation and verified local
+export within its independent browser boundary. Installed-game files remain
+read-only. Tests and research experiments use synthetic fixtures and temporary
+copies, never mutate real saves or R.E.P.O. LocalLow data, and must not commit
+proprietary assets or generated diagnostics.
 
 ## Development setup
 
@@ -234,6 +257,18 @@ npm run test:e2e
 ```
 
 Run packaged E2E and installer verification for packaging/release changes.
+
+Use the independent [Web quality gates](web/README.md#quality-gates) for Web work
+and the [release checklist](docs/release-checklist.md) for package/installer gates.
+Documentation-only edits need Markdown formatting and link checks on the affected
+files; the [Links workflow](.github/workflows/links.yml) runs Lychee in CI.
+
+Tests should verify observable behavior and invariants with controlled inputs,
+including relevant rejection, cleanup, timeout, and cancellation paths. Reproduce
+bugs and add regression coverage. Do not weaken assertions, alter frozen evidence,
+or hide hangs with retries/timeouts. Review the full diff and relevant security and
+failure paths before submission. Report the exact checks run and any unavailable
+or skipped checks; old test results do not validate a new artifact.
 
 ## Pull requests
 
