@@ -87,3 +87,15 @@ def test_invalid_catalog_reports_discovery_error(tmp_path: Path):
 
     with pytest.raises(MapDiscoveryError, match="invalid base64"):
         discover_map_families(catalog)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"\xff\xfeinvalid", b"{}" * (2 * 1024 * 1024 + 1), b"[]"],
+    ids=["invalid-encoding", "oversized", "non-object"],
+)
+def test_malformed_or_oversized_catalog_fails_with_discovery_error(tmp_path: Path, payload: bytes):
+    path = tmp_path / "catalog.json"
+    path.write_bytes(payload)
+    with pytest.raises(MapDiscoveryError):
+        discover_map_families(path)

@@ -352,6 +352,7 @@ export interface CosmeticsWriteResult {
 }
 
 export interface InstalledMapDto {
+  iconToken: string | null;
   internalName: string;
   displayName: string;
   knownLabel: boolean;

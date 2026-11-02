@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -13,7 +14,9 @@ from repo_save_editor.services.game.discovery import (
     GameInstallation,
     SteamAppManifestError,
     derive_steam_game_root,
+    discover_game_installation,
     read_steam_app_manifest,
+    validate_game_installation,
 )
 
 VALIDATED_BUILD_ID: Final = "23363152"
@@ -22,6 +25,22 @@ SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
     "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
 )
 _ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, SUNSTONE_ARTWORK_BUILD_ID})
+
+
+def owned_file(root: Path, path: Path) -> Path:
+    """Reject links/reparse points at every installed-source path component."""
+    relative = path.relative_to(root)
+    if not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
+        raise ValueError("Invalid artwork source path.")
+    current = root
+    for part in ("", *relative.parts):
+        current = current / part
+        info = current.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("Artwork sources may not contain reparse points.")
+    if not stat.S_ISREG(info.st_mode) or path.resolve(strict=True) != path:
+        raise ValueError("Artwork source is not a regular owned file.")
+    return path
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,3 +120,23 @@ __all__ = [
     "validated_installed_artwork_build",
     "validated_installed_build",
 ]
+
+
+def artwork_installation(game_dir: Path | None) -> GameInstallation | None:
+    installation = discover_game_installation(game_dir).installation
+    if installation is None or installation.manifest_path is not None:
+        return installation
+    root = installation.root.resolve(strict=True)
+    if len(root.parents) < 3:
+        return installation
+    library = root.parents[2]
+    manifest_path = library / "steamapps" / APP_MANIFEST_NAME
+    if not manifest_path.is_file():
+        return installation
+    manifest = read_steam_app_manifest(manifest_path)
+    return validate_game_installation(
+        root,
+        steam_library_root=library,
+        manifest_path=manifest_path,
+        steam_build_id=manifest.build_id,
+    )

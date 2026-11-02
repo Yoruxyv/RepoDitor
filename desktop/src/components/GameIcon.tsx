@@ -16,12 +16,13 @@ interface GameIconProps {
   readonly loading?: "eager" | "lazy";
   readonly testId: string;
   readonly token: string | null;
-  readonly variant: "item" | "upgrade" | "cosmetic";
+  readonly variant: "item" | "upgrade" | "cosmetic" | "map";
 }
 
 const loadedIconTokens = new Set<string>();
 
 function variantSize(variant: GameIconProps["variant"]): string {
+  if (variant === "map") return "aspect-2/1 w-full";
   if (variant === "cosmetic") return "size-12";
   return variant === "upgrade" ? "size-20" : "size-14";
 }
@@ -38,6 +39,7 @@ export function GameIcon({
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,
   );
+  const fallbackVariant = variant === "cosmetic" ? "item" : variant;
   const failed = token !== null && failedToken === token;
   const loaded = token !== null && (loadedToken === token || loadedIconTokens.has(token));
 
@@ -47,7 +49,7 @@ export function GameIcon({
         icon={fallback}
         source={fallbackSource}
         testId={testId}
-        variant={variant === "upgrade" ? "upgrade" : "item"}
+        variant={fallbackVariant}
       />
     );
   }

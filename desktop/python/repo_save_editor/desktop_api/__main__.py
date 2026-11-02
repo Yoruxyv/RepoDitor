@@ -29,6 +29,7 @@ from repo_save_editor.desktop_api.player.players import get_player_avatar, list_
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
+from repo_save_editor.services.game.map_artwork import decode_map_artwork
 
 _INVALID_JSON = object()
 
@@ -160,6 +161,9 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("environment").set_defaults(handler=lambda _args: discover_environment())
     commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())
     commands.add_parser("maps-list").set_defaults(handler=lambda _args: list_maps())
+    commands.add_parser("maps-artwork").set_defaults(
+        handler=lambda _args: {"ok": True, "artworks": decode_map_artwork()}
+    )
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
     commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
     commands.add_parser("cosmetics-get").set_defaults(handler=lambda _args: get_cosmetics())
