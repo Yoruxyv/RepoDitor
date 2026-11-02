@@ -13,9 +13,8 @@ values.
 
 The checked-in official release path expects the Microsoft Artifact Signing values documented
 below and fails closed without them. Repository contents cannot prove whether the maintainer-owned
-Azure identity and protected GitHub environment values are currently configured. The maintainer
-is separately awaiting SignPath Foundation approval; SignPath is not integrated into the current
-workflow.
+Azure identity and protected GitHub environment values are currently configured. SignPath is not integrated into the current workflow; provider enrollment and
+credential availability must be checked outside the repository.
 
 Local packaging remains intentionally usable without cloud access:
 
@@ -83,7 +82,7 @@ role, scoped to the selected certificate profile. It does not need Owner or Cont
 The existing workflow permissions remain unchanged; this direct electron-builder integration does
 not enable GitHub OIDC or add `id-token: write`.
 
-Before final wiring, the maintainer must obtain or complete:
+Signing requires:
 
 1. an eligible Azure subscription and Microsoft Entra tenant;
 2. an Artifact Signing account in a supported region;

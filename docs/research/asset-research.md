@@ -1,27 +1,28 @@
 # Local R.E.P.O. asset research
 
-Phase 10D inspected a locally installed copy of R.E.P.O. read-only to determine which game
-objects can be related to RepoDitor's evidence-backed save names. Extracted pixels and generated
-metadata remain excluded under `local-evidence/game-assets/`; none are part of this repository or
-the desktop package.
+Installed R.E.P.O. metadata links game objects to evidence-backed save identities.
+Extracted pixels and generated inventories belong under ignored
+`local-evidence/game-assets/`; game artwork is not redistributed.
 
-This historical research did not itself enable item mutations or cosmetic editing. Current
-production capabilities are documented separately below and in
-`docs/research/reverse-engineering.md`.
+The inventory below describes Steam build `23363152`. Build `26294889` has a
+separate [installed artwork analysis](../reverse-engineering/truck_artwork.md).
+Save mutation rules are documented in [reverse engineering](reverse-engineering.md);
+asset discovery alone grants no write authority.
 
 ## Inspected build and tooling
 
-| Detail | Observed value |
-| --- | --- |
-| Steam app/build | `3241660` / `23363152` |
-| Installed update | 2026-06-14 UTC |
-| Unity player | `2022.3.67f2` |
-| Unity metadata reader | UnityPy `1.25.3` |
+| Detail                  | Observed value                                                       |
+| ----------------------- | -------------------------------------------------------------------- |
+| Steam app/build         | `3241660` / `23363152`                                               |
+| Installed update        | 2026-06-14 UTC                                                       |
+| Unity player            | `2022.3.67f2`                                                        |
+| Unity metadata reader   | UnityPy `1.25.3`                                                     |
 | MonoBehaviour typetrees | TypeTreeGeneratorAPI `0.0.10` using the installed managed assemblies |
-| Managed metadata | dnfile `0.18.0` plus a printable UTF-16 string scan |
+| Managed metadata        | dnfile `0.18.0` plus a printable UTF-16 string scan                  |
 
-UnityPy and the metadata helpers were run in an isolated local tool environment. They were not
-added to RepoDitor's dependencies or package.
+This inventory used UnityPy and metadata helpers in an isolated environment. The
+production Sprite fallback separately packages UnityPy 1.25.4 and its native/data
+resources; the inventory's older tool versions are provenance, not current dependencies.
 
 The following installed containers were inspected:
 
@@ -73,34 +74,34 @@ change with mapping confidence.
 
 ### High-confidence visual references
 
-| Save/domain name | Unity object | Atlas glyph | Identity | Icon confidence | Shipping |
-| --- | --- | --- | --- | --- | --- |
-| `Item Drone Battery` | same name | `drone_battery` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Drone Feather` | same name | `drone_feather` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Drone Indestructible` | same name | `drone_indestructible` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Drone Torque` | same name | `drone_torque` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Drone Zero Gravity` | same name | `drone_zero_gravity` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Grenade Explosive` | same name | `grenade_explosive` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Grenade Stun` | same name | `grenade_stun` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Melee Baseball Bat` | same name | `weapon_baseball_bat` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Melee Frying Pan` | same name | `weapon_frying_pan` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Melee Inflatable Hammer` | same name | `weapon_inflatable_hammer` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Melee Sledge Hammer` | same name | `weapon_sledgehammer` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Melee Sword` | same name | `weapon_sword` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
-| `Item Orb Zero Gravity` | same name | `orb_zero_gravity` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| Save/domain name               | Unity object | Atlas glyph                | Identity  | Icon confidence | Shipping             |
+| ------------------------------ | ------------ | -------------------------- | --------- | --------------- | -------------------- |
+| `Item Drone Battery`           | same name    | `drone_battery`            | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Drone Feather`           | same name    | `drone_feather`            | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Drone Indestructible`    | same name    | `drone_indestructible`     | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Drone Torque`            | same name    | `drone_torque`             | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Drone Zero Gravity`      | same name    | `drone_zero_gravity`       | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Grenade Explosive`       | same name    | `grenade_explosive`        | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Grenade Stun`            | same name    | `grenade_stun`             | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Melee Baseball Bat`      | same name    | `weapon_baseball_bat`      | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Melee Frying Pan`        | same name    | `weapon_frying_pan`        | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Melee Inflatable Hammer` | same name    | `weapon_inflatable_hammer` | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Melee Sledge Hammer`     | same name    | `weapon_sledgehammer`      | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Melee Sword`             | same name    | `weapon_sword`             | CONFIRMED | HIGH CONFIDENCE | Local reference only |
+| `Item Orb Zero Gravity`        | same name    | `orb_zero_gravity`         | CONFIRMED | HIGH CONFIDENCE | Local reference only |
 
 ### Assigned but visually ambiguous glyphs
 
 These definitions contain the listed `emojiIcon` value, but the visual is reused or does not
 describe the item closely enough for RepoDitor to present it as a reliable item-specific icon.
 
-| Save/domain names | Assigned glyph | Identity | Icon confidence | Shipping |
-| --- | --- | --- | --- | --- |
-| `Item Cart Medium`, `Item Cart Small` | `orb_zero_gravity` | CONFIRMED | AMBIGUOUS | Local reference only |
-| `Item Melee Stun Baton` | `weapon_baseball_bat` | CONFIRMED | AMBIGUOUS | Local reference only |
-| `Item Power Crystal` | `orb_battery` | CONFIRMED | AMBIGUOUS | Local reference only |
-| `Item Staff Torque`, `Item Staff Void`, `Item Staff Zero Gravity` | `weapon_sword` | CONFIRMED | AMBIGUOUS | Local reference only |
-| All 12 purchased upgrade item names | `orb_battery` | CONFIRMED | AMBIGUOUS | Local reference only |
+| Save/domain names                                                 | Assigned glyph        | Identity  | Icon confidence | Shipping             |
+| ----------------------------------------------------------------- | --------------------- | --------- | --------------- | -------------------- |
+| `Item Cart Medium`, `Item Cart Small`                             | `orb_zero_gravity`    | CONFIRMED | AMBIGUOUS       | Local reference only |
+| `Item Melee Stun Baton`                                           | `weapon_baseball_bat` | CONFIRMED | AMBIGUOUS       | Local reference only |
+| `Item Power Crystal`                                              | `orb_battery`         | CONFIRMED | AMBIGUOUS       | Local reference only |
+| `Item Staff Torque`, `Item Staff Void`, `Item Staff Zero Gravity` | `weapon_sword`        | CONFIRMED | AMBIGUOUS       | Local reference only |
+| All 12 purchased upgrade item names                               | `orb_battery`         | CONFIRMED | AMBIGUOUS       | Local reference only |
 
 The 12 purchased upgrade names are Death Head Battery, Map Player Count, Crouch Rest, Energy,
 Extra Jump, Grab Range, Grab Strength, Health, Sprint Speed, Tumble Climb, Tumble Launch, and
@@ -126,21 +127,21 @@ confirmed.
 The discovered upgrade textures are complete 512×512 material albedo sheets. They contain useful
 visual reference artwork but are not clean UI icons and are not shippable.
 
-| Save domain | Unity object candidate | Texture candidate | Confidence | Shipping |
-| --- | --- | --- | --- | --- |
-| `playerUpgradeCrouchRest` | `Item Upgrade Player Crouch Rest` | `Upgrade_Crouch-Rest_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeDeathHeadBattery` | `Item Upgrade Death Head Battery` | `Upgrade_Death-Head-Battery_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeExtraJump` | `Item Upgrade Player Extra Jump` | `Upgrade_Extra-Jump_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeHealth` | `Item Upgrade Player Health` | `Upgrade_Health_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeLaunch` | `Item Upgrade Player Tumble Launch` | `Upgrade_Tumble-Launch_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeMapPlayerCount` | `Item Upgrade Map Player Count` | `Upgrade_Map-Player-Count_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeRange` | `Item Upgrade Player Grab Range` | `Upgrade_Grab-Range_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeSpeed` | `Item Upgrade Player Sprint Speed` | `Upgrade_Speed_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeStamina` | `Item Upgrade Player Energy` | `Upgrade_Energy_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeStrength` | `Item Upgrade Player Grab Strength` | `Upgrade_Grab-Strength_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeThrow` | no active decoded `Item` definition | `Upgrade_Grab-Throw_Albedo` | POSSIBLE | Local reference only |
-| `playerUpgradeTumbleClimb` | `Item Upgrade Player Tumble Climb` | `Upgrade_Tumble-Climb_Albedo` | HIGH CONFIDENCE | Local reference only |
-| `playerUpgradeTumbleWings` | `Item Upgrade Player Tumble Wings` | `Upgrade_Tumble-Wings_Albedo` | HIGH CONFIDENCE | Local reference only |
+| Save domain                     | Unity object candidate              | Texture candidate                   | Confidence      | Shipping             |
+| ------------------------------- | ----------------------------------- | ----------------------------------- | --------------- | -------------------- |
+| `playerUpgradeCrouchRest`       | `Item Upgrade Player Crouch Rest`   | `Upgrade_Crouch-Rest_Albedo`        | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeDeathHeadBattery` | `Item Upgrade Death Head Battery`   | `Upgrade_Death-Head-Battery_Albedo` | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeExtraJump`        | `Item Upgrade Player Extra Jump`    | `Upgrade_Extra-Jump_Albedo`         | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeHealth`           | `Item Upgrade Player Health`        | `Upgrade_Health_Albedo`             | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeLaunch`           | `Item Upgrade Player Tumble Launch` | `Upgrade_Tumble-Launch_Albedo`      | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeMapPlayerCount`   | `Item Upgrade Map Player Count`     | `Upgrade_Map-Player-Count_Albedo`   | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeRange`            | `Item Upgrade Player Grab Range`    | `Upgrade_Grab-Range_Albedo`         | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeSpeed`            | `Item Upgrade Player Sprint Speed`  | `Upgrade_Speed_Albedo`              | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeStamina`          | `Item Upgrade Player Energy`        | `Upgrade_Energy_Albedo`             | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeStrength`         | `Item Upgrade Player Grab Strength` | `Upgrade_Grab-Strength_Albedo`      | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeThrow`            | no active decoded `Item` definition | `Upgrade_Grab-Throw_Albedo`         | POSSIBLE        | Local reference only |
+| `playerUpgradeTumbleClimb`      | `Item Upgrade Player Tumble Climb`  | `Upgrade_Tumble-Climb_Albedo`       | HIGH CONFIDENCE | Local reference only |
+| `playerUpgradeTumbleWings`      | `Item Upgrade Player Tumble Wings`  | `Upgrade_Tumble-Wings_Albedo`       | HIGH CONFIDENCE | Local reference only |
 
 `playerUpgradeThrow` also has an Addressables path and `ItemUpgradePlayerGrabThrow` managed class,
 but it lacks the same active decoded `Item` definition observed for the other twelve upgrades, so
@@ -151,12 +152,12 @@ it remains a weaker mapping.
 The existing RepoDitor map service already discovers the Addressables loading-graphics families.
 No second map asset mechanism is needed.
 
-| RepoDitor/internal name | Candidate assets | Confidence | Shipping |
-| --- | --- | --- | --- |
-| `Arctic` | `Level/Arctic/Loading Graphics/...`, `level arctic 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
-| `Manor` | `Level/Manor/Loading Graphics/...`, `level manor 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
-| `Museum` | `Level/Museum/Loading Graphics/...`, `level museum 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
-| `Wizard` | `Level/Wizard/Loading Graphics/...`, `level wizard 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
+| RepoDitor/internal name | Candidate assets                                                    | Confidence      | Shipping             |
+| ----------------------- | ------------------------------------------------------------------- | --------------- | -------------------- |
+| `Arctic`                | `Level/Arctic/Loading Graphics/...`, `level arctic 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
+| `Manor`                 | `Level/Manor/Loading Graphics/...`, `level manor 01`–`03` sprites   | HIGH CONFIDENCE | Local reference only |
+| `Museum`                | `Level/Museum/Loading Graphics/...`, `level museum 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
+| `Wizard`                | `Level/Wizard/Loading Graphics/...`, `level wizard 01`–`03` sprites | HIGH CONFIDENCE | Local reference only |
 
 ### Installed roster and previews
 
@@ -434,30 +435,18 @@ Therefore:
 - RepoDitor may ship its existing original artwork, Phosphor icons under their existing license,
   and newly created RepoDitor-original item/upgrade icons.
 
-## RepoDitor icon decision
+## Presentation and mutation boundaries
 
-No game artwork is bundled with RepoDitor. There are currently no redistributable item-specific
-assets, so a shipped hardcoded artwork catalog would conflict with dynamic item discovery.
+RepoDitor uses Phosphor for semantic fallbacks. Local game artwork can replace
+content thumbnails only when independently mapped and validated; missing artwork
+must never hide an item or imply that a save mutation is supported. Any shipped
+replacement artwork must have its own redistribution rights. The source-priority,
+cache and protocol contracts live in the [architecture guide](../architecture/architecture.md#desktop-local-presentation-assets).
 
-The Items UI remains safe and complete with text, exact keys, instance IDs, stored
-charge, and capability flags. If original icons are added later, the minimum architecture is a
-presentation-only renderer mapping from a dynamic save/domain name to a RepoDitor-owned icon ID,
-with the existing Phosphor item/package symbol as the fallback. Icon availability must never gate
-whether an item is displayed.
+## Capability evidence
 
-The recommended original-art sequence is:
-
-1. the 13 high-confidence item shapes listed above;
-2. the 13 player-upgrade symbols, redrawn from gameplay concepts rather than copied/cropped from
-   the material sheets;
-3. category fallbacks for carts, guns, health packs, mines, trackers, vehicles, and communication
-   items before attempting one bespoke icon for every remaining item;
-4. bespoke replacements for the 19 ambiguous assignments only when product value justifies them.
-
-## Historical research boundary and current production scope
-
-This asset-discovery pass did not establish save-mutation semantics. A later independent local
-proof did establish one production-safe *read-only* item capability source: on the validated Steam
+Asset discovery does not establish save-mutation semantics. Independent installed
+metadata provides a read-only item capability source: on the validated Steam
 build `23363152` / Unity `2022.3.67f2`, 60 active `Item` definitions mapped to 197 installed
 prefab variants and an independent UnityPy oracle and standard-library parser agreed exactly on
 the 30 item types containing `ItemBattery`. The production parser ships no extracted metadata or
@@ -466,33 +455,22 @@ installed `Item` identity and same-name prefab variants, and any unsupported/inc
 metadata becomes `unknown`. `Item Drone Battery` remains `unknown` because its exceptional observed
 flag semantics are still unproven.
 
-Later controlled save evidence supports one narrow item mutation: exact-instance **Refill to Full**
+Controlled save evidence supports one narrow item mutation: exact-instance **Refill to Full**
 removes an existing `itemStatBattery` leaf through the normal safe-write pipeline, but only after
 the installed capability layer confirms that item type as rechargeable. Numeric charge edits,
 battery upgrades, purchase mutations, and item add/delete/duplicate remain unsupported.
 
-Later controlled MetaSave evidence supports guarded bulk ownership changes and paired
+Controlled MetaSave evidence supports guarded bulk ownership changes and paired
 **Clear All Presets**. Arbitrary cosmetic equipment, token, color, and preset creation/editing
-remain unsupported. None of those later capabilities changes this document's redistribution
+remain unsupported. Those capabilities do not change this document's redistribution
 finding: locally discovered R.E.P.O. assets are research references and are not bundled.
 
-RepoDitor can optionally present PNGs already generated by the user's installed R.E.P.O. copy
-under its LocalLow icon cache. Installed `ItemAttributes` GameObject identity and canonical
-`CosmeticAsset.m_Name` supply lookup keys; visible display names do not. Python exposes only
-currently available trusted keys to Electron, Electron converts them to opaque tokens and validates
-each file on every `repoditor-icon:` request, and React falls back to Phosphor on any failure.
-Game-generated item/cosmetic PNGs remain in R.E.P.O.'s cache rather than being copied. Separately,
-supported upgrade textures may be decoded locally and persisted as validated derived PNGs in
-RepoDitor's presentation cache; no game artwork is bundled in tests or the installer. Icon
-availability never changes item/cosmetic identity or mutation policy.
-The known all-black `WalkieTalkieBox` cache output is intentionally treated as unavailable so its
-existing Phosphor fallback remains visible.
+The upgrade fallback resolves installed upgrade identity through prefab, material
+and Texture2D metadata, validates local stream ranges, and decodes supported
+DXT1/DXT5 payloads. Its source identity includes artifact-producing Unity files;
+Steam manifest/build metadata remains compatibility provenance rather than a pixel
+cache dependency. See [upgrade cache diagnostics](../architecture/architecture.md#upgrade-cache-diagnostics).
 
-The production upgrade-art fallback dynamically resolves installed upgrade identity through
-prefab, material, and `Texture2D` metadata, validates referenced local stream byte ranges, and
-decodes supported DXT1/DXT5 payloads. Electron exposes the result through a renderer-safe opaque
-URL and keeps a source-validated local presentation cache. Valid artifacts are reused while their
-artifact-producing Unity files are unchanged; the Steam appmanifest and BuildID remain validation
-provenance and do not invalidate artwork by themselves. Unreferenced hash-named derived PNGs are
-pruned without touching R.E.P.O.'s own icon cache. Production does not hardcode researched stream
-offsets or redistribute the decoded artwork.
+The all-black `WalkieTalkieBox` LocalLow output was an unusable research candidate.
+Regular-item and cosmetic resolution no longer reads that cache: installed baked
+artwork and decoded cosmetic Sprites use independently validated source paths.

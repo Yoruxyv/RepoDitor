@@ -191,5 +191,5 @@ command launches the game or certifies in-game recognition. The GitHub **Desktop
 check retains its required context name; it verifies committed evidence/fingerprints and generation,
 not the contents of a maintainer's latest game installation.
 
-See [the current compatibility investigation](../research/current-game-compatibility.md) for
+See [cosmetic compatibility](../research/current-game-compatibility.md) for
 the reviewed IL, user-confirmed bulk observation, remaining in-game coverage and safe manual procedure.

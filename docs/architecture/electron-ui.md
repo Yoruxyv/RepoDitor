@@ -4,7 +4,8 @@
 
 RepoDitor is a local desktop save editor for R.E.P.O.
 
-The Electron interface is the only supported production interface.
+This document covers the Windows Desktop interface. The hosted Web product has
+a separate [browser architecture](../../web/README.md).
 
 ## Design direction
 
@@ -43,9 +44,10 @@ Primary flow:
 1. Detect the normal R.E.P.O. saves directory.
 2. Show the latest save prominently.
 3. Show recent saves.
-4. Keep arbitrary file selection behind a future narrow, typed desktop contract.
-5. Keep drag-and-drop behind that same validated contract if it is added later.
-6. Open the selected save in the editor.
+4. Open the selected save in the editor.
+
+Arbitrary file selection and drag-and-drop are unsupported; discovery exposes only
+opaque save identities through the typed Desktop contract.
 
 The user should not need to manually browse for their save every time.
 
@@ -58,7 +60,8 @@ Primary sections:
 - Upgrades
 - Run
 - Items (advanced discovery plus evidence-backed Refill to Full)
-- Maps
+- Cosmetics (global MetaSave ownership and preset clearing)
+- Maps (read-only installed locations)
 
 Prefer top-level navigation over a large permanent sidebar unless later testing
 shows a sidebar is genuinely better.
@@ -69,8 +72,10 @@ Use friendly labels rather than raw ES3 keys.
 
 Changes should be visible before saving, for example:
 
+```text
 Health      82 -> 100
 Currency    421 -> 100000
+```
 
 Maintain a persistent save/status area showing:
 
@@ -111,18 +116,10 @@ dedicated semantic token rather than increasing the contrast of decorative separ
 
 ## Architecture
 
-React must not implement ES3 encryption/decryption or save mutation logic.
-
-Data flow:
-
-React renderer
--> Electron preload
--> Electron main
--> Python interface
--> existing Python services/core/storage
--> .es3
-
-Python remains the source of truth for save operations.
+Python owns Desktop save semantics. React stages typed pending edits and calls the
+sandboxed preload; Electron validates IPC and invokes the bounded Python sidecar.
+The [architecture guide](architecture.md) defines process boundaries, local artwork
+transport and source-aware caches.
 
 ## Visual foundation
 

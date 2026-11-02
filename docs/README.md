@@ -18,8 +18,12 @@ installation instructions, and user-facing feature summary remain in the
 - [Save format](research/save-format.md) — confirmed encrypted-save structure.
 - [Reverse engineering](research/reverse-engineering.md) — controlled evidence,
   supported behavior, and unresolved semantics.
-- [Asset research](research/asset-research.md) — installed-game metadata, local
-  presentation assets, and redistribution boundaries.
+- [Asset research](research/asset-research.md) — installed-game metadata, map loading
+  Sprites and redistribution boundaries.
+- [Installed artwork](reverse-engineering/truck_artwork.md) — baked filename derivation,
+  source reconciliation, Sprite packaging and reader isolation.
+- [Cosmetic compatibility](research/current-game-compatibility.md) — catalog/index proof,
+  ownership behavior and current-build limitations.
 
 ## Release operations
 

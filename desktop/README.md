@@ -29,6 +29,9 @@ npm test
 npm run test:e2e
 ```
 
+Run build and tests sequentially: build cleanup removes compiled Electron modules,
+and overlapping validation can cause missing-module failures or process timeouts.
+
 Packaging and installer changes additionally use the native/package gates:
 
 ```powershell
@@ -69,7 +72,6 @@ MetaSave when there are no pending edits; window focus rechecks game safety inst
 to synchronize in-memory game state. Bulk ownership actions and
 **Clear All Presets** are supported for the observed catalog while token editing, equipping,
 and arbitrary preset editing remain unavailable.
-
 
 RepoDitor must be used while R.E.P.O. is closed. Startup and window-focus checks query only a
 narrow game-running status derived from the validated installation, and Python verifies that

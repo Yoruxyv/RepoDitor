@@ -40,8 +40,8 @@
 
 ```text
 # Example:
-# cd desktop/python
-# uv run pytest
+# From the repository root:
+# uv run --locked --group test pytest
 # cd desktop
 # npm run lint
 # npm test

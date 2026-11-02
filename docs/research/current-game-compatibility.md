@@ -1,30 +1,34 @@
-# Current game compatibility investigation
+# Cosmetic compatibility
 
-## Baseline and scope
+RepoDitor supports cosmetic IDs 0–556 in Steam build `26294889`, Unity
+`6000.3.17f1`, serialized format 22. Approval combines an independently decoded
+catalog with the reviewed ownership/index contract; artwork availability does not
+authorize ownership changes. Recharge retains separate historical evidence.
 
-Work started from integrated PR #122: `d5fc0fb71223ce84b9cd03abd83aa04e6c701cc7`,
-on `fix/current-game-compatibility`. The baseline main CI was green. The previous feature
-branch was left unchanged. Commit/push/PR publication was initially held. On 2026-11-01,
-the user authorized final review, validation, commit, push and a PR; merge and release remain excluded.
-Installed Steam app/build: 3241660 / 26294889, Unity 6000.3.17f1, serialized format 22.
-Assembly-CSharp.dll SHA-256: `aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888`.
+The reviewed `Assembly-CSharp.dll` SHA-256 is
+`aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888`.
 
-## Root cause and audit disposition
+## Ownership and write behavior
 
-Short Python paths below are relative to `desktop/python/repo_save_editor/`.
+The historical policy allowed IDs 0–546. Discovering display metadata for IDs
+547–556 did not make them writable: individual unlock was blocked and Unlock All
+used the approved historical set. The expanded policy requires the evidence below.
 
-| Decision | Severity | Location | Finding |
-| --- | --- | --- | --- |
-| KEEP | safety boundary | `services/cosmetics/policy.py`, `electron/ipc/cosmetics.cts` | Display discovery and artwork did not approve IDs 547–556. Individual unlock was rejected/disabled; Unlock All deliberately used the historical approved set 0–546. This explains the reported locked cosmetics; no failed encrypted write for a new ID was established. |
-| FIX | medium | `desktop/src/features/cosmetics/useCosmetics.ts`, `CosmeticsView.tsx` | Pending Unlock All counted the entire discovered catalog as owned; Lock All counted zero. Projection and action guards now affect eligible rows only and preserve restricted ownership. |
-| FIX | medium | `web/src/features/cosmetics/` | Web presents Unlock Remaining and confirmed Lock All. Individual mutation APIs remain tested. Global blocking explanations are independent of any selected ID; review detects equal-count replacements and history-only changes. |
-| FIX | medium | `core/crypto.py`, `core/json_fields.py`, `storage/repository.py`, `desktop_api/cosmetics.py` | Whole-document serialization changed unrelated JSON bytes and could round unknown decimals. Cosmetic writes now replace changed ES3 `.value` spans only, including preservation of unrelated wrapper metadata. Backup, stale checks, schema/data verification and atomic replacement remain mandatory. |
-| FIX | medium | `tools/capabilities/capture_cosmetics.py` | Independent captures now write canonical LF bytes, so Git normalization cannot invalidate the approved capture fingerprint on Linux CI. Fresh re-extraction is semantically unchanged and byte-identical on repetition. Historical captures remain unchanged. |
-| FIX | medium | `tools/capabilities/`, architecture/maintenance docs | Current cosmetic evidence is separate from historical evidence; per-domain reporting no longer implies current Recharge or live-game approval. Stale LocalLow artwork and packaging claims were corrected. |
-| FIX | medium | `services/cosmetics/installed_reader.py` | The shared resolver now rejects sources outside its installed data directory before opening them, including escaped external symlink targets. The evidence-pinned historical reader is unchanged. |
-| DEFER | gate | `services/items/installed_metadata.py`, `tools/capabilities/evidence/recharge.v1.json` | Historical 29-identity evidence remains intact. The installed reader rejects the new build; no independent current Recharge oracle or in-game charge transition was established. |
-| KEEP / DEFER | observed bulk / remaining coverage | In-game observation below | The user confirmed Unlock All recognition for all 557 cosmetics. Individual unlock, ownership removal and persistence after a game restart remain untested in-game. |
-| REJECT | safety | Generated policies / artwork | Do not hand-append IDs, relabel historical parser proof, use PNG availability as authority, or modify the real installation/save. |
+Desktop pending ownership counts include eligible rows only and preserve restricted
+ownership. Web bulk removal checks every owned eligible ID for equipment/preset
+references independently of the selected cosmetic. A discovered count alone is
+never a mutation rule.
+
+Cosmetic writes replace only changed ES3 `.value` spans through
+`core/json_fields.py`, preserving unrelated JSON bytes, numeric lexemes and wrapper
+metadata. Whole-document reserialization could otherwise round unknown decimals.
+Backup, fingerprint checks, schema/data verification and atomic replacement remain
+required. Run-save serialization retains its separate formatting/decimal limits.
+
+Independent captures use canonical UTF-8/LF bytes for stable cross-platform hashes.
+`cosmetics/installed_reader.py` rejects external sources outside the installed data
+directory. The evidence-pinned historical reader and the 29-identity Recharge
+policy remain separate from current cosmetic support.
 
 ## Independent catalog and managed semantics
 
@@ -39,17 +43,17 @@ direct historical name/target ordering comparison is therefore unavailable. The 
 historical ID evidence and semantic fingerprint remain independently checked.
 
 | New ID | Installed name | Type | Rarity | Status |
-| --- | --- | --- | --- | --- |
-| 547 | Cowboy Hat | 0 | 1 | 0 |
-| 548 | Cowboy boot | 22 | 1 | 0 |
-| 549 | Cowboy boot | 19 | 1 | 0 |
-| 550 | Sheriff star | 20 | 1 | 0 |
-| 551 | Hay | 30 | 0 | 0 |
-| 552 | Miner's hat | 0 | 1 | 0 |
-| 553 | Rain boot | 22 | 0 | 0 |
-| 554 | Rain boot | 19 | 0 | 0 |
-| 555 | Holster | 21 | 0 | 0 |
-| 556 | Neck Bandana | 20 | 0 | 0 |
+| ------ | -------------- | ---- | ------ | ------ |
+| 547    | Cowboy Hat     | 0    | 1      | 0      |
+| 548    | Cowboy boot    | 22   | 1      | 0      |
+| 549    | Cowboy boot    | 19   | 1      | 0      |
+| 550    | Sheriff star   | 20   | 1      | 0      |
+| 551    | Hay            | 30   | 0      | 0      |
+| 552    | Miner's hat    | 0    | 1      | 0      |
+| 553    | Rain boot      | 22   | 0      | 0      |
+| 554    | Rain boot      | 19   | 0      | 0      |
+| 555    | Holster        | 21   | 0      | 0      |
+| 556    | Neck Bandana   | 20   | 0      | 0      |
 
 Read-only dnfile 0.18.0 / dncil 1.0.2 inspection verified these current methods:
 
@@ -78,13 +82,13 @@ Approval used the documented unchanged-contract route, not artwork or a fabricat
 The active v2 evidence explicitly retains historical source-save proof IDs 0–546 separately
 from current catalog/IL approval IDs 0–556. Python, Electron and Web policies are generated.
 
-## Web bulk-action review
+## Bulk ownership operations
 
 The primary Web Cosmetics interface contains only **Unlock Remaining Cosmetics** and
 **Lock All Cosmetics**. Individual unlock/removal functions and their ten-ID encrypted
 round-trip tests remain available for API compatibility and Desktop policy parity.
 
-The 556/557 count does not block Lock All. The pre-publication UI computed the bulk guard
+The 556/557 count does not block Lock All. An earlier UI computed the bulk guard
 over every owned approved ID but displayed a reference warning only for the selected owned
 ID. With ID 0 unowned, that condition could hide a legitimate blocker on another ID. The UI
 now reports equipment, preset, unverifiable-reference, busy and empty-ownership restrictions
@@ -112,22 +116,22 @@ Desktop and Web use the same approved 557-ID set. Unknown/unapproved IDs remain 
 equipment/preset references block removal. Missing, null or scalar reference containers also
 block removal before mutation on both platforms. Browser save processing remains local. It reads no
 installed-game files and performs no save upload. Existing Recharge authorization is unchanged.
-The desktop header resolver was reused for the new maintainer scan; no second cache, background
-worker, image decoding, runtime startup scan or additional production dependency was introduced.
+The maintainer scan uses the reviewed header resolver without image decoding,
+runtime startup scans or a second catalog cache.
 The optional cosmetic encoder runs only during a write and preserves unrelated numeric lexemes.
 Run-save serialization is unchanged; its whole-document formatting/unknown-decimal limitations
 are outside this cosmetic-write fix and must not be described as byte-preserving.
 
 ## Validation and user-reported in-game observation
 
-Automated validation results are recorded in the final task report. Offline smoke testing used
+Offline smoke testing used
 an encrypted temporary copy of the existing game-generated MetaSave. The copy's authoring build
 is not independently known. Ten individual unlock writes, Unlock All, backup, decrypt/reopen,
 browser export/re-import and Python reopening passed. The original file stayed unchanged.
 No personal fields, decrypted save or game PNG was written into the repository.
 
-On **2026-11-01**, the user reported that **Unlock All succeeded in R.E.P.O.: all 557 cosmetics,
-including IDs 547–556, appeared unlocked using the updated RepoDitor implementation**.
+An in-game observation on 2026-11-01 reported successful Unlock All recognition for
+all 557 cosmetics, including IDs 547–556.
 This confirms in-game bulk-unlock recognition. It does not establish separate individual-unlock,
 ownership-removal, equipping, or persistence-after-game-restart results. The exact tested binary
 and save hashes were not supplied. This is a user observation, not a replacement full-unlock
@@ -148,52 +152,42 @@ path-override launch argument is assumed.
 4. For removal, unequip the target and clear its preset references in the isolated game.
    Close the game, remove ownership with RepoDitor, relaunch and confirm it is locked.
    Also confirm referenced removal is blocked and unrelated ownership persists.
-5. Report results before claiming in-game completion. Do not copy test outputs into the
+5. Record the game/app versions, tested IDs and results. Do not copy test outputs into the
    real profile, enable cloud sync for test data, upload private saves, or publish a release.
 
-The seven missing item thumbnails, Maps, repository-wide quality audit and Tauri migration remain
-separate work. The next milestone after this PR is the seven remaining truck-item thumbnails;
-none of that reconstruction is included in this PR.
+## Recorded validation
 
-## Final automated validation
+These results describe the tested cosmetic-support configuration, not a fresh
+run of the current checkout.
 
-| Check | Result |
-| --- | --- |
-| `uv run --locked --group test pytest -q --tb=short` | 572 passed, 2 existing environment skips: directory/file symlink creation unavailable on Windows. |
-| `pytest tools/capabilities/tests` after the final oracle-header helper change | 62 passed. |
-| Ruff check / format check; mypy | Passed; 160 Python files formatted, 83 source files type-checked. |
-| Desktop `imports:check`, `lint`, `build`, `test`, `format:check` | Passed; 373 Vitest tests in 44 files, plus 1 import-normalization and 9 theme tests. No new lint warnings remain. |
-| Desktop `test:e2e` | 5 passed. Both cosmetic journeys were rerun after the final resolver restriction and passed. |
-| `build:sidecar`, `package:dir`, `package:verify`, `test:e2e:packaged` | Passed after the final resolver fix. Frozen Python 3.13.14 / PyInstaller 6.22.0; all 10 required package files present; packaged cosmetic ID 547 write passed on synthetic saves. |
-| Additional actual-install packaged smoke | Passed with synthetic temporary saves and read-only installed assets: 557 entries, all ten new IDs eligible, Cowboy Hat write persisted, unchanged Run save, no transient artwork preparation screen on entry/navigation/relaunch. Cold catalog load measured 7.1 seconds. No images or traces were recorded. |
-| Web `imports:check`, `lint`, `format:check`, `build`, `test`, `bundle:check` | Passed; 204 Vitest tests in 16 files plus 5 script tests. |
-| Web `test:e2e` | 17 passed: 556/557 bulk success, equipment/preset blocks, confirmation cancellation and keyboard focus, encrypted export/re-import, local processing and responsive layouts at 375/900/1440 pixels. Individual mutation APIs remain covered by Vitest. |
-| Web Lighthouse budgets | Passed on the final source: five desktop runs scored 100 performance each; five mobile runs scored 96 each. Accessibility, best-practice and SEO category gates passed. |
-| Private existing-save interoperability smoke | Passed: ten individual Desktop writes, Unlock All, exact original-byte backup, browser decrypt/export/re-import and Python reopen on temporary copies. Real MetaSave remained byte-identical after all tests. The save authoring build is unknown. |
-| Independent catalog capture | 557 exact metadata/target matches; repeated four-source capture byte-identical. |
-| Capability generation twice, then `check` | Both updates made no further changes; 557 cosmetic IDs and 29 historical Recharge identities align. Historical evidence/readers and Recharge snapshot have no diff against the base. |
-| `check-installed` | Correctly reports review required / nonzero for unsupported current Recharge, while current cosmetic metadata, targets and source hashes match approved evidence. |
-| GitHub CI | All 10 checks on integrated baseline d5fc0fb succeeded. Published-head CI results are reported on the PR; the required Desktop-Web Alignment context name is preserved. |
+| Check                                                                        | Result                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv run --locked --group test pytest -q --tb=short`                          | 572 passed, 2 existing environment skips: directory/file symlink creation unavailable on Windows.                                                                                                                                                                                                             |
+| `pytest tools/capabilities/tests`                                            | 62 passed.                                                                                                                                                                                                                                                                                                    |
+| Ruff check / format check; mypy                                              | Passed; 160 Python files formatted, 83 source files type-checked.                                                                                                                                                                                                                                             |
+| Desktop `imports:check`, `lint`, `build`, `test`, `format:check`             | Passed; 373 Vitest tests in 44 files, plus 1 import-normalization and 9 theme tests. No new lint warnings remain.                                                                                                                                                                                             |
+| Desktop `test:e2e`                                                           | 5 passed.                                                                                                                                                                                                                                                                                                     |
+| `build:sidecar`, `package:dir`, `package:verify`, `test:e2e:packaged`        | Passed. Frozen Python 3.13.14 / PyInstaller 6.22.0; all 10 required package files present; packaged cosmetic ID 547 write passed on synthetic saves.                                                                                                                                                          |
+| Additional actual-install packaged smoke                                     | Passed with synthetic temporary saves and read-only installed assets: 557 entries, all ten new IDs eligible, Cowboy Hat write persisted, unchanged Run save, no transient artwork preparation screen on entry/navigation/relaunch. Cold catalog load measured 7.1 seconds. No images or traces were recorded. |
+| Web `imports:check`, `lint`, `format:check`, `build`, `test`, `bundle:check` | Passed; 204 Vitest tests in 16 files plus 5 script tests.                                                                                                                                                                                                                                                     |
+| Web `test:e2e`                                                               | 17 passed: 556/557 bulk success, equipment/preset blocks, confirmation cancellation and keyboard focus, encrypted export/re-import, local processing and responsive layouts at 375/900/1440 pixels. Individual mutation APIs remain covered by Vitest.                                                        |
+| Web Lighthouse budgets                                                       | Passed: five desktop runs scored 100 performance each; five mobile runs scored 96 each. Accessibility, best-practice and SEO category gates passed.                                                                                                                                                           |
+| Private existing-save interoperability smoke                                 | Passed: ten individual Desktop writes, Unlock All, exact original-byte backup, browser decrypt/export/re-import and Python reopen on temporary copies. Real MetaSave remained byte-identical after all tests. The save authoring build is unknown.                                                            |
+| Independent catalog capture                                                  | 557 exact metadata/target matches; repeated four-source capture byte-identical.                                                                                                                                                                                                                               |
+| Capability generation twice, then `check`                                    | Both updates made no further changes; 557 cosmetic IDs and 29 historical Recharge identities align. Historical evidence/readers and Recharge snapshot have no diff against the base.                                                                                                                          |
+| `check-installed`                                                            | Correctly reports review required / nonzero for unsupported current Recharge, while current cosmetic metadata, targets and source hashes match approved evidence.                                                                                                                                             |
+| CI contract                                                                  | The required `Desktop-Web Alignment` context validates committed evidence and generated artifacts, not a live installation.                                                                                                                                                                                   |
 
 Desktop retains its existing warning-only bundle overage: 583.03 KiB raw / 156.48 KiB gzip
 against 450 / 135 KiB warning budgets. Web bundle checks pass (largest chunk 303.97 KiB raw /
 92.64 KiB gzip). Cold catalog latency is measured; no before/after evidence establishes a
 regression, and speculative cache/startup refactoring was not added. No production dependency changed.
 
-An initial concurrent test run timed out the existing cache-diagnostics test; its unchanged
-timeout passed on isolated rerun and the full Desktop suite. New E2E harness assertions were
-corrected to wait for the actual no-pending state, and synthetic browser fixtures
-cover both equipment and preset restrictions without changing the original encrypted fixtures. Missing-reference rejection remains tested. The actual-install smoke
-used the existing 15-second cross-process wait after measuring the 7-second cold read; no
-production timeout or safety assertion was suppressed.
+## Limitations
 
-## Readiness and remaining scope
-
-The change is scoped cosmetic compatibility support with independent catalog/managed evidence,
-offline regression coverage, and user-confirmed in-game Unlock All recognition for all 557 IDs.
-The user authorized commit, push and a PR after final checks. Individual unlock, removal and
-game-restart persistence have automated/offline coverage but no separate in-game confirmation.
-Do not label the entire game build fully supported or publish a release. Current-build Recharge
-approval, direct historical asset-order comparison, and the pre-existing Run-save formatting/
-unknown-decimal limitation remain unresolved. Seven truck-item thumbnails are the next milestone
-after this PR; Maps, the broad audit and Tauri work remain separate.
+Individual unlock, ownership removal, equipping and persistence after a game
+restart have no separate current-build in-game confirmation. The bulk observation
+has no supplied binary/save hashes and is not a new full-unlock save capture.
+Current-build Recharge support, direct comparison with the missing historical
+547-row catalog capture, and Run-save unknown-decimal preservation remain unresolved.
+The seven missing item thumbnails are a separate rendering problem.

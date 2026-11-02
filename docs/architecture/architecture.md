@@ -55,12 +55,91 @@ No server-side save-processing route is permitted.
 
 ## Desktop local presentation assets
 
-Optional Desktop item and cosmetic thumbnails prefer verified installed BakedIcons. Cosmetics then
-use RepoDitor's persistent decoded Sprite cache and bounded direct extraction; regular items retain
-a placeholder when reconstruction is unavailable. Neither domain reads the game's LocalLow artwork
-cache. Player upgrades keep their existing validated pipeline. Electron serves validated images through
-opaque `repoditor-icon:` tokens; the renderer receives no paths or filesystem access. Artwork availability
-cannot grant mutation permission. Web remains independent and does not read installed Desktop artwork.
+Electron serves optional local images through registered `repoditor-icon:` tokens.
+The renderer receives no image paths or filesystem authority. Failed or unavailable
+images use Phosphor; artwork availability never changes mutation permissions.
+Web does not read installed Desktop artwork.
+
+| Content         | Source order                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Regular items   | Verified installed BakedIcons, then Phosphor. Seven known missing icons have no production reconstruction path.                          |
+| Cosmetics       | Verified installed BakedIcons, validated decoded Sprite cache, bounded installed Sprite extraction, then Phosphor.                       |
+| Player upgrades | Existing validated game-cache PNG where available, then validated derived cache and supported installed texture decoding, then Phosphor. |
+
+Regular items and cosmetics never consult the game's LocalLow artwork cache.
+Maps remain a read-only installed-location listing; loading-Sprite research is
+documented in [asset research](../research/asset-research.md#maps).
+
+### Cache ownership
+
+| Artifact                                           | Owner and invalidation                                                                                                                                                                                                                  |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical identities and cosmetic display metadata | Python `baked_artwork.py`, schema 8, `%LOCALAPPDATA%\RepoDitor\cache\baked-artwork.json`; reviewed build/assembly and source identities. Historical cosmetic catalogs retain their separate cache. No PNG pixels or mutation authority. |
+| Installed baked PNG validation                     | Electron `bakedArtwork.cts`, `presentation/baked/manifest.json`, format 1; installed index identity plus per-PNG validation stamps. PNGs stay in the game installation.                                                                 |
+| Decoded cosmetic Sprite PNGs                       | Electron cosmetic artwork cache, `presentation/cosmetics`, format 1; cosmetic ID, source identity, PNG hash and source watches.                                                                                                         |
+| Derived upgrade PNGs                               | Electron `upgradeTextureCache.cts`, `presentation`, format 2; upgrade key, derived source identity and artifact-producing file watches.                                                                                                 |
+
+Electron cache roots are under its `userData` directory, normally
+`%APPDATA%\repoditor-desktop`. The cache types have different keys and invalidation
+contracts; a baked validation manifest is not storage for reconstructed pixels.
+Source changes, missing/corrupt PNGs and unreadable caches trigger regeneration or
+fallback. Cache-write failure must not block presentation.
+
+Cosmetic preparation checks baked and decoded readiness before starting a finite
+Sprite batch. Navigation shares in-flight work, valid results survive relaunch,
+and failed optional work does not repeatedly scan the game. Upgrade preparation
+retains its own finite coordinator. `python/client.cts` owns command allowlists,
+output/time limits and child cleanup on shutdown; there is no permanent renderer.
+`GameIcon` confines image loading to the thumbnail box and falls back on null/error.
+
+Canonical filename derivation, source reconciliation, native decoder resources and
+reader isolation are documented in [installed artwork](../reverse-engineering/truck_artwork.md).
+
+### Upgrade cache diagnostics
+
+Run the following commands from the repository root. These diagnostics apply to
+the upgrade presentation cache, not every artwork domain.
+
+To audit the derived presentation cache after restarting RepoDitor, run:
+
+```powershell
+.\desktop\scripts\check-presentation-cache.ps1
+```
+
+The read-only script compares `manifest.json` with the stored hash-named PNGs
+and reports unreferenced or missing artifacts.
+
+Upgrade presentation-cache manifest format 2 maps each dynamic upgrade key to a derived
+PNG identity and the exact files used to produce it: `resources.assets`,
+`globalgamemanagers`, the texture stream (normally `resources.assets.resS`), and
+an independent mesh stream only when it supplied crop framing. Validation uses
+their size and mtime, avoiding large-file hashing during warm startup.
+
+`appmanifest_3241660.acf`, Steam App ID/BuildID, the install location, and the
+validated `Assembly-CSharp.dll` are discovery or compatibility provenance, not
+artwork inputs. Python still validates them before a decode, but their metadata
+is excluded from the artwork identity and source watches. A Steam metadata-only
+rewrite therefore remains a `persistent-hit`; a watched Unity source change is
+reported as `source-changed`, followed by `source-decode-required` and
+`persisted`, then `persistent-hit` on the next unchanged run. Existing format-1
+caches rebuild once so they acquire the narrower source watches.
+
+These are separate safety boundaries: a persistent artwork hit neither marks the
+installed build as verified nor authorizes a new extraction or any save mutation.
+Cold artwork extraction still requires the supported BuildID and validated assembly.
+Installed-build-dependent editing features revalidate their own evidence, while
+ordinary save edits retain their independent fingerprint, validation, backup, and
+atomic-write protections.
+
+The bounded local diagnostic log contains reasons such as `memory-hit`,
+`persistent-hit`, `source-changed`, `source-missing`, `source-decode-required`,
+`persisted`, `artifact-missing`, `artifact-invalid`, `manifest-invalid`, and
+cache read/write failures. It contains no local paths or save contents. Inspect
+recent decisions with:
+
+```powershell
+Get-Content "$env:APPDATA\repoditor-desktop\presentation-cache-diagnostics.jsonl" -Tail 100
+```
 
 ## Local path discovery
 

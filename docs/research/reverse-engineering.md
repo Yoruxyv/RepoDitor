@@ -20,7 +20,7 @@ Only behavior verified against controlled saves should be promoted into named ed
   unlock/lock, and paired **Clear All Presets**. Installed metadata supplies presentation-only
   names, type, rarity, status, and local icon identity; unknown/future IDs are preserved.
 
-Still pending research:
+Unresolved semantics:
 
 - Persistent physical item placement for truck/shop customization.
 - Unsupported MetaSave domains such as tokens, equipment, arbitrary preset creation/editing, and
@@ -42,9 +42,9 @@ establishes the tested runtime boundary without imposing a lower vanilla gamepla
 **Source/format evidence:** both files in a separate excluded good/corrupt comparison retained the
 exact nested `System.Int32` type declaration:
 
-| Evidence | Bytes | SHA-256 | Redacted structural result |
-| --- | ---: | --- | --- |
-| Known-good backup | 14,160 | `e0e31881056c667370b3fd89d49c1faa98a81eebbad06ab65fb3b8765cd869a0` | Supported signed-integer values. |
+| Evidence           |  Bytes | SHA-256                                                            | Redacted structural result                                                                                                       |
+| ------------------ | -----: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Known-good backup  | 14,160 | `e0e31881056c667370b3fd89d49c1faa98a81eebbad06ab65fb3b8765cd869a0` | Supported signed-integer values.                                                                                                 |
 | Game-rejected edit | 22,896 | `dfe730a95ee2e5dbf3f4fa3a7b1d07be89dfe5b4e58668cea5042ac069fa5b13` | Included two upgrade transitions from `0` to `1,000,000,000,000,000` and one Run transition from `3` to `3,000,000,000,000,000`. |
 
 The raw files contain personal save data, remain outside the repository, and are not fixtures.
@@ -69,15 +69,15 @@ Observed top-level MetaSave structures include `colorsEquipped`, `colorPresets`,
 supports the separately evidence-backed paired **Clear All Presets** operation across
 `cosmeticPresets` and `colorPresets`; it preserves both outer list lengths.
 
-| Evidence | SHA-256 | Result |
-| --- | --- | --- |
-| Clean MetaSave | `49379a449ac38bc06d415231b7723e6e045fe84498bd4bbaa769ba7f23f463fa` | History, unlocks, and tokens were empty. |
-| Synthetic ID 28 unlock | `800afbd5f5309fdccf50a426e5ac7f1210e8e9eee8acb98c609986d3fb00cdbd` | ID 28 was added to history and unlocks only; R.E.P.O. loaded it as owned. |
-| Game rewrite after ID 28 unlock | `4f300925d20a4dd6ecd31f423b5e74a54709ee3807624864ee2bd422c8cd81ec` | The two lists remained `[28]` with zero semantic difference from the synthetic state. |
-| Game-generated full unlock | `22bbb9102d93d7fff8c4b2d3fb86dd6dc2c4475030ecb76a7c858c750741b483` | Both lists contained the exact 547 explicit IDs currently observed (`0` through `546`), without duplicates. |
-| Synthetic Unlock All | `2cf98a08e4cfab88ba1c3460235379f57128585d0287bca16b39df06d6a6542d` | Missing known IDs were added through the ownership representation. |
-| Game rewrite after Unlock All | `6799fa1c9a145095411329020e0157e0b7cb3dde686204add031a89fc0ddfd5c` | All 547 known IDs remained owned with zero semantic difference. |
-| Synthetic ID 28 removal | `c5cde94309d5fec65e45580ab8350eb76dc38b35ff4ea62561b88365493bbe74` | Removing ID 28 from both lists made only that tested cosmetic unowned; R.E.P.O. loaded successfully. |
+| Evidence                        | SHA-256                                                            | Result                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Clean MetaSave                  | `49379a449ac38bc06d415231b7723e6e045fe84498bd4bbaa769ba7f23f463fa` | History, unlocks, and tokens were empty.                                                                    |
+| Synthetic ID 28 unlock          | `800afbd5f5309fdccf50a426e5ac7f1210e8e9eee8acb98c609986d3fb00cdbd` | ID 28 was added to history and unlocks only; R.E.P.O. loaded it as owned.                                   |
+| Game rewrite after ID 28 unlock | `4f300925d20a4dd6ecd31f423b5e74a54709ee3807624864ee2bd422c8cd81ec` | The two lists remained `[28]` with zero semantic difference from the synthetic state.                       |
+| Game-generated full unlock      | `22bbb9102d93d7fff8c4b2d3fb86dd6dc2c4475030ecb76a7c858c750741b483` | Both lists contained the exact 547 explicit IDs currently observed (`0` through `546`), without duplicates. |
+| Synthetic Unlock All            | `2cf98a08e4cfab88ba1c3460235379f57128585d0287bca16b39df06d6a6542d` | Missing known IDs were added through the ownership representation.                                          |
+| Game rewrite after Unlock All   | `6799fa1c9a145095411329020e0157e0b7cb3dde686204add031a89fc0ddfd5c` | All 547 known IDs remained owned with zero semantic difference.                                             |
+| Synthetic ID 28 removal         | `c5cde94309d5fec65e45580ab8350eb76dc38b35ff4ea62561b88365493bbe74` | Removing ID 28 from both lists made only that tested cosmetic unowned; R.E.P.O. loaded successfully.        |
 
 A separate natural single acquisition from the clean state changed only
 `cosmeticHistory.value: [] -> [27]` and `cosmeticUnlocks.value: [] -> [27]`.
@@ -87,9 +87,10 @@ invented here.
 ### Confirmed
 
 - MetaSave decryptability and the two-list ownership representation.
-- The currently observed known catalog is the explicit 547-ID set recorded in
-  `tools/capabilities/evidence/cosmetics.v1.json`. Contiguity is historical evidence, not a rule;
-  future gaps must remain gaps.
+- The game-generated ownership capture covers the explicit 547-ID set in
+  `tools/capabilities/evidence/cosmetics.v1.json`. Current 557-ID approval is documented
+  in [cosmetic compatibility](current-game-compatibility.md). Contiguity in the
+  historical capture is not a rule; future gaps must remain gaps.
 - Individual unlock appends a missing known ID to both lists without duplicates.
 - Unlock All composes the individual rule and preserves existing order and unknown/future IDs.
 - Removing an unreferenced known ID from both lists made the tested ID 28 unowned.
@@ -136,12 +137,12 @@ cannot establish that the ownership proof still applies. See
 
 ## Advanced save discovery
 
-Phase 10A used two excluded, read-only evidence files. They are not repository fixtures and must
-never be committed:
+The initial item-charge comparison uses two excluded, read-only evidence files.
+They are not repository fixtures:
 
-| Evidence | SHA-256 |
-| --- | --- |
-| `01-rich-baseline.es3` | `70eeda192ea6e2e7c60043141d547c85b36cc860d6db0825a937481eefe2f84d` |
+| Evidence                             | SHA-256                                                            |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `01-rich-baseline.es3`               | `70eeda192ea6e2e7c60043141d547c85b36cc860d6db0825a937481eefe2f84d` |
 | `02-after-inflatable-hammer-use.es3` | `3cb6f29377bef2b5d2d76b371e515393522e0a557dbe0b99c7bce8d98a78110b` |
 
 The second save was captured after one use of the single Inflatable Hammer and a normal save
@@ -158,9 +159,8 @@ The A/B pair had three advanced-container differences:
 
 The Staff Torque and resume-location changes mean this pair is not evidence for item acquisition
 or Run write semantics. The exact hammer-key change is the only `itemStatBattery` difference and
-is evidence that this is sparse, per-instance stored charge data. At that stage, absence was not
-interpreted as zero, empty, or full; the later controlled Phase 10B evidence below narrows that
-interpretation for the tested battery-backed items.
+is evidence that this is sparse, per-instance stored charge data. This pair alone does not interpret absence as zero, empty or full. The controlled
+recharge evidence below establishes its meaning for the tested battery-backed items.
 
 ### Broad completed-level comparison
 
@@ -168,10 +168,10 @@ A later excluded comparison started from the second evidence file above and ende
 completed level. It is structural and behavioral evidence only: multiple items were used, so no
 individual gameplay action can be assigned to a changed value.
 
-| Evidence | Bytes | SHA-256 |
-| --- | ---: | --- |
+| Evidence     | Bytes | SHA-256                                                            |
+| ------------ | ----: | ------------------------------------------------------------------ |
 | `before.es3` | 9,424 | `3cb6f29377bef2b5d2d76b371e515393522e0a557dbe0b99c7bce8d98a78110b` |
-| `after.es3` | 9,520 | `cb978022f08d91ae1cb5bf9bfc03e7d28eba4f1ed0c022bfe6f05521d478f845` |
+| `after.es3`  | 9,520 | `cb978022f08d91ae1cb5bf9bfc03e7d28eba4f1ed0c022bfe6f05521d478f845` |
 
 **CONFIRMED STRUCTURE:** only `timePlayed` and `dictionaryOfDictionaries` changed at the top
 level. The latter retained the same 22 containers; only `itemStatBattery`, `itemsPurchased`,
@@ -194,17 +194,17 @@ value from `2100` to `1273`. `save level = 0` and `lives = 3` were unchanged.
 
 **UNKNOWN:** `itemBatteryUpgrades` remained empty, all 12 `itemsUpgradesPurchased` entries and all
 58 `itemsPurchasedTotal` entries remained unchanged, and the meaning of the integer stored in each
-`item` entry remains unproven. This comparison en ables no new mutation by itself.
+`item` entry remains unproven. This comparison authorizes no new mutation by itself.
 
-### Phase 10B controlled Tranq Gun charge evidence
+### Controlled Tranq Gun charge evidence
 
-The raw evidence remains excluded and was not re-decoded for this documentation update. The
-following hashes, sizes, and decoded transitions were supplied from the controlled comparison:
+The raw captures remain excluded. Their recorded hashes, sizes and decoded
+transitions are:
 
-| Evidence | Bytes | SHA-256 | State |
-| --- | ---: | --- | --- |
-| `full_tranq.es3` | 9,488 | `415bdca5ff4fb55ecd97d86a5b25e12530d0fb6acfe737c5783320ddd994ec0b` | Game-generated full/default Tranq Gun |
-| `after_no_ammo_tranq.es3` | 9,504 | `798e24438d170b9a06dac2ca22c49c8733a862c38ea468b633ad3ff9bdb3e537` | Same Tranq Gun after its ammunition was depleted |
+| Evidence                   | Bytes | SHA-256                                                            | State                                                |
+| -------------------------- | ----: | ------------------------------------------------------------------ | ---------------------------------------------------- |
+| `full_tranq.es3`           | 9,488 | `415bdca5ff4fb55ecd97d86a5b25e12530d0fb6acfe737c5783320ddd994ec0b` | Game-generated full/default Tranq Gun                |
+| `after_no_ammo_tranq.es3`  | 9,504 | `798e24438d170b9a06dac2ca22c49c8733a862c38ea468b633ad3ff9bdb3e537` | Same Tranq Gun after its ammunition was depleted     |
 | `after_recharge_Tranq.es3` | 9,472 | `44ec387b65318e57aca9f1ab1648846d031070e667079f47d94bc5e89d7fc8bf` | Same empty Tranq Gun after a normal in-game recharge |
 
 The controlled full-to-empty comparison contained exactly two decrypted leaf differences:
@@ -258,15 +258,15 @@ ranges, battery-upgrade behavior, item lifecycle behavior, or purchased-item mut
 
 ### Installed ItemBattery capability proof
 
-A separate read-only installed-game proof established the item-*type* capability layer without
+A separate read-only installed-game proof established the item-_type_ capability layer without
 changing the save mutation rule above. Against Steam build `23363152` / Unity `2022.3.67f2`:
 
 - 60 active decoded `Item` definitions were matched dynamically to 197 installed prefab
   `GameObject` variants; no proof prefab path ID is part of production.
 - an independent UnityPy oracle found `ItemBattery` on exactly 30 item types; the approved
   standard-library serialized-file reader found the exact same 30, with exact item and variant
-  presence parity, zero presence conflicts, and zero metadata conflicts; UnityPy remains
-  proof-only and is not a production dependency;
+  presence parity, zero presence conflicts, and zero metadata conflicts; UnityPy is an
+  independent oracle for this capability reader, not its runtime parser;
 - 29 item types had normal, consistent `ItemBattery` metadata and are classified `rechargeable`;
   30 had complete successful absence across every matched variant and are classified
   `not_rechargeable`; `Item Drone Battery` had the exceptional observed flag and remains
@@ -278,7 +278,8 @@ Production derives the mapping from installed metadata at runtime. For a save-ob
 identity it verifies exactly one same-identity `MonoBehaviour` whose `MonoScript` class is `Item`,
 then inspects every same-identity `GameObject` variant for `ItemBattery`. This identity relationship
 was part of the controlled 60-item proof. Production does not ship the proof manifest, proof path
-IDs, `local-evidence`, UnityPy, TypeTreeGenerator, or a hardcoded rechargeable-name/category list.
+IDs, `local-evidence`, or a hardcoded rechargeable-name/category list. UnityPy and
+TypeTreeGenerator are packaged separately for optional Sprite decoding, not Recharge parsing.
 The parser is guarded to the validated Steam build and serialized layout; future or unreadable
 metadata therefore disables recharge claims while leaving normal save reads available.
 
@@ -298,17 +299,17 @@ The production semantic model is intentionally three-part:
 
 ### Evidence status
 
-| Domain | Status | Exact path and observed shape | Read support | Write support and remaining unknowns |
-| --- | --- | --- | --- | --- |
-| Item instance identity | **CONFIRMED** | `dictionaryOfDictionaries.value["item"]`; 85 baseline string keys mapping to integers. Keys match `Item <name>/<decimal instance ID>`. Duplicate types have distinct suffixes, and gaps exist (for example Medium Health Packs `/2`, `/3`, `/4` without `/1`). | Safe to expose the exact key, friendly name, and instance ID. | None. The stored integer's meaning, ordering significance, allocation rules, and companion-entry requirements are unknown. |
-| Item-type recharge capability | **CONFIRMED ON VALIDATED INSTALLED BUILD** | Read-only installed `resources.assets` / `globalgamemanagers.assets`; 60 active `Item` definitions mapped to 197 same-identity prefab variants. Independent oracle and stdlib parser agreed on all 30 `ItemBattery`-present types. | Python exposes `rechargeable`, `not_rechargeable`, or `unknown`. Normal consistent `ItemBattery` is rechargeable; complete successful absence across every variant is not rechargeable; exceptional/conflicting/incomplete/unsupported metadata is unknown. | Capability alone never mutates a save. `Item Drone Battery` remains unknown while its exceptional flag semantics are unproven. The guard currently supports Steam build `23363152`, Unity `2022.3.67f2`, serialized-file v22 only. |
-| Local item/cosmetic icon identity | **CONFIRMED ON VALIDATED INSTALLED BUILD** | Local cache cross-check: `ItemAttributes.gameObject.name` and canonical `MetaManager.cosmeticAssets[id] -> CosmeticAsset.m_Name`, normalized by removing `(Clone)`, invariant lowercasing, and adding `.png`. | Python derives optional presentation keys from installed metadata. Duplicate/colliding or incomplete mappings fail closed; missing cache files remain unavailable. | Icons are runtime-only user-local artwork. They are served through opaque Electron tokens, never bundled, and never influence save identity or writes. A game/build change naturally invalidates installed metadata caches and falls back to Phosphor. |
-| Current item charge | **CONFIRMED NARROW MUTATION** | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. The synthesized exact-entry removal loaded as a full Tranq and remained absent after a normal game save. Exact item entries remained unchanged. | Explicit exact-instance entries are `stored` independently of item-type capability. Absence becomes `default_full` only when installed metadata confirms the type is rechargeable; complete confirmed non-rechargeable absence is `not_applicable`; otherwise absence is `unknown`. | Production may remove an existing exact-instance charge entry as **Refill to Full** only when the independent item-type capability is confirmed rechargeable. Universal numeric bounds, arbitrary numeric edits, per-use deltas, and battery-upgrade mutation remain unproven. |
-| Item battery upgrades | **UNKNOWN** | `dictionaryOfDictionaries.value["itemBatteryUpgrades"]` existed as an empty dictionary in both saves. | Only structural presence and entry count are exposed. | No entry key, type, zero/absence rule, or item relationship is proven. |
-| Purchased item upgrades | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsUpgradesPurchased"]`; 12 string-to-integer entries, unchanged in the A/B pair. Keys are item-type names without instance suffixes. | Only structural status and entry count are exposed. | Purchase action, count semantics, instance/type relationship, and independent mutability are unproven. |
-| Purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries. The broad comparison changed `Item Power Crystal: 10 -> 9`; the controlled Tranq recharge later changed it `9 -> 8` while the Tranq purchase entry remained `1`. | Only structural status and entry count are exposed. | The Power Crystal transition is likely related to recharging, but whether this means inventory, purchased quantity, charging resource, or another state remains unproven. |
-| Total purchased items | **PARTIALLY CONFIRMED** | `dictionaryOfDictionaries.value["itemsPurchasedTotal"]`; 58 string-to-integer entries, unchanged in the A/B pair. | Only structural status and entry count are exposed. | It is not proven whether this is historical, derived, or independently mutable. |
-| Additional Run charge values | **PARTIALLY CONFIRMED** | The broad comparison observed `chargingStationCharge: 10 -> 9` and `chargingStationChargeTotal: 95 -> 90`; the controlled Tranq recharge observed `9 -> 8` and `82 -> 73`. | Safe to expose the exact observed keys and values read-only. | Their transitions are likely related to recharging, but their units, relationship, bounds, and mutation behavior remain unproven. |
+| Domain                            | Status                                     | Exact path and observed shape                                                                                                                                                                                                                                                                                                                                                    | Read support                                                                                                                                                                                                                                                                        | Write support and remaining unknowns                                                                                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Item instance identity            | **CONFIRMED**                              | `dictionaryOfDictionaries.value["item"]`; 85 baseline string keys mapping to integers. Keys match `Item <name>/<decimal instance ID>`. Duplicate types have distinct suffixes, and gaps exist (for example Medium Health Packs `/2`, `/3`, `/4` without `/1`).                                                                                                                   | Safe to expose the exact key, friendly name, and instance ID.                                                                                                                                                                                                                       | None. The stored integer's meaning, ordering significance, allocation rules, and companion-entry requirements are unknown.                                                                                                                                                     |
+| Item-type recharge capability     | **CONFIRMED ON VALIDATED INSTALLED BUILD** | Read-only installed `resources.assets` / `globalgamemanagers.assets`; 60 active `Item` definitions mapped to 197 same-identity prefab variants. Independent oracle and stdlib parser agreed on all 30 `ItemBattery`-present types.                                                                                                                                               | Python exposes `rechargeable`, `not_rechargeable`, or `unknown`. Normal consistent `ItemBattery` is rechargeable; complete successful absence across every variant is not rechargeable; exceptional/conflicting/incomplete/unsupported metadata is unknown.                         | Capability alone never mutates a save. `Item Drone Battery` remains unknown while its exceptional flag semantics are unproven. The guard currently supports Steam build `23363152`, Unity `2022.3.67f2`, serialized-file v22 only.                                             |
+| Local item/cosmetic icon identity | **CONFIRMED ON VALIDATED INSTALLED BUILD** | Local cache cross-check: `ItemAttributes.gameObject.name` and canonical `MetaManager.cosmeticAssets[id] -> CosmeticAsset.m_Name`, normalized by removing `(Clone)`, invariant lowercasing, and adding `.png`.                                                                                                                                                                    | Python derives optional presentation keys from installed metadata. Duplicate/colliding or incomplete mappings fail closed; missing cache files remain unavailable.                                                                                                                  | Icons are runtime-only user-local artwork. They are served through opaque Electron tokens, never bundled, and never influence save identity or writes. A game/build change naturally invalidates installed metadata caches and falls back to Phosphor.                         |
+| Current item charge               | **CONFIRMED NARROW MUTATION**              | `dictionaryOfDictionaries.value["itemStatBattery"]`; the controlled Tranq pair observed full/default `absent -> 0` when emptied and `0 -> absent` when recharged. A separate controlled Hammer recharge observed `20 -> absent`. The synthesized exact-entry removal loaded as a full Tranq and remained absent after a normal game save. Exact item entries remained unchanged. | Explicit exact-instance entries are `stored` independently of item-type capability. Absence becomes `default_full` only when installed metadata confirms the type is rechargeable; complete confirmed non-rechargeable absence is `not_applicable`; otherwise absence is `unknown`. | Production may remove an existing exact-instance charge entry as **Refill to Full** only when the independent item-type capability is confirmed rechargeable. Universal numeric bounds, arbitrary numeric edits, per-use deltas, and battery-upgrade mutation remain unproven. |
+| Item battery upgrades             | **UNKNOWN**                                | `dictionaryOfDictionaries.value["itemBatteryUpgrades"]` existed as an empty dictionary in both saves.                                                                                                                                                                                                                                                                            | Only structural presence and entry count are exposed.                                                                                                                                                                                                                               | No entry key, type, zero/absence rule, or item relationship is proven.                                                                                                                                                                                                         |
+| Purchased item upgrades           | **PARTIALLY CONFIRMED**                    | `dictionaryOfDictionaries.value["itemsUpgradesPurchased"]`; 12 string-to-integer entries, unchanged in the A/B pair. Keys are item-type names without instance suffixes.                                                                                                                                                                                                         | Only structural status and entry count are exposed.                                                                                                                                                                                                                                 | Purchase action, count semantics, instance/type relationship, and independent mutability are unproven.                                                                                                                                                                         |
+| Purchased items                   | **PARTIALLY CONFIRMED**                    | `dictionaryOfDictionaries.value["itemsPurchased"]`; 55 string-to-integer entries. The broad comparison changed `Item Power Crystal: 10 -> 9`; the controlled Tranq recharge later changed it `9 -> 8` while the Tranq purchase entry remained `1`.                                                                                                                               | Only structural status and entry count are exposed.                                                                                                                                                                                                                                 | The Power Crystal transition is likely related to recharging, but whether this means inventory, purchased quantity, charging resource, or another state remains unproven.                                                                                                      |
+| Total purchased items             | **PARTIALLY CONFIRMED**                    | `dictionaryOfDictionaries.value["itemsPurchasedTotal"]`; 58 string-to-integer entries, unchanged in the A/B pair.                                                                                                                                                                                                                                                                | Only structural status and entry count are exposed.                                                                                                                                                                                                                                 | It is not proven whether this is historical, derived, or independently mutable.                                                                                                                                                                                                |
+| Additional Run charge values      | **PARTIALLY CONFIRMED**                    | The broad comparison observed `chargingStationCharge: 10 -> 9` and `chargingStationChargeTotal: 95 -> 90`; the controlled Tranq recharge observed `9 -> 8` and `82 -> 73`.                                                                                                                                                                                                       | Safe to expose the exact observed keys and values read-only.                                                                                                                                                                                                                        | Their transitions are likely related to recharging, but their units, relationship, bounds, and mutation behavior remain unproven.                                                                                                                                              |
 
 `canRefillToFull` is the only supported advanced mutation capability and applies only when the
 exact instance has stored charge **and** installed metadata confirms the item type is rechargeable.
@@ -317,7 +318,7 @@ The Python write boundary rechecks that installed capability before applying any
 The renderer receives typed projections and the narrow action, never the decrypted save or the
 unverified `item` integer payload.
 
-### Required next controlled experiments
+### Unresolved item behavior
 
 Run each experiment from a separately preserved before-save and change exactly one in-game state:
 

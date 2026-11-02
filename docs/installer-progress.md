@@ -1,8 +1,8 @@
 # Real installer extraction progress
 
-Implemented on 2026-09-13 as the authorized follow-up to Phase 16. The earlier
-investigation stopped at electron-builder's supported-hook boundary. This follow-up
-explicitly permits a narrow, owned, version-guarded extraction macro override.
+Install/update progress comes from native extraction byte counters. A narrow,
+version-guarded NSIS macro override supplies telemetry because electron-builder
+does not expose the required extraction callback through its supported hooks.
 
 ## Integration and maintenance boundary
 
@@ -135,7 +135,7 @@ payload extraction has not started; no numeric work is estimated for those stage
 Genuine measurements then supply the native HTML progress element and visible percentage. Its value and
 ARIA bounds/current value match measured progress, its text states payload extraction,
 and its determinate CSS has no loop or transition smoothing. Reduced motion and
-approved centered/card-capped composition are preserved.
+centered/card-capped composition are preserved.
 
 Measured 100% leaves the native state installing. Only actual engine exit advances
 to finalizing/verifying; only exact registered InstallLocation plus `RepoDitor.exe`,
@@ -207,9 +207,8 @@ Use the installer built at `desktop/release/RepoDitor-Setup-0.2.1-x64.exe` for m
 
 No production-only test hooks or stage-duration sleeps are used. Local production
 lifecycle results and full validation are recorded separately in ignored build QA
-receipts. This integration is reasonable to maintain with the fail-closed guard and
-mandatory upgrade review; the owned upstream extraction macro remains its explicit
-maintenance risk.
+receipts. The owned upstream extraction macro requires fail-closed version/hash guards and
+review whenever electron-builder changes.
 
 Sources: [electron-builder NSIS customization](https://www.electron.build/v26/docs/nsis/),
 [NSIS preprocessor include rules](https://nsis.sourceforge.io/Docs/Chapter5.html),
@@ -217,7 +216,3 @@ Sources: [electron-builder NSIS customization](https://www.electron.build/v26/do
 [Windows pipe access rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights),
 [Windows client PID authentication](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid),
 [Windows process ID lifetime](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information).
-
-Confirmed follow-up: all left/right looping bars are removed for both installation and
-removal. Install/update initializes extraction at 0% and advances only on real native
-measurements. Removal uses stage text without numeric progress or a looping bar.
