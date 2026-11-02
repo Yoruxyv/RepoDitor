@@ -125,11 +125,13 @@ def test_maps_report_available_unavailable_and_feature_errors(tmp_path: Path) ->
                 "internalName": "Arctic",
                 "displayName": "McJannek Station",
                 "knownLabel": True,
+                "artworkRevision": None,
             },
             {
                 "internalName": "Modded Moon",
                 "displayName": "Modded Moon",
                 "knownLabel": False,
+                "artworkRevision": None,
             },
         ],
     }

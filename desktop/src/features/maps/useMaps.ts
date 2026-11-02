@@ -9,15 +9,21 @@ interface State {
   discovery: InstalledMapsDto | null;
   error: TranslationKey | null;
   loading: boolean;
+  artworkAttempt: number;
 }
 
-const INITIAL_STATE: State = { discovery: null, error: null, loading: true };
+const INITIAL_STATE: State = { discovery: null, error: null, loading: true, artworkAttempt: 0 };
 
 function initialState(result: DesktopOperationResult<InstalledMapsDto> | null): State {
   if (result === null) return INITIAL_STATE;
   return result.ok
-    ? { discovery: result.data, error: null, loading: false }
-    : { discovery: null, error: operationErrorKey(result.error.code), loading: false };
+    ? { discovery: result.data, error: null, loading: false, artworkAttempt: 0 }
+    : {
+        discovery: null,
+        error: operationErrorKey(result.error.code),
+        loading: false,
+        artworkAttempt: 0,
+      };
 }
 
 export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> | null = null) {
@@ -25,18 +31,22 @@ export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> 
   const [state, setState] = useState<State>(() => initialState(initialResult));
   const initialResultRef = useRef(initialResult);
   const mounted = useRef(false);
+  const request = useRef(0);
   const load = useCallback(async () => {
+    const current = ++request.current;
+    setState((old) => ({ ...old, loading: true, error: null }));
     try {
       const result = await window.repoditor.maps.list();
-      if (mounted.current) {
+      if (mounted.current && current === request.current) {
         setState(
           result.ok
-            ? { discovery: result.data, error: null, loading: false }
-            : { discovery: null, error: operationErrorKey(result.error.code), loading: false },
+            ? { discovery: result.data, error: null, loading: false, artworkAttempt: current }
+            : (old) => ({ ...old, error: operationErrorKey(result.error.code), loading: false }),
         );
       }
     } catch {
-      if (mounted.current) setState({ discovery: null, error: "error.service", loading: false });
+      if (mounted.current && current === request.current)
+        setState((old) => ({ ...old, error: "error.service", loading: false }));
     }
   }, []);
   useEffect(() => {
@@ -44,6 +54,7 @@ export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> 
     if (initialResultRef.current === null) void load();
     return () => {
       mounted.current = false;
+      request.current += 1;
     };
   }, [load]);
   return { ...state, error: state.error ? t(state.error) : null, reload: load };

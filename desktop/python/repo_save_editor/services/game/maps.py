@@ -1,4 +1,4 @@
-"""Installed R.E.P.O. map discovery from the game's Addressables catalog."""
+"""Read-only normal-map discovery from installed rosters or legacy catalogs."""
 
 from __future__ import annotations
 
@@ -14,6 +14,11 @@ from repo_save_editor.services.game.discovery import (
     discover_game_installation,
     validate_game_installation,
 )
+from repo_save_editor.services.game.installed_build import artwork_installation, owned_file
+from repo_save_editor.services.game.installed_maps import read_installed_levels
+
+MAX_MAP_CATALOG_BYTES: Final = 4 * 1024 * 1024
+MAX_MAP_FAMILIES: Final = 128
 
 MAP_LOADING_GRAPHICS_PATTERN: Final = re.compile(
     r"Level[\\/](?P<family>[^\\/\x00]+)[\\/]Loading Graphics[\\/]",
@@ -44,6 +49,7 @@ class GameMap:
     internal_name: str
     display_name: str
     known_label: bool
+    loading_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +58,7 @@ class MapCatalog:
 
     path: Path
     maps: tuple[GameMap, ...]
+    source_paths: tuple[Path, ...] = ()
 
 
 def get_map_display_name(internal_name: str) -> str:
@@ -75,10 +82,17 @@ def _decode_key_data(catalog: dict[str, object]) -> str:
 def discover_map_families(catalog_path: Path) -> tuple[str, ...]:
     """Return normal map family names found in an Addressables catalog."""
     try:
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8-sig"))
+        owned_file(catalog_path.parent, catalog_path)
+        if catalog_path.stat().st_size > MAX_MAP_CATALOG_BYTES:
+            raise MapDiscoveryError("Installed map catalog exceeds its size bound.")
+        with catalog_path.open("rb") as handle:
+            raw = handle.read(MAX_MAP_CATALOG_BYTES + 1)
+        if len(raw) > MAX_MAP_CATALOG_BYTES:
+            raise MapDiscoveryError("Installed map catalog exceeds its size bound.")
+        catalog = json.loads(raw.decode("utf-8-sig"))
     except OSError as exc:
         raise MapDiscoveryError(f"Could not read Addressables catalog: {exc}") from exc
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise MapDiscoveryError("Addressables catalog is not valid JSON.") from exc
 
     if not isinstance(catalog, dict):
@@ -91,6 +105,10 @@ def discover_map_families(catalog_path: Path) -> tuple[str, ...]:
         if match.group("family").strip()
     }
     normal_families = families - SPECIAL_LEVEL_FAMILIES
+    if len(normal_families) > MAX_MAP_FAMILIES or any(
+        len(family) > 64 or any(ord(char) < 32 for char in family) for family in normal_families
+    ):
+        raise MapDiscoveryError("Installed map families exceed their bounds.")
     return tuple(sorted(normal_families, key=str.casefold))
 
 
@@ -128,7 +146,22 @@ def find_installed_catalog(game_dir: Path | None = None) -> Path | None:
 
 def discover_installed_maps(game_dir: Path | None = None) -> MapCatalog | None:
     """Locate the installed game and return its dynamically discovered normal maps."""
-    catalog_path = find_installed_catalog(game_dir)
-    if catalog_path is None:
-        return None
-    return load_map_catalog(catalog_path)
+    try:
+        installation = artwork_installation(game_dir)
+        if installation is None:
+            return None
+        installed = read_installed_levels(installation)
+        if installed is not None:
+            levels, sources = installed
+            maps = tuple(
+                sorted(
+                    (GameMap(r.family, r.name, True, r.loading_paths) for r in levels),
+                    key=lambda m: (m.display_name.casefold(), m.internal_name),
+                )
+            )
+            return MapCatalog(installation.root / "REPO_Data/level0", maps, sources)
+        return load_map_catalog(installation.catalog_path)
+    except (OSError, ValueError, KeyError) as error:
+        if isinstance(error, MapDiscoveryError):
+            raise
+        raise MapDiscoveryError("Installed map metadata could not be read safely.") from error

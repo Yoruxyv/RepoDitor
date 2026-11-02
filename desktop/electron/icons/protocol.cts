@@ -3,6 +3,7 @@
  * by upgradeTextureCache, independently of Electron protocol registration.
  */
 import path from "node:path";
+import { mapArtwork, type MapArtwork } from "./mapArtwork.cjs";
 import { protocol } from "electron";
 
 import { pythonClient, type PythonClient } from "../python/client.cjs";
@@ -78,7 +79,7 @@ function pngResponse(data: Buffer): Response {
 }
 
 async function serveVisual(
-  entry: Exclude<IconRegistration, { readonly kind: "cache" }>,
+  entry: Exclude<IconRegistration, { readonly kind: "cache" | "map-visual" }>,
   roots: IconRoots | null,
   client: PythonClient,
   decodedCache: DecodedUpgradeTextureCache,
@@ -110,6 +111,7 @@ export async function serveLocalIcon(
   decodedCache: DecodedUpgradeTextureCache = new DecodedUpgradeTextureCache(),
   cosmeticCache: DecodedCosmeticArtworkCache = decodedCosmeticArtworkCache,
   baked: Pick<InstalledBakedArtwork, "get"> = installedBakedArtwork,
+  maps: Pick<MapArtwork, "get"> = mapArtwork,
 ): Promise<Response> {
   if (request.method !== "GET") {
     return new Response(null, { status: 405, headers: { Allow: "GET" } });
@@ -121,9 +123,23 @@ export async function serveLocalIcon(
     return notFound();
   }
   const parts = url.pathname.split("/").filter(Boolean);
-  if (url.hostname !== "local" || parts.length !== 1 || url.search || url.hash) return notFound();
+  if (
+    url.protocol !== `${ICON_SCHEME}:` ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.hostname !== "local" ||
+    parts.length !== 1 ||
+    url.search ||
+    url.hash
+  )
+    return notFound();
   const entry = registry.get(parts[0]);
   if (entry === undefined) return notFound();
+  if (entry.kind === "map-visual") {
+    const png = await maps.get(entry.family, entry.sourceIdentity, client);
+    return png === null ? notFound() : pngResponse(png);
+  }
   if (entry.kind === "cache")
     return entry.domain === "upgrade" ? serveCacheIcon(entry, roots) : notFound();
   return serveVisual(entry, roots, client, decodedCache, cosmeticCache, baked);

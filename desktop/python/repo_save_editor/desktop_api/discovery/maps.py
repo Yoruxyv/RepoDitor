@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.protocol import _failure
+from repo_save_editor.services.game.map_artwork import artwork_revision
 from repo_save_editor.services.game.maps import MapDiscoveryError, discover_installed_maps
 
 
@@ -21,6 +22,7 @@ def list_maps(game_dir: Path | None = None) -> dict[str, object]:
     if catalog is None:
         return {"ok": True, "available": False, "catalogPath": None, "maps": []}
 
+    revision = artwork_revision(catalog)
     return {
         "ok": True,
         "available": True,
@@ -30,6 +32,7 @@ def list_maps(game_dir: Path | None = None) -> dict[str, object]:
                 "internalName": game_map.internal_name,
                 "displayName": game_map.display_name,
                 "knownLabel": game_map.known_label,
+                "artworkRevision": revision if game_map.loading_paths else None,
             }
             for game_map in catalog.maps
         ],

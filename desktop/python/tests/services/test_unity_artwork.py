@@ -17,7 +17,7 @@ from repo_save_editor.services.unity_serialized import (
 from tests.unity_serialized_fixture import write_serialized_file
 
 
-def test_artwork_read_does_not_enable_sunstone_in_the_capability_reader(tmp_path: Path) -> None:
+def test_artwork_reader_preserves_capability_version_boundary(tmp_path: Path) -> None:
     path = tmp_path / "sunstone.assets"
     write_serialized_file(path, [(7, 1, b"synthetic")], unity_version=SUNSTONE_UNITY_VERSION)
     with ArtworkFileIndex(path) as artwork:

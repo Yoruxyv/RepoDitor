@@ -214,7 +214,7 @@ export const en = {
     "No validated R.E.P.O. installation was found. Map discovery does not affect save editing.",
   "maps.installed": "Installed content",
   "maps.description":
-    "Read-only discovery from the installed game's catalog. RepoDitor does not force the next map.",
+    "Read-only maps and loading artwork from the installed game. RepoDitor does not force the next map.",
   "cosmetics.loading": "Reading MetaSave cosmetics…",
   "cosmetics.unavailable": "Cosmetics unavailable",
   "cosmetics.ownership": "MetaSave ownership",
