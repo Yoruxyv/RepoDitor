@@ -166,6 +166,7 @@ internal sealed class InstallerWindow : Form
             { "showScope", _options.ShowScope },
             { "path", _selectedPath }
         });
+        InstallerLog.Write("Installer initialize message sent.");
     }
 
     private void SetScope(string scope, string path)

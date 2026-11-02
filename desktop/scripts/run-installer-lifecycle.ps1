@@ -128,6 +128,7 @@ $profile = Join-Path 'C:\Users' $account
 Copy-Item -LiteralPath $artifacts[0].FullName -Destination (Join-Path $stage 'setup.exe')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'test-installer-lifecycle.ps1') -Destination (Join-Path $stage 'lifecycle.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-lifecycle-process.ps1') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-lifecycle-ui.ps1') -Destination $stage
 if ((Get-FileHash -LiteralPath $artifacts[0].FullName).Hash -ne (Get-FileHash -LiteralPath (Join-Path $stage 'setup.exe')).Hash) { throw 'Staged installer differs from production artifact.' }
 Write-Host "Visible installer QA: disposable account $account. Watch the windows; do not click them."
 Write-Host "Results: $stage\results. Windows UAC manages only this test account."
