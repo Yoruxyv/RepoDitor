@@ -33,6 +33,7 @@ export interface SourceE2eHarness {
   readonly metaBefore: Buffer;
   readonly launchStarted: number;
   dispose(): Promise<void>;
+  relaunch(): Promise<void>;
 }
 
 export async function createGameFixture(home: string, cosmeticCount = 28): Promise<string> {
@@ -156,7 +157,10 @@ async function cleanup(application: ElectronApplication | undefined, home: strin
   });
 }
 
-export async function launchSourceE2eHarness(cosmeticCount = 28): Promise<SourceE2eHarness> {
+export async function launchSourceE2eHarness(
+  cosmeticCount = 28,
+  installedGameRoot?: string,
+): Promise<SourceE2eHarness> {
   const home = await mkdtemp(path.join(os.tmpdir(), "repoditor-e2e-isolated-profile-"));
   let application: ElectronApplication | undefined;
 
@@ -171,34 +175,56 @@ export async function launchSourceE2eHarness(cosmeticCount = 28): Promise<Source
     const applicationEnvironment = isolatedApplicationEnvironment(home, localAppDataLow);
     applicationEnvironment["REPODITOR_E2E_STEAM_ROOT"] = path.resolve(gameRoot, "..", "..", "..");
 
+    if (installedGameRoot !== undefined)
+      applicationEnvironment["REPO_GAME_DIR"] = installedGameRoot;
+    const packaged = process.env.REPODITOR_E2E_EXECUTABLE;
     const launchStarted = performance.now();
-    application = await electron.launch({
-      args: [".", "--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-      cwd: DESKTOP_ROOT,
-      env: {
-        ...applicationEnvironment,
-        VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-      },
-    });
-    const page = await application.firstWindow();
-    await application.evaluate(({ BrowserWindow }) => {
-      const renderer = BrowserWindow.getAllWindows()[0];
-      if (!renderer?.webContents.isLoadingMainFrame()) return;
-      return new Promise<void>((resolve) => {
-        renderer.webContents.once("did-finish-load", () => resolve());
+    let page: Page;
+    const launch = async () => {
+      application = await electron.launch({
+        executablePath: packaged ? path.resolve(DESKTOP_ROOT, packaged) : undefined,
+        args: [
+          ...(packaged ? [] : ["."]),
+          "--disable-gpu",
+          `--user-data-dir=${path.join(home, "electron-profile")}`,
+        ],
+        cwd: DESKTOP_ROOT,
+        env: {
+          ...applicationEnvironment,
+          ...(packaged ? {} : { VITE_DEV_SERVER_URL: "http://127.0.0.1:5173" }),
+        },
       });
-    });
+      page = await application.firstWindow();
+      await application.evaluate(({ BrowserWindow }) => {
+        const renderer = BrowserWindow.getAllWindows()[0];
+        if (!renderer?.webContents.isLoadingMainFrame()) return;
+        return new Promise<void>((resolve) => {
+          renderer.webContents.once("did-finish-load", resolve);
+        });
+      });
+    };
+    await launch();
 
     let disposed = false;
     return {
-      application,
-      page,
+      get application() {
+        if (application === undefined) throw new Error("Electron harness is not initialized.");
+        return application;
+      },
+      get page() {
+        return page;
+      },
       savePath,
       metaPath,
       gameRoot,
       sourceBefore,
       metaBefore,
       launchStarted,
+      async relaunch(): Promise<void> {
+        if (disposed) throw new Error("Electron harness is disposed.");
+        await application?.close();
+        await launch();
+      },
       async dispose(): Promise<void> {
         if (disposed) return;
         disposed = true;

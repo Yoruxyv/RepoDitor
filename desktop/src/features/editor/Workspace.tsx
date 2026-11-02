@@ -420,6 +420,7 @@ export function Workspace({
           ) : null}
           {activeSection === "maps" ? (
             <MapsView
+              artworkAttempt={maps.artworkAttempt}
               discovery={maps.discovery}
               error={maps.error}
               loading={maps.loading}

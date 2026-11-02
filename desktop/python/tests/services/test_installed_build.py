@@ -80,7 +80,7 @@ def test_build_validation_rechecks_authoritative_manifest(tmp_path: Path) -> Non
     assert validated_installed_build(result.installation) is None
 
 
-def test_sunstone_artwork_does_not_approve_recharge(tmp_path: Path) -> None:
+def test_artwork_compatibility_does_not_authorize_recharge_mutations(tmp_path: Path) -> None:
     steam_root, game_root = _steam_install(tmp_path, SUNSTONE_ARTWORK_BUILD_ID)
     result = discover_game_installation(steam_roots=(steam_root,), environment={})
     assert result.installation is not None
@@ -98,14 +98,14 @@ def test_artwork_rejects_unreviewed_build(tmp_path: Path) -> None:
     assert validated_installed_artwork_build(result.installation) is None
 
 
-def test_sunstone_artwork_requires_manifest_provenance(tmp_path: Path) -> None:
+def test_artwork_build_validation_requires_manifest_provenance(tmp_path: Path) -> None:
     _steam_root, game_root = _steam_install(tmp_path, SUNSTONE_ARTWORK_BUILD_ID)
     result = discover_game_installation(game_root)
     assert result.installation is not None
     assert validated_installed_artwork_build(result.installation) is None
 
 
-def test_sunstone_artwork_rejects_manifest_change(tmp_path: Path) -> None:
+def test_artwork_build_validation_rechecks_manifest_changes(tmp_path: Path) -> None:
     steam_root, _ = _steam_install(tmp_path, SUNSTONE_ARTWORK_BUILD_ID)
     result = discover_game_installation(steam_roots=(steam_root,), environment={})
     assert result.installation is not None

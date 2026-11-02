@@ -3,9 +3,11 @@ import { ArrowClockwiseIcon, MapTrifoldIcon } from "@phosphor-icons/react";
 
 import type { InstalledMapsDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { GameIcon } from "@/components/GameIcon";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 
 interface MapsViewProps {
+  readonly artworkAttempt?: number;
   readonly discovery: InstalledMapsDto | null;
   readonly loading: boolean;
   readonly error: string | null;
@@ -24,12 +26,12 @@ function MapsSkeleton({ label }: { readonly label: string }) {
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((gameMap) => (
           <div
-            className="flex items-start gap-3 border border-line bg-surface p-4"
+            className="min-w-0 rounded-sm border border-line bg-surface p-4"
             data-skeleton-kind="map-card"
             key={gameMap}
           >
-            <Skeleton className="size-5 shrink-0" />
-            <Skeleton className="h-4 w-32 max-w-full" />
+            <Skeleton className="aspect-2/1 w-full" />
+            <Skeleton className="mt-4 h-5 w-40 max-w-full" />
           </div>
         ))}
       </div>
@@ -37,10 +39,16 @@ function MapsSkeleton({ label }: { readonly label: string }) {
   );
 }
 
-export function MapsView({ discovery, loading, error, onRetry }: MapsViewProps) {
+export function MapsView({
+  artworkAttempt = 0,
+  discovery,
+  loading,
+  error,
+  onRetry,
+}: MapsViewProps) {
   const { t } = usePreferences();
   if (loading && !discovery) return <MapsSkeleton label={t("maps.loading")} />;
-  if (error)
+  if (error && !discovery)
     return (
       <section aria-labelledby="maps-error-title">
         <h2 className="text-xl font-semibold text-ink" id="maps-error-title">
@@ -77,25 +85,40 @@ export function MapsView({ discovery, loading, error, onRetry }: MapsViewProps) 
         <h2 className="text-2xl font-semibold text-ink" id="maps-title">
           {t("nav.maps")}
         </h2>
-        <span className="font-mono text-xs text-muted">{discovery.maps.length}</span>
+        <button
+          className="inline-flex shrink-0 items-center gap-2 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:opacity-50"
+          disabled={loading}
+          type="button"
+          onClick={onRetry}
+        >
+          <ArrowClockwiseIcon aria-hidden="true" size={16} />
+          {t(loading ? "action.refreshing" : "action.refresh")}
+        </button>
       </div>
       <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">{t("maps.description")}</p>
+      {error ? (
+        <p className="mt-3 text-sm text-secondary" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {discovery.maps.map((gameMap) => (
           <div
             className="min-w-0 rounded-sm border border-line bg-surface p-4"
             key={gameMap.internalName}
           >
-            <div className="flex items-start gap-3">
-              <MapTrifoldIcon
-                aria-hidden="true"
-                className="mt-0.5 shrink-0 text-accent"
-                size={19}
-              />
-              <h3 className="min-w-0 wrap-break-word text-sm font-semibold text-ink">
-                {gameMap.displayName}
-              </h3>
-            </div>
+            <GameIcon
+              key={artworkAttempt}
+              fallback={MapTrifoldIcon}
+              fallbackSource="fallback"
+              testId={`map-artwork-${gameMap.internalName}`}
+              token={gameMap.iconToken}
+              variant="map"
+              loading="eager"
+            />
+            <h3 className="mt-4 min-w-0 wrap-break-word text-base font-semibold text-ink">
+              {gameMap.displayName}
+            </h3>
           </div>
         ))}
       </div>

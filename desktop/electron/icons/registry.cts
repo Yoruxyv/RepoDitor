@@ -6,17 +6,17 @@
  */
 import { randomUUID } from "node:crypto";
 
-export type IconDomain = "item" | "upgrade" | "cosmetic";
+export type IconDomain = "item" | "upgrade" | "cosmetic" | "map";
 
 export interface CacheIconRegistration {
   readonly kind: "cache";
-  readonly domain: IconDomain;
+  readonly domain: Exclude<IconDomain, "map">;
   readonly key: string;
 }
 
 export interface UpgradeVisualRegistration {
   readonly kind: "upgrade-visual";
-  readonly domain: IconDomain;
+  readonly domain: Exclude<IconDomain, "map">;
   readonly cacheKey: string | null;
   readonly upgradeKey: string;
 }
@@ -35,19 +35,30 @@ export interface ItemVisualRegistration {
   readonly cacheKey: string | null;
 }
 
+export interface MapVisualRegistration {
+  readonly kind: "map-visual";
+  readonly domain: "map";
+  readonly family: string;
+  readonly sourceIdentity: string;
+}
+
 export type IconRegistration =
   | CacheIconRegistration
   | UpgradeVisualRegistration
   | CosmeticVisualRegistration
-  | ItemVisualRegistration;
+  | ItemVisualRegistration
+  | MapVisualRegistration;
 
 export interface IconVisualRequest {
   readonly cacheKey: string | null;
   readonly upgradeKey: string | null;
   readonly cosmeticId?: number | null;
   readonly itemName?: string | null;
+  readonly mapFamily?: string;
+  readonly sourceIdentity?: string;
 }
 
+const MAP_VISUAL_KIND = "map-visual";
 const ITEM_VISUAL_KIND = "item-visual";
 const COSMETIC_VISUAL_KIND = "cosmetic-visual";
 
@@ -85,6 +96,7 @@ export function readUpgradeVisualKey(value: unknown): string | null {
 }
 
 function signature(entry: IconRegistration): string {
+  if (entry.kind === MAP_VISUAL_KIND) return `map:${entry.family}:${entry.sourceIdentity}`;
   if (entry.kind === "cache") return `cache:${entry.key}`;
   if (entry.kind === ITEM_VISUAL_KIND)
     return `item:${entry.itemName}:cache:${entry.cacheKey ?? ""}`;
@@ -98,6 +110,27 @@ function visualRegistration(
   domain: IconDomain,
   request: IconVisualRequest,
 ): IconRegistration | null {
+  if (domain === "map") {
+    if (
+      !validMapFamily(request.mapFamily) ||
+      typeof request.sourceIdentity !== "string" ||
+      !/^[a-f0-9]{64}$/.test(request.sourceIdentity) ||
+      request.cacheKey !== null ||
+      request.upgradeKey !== null ||
+      request.itemName != null ||
+      request.cosmeticId != null
+    ) {
+      throw new Error("Invalid map artwork identity.");
+    }
+    return {
+      kind: MAP_VISUAL_KIND,
+      domain,
+      family: request.mapFamily,
+      sourceIdentity: request.sourceIdentity,
+    };
+  }
+  if (request.mapFamily !== undefined || request.sourceIdentity !== undefined)
+    throw new Error("Invalid artwork namespace.");
   const cacheKey = readIconKey(request.cacheKey);
   if (request.itemName !== undefined && request.itemName !== null) {
     if (
@@ -127,6 +160,16 @@ function visualRegistration(
   }
   if (cacheKey !== null) return { kind: "cache", domain, key: cacheKey };
   return null;
+}
+
+export function validMapFamily(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 64 &&
+    !/[/\\]/.test(value) &&
+    !Array.from(value).some((char) => char.charCodeAt(0) < 32)
+  );
 }
 
 export class LocalIconRegistry {

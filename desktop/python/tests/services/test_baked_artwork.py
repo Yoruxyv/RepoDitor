@@ -179,7 +179,10 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     discovery = SimpleNamespace(
         installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
     )
-    monkeypatch.setattr(baked, "discover_game_installation", lambda _: discovery)
+    monkeypatch.setattr(
+        "repo_save_editor.services.game.installed_build.discover_game_installation",
+        lambda _: discovery,
+    )
     result = baked.discover_baked_artwork(cache_dir=cache)
     assert result is not None
     assert result["root"] == str(root)
