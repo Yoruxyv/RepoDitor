@@ -214,6 +214,7 @@ function Invoke-WebViewOperation(
   Assert-True (Test-Path -LiteralPath $entry -PathType Leaf) "$Scenario production entry is missing."
 
   . (Join-Path $PSScriptRoot 'installer-lifecycle-ui.ps1')
+  Assert-InstallerAutomationThread
   $existingHosts = @(Get-Process -Name RepoDitorInstallerHost -ErrorAction SilentlyContinue |
     ForEach-Object Id)
   Write-LifecycleLog "$Scenario | $Mode UI start | executable=$entry arguments=/currentuser"
@@ -264,7 +265,7 @@ function Invoke-WebViewOperation(
   }
   Write-LifecycleLog "$Scenario | readiness | windowFound=$($null -ne $window) actionFound=$($null -ne $actionButton) hostExited=$($installerHost.HasExited)"
   try {
-    Add-Observation $Scenario 'readiness controls' (@(Get-InstallerControlSnapshot $window) | ConvertTo-Json -Compress)
+    Add-Observation $Scenario 'readiness controls (64 nodes, depth 16)' (@(Get-InstallerControlSnapshot $window) | ConvertTo-Json -Compress)
   }
   catch {
     Add-Observation $Scenario 'readiness controls unavailable' $_.Exception.GetType().FullName

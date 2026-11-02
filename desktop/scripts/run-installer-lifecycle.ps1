@@ -144,6 +144,7 @@ try {
   }
   [ordered]@{SID=$created.SID;Profile=$profile} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ControlPath 'worker-started.json')
   $worker = Start-Process -FilePath "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Credential $credential -LoadUserProfile -Environment $workerEnvironment -WindowStyle Hidden -ArgumentList @(
+    '-Mta',
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Quote-Path (Join-Path $stage 'lifecycle.ps1')),
     '-SetupPath', (Quote-Path (Join-Path $stage 'setup.exe')), '-ResultsPath', (Quote-Path (Join-Path $stage 'results')),
     '-ObserveSetupUi', '-RequireUnelevated', '-ExpectedDisposableProfile', (Quote-Path $profile), '-ExpectedDisposableSID', $created.SID

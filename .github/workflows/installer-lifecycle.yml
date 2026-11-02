@@ -148,6 +148,7 @@ jobs:
               -WindowStyle Hidden `
               -ArgumentList @(
                 "-NoProfile",
+                "-Mta",
                 "-ExecutionPolicy Bypass",
                 ('-File "' + $stage + '\lifecycle.ps1"'),
                 ('-SetupPath "' + $stage + '\setup.exe"'),

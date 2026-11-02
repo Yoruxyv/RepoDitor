@@ -46,10 +46,22 @@ function Get-InstallerAutomationContext($HostProcess) {
   }
 }
 
+function Assert-InstallerAutomationThread {
+  if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne [Threading.ApartmentState]::MTA) {
+    throw 'Installer UI Automation requires a non-UI MTA worker; launch PowerShell with -Mta.'
+  }
+}
+
 function Get-SafeInstallerControlName([string] $Name) {
   # Unknown names can contain paths or error data; keep only fixed product labels.
   if (-not $Name) { return '' }
-  if ($Name -cmatch '^(Install|Update|Uninstall|Retry|Cancel|Close|Change|Launch RepoDitor|RepoDitor Setup|RepoDitor Uninstall|RepoDitor installer|Ready to install|Ready to update|Uninstall RepoDitor\?|Current user|All users|INSTALL FOR|INSTALL LOCATION|REMOVE INSTALLATION|RepoDitor is ready|Installation failed|Uninstall finished|Uninstall failed|Chrome Legacy Window)$') {
+  if ($Name -cin @(
+    'Install', 'Update', 'Uninstall', 'Retry', 'Cancel', 'Close', 'Change',
+    'Launch RepoDitor', 'RepoDitor Setup', 'RepoDitor Uninstall', 'RepoDitor installer',
+    'Ready to install', 'Ready to update', 'Uninstall RepoDitor?', 'Current user', 'All users',
+    'INSTALL FOR', 'INSTALL LOCATION', 'REMOVE INSTALLATION', 'RepoDitor is ready',
+    'Installation failed', 'Uninstall finished', 'Uninstall failed', 'Chrome Legacy Window'
+  )) {
     return $Name
   }
   return '<redacted>'
@@ -75,7 +87,7 @@ function Get-InstallerControlSnapshot($Window) {
       framework = $current.FrameworkId
     }
     $count++
-    if ($entry.depth -ge 5) { continue }
+    if ($entry.depth -ge 16) { continue }
     $child = $walker.GetFirstChild($entry.element)
     while ($null -ne $child -and ($count + $queue.Count) -lt 64) {
       $queue.Enqueue(@{ element=$child; depth=($entry.depth + 1) })
