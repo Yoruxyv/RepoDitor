@@ -32,6 +32,7 @@ const INITIAL_STATE: DiscoveryState = {
 export function useEnvironmentDiscovery(
   active: boolean,
   refreshGeneration: number,
+  detect = detectEnvironment,
 ): EnvironmentDiscoveryController {
   const [state, setState] = useState<DiscoveryState>(INITIAL_STATE);
   const mounted = useRef(false);
@@ -49,7 +50,7 @@ export function useEnvironmentDiscovery(
     do {
       refreshQueued.current = false;
       setState((current) => ({ ...current, error: null, pending: true }));
-      const result = await detectEnvironment();
+      const result = await detect();
 
       if (mounted.current) {
         setState((current) =>
@@ -61,7 +62,7 @@ export function useEnvironmentDiscovery(
     } while (mounted.current && activeRef.current && refreshQueued.current);
 
     requestInFlight.current = false;
-  }, []);
+  }, [detect]);
 
   useEffect(() => {
     mounted.current = true;

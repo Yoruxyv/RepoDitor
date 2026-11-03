@@ -38,6 +38,8 @@ export default defineConfig([
     "playwright-report",
     "python/",
     "test-results",
+    "src-tauri/target",
+    "src-tauri/gen",
   ]),
   {
     files: ["**/*.{js,mjs,cjs}"],

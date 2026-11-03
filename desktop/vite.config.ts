@@ -13,6 +13,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./",
   define: { __APP_VERSION__: JSON.stringify(version) },
+  server: { watch: { ignored: ["**/src-tauri/**", "**/build/**", "**/test-results/**"] } },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

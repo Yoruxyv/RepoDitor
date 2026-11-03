@@ -2,6 +2,7 @@
 import type { en } from "./en";
 
 export const ko: Record<keyof typeof en, string> = {
+  "app.discoveryPreview": "읽기 전용 미리보기입니다. 편집과 저장은 사용할 수 없습니다.",
   "app.skipToContent": "콘텐츠로 건너뛰기",
   "app.tagline": "R.E.P.O. 세이브 유틸리티",
   "app.localDesktop": "로컬 데스크톱",

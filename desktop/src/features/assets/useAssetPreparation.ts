@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import type { AssetPreparationState } from "@electron/contracts";
 
-const INITIAL_STATE: AssetPreparationState = {
+export const INITIAL_STATE: AssetPreparationState = {
   stage: "idle",
   installationFound: false,
   buildVerified: false,

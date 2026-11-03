@@ -5,7 +5,6 @@
  * one typed change union through the session write boundary. It never derives game
  * mechanics or accesses raw save data.
  */
-import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import type {
@@ -16,10 +15,8 @@ import type {
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { AssetPreparationNotice } from "@/features/assets/AssetPreparationView";
-import { PathDetails } from "@/components/PathDetails";
 import { ItemsView } from "@/features/items/ItemsView";
 import { useItems } from "@/features/items/useItems";
-import { formatDateTime } from "@/features/discovery/formatters";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
 import { PlayersView } from "@/features/players/PlayersView";
@@ -30,6 +27,7 @@ import { useRunState } from "@/features/run/useRunState";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { OverviewView, type OverviewDestination } from "@/features/editor/OverviewView";
+import { SaveHeader } from "./SaveHeader";
 import type { RunEntryData } from "@/features/editor/runEntryPreparation";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import { toSaveChange, type RunSavePendingEdit } from "@/features/pending-changes/pendingEdits";
@@ -89,7 +87,7 @@ export function Workspace({
     initialEntryData?.artworkDegraded ?? false,
   );
   const observedArtworkPreparation = useRef(false);
-  const { locale, t } = usePreferences();
+  const { t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id, initialEntryData?.players ?? null);
   const avatars = usePlayerAvatars(
@@ -252,46 +250,7 @@ export function Workspace({
           onDismiss={noticeDismiss}
         />
       ) : null}
-      <header className="grid gap-4 border-b border-line pb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            {t("workspace.selectedSave")}
-          </p>
-          <h1
-            className="font-display mt-1 truncate text-4xl font-semibold uppercase leading-none tracking-[-0.02em] text-ink"
-            id="workspace-title"
-            title={session.name}
-          >
-            {session.name}
-          </h1>
-          <div
-            className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-secondary"
-            data-testid="selected-save-metadata"
-          >
-            <span>
-              {t("workspace.modified", { date: formatDateTime(session.modifiedAt, locale) })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-success">
-              <ShieldCheckIcon aria-hidden="true" size={15} />
-              {t("workspace.validatedShort")}
-            </span>
-          </div>
-          <PathDetails
-            className="mt-2 max-w-full"
-            label={t("workspace.source")}
-            testId="selected-save-path"
-            value={session.path}
-          />
-        </div>
-        <button
-          className="ui-feedback inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
-          type="button"
-          onClick={onClose}
-        >
-          <ArrowLeftIcon aria-hidden="true" size={17} weight="bold" />
-          {t("action.changeSave")}
-        </button>
-      </header>
+      <SaveHeader session={session} onClose={onClose} />
 
       <nav className="overflow-x-auto border-b border-line" aria-label={t("workspace.sections")}>
         <div className="flex min-w-max gap-1 py-2" role="tablist">

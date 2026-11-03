@@ -2,6 +2,7 @@
 import type { en } from "./en";
 
 export const ja: Record<keyof typeof en, string> = {
+  "app.discoveryPreview": "読み取り専用プレビューです。編集と保存は利用できません。",
   "app.skipToContent": "コンテンツへ移動",
   "app.tagline": "R.E.P.O. セーブユーティリティ",
   "app.localDesktop": "ローカルデスクトップ",

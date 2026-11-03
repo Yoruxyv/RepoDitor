@@ -8,7 +8,7 @@ import { formatDateTime, formatFileSize } from "@/features/discovery/formatters"
 interface RecentSaveListProps {
   readonly saves: SaveSummary[];
   readonly openingSaveId: string | null;
-  readonly onOpen: (saveId: string) => void;
+  readonly onOpen: ((saveId: string) => void) | null;
 }
 
 export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListProps) {
@@ -32,9 +32,9 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
             <li className="border-b border-line py-4 last:border-b-0" key={save.id}>
               <button
                 className="grid w-full gap-3 text-left transition duration-150 hover:text-accent active:translate-y-px disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                disabled={openingSaveId !== null}
+                disabled={openingSaveId !== null || onOpen === null}
                 type="button"
-                onClick={() => onOpen(save.id)}
+                onClick={() => onOpen?.(save.id)}
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <FileIcon

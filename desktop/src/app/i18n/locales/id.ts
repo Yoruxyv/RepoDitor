@@ -2,6 +2,7 @@
 import type { en } from "./en";
 
 export const id: Record<keyof typeof en, string> = {
+  "app.discoveryPreview": "Pratinjau hanya baca. Mengedit dan menyimpan belum tersedia.",
   "app.skipToContent": "Lewati ke konten",
   "app.tagline": "Utilitas save R.E.P.O.",
   "app.localDesktop": "Desktop lokal",

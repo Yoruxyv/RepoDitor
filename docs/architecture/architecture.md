@@ -35,6 +35,71 @@ R.E.P.O. .es3 files
 
 Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer sandboxing enabled. Input is validated at both the Electron and Python boundaries. Python verifies the validated R.E.P.O. process is closed before supported writes; startup and focus checks keep the renderer state current, and an unknown process state fails closed.
 
+## Experimental native host
+
+The opt-in Windows Tauri host under `desktop/src-tauri/` exposes
+`environment_detect`, `saves_open`, `game_status` and `preview_close`. Its typed
+read adapter composes the discovery adapter with save-open and game-status
+contracts, and exposes no write method. Its entry reuses discovery, save-loading,
+Overview, selected-save header, preferences and game-safety presentation.
+Electron remains the shipping host;
+its preload, IPC, save services, installer and release defaults are unchanged.
+
+Rust translates the existing Python discovery DTO and validates required fields,
+dates, JavaScript-safe numbers, save counts, session fingerprints, response ID
+identity, required visual keys and root/game consistency before returning the
+existing renderer contracts. Save opening accepts only the existing opaque ID
+format; Python re-discovers and loads that ID through its unchanged save-domain
+service. Rust performs no decryption or save interpretation. No write, arbitrary
+path, executable, argument, network, filesystem or shell command is exposed.
+
+Overview is a read-only session snapshot. Reopening reads current bytes and a
+fresh fingerprint, including changes made after discovery; it does not apply a
+write-only stale-file rule to reads. Other workspace controls remain unavailable.
+Visual readiness is unresolved when upgrade keys exist because artwork is not
+migrated; Overview does not wait for that optional work. Game status retains the
+distinct `unknown` state. The existing startup/focus/retry hook and safety modal
+block workspace interaction while status is running, unknown or initially
+unchecked, as in Electron. Native close cancels outstanding backend work.
+
+The local main-window capability grants only those four commands. CSP and
+navigation constrain the bundled page; new windows are denied. The preview has
+its own application identifier/profile and does not migrate Electron data.
+
+Each request launches the fixed frozen backend directly, without a system-Python
+fallback. Admission allows one outstanding request per read operation, at most
+three total; repeated calls to an occupied operation fail immediately. A single
+backend worker serializes those operations. Each 30-second deadline includes
+queue time, unlike Electron's concurrent process calls. Queued requests also
+observe cancellation. Every child retains the 2 MiB stdout limit, 64 KiB stderr
+limit and bounded pipe queue. Public failures use allowlisted codes and sanitized
+messages; translated UI errors retain the Electron mapping. A Windows
+kill-on-close Job Object owns the assigned process tree;
+normal close signals cancellation, and process/pipe handles are reaped on errors
+and timeouts. Assignment follows creation of the trusted bundled executable;
+this does not claim containment of hostile code substituted by a compromised
+local account before job assignment.
+
+The portable preview staging command copies the whole PyInstaller `--onedir`
+tree into `build/tauri-preview/backend`. It never changes production release
+output. See [Desktop setup and preview checks](../../desktop/README.md#optional-native-discovery-preview).
+
+Installer ownership is independent of the application host. The existing C#
+WebView2 installer and React UI remain the required installation interface,
+including path/scope selection, elevation, updates, uninstall, signing and safe
+cleanup. Its authenticated [extraction progress contract](../installer-progress.md)
+must retain measured byte counters and authoritative completion checks.
+
+The existing NSIS include uses electron-builder's `customInit`/`customUnInit`,
+scope/registry macros and pinned Nsis7z extraction override. It is not a drop-in
+Tauri installer-hooks file. A custom template or dedicated NSIS integration must
+preserve that contract; hooks alone do not establish compatibility. The current
+native preview has no installer and uses a different executable/backend layout
+from the C# host's Electron payload postconditions. Those checks must be adapted
+to real native artifacts, never bypassed with placeholder Electron files. Full
+install/update/uninstall and cross-host upgrade validation remain required before
+changing the production installer integration.
+
 ## Web boundary
 
 RepoDitor Web is an independent browser implementation. Save import, ES3 decryption, validation,

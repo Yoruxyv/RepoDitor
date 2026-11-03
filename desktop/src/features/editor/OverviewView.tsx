@@ -15,7 +15,7 @@ export type OverviewDestination = "players" | "upgrades" | "run" | "items";
 
 interface OverviewViewProps {
   readonly session: SaveSession;
-  readonly onNavigate: (destination: OverviewDestination) => void;
+  readonly onNavigate: ((destination: OverviewDestination) => void) | null;
 }
 
 export function OverviewView({ session, onNavigate }: OverviewViewProps) {
@@ -88,9 +88,10 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
                   <p className="mt-1 text-xs/5 text-secondary">{t(descriptionKey)}</p>
                 </div>
                 <button
-                  className="ui-feedback shrink-0 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+                  className="ui-feedback shrink-0 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
-                  onClick={() => onNavigate(destination)}
+                  disabled={onNavigate === null}
+                  onClick={() => onNavigate?.(destination)}
                 >
                   {t("overview.openSection", { section: label })}
                 </button>

@@ -1,5 +1,6 @@
 /** Canonical RepoDitor-owned translation key catalog and English fallback text. */
 export const en = {
+  "app.discoveryPreview": "Read-only preview. Editing and saving are unavailable.",
   "app.skipToContent": "Skip to content",
   "app.tagline": "R.E.P.O. save utility",
   "app.localDesktop": "Local desktop",

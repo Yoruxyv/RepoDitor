@@ -9,6 +9,8 @@ electron/ipc/known-cosmetics.cts
 release/
 playwright-report/
 test-results/
+src-tauri/target/
+src-tauri/gen/
 python/
 
 # Package-manager output is generated; docs stay outside the desktop formatter scope.

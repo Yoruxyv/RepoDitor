@@ -50,7 +50,7 @@ function getSummary(environment: EnvironmentDiscovery, t: Translate): string {
 
 interface DiscoveryHomeProps {
   readonly discovery: EnvironmentDiscoveryController;
-  readonly onOpenSave: (saveId: string) => void;
+  readonly onOpenSave: ((saveId: string) => void) | null;
   readonly openingSaveId: string | null;
   readonly openError: string | null;
 }

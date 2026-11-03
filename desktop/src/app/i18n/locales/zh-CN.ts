@@ -2,6 +2,7 @@
 import type { en } from "./en";
 
 export const zhCN: Record<keyof typeof en, string> = {
+  "app.discoveryPreview": "只读预览。暂不支持编辑和保存。",
   "app.skipToContent": "跳转到内容",
   "app.tagline": "R.E.P.O. 存档工具",
   "app.localDesktop": "本地桌面",

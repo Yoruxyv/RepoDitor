@@ -49,6 +49,52 @@ normal user profile.
 
 ## Windows package
 
+### Optional native discovery preview
+
+Electron remains the default application and release package. A Windows-only
+Tauri host supports discovery, save opening, read-only Overview and Python-backed
+game-status checks using the existing React components and desktop contracts.
+Editing/saving, other workspace features, artwork and production installation
+are not implemented in this host.
+The existing C# WebView2 installer and React UI remain the required installer;
+native payload integration has not been implemented or lifecycle-validated.
+
+From `desktop/`, with Rust/MSVC and WebView2 installed:
+
+```powershell
+npm run build:sidecar
+npm run dev:tauri
+```
+
+For a portable release-mode preview without developer tools at runtime:
+
+```powershell
+npm run package:tauri
+npm run build
+npm run package:dir
+npm run test:e2e:tauri
+```
+
+`build/tauri-preview/` contains the native executable, complete frozen Python
+directory and project/font licenses. The comparison gate also needs the local
+Electron reference in `release/win-unpacked/`, built with the unchanged commands
+above. The native package command writes only its preview output; production
+NSIS configuration, signing and default Electron build remain unchanged. Rust process
+tests use a compiled synthetic helper; packaged tests use only synthetic game/save
+fixtures and isolated browser data. Rust and preview E2E are Windows-only local
+checks while this host is experimental; existing production CI gates are unchanged.
+The preview E2E command first runs the Rust contract/process tests.
+It compares both hosts against the same synthetic save, verifies fresh reads
+after external fixture changes, and exercises malformed responses, failed
+operations, unknown/running game states and close during an active read.
+
+The preview uses a separate application identifier and data directory. It does
+not import the Electron profile or migrate user caches/preferences. External
+window opening is denied, including the shared footer link. Its current authority
+and lifecycle bounds are described in the [architecture guide](../docs/architecture/architecture.md#experimental-native-host).
+
+### Electron package
+
 ```powershell
 npm run package
 ```

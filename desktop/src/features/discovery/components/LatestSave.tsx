@@ -13,7 +13,7 @@ interface LatestSaveProps {
   readonly save: SaveSummary;
   readonly isDisabled: boolean;
   readonly isOpening: boolean;
-  readonly onOpen: (saveId: string) => void;
+  readonly onOpen: ((saveId: string) => void) | null;
 }
 
 export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSaveProps) {
@@ -27,9 +27,9 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
       <div className="mt-3 overflow-hidden rounded-sm border border-line bg-surface">
         <button
           className="w-full border-l-2 border-accent p-5 text-left transition duration-150 hover:bg-raised active:translate-y-px disabled:cursor-wait disabled:opacity-70 sm:p-6"
-          disabled={isDisabled}
+          disabled={isDisabled || onOpen === null}
           type="button"
-          onClick={() => onOpen(save.id)}
+          onClick={() => onOpen?.(save.id)}
         >
           <div className="flex items-start gap-4">
             <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-sm bg-accent-muted text-accent">

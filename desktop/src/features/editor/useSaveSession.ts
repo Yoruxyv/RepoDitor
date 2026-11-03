@@ -6,16 +6,24 @@
  */
 import { useRef, useState } from "react";
 
-import type { SaveChange, SaveOpenResult, SaveSession, SaveWriteResult } from "@electron/contracts";
+import type {
+  RepoDitorApi,
+  SaveChange,
+  SaveOpenResult,
+  SaveSession,
+  SaveWriteResult,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
+
+const desktopOpen: RepoDitorApi["saves"]["open"] = (saveId) => window.repoditor.saves.open(saveId);
 
 /**
  * Own one Run-save session without exposing decrypted data to the renderer.
  *
  * @returns The renderer-safe session, operations, and translated failure state.
  */
-export function useSaveSession() {
+export function useSaveSession(openSave = desktopOpen) {
   const { t } = usePreferences();
   const [session, setSession] = useState<SaveSession | null>(null);
   const [openingSaveId, setOpeningSaveId] = useState<string | null>(null);
@@ -35,7 +43,7 @@ export function useSaveSession() {
     setSaveError(null);
     setLastBackupPath(null);
     try {
-      const result = await window.repoditor.saves.open(saveId);
+      const result = await openSave(saveId);
       if (result.ok) {
         return result.data;
       }
