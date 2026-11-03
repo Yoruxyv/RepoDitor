@@ -22,6 +22,8 @@
             "allow-environment-detect",
             "allow-saves-open",
             "allow-game-status",
+            "allow-players-list",
+            "allow-upgrades-list",
             "allow-preview-close"
           ]
         }

@@ -4,6 +4,8 @@ fn main() {
             "environment_detect",
             "saves_open",
             "game_status",
+            "players_list",
+            "upgrades_list",
             "preview_close",
         ]),
     ))

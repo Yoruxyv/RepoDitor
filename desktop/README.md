@@ -52,9 +52,9 @@ normal user profile.
 ### Optional native discovery preview
 
 Electron remains the default application and release package. A Windows-only
-Tauri host supports discovery, save opening, read-only Overview and Python-backed
+Tauri host supports discovery, save opening, read-only Overview/Players/Upgrades and Python-backed
 game-status checks using the existing React components and desktop contracts.
-Editing/saving, other workspace features, artwork and production installation
+Editing/saving, other workspace features, artwork/Steam avatars and production installation
 are not implemented in this host.
 The existing C# WebView2 installer and React UI remain the required installer;
 native payload integration has not been implemented or lifecycle-validated.
@@ -87,6 +87,17 @@ The preview E2E command first runs the Rust contract/process tests.
 It compares both hosts against the same synthetic save, verifies fresh reads
 after external fixture changes, and exercises malformed responses, failed
 operations, unknown/running game states and close during an active read.
+Players shares Electron's list, selection, health display, responsive layout and
+translated loading/error/empty states. Health is read-only, edit actions are absent,
+and avatars use the existing fallback. Packaged checks compare both hosts, verify
+unchanged save bytes and exercise player-read timeout, retry and descendant cleanup.
+Upgrades reuses Python's dynamic membership and presentation metadata, including
+valid stored values above gameplay caps. Its text fields are read-only and support
+keyboard selection/copying; editing/revert/save actions are unavailable. Players
+and Upgrades share selection. Icons use the existing fallback until native artwork
+transport is implemented. The packaged checks include three-read timings and a
+controlled sidecar probe separating backend time from pre-execution wait; the
+serialized coordinator remains unchanged.
 
 The preview uses a separate application identifier and data directory. It does
 not import the Electron profile or migrate user caches/preferences. External

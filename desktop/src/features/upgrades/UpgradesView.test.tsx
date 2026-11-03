@@ -28,6 +28,45 @@ const upgrades: PlayerUpgradeDto[] = [
 ];
 
 describe("UpgradesView", () => {
+  it("shows accessible saved values above caps without inputs, pending edits or artwork requests", async () => {
+    const user = userEvent.setup();
+    const value = {
+      ...upgrades[0]!,
+      iconToken: null,
+      values: [{ playerId: "1", value: 2_147_483_648 }],
+    };
+    renderWithPreferences(
+      <UpgradesView
+        avatarUrls={{ "1": null }}
+        error={null}
+        loading={false}
+        pendingByUpgrade={{}}
+        players={[player]}
+        selectedPlayerId={player.id}
+        upgrades={[value]}
+        onChange={null}
+        onRevert={null}
+        onRejectAvatar={vi.fn()}
+        onRetry={vi.fn()}
+        onSelectPlayer={vi.fn()}
+      />,
+    );
+    const output = screen.getByRole("textbox", { name: "Health for Alpha" });
+    expect(output.getAttribute("value")).toBe("2147483648");
+    expect(output.tabIndex).toBe(0);
+    expect(output.hasAttribute("readonly")).toBe(true);
+    output.focus();
+    await user.keyboard("{ArrowUp}123");
+    expect(output.getAttribute("value")).toBe("2147483648");
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revert" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("pending-upgrade-playerUpgradeHealth")).toBeNull();
+    expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe(
+      "specific",
+    );
+    expect(screen.queryByRole("img")).toBeNull();
+  });
   it("matches the player selector and upgrade-row geometry while loading", () => {
     renderWithPreferences(
       <UpgradesView

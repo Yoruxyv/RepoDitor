@@ -1,12 +1,43 @@
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { openResult, saveId } from "@/test/repoditorApiFixture";
+import { openResult, players, saveId, upgrades } from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "./tauriReadApi";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 describe("typed native read capabilities", () => {
   beforeEach(() => vi.mocked(invoke).mockReset());
+  it("only exposes the named upgrades read and sanitizes bridge rejections", async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: upgrades })
+      .mockRejectedValueOnce(new Error("private path"));
+    expect(await tauriReadApi.upgrades.list(saveId)).toEqual({ ok: true, data: upgrades });
+    expect(invoke).toHaveBeenNthCalledWith(1, "upgrades_list", { saveId });
+    expect(await tauriReadApi.upgrades.list(saveId)).toEqual({
+      ok: false,
+      error: {
+        code: "internal_error",
+        message: "The desktop upgrades bridge failed unexpectedly.",
+      },
+    });
+    expect(Object.keys(tauriReadApi.upgrades)).toEqual(["list"]);
+  });
+  it("lists players through one named read command and sanitizes transport rejection", async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: players })
+      .mockResolvedValueOnce({ ok: false, error: { code: "save_missing", message: "Missing" } })
+      .mockRejectedValueOnce(new Error("private path"));
+    expect(await tauriReadApi.players.list(saveId)).toEqual({ ok: true, data: players });
+    expect(invoke).toHaveBeenNthCalledWith(1, "players_list", { saveId });
+    expect(await tauriReadApi.players.list(saveId)).toMatchObject({
+      ok: false,
+      error: { code: "save_missing" },
+    });
+    const rejected = await tauriReadApi.players.list(saveId);
+    expect(rejected).toMatchObject({ ok: false, error: { code: "internal_error" } });
+    expect(JSON.stringify(rejected)).not.toContain("private");
+    expect(Object.keys(tauriReadApi.players)).toEqual(["list"]);
+  });
   it("only forwards the opaque save ID to the named open command", async () => {
     vi.mocked(invoke).mockResolvedValueOnce(openResult());
     expect(await tauriReadApi.saves.open(saveId)).toEqual(openResult());

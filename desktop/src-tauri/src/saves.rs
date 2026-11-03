@@ -19,6 +19,13 @@ pub fn valid_id(id: &str) -> bool {
             .all(|(s, n)| s.len() == n && s.bytes().all(|b| b.is_ascii_digit()))
 }
 
+pub(super) fn valid_upgrade_key(key: &str) -> bool {
+    key.starts_with("playerUpgrade")
+        && key != "playerUpgrade"
+        && key.len() <= 512
+        && !key.contains('\0')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,12 +196,7 @@ pub fn parse(bytes: &[u8], requested: &str) -> Result<SaveOpenResult, BackendErr
     }
     let mut seen = HashSet::new();
     for key in &value.required_upgrade_visual_keys {
-        if !key.starts_with("playerUpgrade")
-            || key == "playerUpgrade"
-            || key.len() > 512
-            || key.contains('\0')
-            || !seen.insert(key)
-        {
+        if !valid_upgrade_key(key) || !seen.insert(key) {
             return Err(BackendError::Invalid);
         }
     }
@@ -211,7 +213,7 @@ pub fn parse(bytes: &[u8], requested: &str) -> Result<SaveOpenResult, BackendErr
     })
 }
 
-fn domain_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
+pub(super) fn domain_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
     let error = raw.get("error").ok_or(BackendError::Invalid)?;
     if error
         .get("message")
@@ -258,4 +260,21 @@ fn domain_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
         _ => return Err(BackendError::Invalid),
     };
     Ok(BackendError::Domain { code, message })
+}
+
+pub(super) fn read_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
+    if !matches!(
+        raw.pointer("/error/code").and_then(|v| v.as_str()),
+        Some(
+            "invalid_request"
+                | "save_missing"
+                | "save_corrupt"
+                | "save_decrypt_failed"
+                | "save_unsupported"
+                | "backend_unavailable"
+        )
+    ) {
+        return Err(BackendError::Invalid);
+    }
+    domain_error(raw)
 }

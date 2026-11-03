@@ -18,8 +18,8 @@ interface PlayersViewProps {
   readonly resetVersion?: number;
   readonly onSelect: (playerId: string) => void;
   readonly onRejectAvatar: (playerId: string) => void;
-  readonly onHealthChange: (player: PlayerDto, health: number) => void;
-  readonly onRevertHealth: (playerId: string) => void;
+  readonly onHealthChange: ((player: PlayerDto, health: number) => void) | null;
+  readonly onRevertHealth: ((playerId: string) => void) | null;
   readonly onRetry: () => void;
 }
 
@@ -34,6 +34,7 @@ function deriveHealthPresentation(
   input: string,
   fallback: number,
   maximum: number,
+  readOnly: boolean,
 ): HealthPresentation {
   const parsed = Number(input);
   const invalid =
@@ -42,7 +43,7 @@ function deriveHealthPresentation(
   const value = Math.min(Math.max(effective, 0), maximum);
   const percent = maximum > 0 ? Math.round((value / maximum) * 100) : 0;
 
-  return { parsed, invalid, value, percent };
+  return { parsed, invalid: invalid && !readOnly, value, percent };
 }
 
 function PlayersSkeleton({ label }: { readonly label: string }) {
@@ -97,7 +98,7 @@ export function PlayersView({
   selectedPlayerId,
   pendingByPlayer,
   avatarUrls,
-  resetVersion,
+  resetVersion = 0,
   onSelect,
   onRejectAvatar,
   onHealthChange,
@@ -106,28 +107,7 @@ export function PlayersView({
 }: PlayersViewProps) {
   const { t } = usePreferences();
   const playersLabel = t("nav.players");
-  const currentHealthLabel = t("players.currentHealth");
   const player = players.find((item) => item.id === selectedPlayerId) ?? null;
-  const pending = player ? pendingByPlayer[player.id] : undefined;
-  const health = pending?.after ?? player?.health ?? 0;
-  const [healthInputs, setHealthInputs] = useState<Record<string, string>>({});
-  useEffect(() => setHealthInputs({}), [resetVersion]);
-  const healthInput = player ? (healthInputs[player.id] ?? String(health)) : String(health);
-  const healthPresentation = deriveHealthPresentation(healthInput, health, player?.maxHealth ?? 0);
-  const parsedHealth = healthPresentation.parsed;
-  const healthError = healthPresentation.invalid
-    ? t("players.healthError", { max: player?.maxHealth ?? 0 })
-    : null;
-  const visualHealth = healthPresentation.value;
-  const healthPercent = healthPresentation.percent;
-  const isAtFullHealth = !healthError && parsedHealth === player?.maxHealth;
-  const healthDescription = [
-    "player-health-help",
-    healthError ? "player-health-error" : null,
-    pending ? "player-health-pending" : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   if (loading && players.length === 0) {
     return <PlayersSkeleton label={t("players.loading")} />;
@@ -163,34 +143,6 @@ export function PlayersView({
         <p className="mt-2 text-sm text-secondary">{t("players.emptyDescription")}</p>
       </section>
     );
-  }
-
-  function editHealth(value: string): void {
-    if (!player) {
-      return;
-    }
-    setHealthInputs((current) => ({ ...current, [player.id]: value }));
-  }
-
-  function commitHealth(): void {
-    if (!player || healthInputs[player.id] === undefined) return;
-    const parsed = Number(healthInputs[player.id]);
-    if (!Number.isSafeInteger(parsed)) {
-      setHealthInputs((current) => ({ ...current, [player.id]: String(health) }));
-      return;
-    }
-    const next = Math.min(Math.max(parsed, 0), player.maxHealth);
-    setHealthInputs((current) => ({ ...current, [player.id]: String(next) }));
-    onHealthChange(player, next);
-  }
-
-  function revertHealth(playerId: string): void {
-    setHealthInputs((current) => {
-      const next = { ...current };
-      delete next[playerId];
-      return next;
-    });
-    onRevertHealth(playerId);
   }
 
   return (
@@ -237,110 +189,191 @@ export function PlayersView({
           onRejectAvatar={() => onRejectAvatar(player.id)}
         />
 
-        <div className="mt-7 max-w-sm border-t border-line pt-6">
-          <label
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
-            htmlFor="player-health"
-          >
-            <HeartIcon aria-hidden="true" className="text-muted" size={15} />
-            {currentHealthLabel}
-          </label>
-          <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
-            {t("players.healthHelper")}
-          </p>
-          <div className="mt-3 flex flex-wrap items-start gap-3">
-            <div className="flex items-center gap-2">
-              <input
-                aria-describedby={healthDescription}
-                aria-invalid={healthError ? "true" : undefined}
-                className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
-                id="player-health"
-                inputMode="numeric"
-                max={player.maxHealth}
-                min="0"
-                step="1"
-                type="number"
-                value={healthInput}
-                onBlur={commitHealth}
-                onChange={(event) => editHealth(event.target.value)}
-              />
-              <span
-                aria-label={t("players.maximumHealth", { value: player.maxHealth })}
-                className="font-mono text-sm text-secondary"
-              >
-                / {player.maxHealth}
-              </span>
-            </div>
-            <button
-              className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
-              disabled={isAtFullHealth}
-              type="button"
-              onClick={() => {
-                setHealthInputs((current) => ({
-                  ...current,
-                  [player.id]: String(player.maxHealth),
-                }));
-                onHealthChange(player, player.maxHealth);
-              }}
-            >
-              {t("players.healFull")}
-            </button>
-            {pending ? (
-              <button
-                className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
-                type="button"
-                onClick={() => revertHealth(player.id)}
-              >
-                {t("action.revert")}
-              </button>
-            ) : null}
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <progress
-                aria-label={currentHealthLabel}
-                aria-valuemax={player.maxHealth}
-                aria-valuemin={0}
-                aria-valuenow={visualHealth}
-                className="sr-only"
-                max={player.maxHealth}
-                value={visualHealth}
-              />
-              <div
-                aria-hidden="true"
-                className="h-1.5 overflow-hidden rounded-sm bg-surface-raised"
-              >
-                <div
-                  className="h-full bg-accent"
-                  data-testid="player-health-progress-fill"
-                  style={{ width: `${healthPercent}%` }}
-                />
-              </div>
-            </div>
-            <span aria-hidden="true" className="w-10 text-right font-mono text-xs text-muted">
-              {healthPercent}%
-            </span>
-          </div>
-          {healthError ? (
-            <p className="mt-2 text-xs text-danger" id="player-health-error" role="alert">
-              {healthError}
-            </p>
-          ) : null}
-          {pending ? (
-            <p
-              className="mt-4 text-xs font-medium text-accent"
-              data-testid="pending-health-edit"
-              id="player-health-pending"
-            >
-              {t("status.pending", { before: pending.before, after: pending.after })}
-            </p>
-          ) : (
-            <p className="mt-4 flex items-center gap-2 text-xs text-muted">
-              <UserIcon aria-hidden="true" size={15} /> {t("players.noPendingHealth")}
-            </p>
-          )}
-        </div>
+        <PlayerHealth
+          player={player}
+          pendingByPlayer={pendingByPlayer}
+          resetVersion={resetVersion}
+          onHealthChange={onHealthChange}
+          onRevertHealth={onRevertHealth}
+        />
       </section>
+    </div>
+  );
+}
+
+function PlayerHealth({
+  player,
+  pendingByPlayer,
+  resetVersion,
+  onHealthChange,
+  onRevertHealth,
+}: Pick<
+  PlayersViewProps,
+  "pendingByPlayer" | "resetVersion" | "onHealthChange" | "onRevertHealth"
+> & { readonly player: PlayerDto }) {
+  const { t } = usePreferences();
+  const readOnly = onHealthChange === null;
+  const currentHealthLabel = t("players.currentHealth");
+  const pending = readOnly ? undefined : pendingByPlayer[player.id];
+  const health = pending?.after ?? player.health;
+  const [healthInputs, setHealthInputs] = useState<Record<string, string>>({});
+  useEffect(() => setHealthInputs({}), [resetVersion]);
+  const healthInput = !readOnly ? (healthInputs[player.id] ?? String(health)) : String(health);
+  const healthPresentation = deriveHealthPresentation(
+    healthInput,
+    health,
+    player.maxHealth,
+    readOnly,
+  );
+  const parsedHealth = healthPresentation.parsed;
+  const healthError = healthPresentation.invalid
+    ? t("players.healthError", { max: player.maxHealth })
+    : null;
+  const visualHealth = healthPresentation.value;
+  const healthPercent = healthPresentation.percent;
+  const isAtFullHealth = !healthError && parsedHealth === player.maxHealth;
+  const healthDescription = [
+    "player-health-help",
+    healthError ? "player-health-error" : null,
+    pending ? "player-health-pending" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  function editHealth(value: string): void {
+    if (readOnly) {
+      return;
+    }
+    setHealthInputs((current) => ({ ...current, [player.id]: value }));
+  }
+
+  function commitHealth(): void {
+    if (readOnly || healthInputs[player.id] === undefined) return;
+    const parsed = Number(healthInputs[player.id]);
+    if (!Number.isSafeInteger(parsed)) {
+      setHealthInputs((current) => ({ ...current, [player.id]: String(health) }));
+      return;
+    }
+    const next = Math.min(Math.max(parsed, 0), player.maxHealth);
+    setHealthInputs((current) => ({ ...current, [player.id]: String(next) }));
+    onHealthChange?.(player, next);
+  }
+
+  function revertHealth(playerId: string): void {
+    setHealthInputs((current) => {
+      const next = { ...current };
+      delete next[playerId];
+      return next;
+    });
+    onRevertHealth?.(playerId);
+  }
+
+  return (
+    <div className="mt-7 max-w-sm border-t border-line pt-6">
+      <label
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+        htmlFor="player-health"
+      >
+        <HeartIcon aria-hidden="true" className="text-muted" size={15} />
+        {currentHealthLabel}
+      </label>
+      {!readOnly ? (
+        <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
+          {t("players.healthHelper")}
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-start gap-3">
+        <div className="flex items-center gap-2">
+          <input
+            aria-describedby={readOnly ? undefined : healthDescription}
+            aria-invalid={healthError ? "true" : undefined}
+            className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
+            id="player-health"
+            inputMode="numeric"
+            max={player.maxHealth}
+            min="0"
+            readOnly={readOnly}
+            step="1"
+            type="number"
+            value={healthInput}
+            onBlur={commitHealth}
+            onChange={(event) => editHealth(event.target.value)}
+          />
+          <span
+            aria-label={t("players.maximumHealth", { value: player.maxHealth })}
+            className="font-mono text-sm text-secondary"
+          >
+            / {player.maxHealth}
+          </span>
+        </div>
+        {!readOnly ? (
+          <button
+            className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
+            disabled={isAtFullHealth}
+            type="button"
+            onClick={() => {
+              setHealthInputs((current) => ({
+                ...current,
+                [player.id]: String(player.maxHealth),
+              }));
+              onHealthChange?.(player, player.maxHealth);
+            }}
+          >
+            {t("players.healFull")}
+          </button>
+        ) : null}
+        {pending ? (
+          <button
+            className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+            type="button"
+            onClick={() => revertHealth(player.id)}
+          >
+            {t("action.revert")}
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <progress
+            aria-label={currentHealthLabel}
+            aria-valuemax={player.maxHealth}
+            aria-valuemin={0}
+            aria-valuenow={visualHealth}
+            className="sr-only"
+            max={player.maxHealth}
+            value={visualHealth}
+          />
+          <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-sm bg-surface-raised">
+            <div
+              className="h-full bg-accent"
+              data-testid="player-health-progress-fill"
+              style={{ width: `${healthPercent}%` }}
+            />
+          </div>
+        </div>
+        <span aria-hidden="true" className="w-10 text-right font-mono text-xs text-muted">
+          {healthPercent}%
+        </span>
+      </div>
+      {healthError ? (
+        <p className="mt-2 text-xs text-danger" id="player-health-error" role="alert">
+          {healthError}
+        </p>
+      ) : null}
+      {pending ? (
+        <p
+          className="mt-4 text-xs font-medium text-accent"
+          data-testid="pending-health-edit"
+          id="player-health-pending"
+        >
+          {t("status.pending", { before: pending.before, after: pending.after })}
+        </p>
+      ) : null}
+      {!readOnly && !pending ? (
+        <p className="mt-4 flex items-center gap-2 text-xs text-muted">
+          <UserIcon aria-hidden="true" size={15} /> {t("players.noPendingHealth")}
+        </p>
+      ) : null}
     </div>
   );
 }

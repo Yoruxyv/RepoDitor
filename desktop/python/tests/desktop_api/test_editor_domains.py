@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api.discovery.maps import list_maps
 from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
@@ -80,6 +81,54 @@ def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save
                 ],
             },
         ],
+    }
+    assert save_path.read_bytes() == before
+
+
+def test_upgrade_reads_preserve_values_above_caps_and_refresh_membership(
+    tmp_path: Path, sample_save
+) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries["playerUpgradeStrength"]["111"] = 2_147_483_648
+    save_path = _write_save(tmp_path, sample_save)
+    before = save_path.read_bytes()
+    result = list_upgrades(
+        save_path.parent.name,
+        tmp_path,
+        presentation_loader=lambda _keys: {
+            "playerUpgradeStrength": UpgradePresentation(
+                "Strength", UpgradePresentationSource.INSTALLED, gameplay_cap=10
+            )
+        },
+    )
+    assert result["upgrades"][0]["gameplayCap"] == 10
+    assert result["upgrades"][0]["values"][0]["value"] == 2_147_483_648
+    assert save_path.read_bytes() == before
+
+    del dictionaries["playerUpgradeStrength"]
+    dictionaries["playerUpgradeFutureBoost"] = {"222": 37}
+    save_path.write_bytes(encrypt_save(sample_save))
+    changed = save_path.read_bytes()
+    result = list_upgrades(save_path.parent.name, tmp_path, presentation_loader=lambda _keys: {})
+    assert [item["key"] for item in result["upgrades"]] == ["playerUpgradeFutureBoost"]
+    assert result["upgrades"][0]["values"] == [
+        {"playerId": "111", "value": 0},
+        {"playerId": "222", "value": 37},
+    ]
+    assert save_path.read_bytes() == changed
+
+
+def test_upgrade_membership_ignores_non_dictionaries_and_empty_prefix(
+    tmp_path: Path, sample_save
+) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    del dictionaries["playerUpgradeStrength"]
+    dictionaries.update({"playerUpgrade": {"111": 2}, "playerUpgradeMalformed": "bad"})
+    save_path = _write_save(tmp_path, sample_save)
+    before = save_path.read_bytes()
+    assert list_upgrades(save_path.parent.name, tmp_path, presentation_loader=lambda _keys: {}) == {
+        "ok": True,
+        "upgrades": [],
     }
     assert save_path.read_bytes() == before
 

@@ -28,7 +28,11 @@ fn main() {
             std::fs::write(&args[2], child.id().to_string()).unwrap();
             child.wait().unwrap();
         }
-        "environment" | "saves-open" | "game-status" => {
+        "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list" => {
+            let started = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
             let hang = std::env::var("REPODITOR_TEST_HANG_COMMAND")
                 .unwrap_or_else(|_| "environment".into());
             if hang != args[1] {
@@ -41,12 +45,29 @@ fn main() {
                         eprintln!("private backend diagnostic");
                         std::process::exit(7);
                     }
-                    print!("{response}");
+                    if response != "hang" {
+                        let delay = std::env::var("REPODITOR_TEST_DELAY_MS")
+                            .ok()
+                            .and_then(|value| value.parse::<u64>().ok())
+                            .unwrap_or(0)
+                            .min(5000);
+                        std::thread::sleep(Duration::from_millis(delay));
+                        if let Some(root) = std::env::var_os("REPODITOR_TEST_TIMING_DIR") {
+                            let finished = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis();
+                            std::fs::write(std::path::PathBuf::from(root).join(format!("{}-{}.json", args[1], std::process::id())),
+                                format!("{{\"operation\":\"{}\",\"started\":{started},\"finished\":{finished}}}", args[1])).unwrap();
+                        }
+                        print!("{response}");
+                        return;
+                    }
                 } else {
                     assert_eq!(args[1], "game-status");
                     println!("{{\"ok\":true,\"status\":\"not_running\",\"running\":false}}");
+                    return;
                 }
-                return;
             }
             let mut child = Command::new(std::env::current_exe().unwrap())
                 .arg("hang")

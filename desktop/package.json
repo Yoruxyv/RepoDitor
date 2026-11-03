@@ -12,7 +12,7 @@
     "build:tauri-ui": "tsc -p tsconfig.app.json && vite build --config vite.tauri.config.ts",
     "package:tauri": "npm run build:sidecar && tauri build --no-bundle -- --locked && node scripts/stage-tauri.mjs",
     "test:tauri": "cargo test --manifest-path src-tauri/Cargo.toml --locked",
-    "test:e2e:tauri": "npm run test:tauri && npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=build/tauri-preview/repoditor-preview.exe playwright test e2e/tauri-preview.spec.ts --output=test-results/tauri-preview",
+    "test:e2e:tauri": "npm run test:tauri && npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=build/tauri-preview/repoditor-preview.exe playwright test e2e/tauri-preview.spec.ts e2e/tauri-upgrades.spec.ts --output=test-results/tauri-preview",
     "dev": "concurrently -k -n renderer,electron-ts,electron \"npm:dev:renderer\" \"npm:dev:electron:compile\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
     "dev:electron:compile": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",

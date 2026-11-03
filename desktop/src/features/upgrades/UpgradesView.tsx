@@ -28,8 +28,8 @@ interface UpgradesViewProps {
   readonly resetVersion?: number;
   readonly onSelectPlayer: (playerId: string) => void;
   readonly onRejectAvatar: (playerId: string) => void;
-  readonly onChange: (upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void;
-  readonly onRevert: (playerId: string, upgradeKey: string) => void;
+  readonly onChange: ((upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void) | null;
+  readonly onRevert: ((playerId: string, upgradeKey: string) => void) | null;
   readonly onRetry: () => void;
 }
 
@@ -78,6 +78,9 @@ function key(playerId: string, upgradeKey: string): string {
   return `${playerId}:${upgradeKey}`;
 }
 
+const VALUE_CLASS_NAME =
+  "w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent";
+
 export function UpgradesView({
   players,
   selectedPlayerId,
@@ -86,7 +89,7 @@ export function UpgradesView({
   error,
   pendingByUpgrade,
   avatarUrls,
-  resetVersion,
+  resetVersion = 0,
   onSelectPlayer,
   onRejectAvatar,
   onChange,
@@ -94,11 +97,9 @@ export function UpgradesView({
   onRetry,
 }: UpgradesViewProps) {
   const { t } = usePreferences();
-  const [inputs, setInputs] = useState<Record<string, string>>({});
-  useEffect(() => setInputs({}), [resetVersion]);
   const player = players.find((item) => item.id === selectedPlayerId) ?? players[0] ?? null;
 
-  if (loading && upgrades.length === 0) {
+  if (loading && (upgrades.length === 0 || players.length === 0)) {
     return <UpgradesSkeleton label={t("upgrades.loading")} />;
   }
   if (error) {
@@ -121,7 +122,11 @@ export function UpgradesView({
     );
   }
   if (!player) {
-    return <p className="text-sm text-secondary">{t("upgrades.noPlayers")}</p>;
+    return (
+      <p className="text-sm text-secondary">
+        {t(onChange === null ? "players.emptyDescription" : "upgrades.noPlayers")}
+      </p>
+    );
   }
 
   const playerLabel = t("upgrades.player");
@@ -163,21 +168,6 @@ export function UpgradesView({
         <div className="mt-6 grid min-w-0 gap-x-8 gap-y-5 xl:grid-cols-2">
           {upgrades.map((upgrade) => {
             const presentation = getUpgradeIcon(upgrade.key);
-            const edit = pendingByUpgrade[key(player.id, upgrade.key)];
-            const stored = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
-            const inputKey = key(player.id, upgrade.key);
-            const input = inputs[inputKey] ?? String(edit?.after ?? stored);
-            const parsed = Number(input);
-            const invalid =
-              input.trim() === "" ||
-              !Number.isSafeInteger(parsed) ||
-              parsed < 0 ||
-              parsed > SAVE_INT32_MAX;
-            const errorId = `${upgrade.key}-error`;
-            const pendingId = `${upgrade.key}-pending`;
-            const description =
-              [invalid ? errorId : null, edit ? pendingId : null].filter(Boolean).join(" ") ||
-              undefined;
             return (
               <div
                 className="relative min-h-24 min-w-0 border-t border-line pt-4 pr-24"
@@ -206,73 +196,118 @@ export function UpgradesView({
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-3 flex flex-wrap items-start gap-3">
-                  <input
-                    aria-describedby={description}
-                    aria-invalid={invalid ? "true" : undefined}
-                    aria-label={t("upgrades.input", {
-                      upgrade: upgrade.label,
-                      player: player.name,
-                    })}
-                    className="w-32 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
-                    id={upgrade.key}
-                    max={SAVE_INT32_MAX}
-                    min="0"
-                    step="1"
-                    type="number"
-                    value={input}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setInputs((current) => ({ ...current, [inputKey]: value }));
-                      const next = Number(value);
-                      if (
-                        value.trim() &&
-                        Number.isSafeInteger(next) &&
-                        next >= 0 &&
-                        next <= SAVE_INT32_MAX
-                      ) {
-                        onChange(upgrade, player, next);
-                      } else {
-                        onRevert(player.id, upgrade.key);
-                      }
-                    }}
-                  />
-                  {edit ? (
-                    <button
-                      className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
-                      type="button"
-                      onClick={() => {
-                        setInputs((current) => {
-                          const next = { ...current };
-                          delete next[inputKey];
-                          return next;
-                        });
-                        onRevert(player.id, upgrade.key);
-                      }}
-                    >
-                      {t("action.revert")}
-                    </button>
-                  ) : null}
-                </div>
-                {invalid ? (
-                  <p className="mt-2 text-xs text-danger" id={errorId} role="alert">
-                    {t("upgrades.error")}
-                  </p>
-                ) : null}
-                {edit ? (
-                  <p
-                    className="mt-2 text-xs font-medium text-accent"
-                    data-testid={`pending-upgrade-${upgrade.key}`}
-                    id={pendingId}
-                  >
-                    {t("status.pending", { before: edit.before, after: edit.after })}
-                  </p>
-                ) : null}
+                <UpgradeValue
+                  player={player}
+                  upgrade={upgrade}
+                  pendingByUpgrade={pendingByUpgrade}
+                  resetVersion={resetVersion}
+                  onChange={onChange}
+                  onRevert={onRevert}
+                />
               </div>
             );
           })}
         </div>
       )}
     </section>
+  );
+}
+
+function UpgradeValue({
+  player,
+  upgrade,
+  pendingByUpgrade,
+  resetVersion,
+  onChange,
+  onRevert,
+}: Pick<UpgradesViewProps, "pendingByUpgrade" | "resetVersion" | "onChange" | "onRevert"> & {
+  readonly player: PlayerDto;
+  readonly upgrade: PlayerUpgradeDto;
+}) {
+  const { t } = usePreferences();
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const inputLabel = t("upgrades.input", { upgrade: upgrade.label, player: player.name });
+  useEffect(() => setInputs({}), [resetVersion]);
+  const edit = onChange === null ? undefined : pendingByUpgrade[key(player.id, upgrade.key)];
+  const stored = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
+  const inputKey = key(player.id, upgrade.key);
+  const input = inputs[inputKey] ?? String(edit?.after ?? stored);
+  const parsed = Number(input);
+  const invalid =
+    input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0 || parsed > SAVE_INT32_MAX;
+  const errorId = `${upgrade.key}-error`;
+  const pendingId = `${upgrade.key}-pending`;
+  const description =
+    [invalid ? errorId : null, edit ? pendingId : null].filter(Boolean).join(" ") || undefined;
+
+  if (onChange === null) {
+    return (
+      <input
+        aria-label={inputLabel}
+        className={`${VALUE_CLASS_NAME} mt-3`}
+        id={upgrade.key}
+        readOnly
+        type="text"
+        value={stored}
+      />
+    );
+  }
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap items-start gap-3">
+        <input
+          aria-describedby={description}
+          aria-invalid={invalid ? "true" : undefined}
+          aria-label={inputLabel}
+          className={VALUE_CLASS_NAME}
+          id={upgrade.key}
+          max={SAVE_INT32_MAX}
+          min="0"
+          step="1"
+          type="number"
+          value={input}
+          onChange={(event) => {
+            const value = event.target.value;
+            setInputs((current) => ({ ...current, [inputKey]: value }));
+            const next = Number(value);
+            if (value.trim() && Number.isSafeInteger(next) && next >= 0 && next <= SAVE_INT32_MAX) {
+              onChange(upgrade, player, next);
+            } else {
+              onRevert?.(player.id, upgrade.key);
+            }
+          }}
+        />
+        {edit ? (
+          <button
+            className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+            type="button"
+            onClick={() => {
+              setInputs((current) => {
+                const next = { ...current };
+                delete next[inputKey];
+                return next;
+              });
+              onRevert?.(player.id, upgrade.key);
+            }}
+          >
+            {t("action.revert")}
+          </button>
+        ) : null}
+      </div>
+      {invalid ? (
+        <p className="mt-2 text-xs text-danger" id={errorId} role="alert">
+          {t("upgrades.error")}
+        </p>
+      ) : null}
+      {edit ? (
+        <p
+          className="mt-2 text-xs font-medium text-accent"
+          data-testid={`pending-upgrade-${upgrade.key}`}
+          id={pendingId}
+        >
+          {t("status.pending", { before: edit.before, after: edit.after })}
+        </p>
+      ) : null}
+    </>
   );
 }

@@ -17,6 +17,29 @@ const handlers = {
 };
 
 describe("PlayersView", () => {
+  it("renders saved health without edit actions or invalid-edit guidance in read-only mode", () => {
+    renderWithPreferences(
+      <PlayersView
+        {...handlers}
+        avatarUrls={{ "1": null }}
+        error={null}
+        loading={false}
+        players={[{ ...player, health: 180 }]}
+        selectedPlayerId="1"
+        onHealthChange={null}
+        onRevertHealth={null}
+      />,
+    );
+    const input = screen.getByRole("spinbutton");
+    expect(input.hasAttribute("readonly")).toBe(true);
+    expect(input.getAttribute("value")).toBe("180");
+    fireEvent.change(input, { target: { value: "50" } });
+    fireEvent.blur(input);
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("100");
+    expect(screen.queryByRole("button", { name: "Heal to Full" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revert" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
   it("uses player geometry for initial loading without hiding valid refresh data", () => {
     const { rerender } = renderWithPreferences(
       <PlayersView

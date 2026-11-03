@@ -3,8 +3,10 @@ mod backend;
 mod discovery;
 mod error;
 mod game;
+mod players;
 mod process;
 mod saves;
+mod upgrades;
 
 use backend::{HostState, Operation};
 use error::{BackendError, Outcome, Service};
@@ -52,6 +54,38 @@ async fn game_status(app: tauri::AppHandle) -> Outcome<game::GameState> {
 }
 
 #[tauri::command]
+async fn players_list(
+    app: tauri::AppHandle,
+    save_id: Option<serde_json::Value>,
+) -> Outcome<Vec<players::Player>> {
+    let Some(id) = save_id
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| saves::valid_id(id))
+        .map(str::to_owned)
+    else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Player);
+    };
+    backend::request(app, Operation::Players(id), players::parse).await
+}
+
+#[tauri::command]
+async fn upgrades_list(
+    app: tauri::AppHandle,
+    save_id: Option<serde_json::Value>,
+) -> Outcome<Vec<upgrades::Upgrade>> {
+    let Some(id) = save_id
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| saves::valid_id(id))
+        .map(str::to_owned)
+    else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
+    };
+    backend::request(app, Operation::Upgrades(id), upgrades::parse).await
+}
+
+#[tauri::command]
 fn preview_close(app: tauri::AppHandle) -> Result<(), &'static str> {
     app.state::<Arc<HostState>>()
         .closing
@@ -69,6 +103,8 @@ fn main() {
             environment_detect,
             saves_open,
             game_status,
+            players_list,
+            upgrades_list,
             preview_close
         ])
         .setup(|app| {

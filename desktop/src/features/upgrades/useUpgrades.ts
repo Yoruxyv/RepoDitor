@@ -5,6 +5,7 @@ import type {
   DesktopOperationResult,
   PlayerDto,
   PlayerUpgradeDto,
+  RepoDitorApi,
   SaveCanonicalUpgradeValue,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -18,6 +19,9 @@ interface UpgradesState {
 }
 
 const INITIAL_STATE: UpgradesState = { upgrades: [], error: null, loading: true };
+
+const listDesktopUpgrades: RepoDitorApi["upgrades"]["list"] = (saveId) =>
+  window.repoditor.upgrades.list(saveId);
 
 function editKey(playerId: string, upgradeKey: string): string {
   return `${playerId}:${upgradeKey}`;
@@ -57,6 +61,7 @@ function applyCanonicalUpgradeValues(
 export function useUpgrades(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
+  list: RepoDitorApi["upgrades"]["list"] = listDesktopUpgrades,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(() => {
@@ -68,11 +73,14 @@ export function useUpgrades(
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
   const initialResultRef = useRef(initialResult);
+  const requestInFlight = useRef(false);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
+      if (requestInFlight.current) return false;
+      requestInFlight.current = true;
       try {
-        const resolved = await window.repoditor.upgrades.list(saveId);
+        const resolved = await list(saveId);
         if (!mounted.current) return resolved.ok;
         if (resolved.ok) {
           setState({ upgrades: resolved.data, error: null, loading: false });
@@ -93,16 +101,20 @@ export function useUpgrades(
           }));
         }
         return false;
+      } finally {
+        requestInFlight.current = false;
       }
     },
-    [saveId],
+    [list, saveId],
   );
 
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load(false);
+    const request =
+      initialResultRef.current === null ? window.setTimeout(() => void load(false)) : undefined;
     return () => {
       mounted.current = false;
+      if (request !== undefined) window.clearTimeout(request);
     };
   }, [load]);
 

@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   DesktopOperationResult,
   GameProcessState,
+  PlayerDto,
+  PlayerUpgradeDto,
   RepoDitorApi,
   SaveOpenResult,
 } from "@electron/contracts";
@@ -14,8 +16,42 @@ export const tauriReadApi: {
   environment: RepoDitorApi["environment"];
   saves: Pick<RepoDitorApi["saves"], "open">;
   game: RepoDitorApi["game"];
+  players: Pick<RepoDitorApi["players"], "list">;
+  upgrades: Pick<RepoDitorApi["upgrades"], "list">;
 } = {
   environment: tauriDiscoveryApi,
+  upgrades: {
+    async list(saveId) {
+      try {
+        return await invoke<DesktopOperationResult<PlayerUpgradeDto[]>>("upgrades_list", {
+          saveId,
+        });
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop upgrades bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
+  },
+  players: {
+    async list(saveId) {
+      try {
+        return await invoke<DesktopOperationResult<PlayerDto[]>>("players_list", { saveId });
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop player bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
+  },
   saves: {
     async open(saveId) {
       try {

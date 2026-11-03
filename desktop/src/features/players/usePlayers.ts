@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DesktopOperationResult,
   PlayerDto,
+  RepoDitorApi,
   SaveCanonicalPlayerValue,
 } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -24,6 +25,9 @@ const INITIAL_STATE: PlayersState = {
   loading: true,
 };
 
+const listDesktopPlayers: RepoDitorApi["players"]["list"] = (saveId) =>
+  window.repoditor.players.list(saveId);
+
 function initialState(result: DesktopOperationResult<PlayerDto[]> | null): PlayersState {
   if (result === null) return INITIAL_STATE;
   return result.ok
@@ -33,6 +37,7 @@ function initialState(result: DesktopOperationResult<PlayerDto[]> | null): Playe
 export function usePlayers(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerDto[]> | null = null,
+  list: RepoDitorApi["players"]["list"] = listDesktopPlayers,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<PlayersState>(() => initialState(initialResult));
@@ -51,7 +56,7 @@ export function usePlayers(
       }
       playerRequestInFlight.current = true;
       try {
-        const result = await window.repoditor.players.list(saveId);
+        const result = await list(saveId);
         if (!mounted.current) return result.ok;
         if (result.ok) {
           setState({ players: result.data, error: null, loading: false });
@@ -81,7 +86,7 @@ export function usePlayers(
         playerRequestInFlight.current = false;
       }
     },
-    [saveId],
+    [list, saveId],
   );
 
   useEffect(() => {
@@ -129,7 +134,7 @@ export function usePlayers(
   }
 
   function selectPlayer(playerId: string): void {
-    setSelectedPlayerId(playerId);
+    if (state.players.some((player) => player.id === playerId)) setSelectedPlayerId(playerId);
   }
 
   function reload(): void {

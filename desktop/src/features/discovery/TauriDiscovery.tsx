@@ -8,7 +8,7 @@ import { usePreferences } from "@/app/preferences";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { INITIAL_STATE as idleAssets } from "@/features/assets/useAssetPreparation";
-import { TauriOverview } from "@/features/editor/TauriOverview";
+import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
 import { GameSafetyDialog } from "@/features/safety/GameSafetyDialog";
 import { useGameSafety } from "@/features/safety/useGameSafety";
@@ -65,7 +65,7 @@ function DiscoveryPreview() {
       />
     );
   } else if (save.session !== null) {
-    view = <TauriOverview session={save.session} onClose={close} />;
+    view = <TauriWorkspace session={save.session} onClose={close} />;
   }
   return (
     <AppShell>

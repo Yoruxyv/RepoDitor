@@ -38,10 +38,10 @@ Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer 
 ## Experimental native host
 
 The opt-in Windows Tauri host under `desktop/src-tauri/` exposes
-`environment_detect`, `saves_open`, `game_status` and `preview_close`. Its typed
-read adapter composes the discovery adapter with save-open and game-status
+`environment_detect`, `saves_open`, `players_list`, `upgrades_list`, `game_status` and `preview_close`. Its typed
+read adapter composes the discovery adapter with save-open, player-list, upgrade-list and game-status
 contracts, and exposes no write method. Its entry reuses discovery, save-loading,
-Overview, selected-save header, preferences and game-safety presentation.
+Overview, Players, Upgrades, selected-save header, preferences and game-safety presentation.
 Electron remains the shipping host;
 its preload, IPC, save services, installer and release defaults are unchanged.
 
@@ -55,20 +55,44 @@ path, executable, argument, network, filesystem or shell command is exposed.
 
 Overview is a read-only session snapshot. Reopening reads current bytes and a
 fresh fingerprint, including changes made after discovery; it does not apply a
-write-only stale-file rule to reads. Other workspace controls remain unavailable.
+write-only stale-file rule to reads. Players uses Python's existing `players-list`
+service and Electron's numeric-ID, nonempty-name and JavaScript-safe health DTO
+contract. Duplicate IDs are rejected; Python's dictionary projection produces
+unique IDs. Health may exceed maximum health in an existing save, as in Electron;
+the shared progress display clamps it without altering the saved value.
+The existing Players hook accepts an injected list method, loads once per open
+workspace and retains selection across tabs. Retry and reopening read current
+bytes. Health is read-only, editing controls are absent, and the existing avatar
+fallback renders immediately without a network/artwork command.
+
+Upgrades calls Python's unchanged `upgrades-list` service. Save dictionaries define
+membership; Rust validates the existing bounded prefix keys, labels, presentation
+source enum, nullable nonnegative gameplay caps and JavaScript-safe per-player
+values. Stored values above presentation caps or the editor's Int32 write bound
+remain visible. Upgrade keys and per-upgrade player IDs must be unique, and each
+upgrade must reference the same player-ID set, as Python's projection guarantees.
+This does not compare independent reads with a cached Players snapshot: external
+save changes are read afresh. Reopening refreshes the workspace and selection.
+Players and Upgrades share the selected-player state. The injected Upgrades hook
+coalesces overlapping reads and ignores late results after unmount. The shared
+view retains editable Electron controls by default; the native variant renders
+read-only text fields with keyboard focus/copying and no mutation handlers,
+pending edits or revert actions. Validated `iconKey` metadata is discarded and
+`iconToken` is always null; the existing Phosphor fallback needs no native artwork
+URL, protocol or cache authorization. Other workspace controls remain unavailable.
 Visual readiness is unresolved when upgrade keys exist because artwork is not
 migrated; Overview does not wait for that optional work. Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
 unchecked, as in Electron. Native close cancels outstanding backend work.
 
-The local main-window capability grants only those four commands. CSP and
+The local main-window capability grants only those six commands. CSP and
 navigation constrain the bundled page; new windows are denied. The preview has
 its own application identifier/profile and does not migrate Electron data.
 
 Each request launches the fixed frozen backend directly, without a system-Python
 fallback. Admission allows one outstanding request per read operation, at most
-three total; repeated calls to an occupied operation fail immediately. A single
+five total; repeated calls to an occupied operation fail immediately. A single
 backend worker serializes those operations. Each 30-second deadline includes
 queue time, unlike Electron's concurrent process calls. Queued requests also
 observe cancellation. Every child retains the 2 MiB stdout limit, 64 KiB stderr

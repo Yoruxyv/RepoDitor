@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { environment, openResult } from "@/test/repoditorApiFixture";
+import { environment, openResult, players, upgrades } from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import { TauriDiscovery } from "./TauriDiscovery";
 
@@ -10,6 +10,8 @@ vi.mock("@/app/tauriReadApi", () => ({
     environment: { detect: vi.fn() },
     saves: { open: vi.fn() },
     game: { status: vi.fn() },
+    players: { list: vi.fn() },
+    upgrades: { list: vi.fn() },
   },
   closeTauriPreview: vi.fn(),
 }));
@@ -25,6 +27,10 @@ describe("read-only native discovery", () => {
       .mockReset()
       .mockResolvedValue({ ok: true, data: { status: "not_running", running: false } });
     vi.mocked(closeTauriPreview).mockReset();
+    vi.mocked(tauriReadApi.players.list).mockReset().mockResolvedValue({ ok: true, data: players });
+    vi.mocked(tauriReadApi.upgrades.list)
+      .mockReset()
+      .mockResolvedValue({ ok: true, data: upgrades });
   });
   it("reuses discovery, enables save opens, and preserves data on refresh failure", async () => {
     vi.mocked(tauriReadApi.environment.detect)
@@ -66,15 +72,85 @@ describe("read-only native discovery", () => {
     const workspace = screen.getByTestId("workspace");
     expect(
       within(workspace)
-        .getAllByRole("button", { name: /^Open / })
+        .getAllByRole("button", { name: /^Open (Run|Items)$/ })
         .every((button) => button.matches(":disabled")),
     ).toBe(true);
+    expect(
+      within(workspace).getByRole("button", { name: "Open Players" }).matches(":disabled"),
+    ).toBe(false);
     expect(within(workspace).queryByRole("spinbutton")).toBeNull();
     expect(within(workspace).queryByRole("button", { name: /Save Changes/ })).toBeNull();
     expect(screen.getByTestId("selected-save-metadata")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Change save" }));
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
     expect(tauriReadApi.environment.detect).toHaveBeenCalledTimes(2);
+  });
+  it("keeps Players selection across tabs with read-only details, fallback and keyboard navigation", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Open Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    expect(screen.getByRole("spinbutton").hasAttribute("readonly")).toBe(true);
+    expect(screen.getByTestId("avatar-fallback").textContent).toBe("B");
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("0");
+    expect(screen.queryByRole("button", { name: "Heal to Full" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Overview" }), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.getByRole("button", { name: /Beta/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(tauriReadApi.players.list).toHaveBeenCalledTimes(1);
+  });
+  it("uses the existing Players loading, empty and retry states", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    let complete!: (value: Awaited<ReturnType<typeof tauriReadApi.players.list>>) => void;
+    vi.mocked(tauriReadApi.players.list)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({ ok: true, data: [] });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    expect(await screen.findByTestId("players-skeleton")).toBeTruthy();
+    complete({ ok: false, error: { code: "process_failed", message: "private" } });
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).not.toContain("private");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "No players found" })).toBeTruthy();
+  });
+  it("synchronizes Players and read-only Upgrades selection and preserves it across tabs", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Open Upgrades" }));
+    expect(await screen.findByRole("textbox", { name: "Strength for Alpha" })).toBeTruthy();
+    await user.click(screen.getByRole("combobox", { name: "Player" }));
+    await user.click(screen.getByRole("option", { name: "Beta" }));
+    expect(screen.getByRole("textbox", { name: "Moon Boots for Beta" }).getAttribute("value")).toBe(
+      "7",
+    );
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.getByRole("button", { name: /Beta/ }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByRole("button", { name: /Alpha/ }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Players" }), { key: "End" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(screen.getByRole("textbox", { name: "Strength for Alpha" }).getAttribute("value")).toBe(
+      "2",
+    );
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Upgrades" }));
+    expect(await screen.findByRole("textbox", { name: "Strength for Alpha" })).toBeTruthy();
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2);
   });
   it.each(["save_missing", "save_stale", "process_failed"] as const)(
     "shows the existing translated %s failure without entering a workspace",

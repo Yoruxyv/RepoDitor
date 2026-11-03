@@ -16,7 +16,7 @@ use std::{
 use tauri::Manager;
 
 const DEADLINE: Duration = Duration::from_secs(30);
-const OPERATIONS: usize = 3;
+const OPERATIONS: usize = 5;
 
 #[derive(Default)]
 pub struct HostState {
@@ -43,6 +43,8 @@ pub enum Operation {
     Discovery,
     Open(String),
     Game,
+    Players(String),
+    Upgrades(String),
 }
 impl Operation {
     fn slot(&self) -> usize {
@@ -50,6 +52,8 @@ impl Operation {
             Self::Discovery => 0,
             Self::Open(_) => 1,
             Self::Game => 2,
+            Self::Players(_) => 3,
+            Self::Upgrades(_) => 4,
         }
     }
     fn service(&self) -> Service {
@@ -57,6 +61,8 @@ impl Operation {
             Self::Discovery => Service::Discovery,
             Self::Open(_) => Service::Save,
             Self::Game => Service::Game,
+            Self::Players(_) => Service::Player,
+            Self::Upgrades(_) => Service::Upgrade,
         }
     }
     fn arguments(&self) -> Vec<&str> {
@@ -64,6 +70,8 @@ impl Operation {
             Self::Discovery => vec!["environment"],
             Self::Open(id) => vec!["saves-open", id],
             Self::Game => vec!["game-status"],
+            Self::Players(id) => vec!["players-list", id],
+            Self::Upgrades(id) => vec!["upgrades-list", id],
         }
     }
 }
