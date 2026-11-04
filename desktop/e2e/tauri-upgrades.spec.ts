@@ -165,7 +165,7 @@ test("packaged Upgrades retain dynamic values, shared selection and read-only pa
       "true",
     );
     await page.getByRole("tab", { name: "Players" }).focus();
-    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowRight");
     await expect(page.getByRole("tab", { name: "Upgrades" })).toBeFocused();
     await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
     await compareLayouts(page, referencePage, info);
@@ -341,7 +341,7 @@ test("native Upgrades reject malformed DTOs and recover with fallback and game s
   }
 });
 
-test("three frozen reads and a controlled sidecar distinguish execution from pre-execution wait", async ({
+test("five frozen reads and a controlled sidecar distinguish execution from pre-execution wait", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -369,14 +369,22 @@ test("three frozen reads and a controlled sidecar distinguish execution from pre
     await openUpgrades(electronPage, true);
     await openUpgrades(page);
     await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+    await page.getByRole("tab", { name: "Run" }).click();
+    await expect(page.getByRole("textbox", { name: "Currency" })).toHaveValue("12");
+    await page.getByRole("tab", { name: "Items" }).click();
+    await expect(page.getByRole("searchbox", { name: "Search items" })).toBeVisible();
     for (let trial = 0; trial < 3; trial++) {
       const nativeStart = performance.now();
       const nativeTimes = await Promise.all(
-        ["players_list", "upgrades_list", "game_status"].map(async (command) => {
-          const started = performance.now();
-          expect(await native(page, command, { saveId: E2E_SAVE_ID })).toMatchObject({ ok: true });
-          return { command, elapsedMs: performance.now() - started };
-        }),
+        ["players_list", "upgrades_list", "run_get", "advanced_get", "game_status"].map(
+          async (command) => {
+            const started = performance.now();
+            expect(await native(page, command, { saveId: E2E_SAVE_ID })).toMatchObject({
+              ok: true,
+            });
+            return { command, elapsedMs: performance.now() - started };
+          },
+        ),
       );
       const nativeTotalMs = performance.now() - nativeStart;
       const electronStart = performance.now();
@@ -386,6 +394,8 @@ test("three frozen reads and a controlled sidecar distinguish execution from pre
             [
               ["players_list", () => window.repoditor.players.list(id)],
               ["upgrades_list", () => window.repoditor.upgrades.list(id)],
+              ["run_get", () => window.repoditor.run.get(id)],
+              ["advanced_get", () => window.repoditor.advanced.get(id)],
               ["game_status", () => window.repoditor.game.status()],
             ].map(async ([command, invoke]) => {
               const started = performance.now();
@@ -398,7 +408,13 @@ test("three frozen reads and a controlled sidecar distinguish execution from pre
       const electronTotalMs = performance.now() - electronStart;
       for (const result of referenceTimes) expect(result.result).toMatchObject({ ok: true });
       const standalone = [];
-      for (const command of ["players-list", "upgrades-list", "game-status"]) {
+      for (const command of [
+        "players-list",
+        "upgrades-list",
+        "run-get",
+        "advanced-get",
+        "game-status",
+      ]) {
         const backend = path.join(
           DESKTOP_ROOT,
           "build/tauri-preview/backend/repoditor-backend.exe",
@@ -446,10 +462,15 @@ test("three frozen reads and a controlled sidecar distinguish execution from pre
   try {
     await openUpgrades(page);
     await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+    await page.getByRole("tab", { name: "Run" }).click();
+    await expect(page.getByRole("textbox", { name: "Currency" })).toHaveValue("12");
+    await page.getByRole("tab", { name: "Items" }).click();
+    await expect(page.getByRole("searchbox", { name: "Search items" })).toBeVisible();
     const requested = Date.now();
     await Promise.all(
-      ["players_list", "upgrades_list", "game_status"].map(async (command) =>
-        expect(await native(page, command, { saveId: E2E_SAVE_ID })).toMatchObject({ ok: true }),
+      ["players_list", "upgrades_list", "run_get", "advanced_get", "game_status"].map(
+        async (command) =>
+          expect(await native(page, command, { saveId: E2E_SAVE_ID })).toMatchObject({ ok: true }),
       ),
     );
     const records = [];
@@ -467,18 +488,24 @@ test("three frozen reads and a controlled sidecar distinguish execution from pre
         });
     }
     records.sort((a, b) => a.started - b.started);
-    expect(records).toHaveLength(3);
+    expect(records).toHaveLength(5);
     for (const item of records) expect(item.backendMs).toBeGreaterThanOrEqual(200);
-    for (let index = 1; index < records.length; index++)
-      expect(records[index].started).toBeGreaterThanOrEqual(records[index - 1].finished);
-    expect(records[2].preExecutionMs - records[0].preExecutionMs).toBeGreaterThanOrEqual(400);
+    const domains = records.filter((record) => record.operation !== "game-status");
+    const game = records.find((record) => record.operation === "game-status")!;
+    expect(domains).toHaveLength(4);
+    for (let index = 1; index < domains.length; index++)
+      expect(domains[index].started).toBeGreaterThanOrEqual(domains[index - 1].finished);
+    expect(domains[3].preExecutionMs - domains[0].preExecutionMs).toBeGreaterThanOrEqual(600);
+    expect(
+      domains.some((record) => game.started < record.finished && game.finished > record.started),
+    ).toBe(true);
     await writeFile(
-      info.outputPath("upgrades-concurrency.json"),
+      info.outputPath("items-concurrency.json"),
       JSON.stringify(
         {
           samples,
           controlledRecords: records,
-          note: "Pre-execution includes IPC and process startup as well as queue wait; standalone CLI includes process startup. Controlled backend duration is measured inside the synthetic helper. No production timing API or scheduler changes.",
+          note: "Pre-execution includes IPC and process startup as well as queue wait; standalone CLI includes process startup. Controlled backend duration is measured inside the synthetic helper. Status is independent; domain reads remain serialized. No production timing API.",
         },
         null,
         2,

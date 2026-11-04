@@ -156,6 +156,37 @@ def test_run_state_uses_friendly_values_and_preserves_unknown_resume(
     }
 
 
+@pytest.mark.parametrize(
+    "value", [-9_007_199_254_740_991, -2_147_483_649, 0, 2_147_483_648, 9_007_199_254_740_991]
+)
+def test_run_reads_keep_signed_values_optional_stats_and_fresh_source(
+    tmp_path: Path, sample_save, value: int
+) -> None:
+    stats = sample_save["dictionaryOfDictionaries"]["value"]["runStats"]
+    stats.update({"level": 2_147_483_647, "currency": value, "save level": 9})
+    del stats["lives"]
+    del stats["totalHaul"]
+    save_path = _write_save(tmp_path, sample_save)
+    original = save_path.read_bytes()
+    result = get_run_state(save_path.parent.name, tmp_path)
+    assert result["run"]["stats"] == [
+        {"key": "level", "label": "Level", "value": 2_147_483_648},
+        {"key": "currency", "label": "Currency", "value": value},
+    ]
+    assert result["run"]["resumeLocation"] == {
+        "value": "Unknown (9)",
+        "options": ["Normal", "Shop / Service Station", "Unknown (9)"],
+    }
+    assert save_path.read_bytes() == original
+    stats.update({"currency": 37, "lives": -3, "totalHaul": 0, "save level": 1})
+    save_path.write_bytes(encrypt_save(sample_save))
+    changed = save_path.read_bytes()
+    refreshed = get_run_state(save_path.parent.name, tmp_path)
+    assert [stat["value"] for stat in refreshed["run"]["stats"]] == [2_147_483_648, 37, -3, 0]
+    assert refreshed["run"]["resumeLocation"]["value"] == "Shop / Service Station"
+    assert save_path.read_bytes() == changed
+
+
 def test_maps_report_available_unavailable_and_feature_errors(tmp_path: Path) -> None:
     missing = list_maps(tmp_path / "missing")
     assert missing == {"ok": True, "available": False, "catalogPath": None, "maps": []}
@@ -266,6 +297,70 @@ def test_advanced_read_rejects_malformed_structure(tmp_path: Path, sample_save) 
             "message": "The selected save contains malformed advanced item data.",
         },
     }
+
+
+@pytest.mark.parametrize("stored", [-9_007_199_254_740_991, 0, 9_007_199_254_740_991])
+def test_advanced_projection_keeps_all_charge_states_and_refreshes_source(
+    tmp_path: Path, sample_save, stored: int
+) -> None:
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries.update(
+        {
+            "item": {
+                "Item Future Tool/1": 1,
+                "Item Future Tool/2": 1,
+                "Item Cart/3": 1,
+                "Item Unknown/4": 1,
+                "Item Unknown/5": 1,
+            },
+            "itemStatBattery": {
+                "Item Future Tool/1": stored,
+                "Item Unknown/5": 7,
+                "Item Orphan/1": 8,
+            },
+        }
+    )
+    path = _write_save(tmp_path, sample_save)
+    before = path.read_bytes()
+
+    def read():
+        return get_advanced_save(
+            path.parent.name,
+            tmp_path,
+            capability_loader=lambda _names: {
+                "Item Future Tool": ItemRechargeCapability.RECHARGEABLE,
+                "Item Cart": ItemRechargeCapability.NOT_RECHARGEABLE,
+            },
+        )
+
+    advanced = read()["advanced"]
+    by_key = {item["saveKey"]: item for item in advanced["items"]}
+    assert by_key["Item Future Tool/1"]["storedCharge"] == stored
+    assert [
+        by_key[key]["chargeState"]
+        for key in [
+            "Item Future Tool/1",
+            "Item Future Tool/2",
+            "Item Cart/3",
+            "Item Unknown/4",
+            "Item Unknown/5",
+        ]
+    ] == ["stored", "default_full", "not_applicable", "unknown", "stored"]
+    assert by_key["Item Unknown/5"]["rechargeCapability"] == "unknown"
+    assert by_key["Item Unknown/5"]["canRefillToFull"] is False
+    assert advanced["unlinkedChargeEntryCount"] == 1
+    assert len(advanced["domains"]) == 6
+    assert path.read_bytes() == before
+    dictionaries["itemStatBattery"]["Item Future Tool/1"] = 37
+    path.write_bytes(encrypt_save(sample_save))
+    changed = path.read_bytes()
+    assert (
+        next(
+            item for item in read()["advanced"]["items"] if item["saveKey"] == "Item Future Tool/1"
+        )["storedCharge"]
+        == 37
+    )
+    assert path.read_bytes() == changed
 
 
 def test_advanced_read_marks_matching_upgrade_item_for_internal_visual_resolution(

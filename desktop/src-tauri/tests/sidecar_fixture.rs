@@ -4,6 +4,22 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
+
+fn overflow(mut stream: impl Write) -> ! {
+    loop {
+        stream.write_all(&[b'x'; 4096]).unwrap();
+    }
+}
+
+fn record_pids(command: &str, pids: &[u32]) {
+    let path = std::env::var_os("REPODITOR_TEST_PID_DIR")
+        .map(|root| std::path::PathBuf::from(root).join(format!("{command}.json")))
+        .or_else(|| std::env::var_os("REPODITOR_TEST_PID_FILE").map(std::path::PathBuf::from));
+    if let Some(path) = path {
+        std::fs::write(path, format!("{pids:?}")).unwrap();
+    }
+}
+
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     match args[1].as_str() {
@@ -12,12 +28,8 @@ fn main() {
             eprintln!("private diagnostic path");
             std::process::exit(7);
         }
-        "stdout" => loop {
-            io::stdout().write_all(&[b'x'; 4096]).unwrap();
-        },
-        "stderr" => loop {
-            io::stderr().write_all(&[b'x'; 4096]).unwrap();
-        },
+        "stdout" => overflow(io::stdout()),
+        "stderr" => overflow(io::stderr()),
         "hang" => std::thread::sleep(Duration::from_secs(60)),
         "descendant" => {
             let mut child = Command::new(std::env::current_exe().unwrap())
@@ -28,7 +40,8 @@ fn main() {
             std::fs::write(&args[2], child.id().to_string()).unwrap();
             child.wait().unwrap();
         }
-        "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list" => {
+        "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list"
+        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -41,9 +54,18 @@ fn main() {
                         std::path::PathBuf::from(root).join(format!("{}.json", args[1])),
                     )
                     .unwrap();
+                    if matches!(response.as_str(), "exit7" | "stdout" | "stderr") {
+                        record_pids(&args[1], &[std::process::id()]);
+                    }
                     if response == "exit7" {
                         eprintln!("private backend diagnostic");
                         std::process::exit(7);
+                    }
+                    if response == "stdout" {
+                        overflow(io::stdout());
+                    }
+                    if response == "stderr" {
+                        overflow(io::stderr());
                     }
                     if response != "hang" {
                         let delay = std::env::var("REPODITOR_TEST_DELAY_MS")
@@ -51,7 +73,15 @@ fn main() {
                             .and_then(|value| value.parse::<u64>().ok())
                             .unwrap_or(0)
                             .min(5000);
-                        std::thread::sleep(Duration::from_millis(delay));
+                        if std::env::var("REPODITOR_TEST_DELAY_COMMAND")
+                            .ok()
+                            .is_none_or(|command| command == args[1])
+                        {
+                            if let Some(marker) = std::env::var_os("REPODITOR_TEST_STARTED_FILE") {
+                                std::fs::write(marker, &args[1]).unwrap();
+                            }
+                            std::thread::sleep(Duration::from_millis(delay));
+                        }
                         if let Some(root) = std::env::var_os("REPODITOR_TEST_TIMING_DIR") {
                             let finished = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
@@ -74,11 +104,7 @@ fn main() {
                 .stdin(Stdio::null())
                 .spawn()
                 .unwrap();
-            std::fs::write(
-                std::env::var_os("REPODITOR_TEST_PID_FILE").unwrap(),
-                format!("[{},{}]", std::process::id(), child.id()),
-            )
-            .unwrap();
+            record_pids(&args[1], &[std::process::id(), child.id()]);
             child.wait().unwrap();
         }
         _ => panic!("Unknown fixture mode"),

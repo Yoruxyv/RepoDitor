@@ -1,5 +1,6 @@
 //! Validate Python's dynamic upgrade DTOs; optional artwork never crosses as a URL.
 use crate::{
+    artwork::valid_icon_key,
     error::{json, BackendError},
     players, saves,
 };
@@ -40,19 +41,6 @@ pub struct Upgrade {
 // Null is valid presentation metadata; omission is a malformed DTO.
 fn nullable_integer<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<i64>, D::Error> {
     Option::<i64>::deserialize(deserializer)
-}
-
-fn valid_icon_key(value: &Value) -> bool {
-    let Some(key) = value.as_str() else {
-        return value.is_null();
-    };
-    let Some(stem) = key.strip_suffix(".png") else {
-        return false;
-    };
-    (1..=256).contains(&stem.encode_utf16().count())
-        && key != "..png"
-        && !key.contains(['/', '\\', '\0'])
-        && key == key.to_lowercase()
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Upgrade>, BackendError> {

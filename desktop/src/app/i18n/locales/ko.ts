@@ -168,6 +168,7 @@ export const ko: Record<keyof typeof en, string> = {
   "upgrades.empty": "이 세이브에는 플레이어 업그레이드가 없습니다.",
   "upgrades.input": "{player}의 {upgrade}",
   "upgrades.error": "업그레이드 값은 0에서 2,147,483,647 사이의 정수여야 합니다.",
+  "run.readOnlyDescription": "저장된 런 값과 재개 위치를 확인합니다.",
   "run.loading": "런 상태 불러오는 중…",
   "run.unavailable": "런을 사용할 수 없음",
   "run.expedition": "현재 원정",
@@ -178,6 +179,9 @@ export const ko: Record<keyof typeof en, string> = {
   "run.resumeLocation": "재개 위치",
   "run.lives": "목숨",
   "run.totalHaul": "총 수익",
+  "items.readOnlyDescription":
+    "저장된 아이템을 검색하고 확인합니다. 이 미리보기는 읽기 전용입니다.",
+  "items.readOnlySafety": "충전 정보는 사용 가능한 세이브 및 게임 근거를 따릅니다.",
   "items.loading": "아이템 불러오는 중…",
   "items.unavailable": "아이템을 사용할 수 없음",
   "items.description":

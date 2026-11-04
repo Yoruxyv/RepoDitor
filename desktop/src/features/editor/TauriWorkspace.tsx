@@ -7,10 +7,16 @@ import { PlayersView } from "@/features/players/PlayersView";
 import { usePlayers } from "@/features/players/usePlayers";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
+import { ItemsView } from "@/features/items/ItemsView";
+import { useItems } from "@/features/items/useItems";
+import { RunView } from "@/features/run/RunView";
+import { useRunState } from "@/features/run/useRunState";
+import { MapsView } from "@/features/maps/MapsView";
+import { useMaps } from "@/features/maps/useMaps";
 import { OverviewView } from "./OverviewView";
 import { SaveHeader } from "./SaveHeader";
 
-const SECTIONS = ["overview", "players", "upgrades"] as const;
+const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 type Section = (typeof SECTIONS)[number];
 
 export function TauriWorkspace({
@@ -24,6 +30,9 @@ export function TauriWorkspace({
   const [section, setSection] = useState<Section>("overview");
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
+  const run = useRunState(session.id, null, tauriReadApi.run.get);
+  const items = useItems(session.id, null, tauriReadApi.advanced.get);
+  const maps = useMaps(null, tauriReadApi.maps.list);
   const avatarUrls = Object.fromEntries(players.players.map((player) => [player.id, null]));
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next: number;
@@ -71,9 +80,14 @@ export function TauriWorkspace({
           {section === "overview" ? (
             <OverviewView
               session={session}
-              availableDestinations={["players", "upgrades"]}
+              availableDestinations={["players", "upgrades", "run", "items"]}
               onNavigate={(destination) => {
-                if (destination === "players" || destination === "upgrades")
+                if (
+                  destination === "players" ||
+                  destination === "upgrades" ||
+                  destination === "run" ||
+                  destination === "items"
+                )
                   setSection(destination);
               }}
             />
@@ -110,6 +124,39 @@ export function TauriWorkspace({
                 else void upgrades.reload();
               }}
               onSelectPlayer={players.setSelectedPlayerId}
+            />
+          ) : null}
+          {section === "items" ? (
+            <ItemsView
+              advanced={items.advanced}
+              loading={items.loading}
+              error={items.error}
+              pendingByItem={{}}
+              onRefillAllToFull={null}
+              onRefillToFull={null}
+              onRevertRefill={null}
+              onRetry={() => void items.reload()}
+            />
+          ) : null}
+          {section === "run" ? (
+            <RunView
+              run={run.run}
+              loading={run.loading}
+              error={run.error}
+              pendingByField={{}}
+              onStatChange={null}
+              onResumeChange={null}
+              onRevert={null}
+              onRetry={() => void run.reload()}
+            />
+          ) : null}
+          {section === "maps" ? (
+            <MapsView
+              artworkAttempt={maps.artworkAttempt}
+              discovery={maps.discovery}
+              loading={maps.loading}
+              error={maps.error}
+              onRetry={() => void maps.reload()}
             />
           ) : null}
         </div>

@@ -59,6 +59,8 @@ test("packaged native discovery preserves the read-only contract and refresh", a
         "saves_write",
         "players_write",
         "upgrades_write",
+        "run_write",
+        "advanced_write",
         "players_avatar",
         "plugin:fs|read_file",
         "plugin:shell|execute",
@@ -79,7 +81,7 @@ test("packaged native discovery preserves the read-only contract and refresh", a
     expect(boundary).toEqual({
       node: "undefined",
       electron: "undefined",
-      denied: [true, true, true, true, true, true, true],
+      denied: [true, true, true, true, true, true, true, true, true],
     });
     for (const size of [
       { width: 1600, height: 900 },
@@ -270,7 +272,13 @@ test("save-open failure recovery and unknown game states remain fail closed", as
   }
 });
 
-for (const command of ["saves-open", "players-list", "upgrades-list"])
+for (const [command, feature] of [
+  ["saves-open", "Overview"],
+  ["players-list", "Players"],
+  ["upgrades-list", "Upgrades"],
+  ["run-get", "Run"],
+  ["advanced-get", "Items"],
+] as const)
   test(`closing during ${command} reclaims its backend and descendant`, async ({
     browserName,
   }, info) => {
@@ -297,7 +305,6 @@ for (const command of ["saves-open", "players-list", "upgrades-list"])
         })
         .toBe(2);
       if (command !== "saves-open") {
-        const feature = command === "players-list" ? "Players" : "Upgrades";
         await page.getByRole("tab", { name: feature }).click();
         await expect(page.getByTestId(`${feature.toLowerCase()}-skeleton`)).toBeVisible();
       }
@@ -402,14 +409,19 @@ test("Players validates failures, empty data and retry while game status remains
   }
 });
 
-for (const feature of ["Players", "Upgrades"])
+for (const [feature, command] of [
+  ["Players", "players-list"],
+  ["Upgrades", "upgrades-list"],
+  ["Run", "run-get"],
+  ["Items", "advanced-get"],
+] as const)
   test(`${feature} deadline reclaims descendants and allows retry`, async ({
     browserName,
   }, info) => {
     expect(browserName).toBe("chromium");
     const home = info.outputPath("player-timeout");
     const fixture = await stageSyntheticBackend(home);
-    const response = path.join(home, `${feature.toLowerCase()}-list.json`);
+    const response = path.join(home, `${command}.json`);
     const healthy = await readFile(response, "utf8");
     const pidFile = path.join(home, "pids.json");
     await writeFile(response, "hang");
@@ -429,7 +441,14 @@ for (const feature of ["Players", "Upgrades"])
       await page.getByRole("button", { name: "Try again" }).click();
       if (feature === "Players")
         await expect(page.getByRole("button", { name: /Alpha/ })).toBeVisible();
-      else await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+      else if (feature === "Upgrades")
+        await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+      else if (feature === "Run")
+        await expect(page.getByRole("textbox", { name: "Currency" })).toHaveValue("12");
+      else
+        await expect(
+          page.getByTestId("item-instance-Item Melee Inflatable Hammer/1"),
+        ).toContainText("Current charge: 99");
     } finally {
       await close(child, browser);
     }
@@ -642,8 +661,8 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
     await expect(destinations).toHaveCount(4);
     await expect(page.getByRole("button", { name: "Open Players" })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Open Upgrades" })).toBeEnabled();
-    for (const button of await page.getByRole("button", { name: /^Open (Run|Items)$/ }).all())
-      await expect(button).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Open Run" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Open Items" })).toBeEnabled();
     for (const size of [
       { width: 1600, height: 900 },
       { width: 1200, height: 800 },

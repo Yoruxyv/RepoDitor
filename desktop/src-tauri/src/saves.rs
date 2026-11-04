@@ -225,6 +225,7 @@ pub(super) fn domain_error(raw: &serde_json::Value) -> Result<BackendError, Back
     let (code, message) = match error.get("code").and_then(|v| v.as_str()) {
         Some("invalid_request") => ("invalid_request", "A valid discovered save ID is required."),
         Some("save_missing") => ("save_missing", "The selected save no longer exists."),
+        Some("meta_missing") => ("meta_missing", "MetaSave.es3 was not found."),
         Some("save_corrupt") => ("save_corrupt", "The selected save is corrupted."),
         Some("save_decrypt_failed") => (
             "save_decrypt_failed",

@@ -24,6 +24,10 @@
             "allow-game-status",
             "allow-players-list",
             "allow-upgrades-list",
+            "allow-run-get",
+            "allow-advanced-get",
+            "allow-maps-list",
+            "allow-cosmetics-get",
             "allow-preview-close"
           ]
         }

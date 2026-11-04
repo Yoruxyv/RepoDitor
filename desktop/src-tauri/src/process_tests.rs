@@ -1,7 +1,7 @@
 use super::*;
 use std::{path::PathBuf, sync::OnceLock};
 
-fn fixture() -> &'static Path {
+pub(crate) fn fixture() -> &'static Path {
     static EXE: OnceLock<PathBuf> = OnceLock::new();
     EXE.get_or_init(|| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));

@@ -168,6 +168,7 @@ export const en = {
   "upgrades.empty": "This save contains no player upgrades.",
   "upgrades.input": "{upgrade} for {player}",
   "upgrades.error": "Upgrade value must be between 0 and 2,147,483,647.",
+  "run.readOnlyDescription": "View the saved run values and resume location.",
   "run.loading": "Loading run state…",
   "run.unavailable": "Run unavailable",
   "run.expedition": "Current expedition",
@@ -178,6 +179,9 @@ export const en = {
   "run.resumeLocation": "Resume location",
   "run.lives": "Lives",
   "run.totalHaul": "Total haul",
+  "items.readOnlyDescription":
+    "Search and inspect the saved item instances. This preview is read-only.",
+  "items.readOnlySafety": "Charge information follows the available save and game evidence.",
   "items.loading": "Loading items…",
   "items.unavailable": "Items unavailable",
   "items.description":

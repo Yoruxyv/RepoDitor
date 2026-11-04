@@ -73,6 +73,117 @@ export async function stageSyntheticBackend(home: string) {
     }),
   );
   await writeFile(path.join(home, "saves-open.json"), JSON.stringify(opened));
+  const cosmetics = {
+    fingerprint: "c".repeat(64),
+    catalogAvailable: true,
+    knownCatalogCount: 3,
+    knownOwnedCount: 1,
+    knownLockedCount: 2,
+    savedPresetCount: 2,
+    unknownOwnedIds: [999],
+    capabilities: {
+      canReadCosmetics: true,
+      canUnlockCosmetic: true,
+      canUnlockAll: true,
+      canRemoveOwnership: true,
+    },
+    cosmetics: [
+      ...Array.from({ length: 3 }, (_, id) => ({
+        id,
+        displayName: `Installed Cosmetic ${id}`,
+        type: id,
+        rarity: id,
+        status: id - 1,
+        owned: id === 0,
+        known: true,
+        state: id === 0 ? "owned" : "locked",
+        mutationEligible: true,
+        removalBlockedReason: null,
+        iconKey: null,
+      })),
+      {
+        id: 999,
+        displayName: "Cosmetic #999",
+        type: null,
+        rarity: null,
+        status: null,
+        owned: true,
+        known: false,
+        state: "unknown",
+        mutationEligible: false,
+        removalBlockedReason: "Preserved read-only",
+        iconKey: null,
+      },
+    ],
+  };
+  await writeFile(path.join(home, "cosmetics-get.json"), JSON.stringify({ ok: true, cosmetics }));
+  const maps = {
+    available: true,
+    catalogPath: "E:/synthetic/catalog.json",
+    maps: [
+      {
+        internalName: "Arctic",
+        displayName: "McJannek Station",
+        knownLabel: true,
+        artworkRevision: "a".repeat(64),
+      },
+      {
+        internalName: "Modded Moon",
+        displayName: "Modded Moon",
+        knownLabel: false,
+        artworkRevision: null,
+      },
+    ],
+  };
+  await writeFile(path.join(home, "maps-list.json"), JSON.stringify({ ok: true, ...maps }));
+  const advanced = {
+    domains: (
+      [
+        ["items", "confirmed"],
+        ["currentCharge", "partially_confirmed"],
+        ["batteryUpgrades", "unknown"],
+        ["purchasedUpgrades", "partially_confirmed"],
+        ["purchasedItems", "partially_confirmed"],
+        ["purchasedItemsTotal", "partially_confirmed"],
+      ] as const
+    ).map(([key, status]) => ({
+      key,
+      label: key,
+      status,
+      entryCount: 1,
+      capabilities: {
+        canRead: key === "items" || key === "currentCharge",
+        canEdit: false,
+        canAdd: false,
+        canDelete: false,
+        canDuplicate: false,
+        canRefillToFull: key === "currentCharge",
+      },
+    })),
+    items: [
+      {
+        saveKey: "Item Melee Inflatable Hammer/1",
+        name: "Melee Inflatable Hammer",
+        instanceId: "1",
+        isUpgrade: false,
+        storedCharge: 99,
+        chargeState: "stored",
+        rechargeCapability: "rechargeable",
+        canRefillToFull: true,
+        iconKey: null,
+      },
+    ],
+    unlinkedChargeEntryCount: 0,
+  };
+  await writeFile(path.join(home, "advanced-get.json"), JSON.stringify({ ok: true, advanced }));
+  const run = {
+    stats: [
+      { key: "level", label: "Level", value: 5 },
+      { key: "currency", label: "Currency", value: 12 },
+    ],
+    resumeLocation: { value: "Normal", options: ["Normal", "Shop / Service Station"] },
+  };
+  await writeFile(path.join(home, "run-get.json"), JSON.stringify({ ok: true, run }));
   const upgrades = [
     {
       key: "playerUpgradeStrength",
@@ -105,6 +216,10 @@ export async function stageSyntheticBackend(home: string) {
     executable,
     opened,
     upgrades,
+    run,
+    advanced,
+    maps,
+    cosmetics,
     environment: { REPODITOR_TEST_RESPONSES_DIR: home, REPODITOR_TEST_HANG_COMMAND: "none" },
   };
 }

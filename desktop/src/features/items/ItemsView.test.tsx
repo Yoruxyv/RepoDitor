@@ -105,6 +105,84 @@ describe("ItemsView", () => {
     onRevertRefill: vi.fn(),
   };
 
+  it("keeps readonly grouping, search, filters and sorting without accepting pending mutations", async () => {
+    const user = userEvent.setup();
+    renderWithPreferences(
+      <ItemsView
+        {...handlers}
+        advanced={{
+          ...advanced,
+          items: [
+            advanced.items[0]!,
+            {
+              ...advanced.items[0]!,
+              saveKey: "Item Melee Inflatable Hammer/2",
+              instanceId: "2",
+              storedCharge: null,
+              chargeState: "default_full",
+              canRefillToFull: false,
+            },
+            {
+              ...advanced.items[0]!,
+              saveKey: "Item Future Tool/3",
+              name: "Future Tool",
+              instanceId: "3",
+              storedCharge: null,
+              chargeState: "unknown",
+              rechargeCapability: "unknown",
+              canRefillToFull: false,
+            },
+          ],
+        }}
+        error={null}
+        loading={false}
+        onRefillAllToFull={null}
+        onRefillToFull={null}
+        onRevertRefill={null}
+        pendingByItem={{
+          "Item Melee Inflatable Hammer/1": {
+            feature: "advanced",
+            entity: "Item Melee Inflatable Hammer/1",
+            field: "refillToFull",
+            after: true,
+            before: 99,
+            label: "Stored charge",
+            subject: "Melee Inflatable Hammer",
+          },
+        }}
+      />,
+    );
+    expect(
+      within(screen.getByTestId("item-group-Melee Inflatable Hammer")).getByLabelText("2 items"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("item-instance-Item Melee Inflatable Hammer/1").textContent,
+    ).toContain("Current charge: 99");
+    expect(
+      screen.getByTestId("item-instance-Item Melee Inflatable Hammer/2").textContent,
+    ).toContain("Full");
+    expect(screen.queryByRole("button", { name: /Recharge|Revert|Save/ })).toBeNull();
+    expect(screen.queryByText(/Pending:/)).toBeNull();
+    const search = screen.getByRole("searchbox", { name: "Search items" });
+    await user.type(search, "future");
+    expect(screen.getByText("1 matching item")).toBeTruthy();
+    expect(screen.queryByText(/pending item hidden/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Clear item search" }));
+    expect(document.activeElement).toBe(search);
+    await selectCustomOption(
+      user,
+      screen.getByRole("combobox", { name: "Filter" }),
+      "rechargeable",
+    );
+    expect(screen.queryByTestId("item-group-Future Tool")).toBeNull();
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Filter" }), "all");
+    await selectCustomOption(user, screen.getByRole("combobox", { name: "Sort" }), "quantity-desc");
+    expect(screen.getAllByTestId(/^item-group-/)[0]?.dataset.testid).toBe(
+      "item-group-Melee Inflatable Hammer",
+    );
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+  });
+
   it("uses an item-group skeleton only while initial item data is unavailable", () => {
     const { rerender } = renderWithPreferences(
       <ItemsView {...handlers} advanced={null} error={null} loading />,

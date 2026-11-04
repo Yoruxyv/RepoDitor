@@ -1,10 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod artwork;
 mod backend;
+mod cosmetics;
 mod discovery;
 mod error;
 mod game;
+mod items;
+mod maps;
 mod players;
 mod process;
+mod run;
 mod saves;
 mod upgrades;
 
@@ -86,10 +91,49 @@ async fn upgrades_list(
 }
 
 #[tauri::command]
+async fn cosmetics_get(app: tauri::AppHandle) -> Outcome<cosmetics::Cosmetics> {
+    backend::request(app, Operation::Cosmetics, cosmetics::parse).await
+}
+
+#[tauri::command]
+async fn maps_list(app: tauri::AppHandle) -> Outcome<maps::InstalledMaps> {
+    backend::request(app, Operation::Maps, maps::parse).await
+}
+
+#[tauri::command]
+async fn run_get(
+    app: tauri::AppHandle,
+    save_id: Option<serde_json::Value>,
+) -> Outcome<run::RunState> {
+    let Some(id) = save_id
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| saves::valid_id(id))
+        .map(str::to_owned)
+    else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Run);
+    };
+    backend::request(app, Operation::Run(id), run::parse).await
+}
+
+#[tauri::command]
+async fn advanced_get(
+    app: tauri::AppHandle,
+    save_id: Option<serde_json::Value>,
+) -> Outcome<items::Advanced> {
+    let Some(id) = save_id
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| saves::valid_id(id))
+        .map(str::to_owned)
+    else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Items);
+    };
+    backend::request(app, Operation::Items(id), items::parse).await
+}
+
+#[tauri::command]
 fn preview_close(app: tauri::AppHandle) -> Result<(), &'static str> {
-    app.state::<Arc<HostState>>()
-        .closing
-        .store(true, Ordering::SeqCst);
     app.get_webview_window("main")
         .ok_or("Preview window unavailable")?
         .close()
@@ -105,6 +149,10 @@ fn main() {
             game_status,
             players_list,
             upgrades_list,
+            run_get,
+            advanced_get,
+            maps_list,
+            cosmetics_get,
             preview_close
         ])
         .setup(|app| {
@@ -132,11 +180,22 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                window
-                    .state::<Arc<HostState>>()
-                    .closing
-                    .store(true, Ordering::SeqCst);
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<Arc<HostState>>().inner().clone();
+                let already_closing = state.closing.swap(true, Ordering::SeqCst);
+                if !state.idle() {
+                    api.prevent_close();
+                    if !already_closing {
+                        let window = window.clone();
+                        tauri::async_runtime::spawn_blocking(move || {
+                            // Permit release follows child reaping and pipe-reader joins.
+                            while !state.idle() {
+                                std::thread::sleep(std::time::Duration::from_millis(5));
+                            }
+                            let _ = window.close();
+                        });
+                    }
+                }
             }
         })
         .run(tauri::generate_context!())

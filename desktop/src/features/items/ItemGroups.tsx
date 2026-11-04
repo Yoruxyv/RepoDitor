@@ -20,9 +20,9 @@ interface ItemGroupsProps {
   readonly canRefillToFull: boolean;
   readonly items: readonly AdvancedItemDto[];
   readonly pendingByItem: Readonly<Record<string, AdvancedRefillEdit>>;
-  readonly onRefillAllToFull: () => void;
-  readonly onRefillToFull: (item: AdvancedItemDto) => void;
-  readonly onRevertRefill: (saveKey: string) => void;
+  readonly onRefillAllToFull: (() => void) | null;
+  readonly onRefillToFull: ((item: AdvancedItemDto) => void) | null;
+  readonly onRevertRefill: ((saveKey: string) => void) | null;
 }
 
 interface ItemGroup {
@@ -92,7 +92,7 @@ export function ItemGroups({
   });
   const visibleKeys = new Set(visibleItems.map((item) => item.saveKey));
   const itemKeys = new Set(items.map((item) => item.saveKey));
-  const hiddenPendingCount = Object.keys(pendingByItem).filter(
+  const hiddenPendingCount = (onRefillToFull === null ? [] : Object.keys(pendingByItem)).filter(
     (saveKey) => itemKeys.has(saveKey) && !visibleKeys.has(saveKey),
   ).length;
   const hiddenPendingKey =
@@ -177,15 +177,17 @@ export function ItemGroups({
               onValueChange={setSort}
             />
           </label>
-          <button
-            className="ui-feedback min-h-10 max-w-full rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"
-            data-testid="recharge-all-tools"
-            disabled={!canRechargeAll}
-            type="button"
-            onClick={onRefillAllToFull}
-          >
-            {t("items.rechargeAll")}
-          </button>
+          {onRefillAllToFull === null ? null : (
+            <button
+              className="ui-feedback min-h-10 max-w-full rounded-sm border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent hover:text-accent-ink disabled:cursor-not-allowed disabled:border-control disabled:text-muted disabled:opacity-60"
+              data-testid="recharge-all-tools"
+              disabled={!canRechargeAll}
+              type="button"
+              onClick={onRefillAllToFull}
+            >
+              {t("items.rechargeAll")}
+            </button>
+          )}
         </div>
         <p aria-live="polite" className="mt-2 text-xs text-muted" id="item-filter-status">
           {t(visibleItems.length === 1 ? "items.matches.one" : "items.matches.many", {
@@ -209,7 +211,7 @@ export function ItemGroups({
               : getItemIcon(group.name);
             const chargeRows = group.items
               .map((item) => {
-                const pending = pendingByItem[item.saveKey];
+                const pending = onRefillToFull === null ? undefined : pendingByItem[item.saveKey];
                 return { item, pending, status: chargeText(item, pending, t) };
               })
               .filter((row) => row.status !== null);
@@ -253,12 +255,15 @@ export function ItemGroups({
                                 <button
                                   className="ui-feedback rounded-sm border border-control px-3 py-2 text-xs font-semibold text-secondary hover:border-accent hover:text-accent"
                                   type="button"
-                                  onClick={() => onRevertRefill(item.saveKey)}
+                                  onClick={() => onRevertRefill?.(item.saveKey)}
                                 >
                                   {t("items.revertRefill")}
                                 </button>
                               ) : null}
-                              {!pending && item.canRefillToFull && canRefillToFull ? (
+                              {!pending &&
+                              onRefillToFull !== null &&
+                              item.canRefillToFull &&
+                              canRefillToFull ? (
                                 <button
                                   aria-label={t("items.refillLabel", {
                                     item: item.name,

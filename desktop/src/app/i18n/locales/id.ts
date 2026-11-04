@@ -169,6 +169,7 @@ export const id: Record<keyof typeof en, string> = {
   "upgrades.empty": "Save ini tidak berisi upgrade pemain.",
   "upgrades.input": "{upgrade} untuk {player}",
   "upgrades.error": "Nilai upgrade harus antara 0 dan 2.147.483.647.",
+  "run.readOnlyDescription": "Lihat nilai run dan lokasi melanjutkan yang tersimpan.",
   "run.loading": "Memuat status run…",
   "run.unavailable": "Run tidak tersedia",
   "run.expedition": "Ekspedisi saat ini",
@@ -179,6 +180,8 @@ export const id: Record<keyof typeof en, string> = {
   "run.resumeLocation": "Lokasi lanjutan",
   "run.lives": "Nyawa",
   "run.totalHaul": "Total hasil",
+  "items.readOnlyDescription": "Cari dan periksa item yang tersimpan. Pratinjau ini hanya-baca.",
+  "items.readOnlySafety": "Informasi daya mengikuti bukti save dan game yang tersedia.",
   "items.loading": "Memuat item…",
   "items.unavailable": "Item tidak tersedia",
   "items.description":

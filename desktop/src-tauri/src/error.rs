@@ -23,6 +23,10 @@ pub enum Service {
     Game,
     Player,
     Upgrade,
+    Run,
+    Items,
+    Maps,
+    Cosmetics,
 }
 impl Service {
     fn name(self) -> &'static str {
@@ -32,6 +36,10 @@ impl Service {
             Self::Game => "game-status",
             Self::Player => "player",
             Self::Upgrade => "upgrades",
+            Self::Run => "run",
+            Self::Items => "advanced data",
+            Self::Maps => "maps",
+            Self::Cosmetics => "cosmetics",
         }
     }
 }

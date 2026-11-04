@@ -21,10 +21,10 @@ interface CosmeticsViewProps {
   readonly saving: boolean;
   readonly lockAllBlockedReason: string | null;
   readonly onRetry: () => void;
-  readonly onUnlockAll: () => void;
-  readonly onUnlockCosmetic: (cosmeticId: number) => void;
-  readonly onClearAllPresets: () => void;
-  readonly onLockAll: () => void;
+  readonly onUnlockAll: (() => void) | null;
+  readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
+  readonly onClearAllPresets: (() => void) | null;
+  readonly onLockAll: (() => void) | null;
 }
 
 function CosmeticCardSkeleton({ first }: { readonly first: boolean }) {
@@ -53,7 +53,13 @@ function CosmeticCardSkeleton({ first }: { readonly first: boolean }) {
   );
 }
 
-function CosmeticsSkeleton({ label }: { readonly label: string }) {
+function CosmeticsSkeleton({
+  label,
+  actions,
+}: {
+  readonly label: string;
+  readonly actions: boolean;
+}) {
   return (
     <SkeletonRegion label={label} testId="cosmetics-skeleton">
       <Skeleton className="h-3 w-36" />
@@ -69,11 +75,13 @@ function CosmeticsSkeleton({ label }: { readonly label: string }) {
           </div>
         ))}
       </div>
-      <div className="mt-7 flex flex-wrap gap-3">
-        <Skeleton className="h-10 w-44" />
-        <Skeleton className="h-10 w-40" />
-        <Skeleton className="h-10 w-40" />
-      </div>
+      {actions ? (
+        <div className="mt-7 flex flex-wrap gap-3">
+          <Skeleton className="h-10 w-44" />
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+      ) : null}
 
       <div className="mt-8 border-t border-line pt-6">
         <div className="flex justify-between gap-4">
@@ -129,7 +137,7 @@ export function CosmeticsView({
 }: CosmeticsViewProps) {
   const { t } = usePreferences();
   if (loading && !view) {
-    return <CosmeticsSkeleton label={t("cosmetics.loading")} />;
+    return <CosmeticsSkeleton label={t("cosmetics.loading")} actions={onUnlockCosmetic !== null} />;
   }
   if (error) {
     return (
@@ -179,54 +187,60 @@ export function CosmeticsView({
         ))}
       </dl>
 
-      <div className="mt-7 flex flex-wrap gap-3" aria-label={t("cosmetics.actions")}>
-        <button
-          className="ui-feedback inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={
-            !view.capabilities.canUnlockAll ||
-            !view.cosmetics.some(
-              (entry) => entry.known && entry.mutationEligible && !entry.owned,
-            ) ||
-            hasPendingEdits
-          }
-          type="button"
-          onClick={onUnlockAll}
-        >
-          <SparkleIcon aria-hidden="true" size={17} weight="bold" />
-          {t(unlockAllPending ? "cosmetics.unlockPending" : "cosmetics.unlockAll")}
-        </button>
-        <button
-          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={view.savedPresetCount === 0 || hasPendingEdits}
-          type="button"
-          onClick={onClearAllPresets}
-        >
-          <TrashIcon aria-hidden="true" size={17} />
-          {t(clearAllPresetsPending ? "cosmetics.clearPending" : "cosmetics.clearPresets")}
-        </button>
-        <button
-          className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={
-            !view.capabilities.canRemoveOwnership ||
-            !view.cosmetics.some((entry) => entry.known && entry.mutationEligible && entry.owned) ||
-            hasPendingEdits ||
-            lockAllBlockedReason !== null
-          }
-          type="button"
-          onClick={onLockAll}
-        >
-          <LockSimpleIcon aria-hidden="true" size={17} />
-          {t(lockAllPending ? "cosmetics.lockPending" : "cosmetics.lockAll")}
-        </button>
-      </div>
-      {lockAllUnavailable ? (
-        <output
-          aria-live="polite"
-          className="mt-2 block text-xs text-warning"
-          data-testid="lock-all-blocked-reason"
-        >
-          {lockAllUnavailable}
-        </output>
+      {onUnlockAll !== null && onClearAllPresets !== null && onLockAll !== null ? (
+        <>
+          <div className="mt-7 flex flex-wrap gap-3" aria-label={t("cosmetics.actions")}>
+            <button
+              className="ui-feedback inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                !view.capabilities.canUnlockAll ||
+                !view.cosmetics.some(
+                  (entry) => entry.known && entry.mutationEligible && !entry.owned,
+                ) ||
+                hasPendingEdits
+              }
+              type="button"
+              onClick={onUnlockAll}
+            >
+              <SparkleIcon aria-hidden="true" size={17} weight="bold" />
+              {t(unlockAllPending ? "cosmetics.unlockPending" : "cosmetics.unlockAll")}
+            </button>
+            <button
+              className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={view.savedPresetCount === 0 || hasPendingEdits}
+              type="button"
+              onClick={onClearAllPresets}
+            >
+              <TrashIcon aria-hidden="true" size={17} />
+              {t(clearAllPresetsPending ? "cosmetics.clearPending" : "cosmetics.clearPresets")}
+            </button>
+            <button
+              className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                !view.capabilities.canRemoveOwnership ||
+                !view.cosmetics.some(
+                  (entry) => entry.known && entry.mutationEligible && entry.owned,
+                ) ||
+                hasPendingEdits ||
+                lockAllBlockedReason !== null
+              }
+              type="button"
+              onClick={onLockAll}
+            >
+              <LockSimpleIcon aria-hidden="true" size={17} />
+              {t(lockAllPending ? "cosmetics.lockPending" : "cosmetics.lockAll")}
+            </button>
+          </div>
+          {lockAllUnavailable ? (
+            <output
+              aria-live="polite"
+              className="mt-2 block text-xs text-warning"
+              data-testid="lock-all-blocked-reason"
+            >
+              {lockAllUnavailable}
+            </output>
+          ) : null}
+        </>
       ) : null}
 
       <CosmeticsCatalog

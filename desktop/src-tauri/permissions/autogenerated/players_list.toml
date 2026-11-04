@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-players-list"
+description = "Enables the players_list command without any pre-configured scope."
+commands.allow = ["players_list"]
+
+[[permission]]
+identifier = "deny-players-list"
+description = "Denies the players_list command without any pre-configured scope."
+commands.deny = ["players_list"]

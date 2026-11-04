@@ -166,6 +166,7 @@ export const ja: Record<keyof typeof en, string> = {
   "upgrades.empty": "このセーブにプレイヤーアップグレードはありません。",
   "upgrades.input": "{player} の {upgrade}",
   "upgrades.error": "アップグレード値は 0 から 2,147,483,647 の整数で入力してください。",
+  "run.readOnlyDescription": "保存されたランの値と再開場所を表示します。",
   "run.loading": "ラン状態を読み込み中…",
   "run.unavailable": "ランを利用できません",
   "run.expedition": "現在の探索",
@@ -175,6 +176,9 @@ export const ja: Record<keyof typeof en, string> = {
   "run.resumeLocation": "再開地点",
   "run.lives": "残機",
   "run.totalHaul": "合計収益",
+  "items.readOnlyDescription":
+    "保存されたアイテムを検索・確認します。このプレビューは読み取り専用です。",
+  "items.readOnlySafety": "充電情報は、利用可能なセーブとゲームの根拠に基づきます。",
   "items.loading": "アイテムを読み込み中…",
   "items.unavailable": "アイテムを利用できません",
   "items.description":

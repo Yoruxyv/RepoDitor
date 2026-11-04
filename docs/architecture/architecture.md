@@ -38,10 +38,10 @@ Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer 
 ## Experimental native host
 
 The opt-in Windows Tauri host under `desktop/src-tauri/` exposes
-`environment_detect`, `saves_open`, `players_list`, `upgrades_list`, `game_status` and `preview_close`. Its typed
-read adapter composes the discovery adapter with save-open, player-list, upgrade-list and game-status
+`environment_detect`, `saves_open`, `players_list`, `upgrades_list`, `run_get`, `advanced_get`, `game_status` and `preview_close`. Its typed
+read adapter composes the discovery adapter with save-open, player-list, upgrade-list, Run, Items and game-status
 contracts, and exposes no write method. Its entry reuses discovery, save-loading,
-Overview, Players, Upgrades, selected-save header, preferences and game-safety presentation.
+Overview, Players, Upgrades, Run, Items, selected-save header, preferences and game-safety presentation.
 Electron remains the shipping host;
 its preload, IPC, save services, installer and release defaults are unchanged.
 
@@ -86,23 +86,97 @@ distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
 unchecked, as in Electron. Native close cancels outstanding backend work.
 
-The local main-window capability grants only those six commands. CSP and
+Run invokes the unchanged Python `run-get` service through the same opaque save
+ID resolution. Rust validates the DTO's known stat keys, uniqueness, nonempty
+labels, signed JavaScript-safe integer values and one-based level minimum of 1.
+The stat list may be a subset or empty; read values are not constrained to the
+editor's Int32 write bounds. Resume value/options must be nonempty, unique and
+include the observed value; Rust has no location catalog or save-domain rules.
+The injected Run hook coalesces reads and discards late results on unmount. The
+shared view preserves Electron's numeric editors and location selector; native
+Run renders copyable read-only text fields without pending/revert/save controls.
+
+Items calls Python's unchanged `advanced-get` service. Rust validates all six unique
+domain keys, evidence enums, nullable nonnegative counts, boolean capabilities,
+canonical item-key/name/instance relationships, unique identities, signed safe
+stored charge and charge/recharge consistency. Counts remain nonnegative; stored
+charge follows Electron's signed read contract without applying write bounds.
+The 2 MiB frame bounds every item array and string; the six-domain membership and
+existing icon/upgrade-key limits provide additional structural/metadata bounds.
+Rust does not classify items, infer game evidence or maintain a recharge evidence
+store. Private recharge evidence/raw fields are discarded; validated optional
+artwork keys are stripped and every icon token is null. The shared view preserves
+grouping, search, filter/sort, charge states, skeletons and failures. Native passes
+no mutation handlers: refill/revert/pending/save controls stay absent even when
+the retained backend capability reports support. Electron's editors remain the default.
+
+Maps calls Python's existing `maps-list` service without renderer arguments or
+Rust discovery logic. Rust validates success/error framing, boolean availability,
+catalog-path consistency, at most 128 maps, unique internal identities (64 UTF-16
+units, no separators/control characters), display labels (128 UTF-16 units, no
+control characters), boolean known-label flags and nullable/optional lowercase
+SHA-256 artwork revisions. Unavailable results require a null path and empty roster;
+available-empty catalogs remain distinct. Unknown valid map families are retained.
+Artwork metadata is discarded and icon tokens are always null. The existing Maps
+view and injected hook preserve cards, layout, skeletons, refresh data, translated
+errors and superseded/unmounted response handling. Electron keeps its default API.
+The native host grants no artwork decoding, streaming, cache or map-control authority.
+
+Cosmetics is a separate global workspace, available without selecting or opening a
+Run save. Its fixed `cosmetics_get` command accepts no renderer path or save ID and
+delegates to Python's existing `cosmetics-get`. Rust validates the fingerprint,
+JavaScript-safe signed IDs/metadata, nonnegative counts, unique identities, known
+roster ordering, unknown-owned roster agreement, state/count/capability consistency,
+required removal reasons and optional icon keys. Eligibility validation consumes
+the [existing frozen capability evidence](../../tools/capabilities/evidence/cosmetics.v2.json)
+used by Python/Electron's generated policies; it does not infer authority from a
+catalog size or maintain another catalog. Tests compare that evidence with both
+generated consumers. Unknown IDs, signed metadata and eligible-but-removal-blocked
+entries retain the existing Electron contract. Icon tokens remain null and private
+MetaSave fields are discarded.
+
+The native read hook coalesces refresh clicks, ignores unmounted/superseded results
+and reloads on workspace entry or game-safety recovery. A superseding entry waits
+for the admitted read to release before starting one fresh read. Its composition reuses
+the Cosmetics summary/catalog with null mutation handlers. Search, filters, sorting,
+metadata and counters remain available; ownership/preset/pending/revert/save controls
+are omitted. The editable hook, artwork preparation and pending-write workspace are
+not mounted by this host. Electron's default composition remains editable. The shared
+game-safety boundary also covers global Cosmetics, including when no Run save is open.
+
+The local main-window capability grants only those ten commands. CSP and
 navigation constrain the bundled page; new windows are denied. The preview has
 its own application identifier/profile and does not migrate Electron data.
 
 Each request launches the fixed frozen backend directly, without a system-Python
 fallback. Admission allows one outstanding request per read operation, at most
-five total; repeated calls to an occupied operation fail immediately. A single
-backend worker serializes those operations. Each 30-second deadline includes
-queue time, unlike Electron's concurrent process calls. Queued requests also
+nine total; repeated calls to an occupied operation fail immediately. Eight ordinary
+domain operations share one worker mutex. Game status bypasses that mutex; its
+existing admission permit bounds the separate lane to one active or admitted
+request, with no status backlog or additional mutex/pool. At most one domain child
+and one status child can execute concurrently, each owning its own Job Object.
+Each 30-second deadline includes dispatch and domain-queue time, unlike Electron's
+concurrent process calls. Expired/closing requests fail before spawning. Queued requests also
 observe cancellation. Every child retains the 2 MiB stdout limit, 64 KiB stderr
 limit and bounded pipe queue. Public failures use allowlisted codes and sanitized
 messages; translated UI errors retain the Electron mapping. A Windows
 kill-on-close Job Object owns the assigned process tree;
-normal close signals cancellation, and process/pipe handles are reaped on errors
+normal close signals shared cancellation to both lanes and rejects new admission.
+The window stays open until the existing request permits are released after child
+reaping and pipe-reader joins. One conditional close waiter observes those flags;
+repeated close events do not add waiters or locks. Process/pipe handles are reaped on errors
 and timeouts. Assignment follows creation of the trusted bundled executable;
 this does not claim containment of hostile code substituted by a compromised
 local account before job assignment.
+
+Game-status inspection does not wait for an expensive Maps/Items/domain read. The
+renderer adapter coalesces overlapping status checks while direct duplicate native
+requests are rejected. The existing safety hook still marks a recheck busy and
+retains the previous resolved status until the new result; unknown/failed results
+then block interaction. This leaves a freshness window during the status process
+itself and between checks. Native exposes no write command. Future mutation work
+must retain Python's authoritative `require_game_closed` check immediately around
+real writes; cached renderer status is never write authorization.
 
 The portable preview staging command copies the whole PyInstaller `--onedir`
 tree into `build/tauri-preview/backend`. It never changes production release

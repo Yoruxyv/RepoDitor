@@ -17,7 +17,7 @@ import type { Translate } from "@/app/i18n";
 interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
   readonly actionsDisabled: boolean;
-  readonly onUnlockCosmetic: (cosmeticId: number) => void;
+  readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
 }
 
 type OwnershipFilter = "all" | "owned" | "locked";
@@ -395,7 +395,7 @@ export function CosmeticsCatalog({
                 ) : null}
               </div>
 
-              {isUnlockEligible(view, cosmetic) ? (
+              {onUnlockCosmetic !== null && isUnlockEligible(view, cosmetic) ? (
                 <button
                   aria-label={t("cosmetics.unlockCosmetic", { name: cosmetic.displayName })}
                   className="ui-feedback mt-3 rounded-sm border border-control px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"

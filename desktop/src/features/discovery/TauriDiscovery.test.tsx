@@ -1,7 +1,16 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { environment, openResult, players, upgrades } from "@/test/repoditorApiFixture";
+import {
+  advanced,
+  cosmetics,
+  environment,
+  maps,
+  openResult,
+  players,
+  runState,
+  upgrades,
+} from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import { TauriDiscovery } from "./TauriDiscovery";
 
@@ -12,6 +21,10 @@ vi.mock("@/app/tauriReadApi", () => ({
     game: { status: vi.fn() },
     players: { list: vi.fn() },
     upgrades: { list: vi.fn() },
+    run: { get: vi.fn() },
+    advanced: { get: vi.fn() },
+    maps: { list: vi.fn() },
+    cosmetics: { get: vi.fn() },
   },
   closeTauriPreview: vi.fn(),
 }));
@@ -19,6 +32,14 @@ vi.mock("@/app/tauriReadApi", () => ({
 describe("read-only native discovery", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.mocked(tauriReadApi.cosmetics.get)
+      .mockReset()
+      .mockResolvedValue({ ok: true, data: cosmetics });
+    vi.mocked(tauriReadApi.maps.list).mockReset().mockResolvedValue({ ok: true, data: maps });
+    vi.mocked(tauriReadApi.advanced.get)
+      .mockReset()
+      .mockResolvedValue({ ok: true, data: advanced });
+    vi.mocked(tauriReadApi.run.get).mockReset().mockResolvedValue({ ok: true, data: runState });
     vi.mocked(tauriReadApi.environment.detect).mockReset();
     vi.mocked(tauriReadApi.saves.open)
       .mockReset()
@@ -62,6 +83,27 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
   });
+  it("opens global read-only Cosmetics without opening a Run save", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({
+      ok: true,
+      data: { ...environment, saves: [] },
+    });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    expect(tauriReadApi.cosmetics.get).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    expect(await screen.findByRole("searchbox", { name: "Search cosmetics" })).toBeTruthy();
+    expect(tauriReadApi.saves.open).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /Unlock|Lock All|Clear Presets|Save Changes|Revert/ }),
+    ).toBeNull();
+    expect(screen.getByTestId("cosmetic-icon-999").getAttribute("data-icon-source")).toBe(
+      "fallback",
+    );
+    await user.click(screen.getByRole("button", { name: "Run Saves" }));
+    await user.click(screen.getByRole("button", { name: "Cosmetics" }));
+    await waitFor(() => expect(tauriReadApi.cosmetics.get).toHaveBeenCalledTimes(2));
+  });
   it("opens the existing Overview with no edit controls and returns to discovery", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     render(<TauriDiscovery />);
@@ -72,8 +114,8 @@ describe("read-only native discovery", () => {
     const workspace = screen.getByTestId("workspace");
     expect(
       within(workspace)
-        .getAllByRole("button", { name: /^Open (Run|Items)$/ })
-        .every((button) => button.matches(":disabled")),
+        .getAllByRole("button", { name: /^Open Items$/ })
+        .every((button) => !button.matches(":disabled")),
     ).toBe(true);
     expect(
       within(workspace).getByRole("button", { name: "Open Players" }).matches(":disabled"),
@@ -102,6 +144,67 @@ describe("read-only native discovery", () => {
     expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Players" }));
     expect(screen.getByRole("button", { name: /Beta/ }).getAttribute("aria-pressed")).toBe("true");
     expect(tauriReadApi.players.list).toHaveBeenCalledTimes(1);
+  });
+  it("navigates to read-only Run and preserves shared player selection", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Open Run" }));
+    expect((await screen.findByRole("textbox", { name: "Currency" })).getAttribute("value")).toBe(
+      "12",
+    );
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Upgrades" }), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Run" }));
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(await screen.findByRole("textbox", { name: "Moon Boots for Beta" })).toBeTruthy();
+    expect(tauriReadApi.run.get).toHaveBeenCalledTimes(1);
+  });
+  it("opens Items using arrows while preserving search, fallback and player selection", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("button", { name: "Open Items" }));
+    expect(await screen.findByRole("searchbox", { name: "Search items" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Recharge|Revert|Save Changes/ })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(await screen.findByRole("button", { name: /Beta/ }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Players" }), { key: "End" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Maps" }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Maps" }), { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Items" }));
+    expect(
+      screen
+        .getByTestId("item-icon-Item Melee Inflatable Hammer/1")
+        .getAttribute("data-icon-source"),
+    ).toBe("specific");
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    expect(await screen.findByRole("textbox", { name: "Moon Boots for Beta" })).toBeTruthy();
+    expect(tauriReadApi.advanced.get).toHaveBeenCalledTimes(1);
+  });
+  it("reuses Maps cards, refresh and keyboard navigation without refetching on tab returns", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Maps" }));
+    expect(await screen.findByRole("heading", { name: "Modded Moon" })).toBeTruthy();
+    expect(screen.getByTestId("map-artwork-Modded Moon").getAttribute("data-icon-source")).toBe(
+      "fallback",
+    );
+    expect(screen.queryByRole("button", { name: /Save Changes|Revert/ })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Overview" }), { key: "End" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Maps" }));
+    expect(screen.queryByTestId("maps-skeleton")).toBeNull();
+    expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(2));
   });
   it("uses the existing Players loading, empty and retry states", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
@@ -140,7 +243,7 @@ describe("read-only native discovery", () => {
     await user.click(screen.getByRole("tab", { name: "Players" }));
     expect(screen.getByRole("button", { name: /Beta/ }).getAttribute("aria-pressed")).toBe("true");
     await user.click(screen.getByRole("button", { name: /Alpha/ }));
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Players" }), { key: "End" });
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Players" }), { key: "ArrowRight" });
     expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Upgrades" }));
     expect(screen.getByRole("textbox", { name: "Strength for Alpha" }).getAttribute("value")).toBe(
       "2",

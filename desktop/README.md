@@ -52,7 +52,7 @@ normal user profile.
 ### Optional native discovery preview
 
 Electron remains the default application and release package. A Windows-only
-Tauri host supports discovery, save opening, read-only Overview/Players/Upgrades and Python-backed
+Tauri host supports discovery, save opening, read-only Overview/Players/Upgrades/Run/Items/Maps/Cosmetics and Python-backed
 game-status checks using the existing React components and desktop contracts.
 Editing/saving, other workspace features, artwork/Steam avatars and production installation
 are not implemented in this host.
@@ -95,9 +95,43 @@ Upgrades reuses Python's dynamic membership and presentation metadata, including
 valid stored values above gameplay caps. Its text fields are read-only and support
 keyboard selection/copying; editing/revert/save actions are unavailable. Players
 and Upgrades share selection. Icons use the existing fallback until native artwork
-transport is implemented. The packaged checks include three-read timings and a
-controlled sidecar probe separating backend time from pre-execution wait; the
-serialized coordinator remains unchanged.
+transport is implemented.
+Run uses the unchanged Python `run-get` projection, including optional stats,
+signed safe integers and an observed resume location outside the predefined
+choices. The shared view retains Electron's editors; the preview shows focusable,
+copyable read-only text fields without mutation controls. The injected hook
+coalesces overlapping reads and ignores late results after workspace unmount.
+Items uses Python's unchanged `advanced-get` projection. All six evidence domains,
+capabilities, counts and exact item identities are retained without exposing private
+recharge evidence. Search, filters, sorting, grouping and charge presentation reuse
+Electron's view; native refill/revert/pending/save controls are absent. Optional icon
+metadata is validated and discarded, so item and upgrade fallbacks need no native
+artwork URL. Missing item containers remain distinct from supported empty ones.
+Maps uses Python's unchanged `maps-list` discovery and the existing read-only cards,
+responsive grid, skeletons, retry and retained-data refresh. Rust validates catalog
+availability, up to 128 unique map identities, labels and optional artwork revisions.
+Every native map icon token is null; decoding, streaming and caching artwork remain
+unavailable. The injected hook retains Electron's default API and ignores superseded
+or unmounted results. Packaged checks compare Maps with Electron at all three Desktop
+sizes, preserve fixture save/catalog bytes and exercise Maps deadlines, cancellation,
+domain queueing and independent status checks during a controlled slow read.
+Cosmetics is an independent top-level workspace and does not require a Run save.
+Its fixed `cosmetics-get` projection retains fingerprints, catalog/ownership counts,
+unknown-owned IDs, capabilities and removal restrictions. Rust validates the public
+contract against the existing frozen capability evidence; it neither parses MetaSave
+nor discovers catalogs. A read-only composition reuses the existing summary and
+search/filter/sort catalog without mounting artwork or pending-write workflows.
+Mutation handlers are null, so bulk/individual ownership, presets, pending, revert
+and save controls are omitted. Electron retains its default editable composition.
+Native icons remain fallbacks. Packaged tests cover data/layout parity, metadata
+absence, MetaSave failures, recovery, bounds, cancellation and independent status.
+The packaged checks include five-read timings and controlled probes separating
+backend time from pre-execution wait. Domain reads remain serialized; game status
+has one independent admission-bounded lane, allowing at most two backend process
+trees at once. Normal close cancels both. For an optional controlled before/after
+comparison, set `REPODITOR_E2E_BASELINE_EXECUTABLE` to an earlier compatible preview
+executable before running the native test gate. The current independence,
+serialization, failure and cleanup regressions run without that historical binary.
 
 The preview uses a separate application identifier and data directory. It does
 not import the Electron profile or migrate user caches/preferences. External

@@ -1,12 +1,83 @@
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { openResult, players, saveId, upgrades } from "@/test/repoditorApiFixture";
+import {
+  advanced,
+  cosmetics,
+  maps,
+  openResult,
+  players,
+  runState,
+  saveId,
+  upgrades,
+} from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "./tauriReadApi";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 describe("typed native read capabilities", () => {
   beforeEach(() => vi.mocked(invoke).mockReset());
+  it("gets Cosmetics without paths or a Run ID and exposes no write method", async () => {
+    const failure = { ok: false, error: { code: "meta_missing", message: "Missing" } };
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: cosmetics })
+      .mockResolvedValueOnce(failure)
+      .mockRejectedValueOnce(new Error("private"));
+    expect(await tauriReadApi.cosmetics.get()).toEqual({ ok: true, data: cosmetics });
+    expect(invoke).toHaveBeenNthCalledWith(1, "cosmetics_get");
+    expect(await tauriReadApi.cosmetics.get()).toEqual(failure);
+    const rejected = await tauriReadApi.cosmetics.get();
+    expect(rejected).toMatchObject({ ok: false, error: { code: "internal_error" } });
+    expect(JSON.stringify(rejected)).not.toContain("private");
+    expect(Object.keys(tauriReadApi.cosmetics)).toEqual(["get"]);
+  });
+  it("lists Maps without renderer paths and sanitizes transport errors", async () => {
+    const failure = { ok: false, error: { code: "backend_unavailable", message: "Unavailable" } };
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: maps })
+      .mockResolvedValueOnce(failure)
+      .mockRejectedValueOnce(new Error("private path"));
+    expect(await tauriReadApi.maps.list()).toEqual({ ok: true, data: maps });
+    expect(invoke).toHaveBeenNthCalledWith(1, "maps_list");
+    expect(await tauriReadApi.maps.list()).toEqual(failure);
+    expect(await tauriReadApi.maps.list()).toEqual({
+      ok: false,
+      error: { code: "internal_error", message: "The desktop maps bridge failed unexpectedly." },
+    });
+    expect(Object.keys(tauriReadApi.maps)).toEqual(["list"]);
+  });
+  it("exposes only the named Items read, preserves failures and sanitizes transport errors", async () => {
+    const failure = { ok: false, error: { code: "save_missing", message: "Missing" } };
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: advanced })
+      .mockResolvedValueOnce(failure)
+      .mockRejectedValueOnce(new Error("private path"));
+    expect(await tauriReadApi.advanced.get(saveId)).toEqual({ ok: true, data: advanced });
+    expect(invoke).toHaveBeenNthCalledWith(1, "advanced_get", { saveId });
+    expect(await tauriReadApi.advanced.get(saveId)).toEqual(failure);
+    expect(await tauriReadApi.advanced.get(saveId)).toEqual({
+      ok: false,
+      error: {
+        code: "internal_error",
+        message: "The desktop advanced data bridge failed unexpectedly.",
+      },
+    });
+    expect(Object.keys(tauriReadApi.advanced)).toEqual(["get"]);
+  });
+  it("exposes only the named Run read, preserves failures and sanitizes transport errors", async () => {
+    const failure = { ok: false, error: { code: "save_missing", message: "Missing" } };
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data: runState })
+      .mockResolvedValueOnce(failure)
+      .mockRejectedValueOnce(new Error("private path"));
+    expect(await tauriReadApi.run.get(saveId)).toEqual({ ok: true, data: runState });
+    expect(invoke).toHaveBeenNthCalledWith(1, "run_get", { saveId });
+    expect(await tauriReadApi.run.get(saveId)).toEqual(failure);
+    expect(await tauriReadApi.run.get(saveId)).toEqual({
+      ok: false,
+      error: { code: "internal_error", message: "The desktop run bridge failed unexpectedly." },
+    });
+    expect(Object.keys(tauriReadApi.run)).toEqual(["get"]);
+  });
   it("only exposes the named upgrades read and sanitizes bridge rejections", async () => {
     vi.mocked(invoke)
       .mockResolvedValueOnce({ ok: true, data: upgrades })

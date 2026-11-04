@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   DesktopOperationResult,
+  RepoDitorApi,
   RunStateDto,
   RunStatDto,
   SaveCanonicalRun,
@@ -19,6 +20,8 @@ interface State {
 
 const INITIAL_STATE: State = { run: null, error: null, loading: true };
 
+const getDesktopRunState: RepoDitorApi["run"]["get"] = (saveId) => window.repoditor.run.get(saveId);
+
 function initialState(result: DesktopOperationResult<RunStateDto> | null): State {
   if (result === null) return INITIAL_STATE;
   return result.ok
@@ -29,17 +32,21 @@ function initialState(result: DesktopOperationResult<RunStateDto> | null): State
 export function useRunState(
   saveId: string,
   initialResult: DesktopOperationResult<RunStateDto> | null = null,
+  get: RepoDitorApi["run"]["get"] = getDesktopRunState,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
   const initialResultRef = useRef(initialResult);
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
+  const requestInFlight = useRef(false);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
+      if (requestInFlight.current) return false;
+      requestInFlight.current = true;
       try {
-        const result = await window.repoditor.run.get(saveId);
+        const result = await get(saveId);
         if (!mounted.current) return result.ok;
         if (result.ok) {
           setState({ run: result.data, error: null, loading: false });
@@ -60,16 +67,20 @@ export function useRunState(
           }));
         }
         return false;
+      } finally {
+        requestInFlight.current = false;
       }
     },
-    [saveId],
+    [get, saveId],
   );
 
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load(false);
+    const request =
+      initialResultRef.current === null ? window.setTimeout(() => void load(false)) : undefined;
     return () => {
       mounted.current = false;
+      if (request !== undefined) window.clearTimeout(request);
     };
   }, [load]);
 

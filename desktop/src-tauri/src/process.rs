@@ -17,6 +17,8 @@ use std::{
 };
 use windows_sys::Win32::System::JobObjects::*;
 
+pub(crate) const STDOUT_LIMIT: usize = 2 * 1024 * 1024;
+
 struct Job(OwnedHandle);
 impl Job {
     fn new() -> Result<Self, BackendError> {
@@ -113,7 +115,7 @@ pub fn run(
         match receiver.recv_timeout(Duration::from_millis(5)) {
             Ok((stream, Ok(bytes))) => {
                 counts[stream] += bytes.len();
-                if counts[stream] > [2 * 1024 * 1024, 64 * 1024][stream] {
+                if counts[stream] > [STDOUT_LIMIT, 64 * 1024][stream] {
                     break Err(BackendError::Malformed);
                 }
                 if stream == 0 {
@@ -148,4 +150,4 @@ pub fn run(
 
 #[cfg(test)]
 #[path = "process_tests.rs"]
-mod tests;
+pub(crate) mod tests;

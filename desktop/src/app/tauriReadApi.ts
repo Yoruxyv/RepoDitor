@@ -1,11 +1,15 @@
 /** The preview's implemented desktop capabilities; no write or generic native API. */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AdvancedSaveDto,
+  CosmeticsViewDto,
   DesktopOperationResult,
   GameProcessState,
+  InstalledMapsDto,
   PlayerDto,
   PlayerUpgradeDto,
   RepoDitorApi,
+  RunStateDto,
   SaveOpenResult,
 } from "@electron/contracts";
 import { tauriDiscoveryApi } from "@/features/discovery/tauriDiscoveryApi";
@@ -18,8 +22,69 @@ export const tauriReadApi: {
   game: RepoDitorApi["game"];
   players: Pick<RepoDitorApi["players"], "list">;
   upgrades: Pick<RepoDitorApi["upgrades"], "list">;
+  run: RepoDitorApi["run"];
+  advanced: RepoDitorApi["advanced"];
+  maps: RepoDitorApi["maps"];
+  cosmetics: Pick<RepoDitorApi["cosmetics"], "get">;
 } = {
   environment: tauriDiscoveryApi,
+  cosmetics: {
+    async get() {
+      try {
+        return await invoke<DesktopOperationResult<CosmeticsViewDto>>("cosmetics_get");
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop cosmetics bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
+  },
+  maps: {
+    async list() {
+      try {
+        return await invoke<DesktopOperationResult<InstalledMapsDto>>("maps_list");
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop maps bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
+  },
+  advanced: {
+    async get(saveId) {
+      try {
+        return await invoke<DesktopOperationResult<AdvancedSaveDto>>("advanced_get", { saveId });
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop advanced data bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
+  },
+  run: {
+    async get(saveId) {
+      try {
+        return await invoke<DesktopOperationResult<RunStateDto>>("run_get", { saveId });
+      } catch {
+        return {
+          ok: false,
+          error: { code: "internal_error", message: "The desktop run bridge failed unexpectedly." },
+        };
+      }
+    },
+  },
   upgrades: {
     async list(saveId) {
       try {
