@@ -272,6 +272,12 @@ export async function launch(
     if (!browser) throw new Error("Preview WebView2 did not become available");
     const page = browser.contexts().flatMap((context) => context.pages())[0];
     if (!page) throw new Error("Preview page missing");
+    await page.waitForFunction(
+      () =>
+        typeof (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+          .__TAURI_INTERNALS__?.invoke === "function",
+    );
+    await page.getByTestId("editor-content").waitFor({ state: "attached" });
     return { child, browser, page };
   } catch (error) {
     child.kill();

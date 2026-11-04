@@ -18,6 +18,8 @@ interface PendingChangesBarProps {
   readonly onRevert: () => void;
   readonly onSave: () => void;
   readonly testIdPrefix?: string;
+  readonly blocked?: boolean;
+  readonly invalid?: boolean;
 }
 
 function changeCount(count: number, t: Translate): string {
@@ -77,6 +79,8 @@ export function PendingChangesBar({
   onRevert,
   onSave,
   testIdPrefix = "workspace",
+  blocked = false,
+  invalid = false,
 }: PendingChangesBarProps) {
   const { t } = usePreferences();
   const [reviewing, setReviewing] = useState(false);
@@ -180,7 +184,7 @@ export function PendingChangesBar({
                 </button>
                 <button
                   className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving}
+                  disabled={saving || blocked}
                   type="button"
                   onClick={onRevert}
                 >
@@ -188,7 +192,7 @@ export function PendingChangesBar({
                 </button>
                 <button
                   className="ui-feedback rounded-sm bg-accent px-3 py-2 font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving}
+                  disabled={saving || blocked || invalid}
                   type="button"
                   onClick={onSave}
                 >

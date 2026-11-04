@@ -48,6 +48,7 @@ export function usePlayers(
   const [pendingByPlayer, setPendingByPlayer] = useState<Record<string, PlayerHealthEdit>>({});
   const mounted = useRef(false);
   const playerRequestInFlight = useRef(false);
+  const projectionVersion = useRef(0);
 
   const loadPlayers = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
@@ -55,9 +56,10 @@ export function usePlayers(
         return false;
       }
       playerRequestInFlight.current = true;
+      const version = projectionVersion.current;
       try {
         const result = await list(saveId);
-        if (!mounted.current) return result.ok;
+        if (!mounted.current || version !== projectionVersion.current) return result.ok;
         if (result.ok) {
           setState({ players: result.data, error: null, loading: false });
           setSelectedPlayerId((current) =>
@@ -74,7 +76,7 @@ export function usePlayers(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === projectionVersion.current) {
           setState((current) => ({
             players: preserveExisting ? current.players : [],
             error: "error.service",
@@ -162,6 +164,14 @@ export function usePlayers(
     setPendingByPlayer({});
   }
 
+  function acceptSnapshot(next: PlayerDto[]): void {
+    projectionVersion.current += 1;
+    setState({ players: next, error: null, loading: false });
+    setSelectedPlayerId((current) =>
+      next.some((player) => player.id === current) ? current : (next[0]?.id ?? null),
+    );
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -173,6 +183,7 @@ export function usePlayers(
     revertHealth,
     revertAll,
     applyAfterSave,
+    acceptSnapshot,
     reload,
     refreshAfterSave: () => loadPlayers(true),
   };

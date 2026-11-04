@@ -16,7 +16,11 @@ use std::{
 use tauri::Manager;
 
 const DEADLINE: Duration = Duration::from_secs(30);
-const OPERATIONS: usize = 9;
+const OPERATIONS: usize = if cfg!(feature = "synthetic-health-recovery") {
+    12
+} else {
+    9
+};
 
 #[derive(Default)]
 pub struct HostState {
@@ -25,6 +29,10 @@ pub struct HostState {
     pub closing: Arc<AtomicBool>,
 }
 impl HostState {
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn health_busy(&self) -> bool {
+        self.requests[9].load(Ordering::SeqCst) || self.requests[10].load(Ordering::SeqCst)
+    }
     pub fn idle(&self) -> bool {
         self.requests
             .iter()
@@ -59,6 +67,14 @@ pub enum Operation {
     Items(String),
     Maps,
     Cosmetics,
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestHealth(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestHealthPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestHealthRecover(String, String, bool, bool),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestHealthState(String),
 }
 impl Operation {
     fn slot(&self) -> usize {
@@ -72,6 +88,12 @@ impl Operation {
             Self::Items(_) => 6,
             Self::Maps => 7,
             Self::Cosmetics => 8,
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealth(..) | Self::TestHealthPrepare(..) => 9,
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthRecover(..) => 10,
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthState(..) => 11,
         }
     }
     fn service(&self) -> Service {
@@ -85,6 +107,11 @@ impl Operation {
             Self::Items(_) => Service::Items,
             Self::Maps => Service::Maps,
             Self::Cosmetics => Service::Cosmetics,
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealth(..)
+            | Self::TestHealthPrepare(..)
+            | Self::TestHealthRecover(..)
+            | Self::TestHealthState(..) => Service::Save,
         }
     }
     fn arguments(&self) -> Vec<&str> {
@@ -98,6 +125,36 @@ impl Operation {
             Self::Items(id) => vec!["advanced-get", id],
             Self::Maps => vec!["maps-list"],
             Self::Cosmetics => vec!["cosmetics-get"],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealth(id, fingerprint, payload, operation, _) => vec![
+                "saves-write",
+                id,
+                fingerprint,
+                payload,
+                "--health-operation",
+                operation,
+            ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthPrepare(id, fingerprint, payload, operation, _) => {
+                let mut args = vec!["health-prepare", id, fingerprint, payload, operation];
+                if cfg!(feature = "synthetic-health-ui") {
+                    args.push("--intent");
+                }
+                args
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthRecover(id, operation, canonical, acknowledge) => {
+                let mut args = vec!["health-recover", id, operation];
+                if *canonical {
+                    args.push("--canonical");
+                }
+                if *acknowledge {
+                    args.push("--acknowledge");
+                }
+                args
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthState(id) => vec!["health-state", id],
         }
     }
 }
@@ -135,7 +192,30 @@ fn execute(
         .checked_sub(started.elapsed())
         .filter(|remaining| !remaining.is_zero())
         .ok_or(BackendError::Timeout)?;
-    process::run(executable, args, remaining, state.closing.clone())
+    let result = process::run(executable, args, remaining, state.closing.clone());
+    #[cfg(feature = "synthetic-health-recovery")]
+    if request.1 == 9 && args.first() != Some(&"health-prepare") {
+        return result.map_err(|error| {
+            if error == BackendError::Unavailable {
+                error
+            } else {
+                BackendError::WriteUncertain
+            }
+        });
+    }
+    result
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+fn worker_result<T>(
+    result: tauri::Result<Result<T, BackendError>>,
+    write: bool,
+) -> Result<T, BackendError> {
+    result.unwrap_or(Err(if write {
+        BackendError::WriteUncertain
+    } else {
+        BackendError::Failed
+    }))
 }
 
 pub async fn request<T, F>(app: tauri::AppHandle, operation: Operation, parse: F) -> Outcome<T>
@@ -144,12 +224,20 @@ where
     F: FnOnce(&[u8]) -> Result<T, BackendError> + Send + 'static,
 {
     let service = operation.service();
+    #[cfg(feature = "synthetic-health-recovery")]
+    let started = match &operation {
+        Operation::TestHealth(.., started) | Operation::TestHealthPrepare(.., started) => *started,
+        _ => Instant::now(),
+    };
+    #[cfg(not(feature = "synthetic-health-recovery"))]
     let started = Instant::now();
     let state = app.state::<Arc<HostState>>().inner().clone();
     let request = match Request::reserve(state, operation.slot()) {
         Ok(request) => request,
         Err(error) => return Outcome::for_service(Err(error), service),
     };
+    #[cfg(feature = "synthetic-health-recovery")]
+    let is_write = matches!(operation, Operation::TestHealth(..));
     let result = tauri::async_runtime::spawn_blocking(move || {
         let root = if cfg!(debug_assertions) {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../build/backend/repoditor-backend")
@@ -166,16 +254,106 @@ where
             started,
             DEADLINE,
         )?;
-        parse(&bytes)
+        let result = parse(&bytes);
+        #[cfg(feature = "synthetic-health-recovery")]
+        if is_write {
+            return result.map_err(|_| BackendError::WriteUncertain);
+        }
+        result
     })
-    .await
-    .unwrap_or(Err(BackendError::Failed));
+    .await;
+    #[cfg(feature = "synthetic-health-recovery")]
+    let result = worker_result(result, is_write);
+    #[cfg(not(feature = "synthetic-health-recovery"))]
+    let result = result.unwrap_or(Err(BackendError::Failed));
     Outcome::for_service(result, service)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "synthetic-health-recovery")]
+    #[test]
+    fn a_worker_panic_after_work_cannot_be_reported_as_a_rejected_write() {
+        for write in [true, false] {
+            let worked = Arc::new(AtomicBool::new(false));
+            let worker_flag = worked.clone();
+            let joined = tauri::async_runtime::block_on(tauri::async_runtime::spawn_blocking(
+                move || -> Result<(), BackendError> {
+                    worker_flag.store(true, Ordering::SeqCst);
+                    panic!("controlled worker failure after work");
+                },
+            ));
+            assert!(worked.load(Ordering::SeqCst));
+            assert_eq!(
+                worker_result(joined, write),
+                Err(if write {
+                    BackendError::WriteUncertain
+                } else {
+                    BackendError::Failed
+                })
+            );
+        }
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    #[test]
+    fn health_transport_has_only_fixed_arguments_and_exclusive_admission() {
+        let op = Operation::TestHealth(
+            "save".into(),
+            "fp".into(),
+            "payload".into(),
+            "op".into(),
+            Instant::now(),
+        );
+        assert_eq!(
+            op.arguments(),
+            [
+                "saves-write",
+                "save",
+                "fp",
+                "payload",
+                "--health-operation",
+                "op"
+            ]
+        );
+        let state = Arc::new(HostState::default());
+        let request = Request::reserve(state.clone(), op.slot()).unwrap();
+        assert!(Request::reserve(state.clone(), op.slot()).is_err());
+        drop(request);
+        assert!(state.idle());
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    #[test]
+    fn queued_write_timeout_is_rejected_but_started_timeout_is_uncertain() {
+        let state = Arc::new(HostState::default());
+        let held = state.domain_worker.lock().unwrap();
+        let request = Request::reserve(state.clone(), 9).unwrap();
+        assert_eq!(
+            execute(
+                &request,
+                Path::new("never-spawn.exe"),
+                &[],
+                Instant::now(),
+                Duration::from_millis(20)
+            )
+            .unwrap_err(),
+            BackendError::Timeout
+        );
+        drop(held);
+        assert_eq!(
+            execute(
+                &request,
+                process::tests::fixture(),
+                &["hang"],
+                Instant::now(),
+                Duration::from_millis(40)
+            )
+            .unwrap_err(),
+            BackendError::WriteUncertain
+        );
+        drop(request);
+        assert!(state.idle());
+    }
     #[test]
     fn maps_has_fixed_arguments_and_uses_the_bounded_domain_queue() {
         assert_eq!(Operation::Maps.arguments(), ["maps-list"]);

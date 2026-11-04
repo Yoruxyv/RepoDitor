@@ -359,4 +359,22 @@ export const id: Record<keyof typeof en, string> = {
   "error.saveStale": "Save berubah di disk. Buka ulang sebelum menyimpan perubahan.",
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",
   "error.copyPath": "Path tidak dapat disalin",
+  "health.testOnly": "Uji kesehatan sintetis. Fitur lain tetap hanya baca.",
+  "health.checking": "Memeriksa operasi kesehatan yang belum selesai…",
+  "health.reconciling": "Mencocokkan kesehatan dengan berkas simpanan…",
+  "health.recovery": "Hasil perubahan kesehatan belum pasti. Rekonsiliasi sebelum mengedit lagi.",
+  "health.saved": "Kesehatan disimpan dan diverifikasi.",
+  "health.rejected": "Penyimpanan ditolak. Nilai tertunda tetap dipertahankan.",
+  "health.unchanged":
+    "Perubahan tertunda belum diterapkan. Tinjau nilainya sebelum menyimpan lagi.",
+  "health.otherOperation":
+    "Operasi kesehatan lain perlu direkonsiliasi. Perubahan tertunda Anda tetap dipertahankan.",
+  "health.conflict":
+    "Bukti pemulihan tidak dapat dicocokkan. Pengeditan diblokir; periksa kembali atau lakukan pemulihan manual.",
+  "health.status": "Status penyimpanan kesehatan",
+  "health.persisted": "Di berkas: {name} · {health} / {max}",
+  "health.backupVerified": "Cadangan asli terverifikasi.",
+  "health.reconcile": "Rekonsiliasi kesehatan",
+  "health.recheck": "Periksa data pemulihan",
+  "health.refresh": "Muat ulang nilai tersimpan",
 };

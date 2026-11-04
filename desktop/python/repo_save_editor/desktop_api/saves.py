@@ -38,6 +38,7 @@ from repo_save_editor.services.saves.discovery import (
     discover_saves,
 )
 from repo_save_editor.services.saves.summaries import get_save_summary
+from repo_save_editor.storage.health_recovery import HealthTransaction, pending_health
 from repo_save_editor.storage.repository import (
     SaveBackupError,
     SaveRepository,
@@ -122,13 +123,16 @@ def open_save(save_id: str, root: Path | None = None) -> dict[str, object]:
     """
     try:
         save, data, source = load_discovered_save(save_id, root)
-        session = _session(save, data, source)
+        return serialize_open_save(save, data, source)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
+
+def serialize_open_save(save: DiscoveredSave, data: SaveData, source: bytes) -> dict[str, object]:
+    """Project the existing open contract from one validated encrypted snapshot."""
     return {
         "ok": True,
-        "session": session,
+        "session": _session(save, data, source),
         "requiredUpgradeVisualKeys": [upgrade.key for upgrade in discover_player_upgrades(data)],
     }
 
@@ -230,6 +234,7 @@ def save_changes(
     ),
     recharge_evidence: object | None = None,
     recharge_evidence_verifier: RechargeEvidenceVerifier = verify_recharge_evidence,
+    health_transaction: HealthTransaction | None = None,
 ) -> dict[str, object]:
     """Validate and safely persist one typed set of pending changes.
 
@@ -250,6 +255,8 @@ def save_changes(
     try:
         require_game_closed(game_status_loader)
         save, data, source = load_discovered_save(save_id, root)
+        if health_transaction is None and pending_health(save.path):
+            return _failure("save_stale", "An interrupted health write requires recovery first.")
         if (
             not isinstance(expected_fingerprint, str)
             or len(expected_fingerprint) != 64
@@ -282,6 +289,7 @@ def save_changes(
             save.path,
             data,
             expected_source=source,
+            health_transaction=health_transaction,
         )
         try:
             metadata = save.path.stat()

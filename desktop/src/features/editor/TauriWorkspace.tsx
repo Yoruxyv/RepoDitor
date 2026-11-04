@@ -1,10 +1,13 @@
-/** Native read-only projections using the production workspace presentation. */
-import { useState, type KeyboardEvent } from "react";
-import type { SaveSession } from "@electron/contracts";
+/** Native workspace presentation with explicitly authorized synthetic health controls. */
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
-import { PlayersView } from "@/features/players/PlayersView";
+import { TauriPlayersView } from "@/features/players/TauriPlayersView";
 import { usePlayers } from "@/features/players/usePlayers";
+import { useTauriHealth } from "@/features/players/useTauriHealth";
+import { TauriHealthControls } from "@/features/players/TauriHealthControls";
+import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import { UpgradesView } from "@/features/upgrades/UpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { ItemsView } from "@/features/items/ItemsView";
@@ -22,13 +25,42 @@ type Section = (typeof SECTIONS)[number];
 export function TauriWorkspace({
   session,
   onClose,
+  onCanonical = () => undefined,
+  onHealthAvailability,
 }: {
   readonly session: SaveSession;
   readonly onClose: () => void;
+  readonly onCanonical?: (opened: SaveOpenResult) => void;
+  readonly onHealthAvailability?: (enabled: boolean) => void;
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
+  const health = useTauriHealth(session, players.players, (projection) => {
+    players.acceptSnapshot(projection.players);
+    onCanonical(projection.opened);
+  });
+  const restoredSelection = useRef<string | null>(null);
+  const visiblePlayers = players.players;
+  const selectPlayer = players.setSelectedPlayerId;
+  useEffect(() => {
+    if (
+      health.operationId &&
+      health.restoredPlayerId &&
+      restoredSelection.current !== health.operationId &&
+      visiblePlayers.some((player) => player.id === health.restoredPlayerId)
+    ) {
+      restoredSelection.current = health.operationId;
+      selectPlayer(health.restoredPlayerId);
+    }
+  }, [health.operationId, health.restoredPlayerId, visiblePlayers, selectPlayer]);
+  useEffect(() => {
+    onHealthAvailability?.(health.enabled);
+    return () => onHealthAvailability?.(false);
+  }, [health.enabled, onHealthAvailability]);
+  const currentSession = health.canonical?.opened.session ?? session;
+  const selectedPlayer =
+    visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
   const run = useRunState(session.id, null, tauriReadApi.run.get);
   const items = useItems(session.id, null, tauriReadApi.advanced.get);
@@ -46,8 +78,14 @@ export function TauriWorkspace({
     document.getElementById(`native-${SECTIONS[next]}-tab`)?.focus();
   }
   return (
-    <section aria-labelledby="workspace-title" className="pb-4" data-testid="workspace">
-      <SaveHeader session={session} onClose={onClose} />
+    <section
+      aria-labelledby="workspace-title"
+      className="pb-4"
+      data-testid="workspace"
+      data-session-fingerprint={currentSession.fingerprint}
+    >
+      <SaveHeader session={currentSession} onClose={onClose} />
+      <TauriHealthControls health={health} player={selectedPlayer} />
       <nav className="overflow-x-auto border-b border-line" aria-label={t("workspace.sections")}>
         <div className="flex min-w-max gap-1 py-2" role="tablist">
           {SECTIONS.map((item, index) => (
@@ -79,7 +117,7 @@ export function TauriWorkspace({
         >
           {section === "overview" ? (
             <OverviewView
-              session={session}
+              session={currentSession}
               availableDestinations={["players", "upgrades", "run", "items"]}
               onNavigate={(destination) => {
                 if (
@@ -93,19 +131,7 @@ export function TauriWorkspace({
             />
           ) : null}
           {section === "players" ? (
-            <PlayersView
-              avatarUrls={avatarUrls}
-              error={players.error}
-              loading={players.loading}
-              pendingByPlayer={{}}
-              players={players.players}
-              selectedPlayerId={players.selectedPlayerId}
-              onHealthChange={null}
-              onRevertHealth={null}
-              onRejectAvatar={() => undefined}
-              onRetry={players.reload}
-              onSelect={players.setSelectedPlayerId}
-            />
+            <TauriPlayersView players={players} health={health} avatarUrls={avatarUrls} />
           ) : null}
           {section === "upgrades" ? (
             <UpgradesView
@@ -161,6 +187,18 @@ export function TauriWorkspace({
           ) : null}
         </div>
       </div>
+      {health.enabled ? (
+        <PendingChangesBar
+          edits={health.pending ? [health.pending] : []}
+          saving={health.phase === "saving" || health.phase === "reconciling"}
+          error={null}
+          backupPath={null}
+          blocked={health.locked}
+          invalid={health.invalid}
+          onRevert={() => void health.revert()}
+          onSave={() => void health.save()}
+        />
+      ) : null}
     </section>
   );
 }

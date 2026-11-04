@@ -125,6 +125,53 @@ Mutation handlers are null, so bulk/individual ownership, presets, pending, reve
 and save controls are omitted. Electron retains its default editable composition.
 Native icons remain fallbacks. Packaged tests cover data/layout parity, metadata
 absence, MetaSave failures, recovery, bounds, cancellation and independent status.
+An opt-in `synthetic-health-recovery` Cargo feature provides internal health-write
+and recovery commands for isolated fixtures. The normal host does not compile or
+grant these commands and has no editing UI. The test host additionally requires
+E2E mode and a canonical LocalLow root beneath `build/recovery-checkpoint`.
+Python records operation-owned fingerprints and files before replacement; explicit
+recovery classifies disk state without replaying edits. Unresolved operations block
+further writes, including the legacy Python write path. See the
+[recovery contract](../docs/architecture/architecture.md#experimental-health-recovery).
+The native boundary requires Python's durable reservation acknowledgement before
+launching a writer, including when the writer dies before executing Python code.
+Reservation and writing share the existing 30-second request deadline.
+
+The additional `synthetic-health-ui` feature enables a single-player health editor
+only with that test permission configuration and runtime root restriction. It
+reuses Players, numeric validation and the Save/Revert bar; all other domains stay
+read-only. Python persists the operation ID and attempted value in the reservation,
+so reload/restart discovers unresolved intent before another save is admitted.
+Uncertain outcomes require explicit reconciliation. An applied result refreshes
+the canonical session and players before acknowledgement; an unchanged result
+retains the edit until an explicit new Save or Revert. Conflicting evidence blocks
+writes. No production health-write authority is provided.
+
+To validate this internal boundary, build the host with
+`tauri build --features synthetic-health-recovery --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.
+Build `e2e/support/recovery-sidecar.py` with the same PyInstaller options as
+`build:sidecar`, plus `--hidden-import repo_save_editor.desktop_api.__main__`, using
+`build/recovery-checkpoint/fault-backend` as its dist path.
+Set `REPODITOR_RECOVERY_EXECUTABLE` and `REPODITOR_RECOVERY_DEFAULT_EXECUTABLE` to
+separate feature-enabled and normal test-host executables, then run
+`npm run test:e2e:recovery`. Keep this host and fault-injection sidecar separate from
+the normal portable preview. These tests share the native preview's local Windows
+validation exception; Python recovery tests run in the ordinary Python suite.
+
+For packaged UI validation, build a separate host with
+`tauri build --features synthetic-health-ui --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.
+Keep normal, protocol-only and UI-without-test-permissions builds for the negative
+permission checks. Set `REPODITOR_HEALTH_UI_EXECUTABLE`,
+`REPODITOR_HEALTH_DEFAULT_EXECUTABLE`, `REPODITOR_HEALTH_PROTOCOL_EXECUTABLE` and
+`REPODITOR_HEALTH_NO_PERMISSION_EXECUTABLE` to those executables, and
+`REPODITOR_E2E_EXECUTABLE` to the UI executable. The UI spec expects a fault backend
+under `build/recovery-checkpoint/health-ui/fault-backend/repoditor-backend`.
+Run `npx playwright test e2e/tauri-health-ui.spec.ts` with a fresh `--output` directory
+beneath `build/recovery-checkpoint/health-ui`. It exercises encrypted synthetic saves,
+process interruption, timeout/restart, durable intent, canonical refresh, exact-byte
+backups, permission isolation, keyboard access and three viewport sizes. Preserve
+previous artifacts by choosing a new output directory for each validation run.
+
 The packaged checks include five-read timings and controlled probes separating
 backend time from pre-execution wait. Domain reads remain serialized; game status
 has one independent admission-bounded lane, allowing at most two backend process

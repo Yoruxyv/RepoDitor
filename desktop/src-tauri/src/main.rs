@@ -9,6 +9,8 @@ mod items;
 mod maps;
 mod players;
 mod process;
+#[cfg(feature = "synthetic-health-recovery")]
+mod recovery;
 mod run;
 mod saves;
 mod upgrades;
@@ -140,6 +142,30 @@ fn preview_close(app: tauri::AppHandle) -> Result<(), &'static str> {
         .map_err(|_| "Preview could not close")
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_health_write(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::write(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_health_recover(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::recover(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_health_state(app: tauri::AppHandle, save_id: String) -> recovery::HealthState {
+    recovery::state(app, save_id).await
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Arc::new(HostState::default()))
@@ -153,7 +179,13 @@ fn main() {
             advanced_get,
             maps_list,
             cosmetics_get,
-            preview_close
+            preview_close,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_health_write,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_health_recover,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_health_state,
         ])
         .setup(|app| {
             let profile = if std::env::var("REPODITOR_E2E").as_deref() == Ok("1") {

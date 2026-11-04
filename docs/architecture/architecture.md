@@ -148,7 +148,81 @@ The local main-window capability grants only those ten commands. CSP and
 navigation constrain the bundled page; new windows are denied. The preview has
 its own application identifier/profile and does not migrate Electron data.
 
-Each request launches the fixed frozen backend directly, without a system-Python
+### Experimental health recovery
+
+The normal preview remains read-only. Internal recovery commands are compiled only
+with the `synthetic-health-recovery` Cargo feature and granted only by the separate
+`recovery.test.conf.json` configuration. A runtime check additionally requires E2E
+mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpoint`.
+The separate `synthetic-health-ui` feature includes the recovery feature and enables
+one existing player's health editor only with the same test permissions and runtime
+fence. Protocol-only builds keep the UI read-only; default builds have no mutation
+commands. No general mutation bridge or production write permission is provided.
+The test transport builds exactly one Python-owned player-health change.
+
+Python's opt-in health transaction reuses `save_changes` and repository verification.
+Before launching the mutating process, the host requires a Python-owned reservation
+acknowledgement. That first process validates the health request and persists the
+pending receipt without writing save bytes. The writer claims the reservation only
+after its owner exits and rechecks the source and domain constraints. Losing either
+process or its response therefore cannot leave a potentially executed write without
+a pending marker. A preparation failure is known to precede save mutation, while an
+unverified launched writer is uncertain. Both processes share the original request's
+30-second budget.
+An OS file lock serializes cooperating writers/recovery. Recovery also verifies the
+recorded owner process has exited before cleaning its files. Windows process
+creation time distinguishes a reused PID from the recorded owner; an unverifiable
+process conservatively blocks cleanup. Receipt temporary filenames include their
+publisher PID and creation time so interrupted recovery has the same ownership check.
+A versioned pending receipt
+records the original fingerprint before backup/staging, then records the verified
+encrypted-output fingerprint before replacement. File identity and modification-time
+evidence additionally reject external restoration of the original bytes. Receipt publication uses fsynced
+files and atomic replacement with write-through on Windows. Filenames are derived
+from a validated operation identity, never accepted from receipt content.
+
+Recovery reads actual source and backup bytes under the lock. It distinguishes an
+unexecuted request, unchanged source, applied verified output and conflicting state.
+It never infers success from health alone or replays pending intent. A resolved
+operation receipt is durably archived before owned temporary files are cleaned and
+the pending marker is removed, so recovery can resume after interruption and old
+operation IDs cannot execute again. Even a verified write response retains its
+pending marker until explicit reconciliation, covering response loss after receipt
+finalization. In UI mode, reconciliation retains the pending marker until a separate
+acknowledgement after canonical projection. Acknowledgement rechecks disk evidence
+before removing the marker. Malformed receipts, damaged required backups,
+links, unreadable metadata or external changes fail closed. Backups are never automatically deleted.
+Unresolved receipts block new health requests and the legacy save-write path; normal
+Electron writes without experimental receipts retain their existing behavior.
+
+The experimental native write uses the existing bounded domain worker. Known
+pre-execution rejection stays rejected; any launched write with an unverified
+completion is explicitly uncertain and needs Python reconciliation. Recovery
+failures remain unresolved. The existing close cancellation, 30-second deadline,
+stream limits and Job Object cleanup remain enabled, and game status retains its
+separate bounded lane. Fault injection lives only in the E2E sidecar, not the product
+transaction. Tests use synthetic encrypted saves.
+
+React stages one typed health edit in memory and reuses the Players controls and
+Save/Revert presentation. Before mutation, Python's schema-2 reservation durably
+binds its nonce to the player ID, requested health and previous health; schema-1
+protocol receipts remain readable without invented intent. The pending receipt
+beside the authorized save is the durable owner. Native state discovery reads only
+that fixed receipt namespace, validates evidence and returns bounded DTOs; React
+has no transaction journal or filesystem access. Invalid or unreadable state blocks
+editing. A busy native transaction permits only bounded read-only state polling.
+
+Renderer reload or application restart restores the pending value and its player
+selection from the receipt. Uncertain writes require an explicit Reconcile action;
+neither discovery nor reconciliation replays the edit. Applied reconciliation returns
+session and player DTOs from one fingerprint-checked Python snapshot, then the UI
+acknowledges it. Unchanged reconciliation retains intent and requires a new explicit
+Save with a new nonce or Revert. A draft belonging to another operation is retained
+when that operation is reconciled. Conflicts remain blocked. A verified backup
+indicator appears only after positive recovery evidence. Python archives and cleans
+only operation-owned files; backups and unrelated temporary files remain intact.
+
+In the default host, each request launches the fixed frozen backend directly, without a system-Python
 fallback. Admission allows one outstanding request per read operation, at most
 nine total; repeated calls to an occupied operation fail immediately. Eight ordinary
 domain operations share one worker mutex. Game status bypasses that mutex; its

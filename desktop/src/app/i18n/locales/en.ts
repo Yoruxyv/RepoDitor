@@ -356,4 +356,21 @@ export const en = {
   "error.saveStale": "The save changed on disk. Reopen it before saving edits.",
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
+  "health.testOnly": "Synthetic health test. Other features remain read-only.",
+  "health.checking": "Checking unfinished health operations…",
+  "health.reconciling": "Reconciling health with the saved file…",
+  "health.recovery": "The health outcome is uncertain. Reconcile before editing again.",
+  "health.saved": "Health saved and verified.",
+  "health.rejected": "Save rejected. Your pending value is retained.",
+  "health.unchanged": "The pending edit was not applied. Review its value before saving again.",
+  "health.otherOperation":
+    "Another health operation needs reconciliation. Your pending edit will be retained.",
+  "health.conflict":
+    "Recovery evidence could not be reconciled. Editing is blocked; recheck the evidence or seek manual recovery.",
+  "health.status": "Health save status",
+  "health.persisted": "On disk: {name} · {health} / {max}",
+  "health.backupVerified": "Original backup verified.",
+  "health.reconcile": "Reconcile health",
+  "health.recheck": "Recheck recovery data",
+  "health.refresh": "Refresh saved values",
 } as const;

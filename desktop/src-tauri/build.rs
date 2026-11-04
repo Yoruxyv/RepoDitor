@@ -11,6 +11,12 @@ fn main() {
             "maps_list",
             "cosmetics_get",
             "preview_close",
+            #[cfg(feature = "synthetic-health-recovery")]
+            "test_health_write",
+            #[cfg(feature = "synthetic-health-recovery")]
+            "test_health_recover",
+            #[cfg(feature = "synthetic-health-recovery")]
+            "test_health_state",
         ]),
     ))
     .expect("Unable to build the desktop preview");

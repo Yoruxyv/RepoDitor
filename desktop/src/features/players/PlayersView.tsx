@@ -16,6 +16,8 @@ interface PlayersViewProps {
   readonly pendingByPlayer: Record<string, PlayerHealthEdit>;
   readonly avatarUrls: Record<string, string | null>;
   readonly resetVersion?: number;
+  readonly healthEditingDisabled?: boolean;
+  readonly onHealthValidityChange?: (invalid: boolean) => void;
   readonly onSelect: (playerId: string) => void;
   readonly onRejectAvatar: (playerId: string) => void;
   readonly onHealthChange: ((player: PlayerDto, health: number) => void) | null;
@@ -99,6 +101,8 @@ export function PlayersView({
   pendingByPlayer,
   avatarUrls,
   resetVersion = 0,
+  healthEditingDisabled = false,
+  onHealthValidityChange,
   onSelect,
   onRejectAvatar,
   onHealthChange,
@@ -193,6 +197,8 @@ export function PlayersView({
           player={player}
           pendingByPlayer={pendingByPlayer}
           resetVersion={resetVersion}
+          healthEditingDisabled={healthEditingDisabled}
+          {...(onHealthValidityChange ? { onHealthValidityChange } : {})}
           onHealthChange={onHealthChange}
           onRevertHealth={onRevertHealth}
         />
@@ -205,11 +211,18 @@ function PlayerHealth({
   player,
   pendingByPlayer,
   resetVersion,
+  healthEditingDisabled,
+  onHealthValidityChange,
   onHealthChange,
   onRevertHealth,
 }: Pick<
   PlayersViewProps,
-  "pendingByPlayer" | "resetVersion" | "onHealthChange" | "onRevertHealth"
+  | "pendingByPlayer"
+  | "resetVersion"
+  | "onHealthChange"
+  | "onRevertHealth"
+  | "healthEditingDisabled"
+  | "onHealthValidityChange"
 > & { readonly player: PlayerDto }) {
   const { t } = usePreferences();
   const readOnly = onHealthChange === null;
@@ -229,6 +242,9 @@ function PlayerHealth({
   const healthError = healthPresentation.invalid
     ? t("players.healthError", { max: player.maxHealth })
     : null;
+  useEffect(() => {
+    onHealthValidityChange?.(healthPresentation.invalid);
+  }, [healthPresentation.invalid, onHealthValidityChange]);
   const visualHealth = healthPresentation.value;
   const healthPercent = healthPresentation.percent;
   const isAtFullHealth = !healthError && parsedHealth === player.maxHealth;
@@ -241,14 +257,14 @@ function PlayerHealth({
     .join(" ");
 
   function editHealth(value: string): void {
-    if (readOnly) {
+    if (readOnly || healthEditingDisabled) {
       return;
     }
     setHealthInputs((current) => ({ ...current, [player.id]: value }));
   }
 
   function commitHealth(): void {
-    if (readOnly || healthInputs[player.id] === undefined) return;
+    if (readOnly || healthEditingDisabled || healthInputs[player.id] === undefined) return;
     const parsed = Number(healthInputs[player.id]);
     if (!Number.isSafeInteger(parsed)) {
       setHealthInputs((current) => ({ ...current, [player.id]: String(health) }));
@@ -293,6 +309,7 @@ function PlayerHealth({
             max={player.maxHealth}
             min="0"
             readOnly={readOnly}
+            disabled={healthEditingDisabled}
             step="1"
             type="number"
             value={healthInput}
@@ -309,7 +326,7 @@ function PlayerHealth({
         {!readOnly ? (
           <button
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
-            disabled={isAtFullHealth}
+            disabled={isAtFullHealth || healthEditingDisabled}
             type="button"
             onClick={() => {
               setHealthInputs((current) => ({
@@ -325,6 +342,7 @@ function PlayerHealth({
         {pending ? (
           <button
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+            disabled={healthEditingDisabled}
             type="button"
             onClick={() => revertHealth(player.id)}
           >

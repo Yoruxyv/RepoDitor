@@ -1,0 +1,559 @@
+"""Operation-owned receipts and recovery for the experimental single-health transaction."""
+
+from __future__ import annotations
+
+import ctypes
+import json
+import os
+import re
+import stat
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, replace
+from hashlib import sha256
+from pathlib import Path
+from typing import BinaryIO
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
+_ID = re.compile(r"[0-9a-f]{32}\Z")
+_HASH = re.compile(r"[0-9a-f]{64}\Z")
+_RECEIPT_LIMIT = 4096
+
+
+class RecoveryError(OSError):
+    """A public recovery rejection with no filesystem diagnostics."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def valid_operation(value: object) -> bool:
+    """Validate a host-generated, path-free operation identity."""
+    return isinstance(value, str) and _ID.fullmatch(value) is not None
+
+
+def _present(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def pending_health(path: Path) -> bool:
+    """Fail closed when pending metadata cannot be inspected."""
+    if _present(path.with_name(f".{path.name}.health-pending.json")):
+        return True
+    prefix = f".{path.name}.health-"
+    with os.scandir(path.parent) as entries:
+        return any(
+            entry.name.startswith(prefix) and entry.name.endswith(".receipt.tmp")
+            for entry in entries
+        )
+
+
+def _regular(path: Path, *, missing: bool = False) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        if missing:
+            return
+        raise
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_nlink != 1
+        or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    ):
+        raise RecoveryError("write_conflict")
+
+
+def _hash(path: Path) -> str:
+    _regular(path)
+    result = sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(65536), b""):
+            result.update(chunk)
+    return result.hexdigest()
+
+
+def _identity(path: Path) -> list[int]:
+    _regular(path)
+    info = path.stat()
+    return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]
+
+
+def _identity_shape(value: object) -> bool:
+    return isinstance(value, list) and len(value) == 4 and all(type(n) is int for n in value)
+
+
+def _process_started(kernel: ctypes.CDLL, handle: int) -> int:
+    times = [ctypes.c_ulonglong() for _ in range(4)]
+    kernel.GetProcessTimes.argtypes = [ctypes.c_void_p] + [ctypes.POINTER(ctypes.c_ulonglong)] * 4
+    kernel.GetProcessTimes.restype = ctypes.c_int
+    if not kernel.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return times[0].value
+
+
+def _current_started() -> int:
+    if os.name != "nt":
+        return 0
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetCurrentProcess.restype = ctypes.c_void_p
+    return _process_started(kernel, kernel.GetCurrentProcess())
+
+
+def _owner_exited(pid: int, started: int) -> bool:
+    if os.name == "nt":
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+        kernel.OpenProcess.restype = ctypes.c_void_p
+        kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        kernel.WaitForSingleObject.restype = ctypes.c_ulong
+        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+        handle = kernel.OpenProcess(0x00101000, False, pid)
+        if not handle:
+            return ctypes.get_last_error() == 87
+        try:
+            if _process_started(kernel, handle) != started:
+                return True
+            return bool(kernel.WaitForSingleObject(handle, 0) == 0)
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return False
+
+
+def _snapshot(path: Path) -> tuple[str, list[int]]:
+    identity = _identity(path)
+    digest = _hash(path)
+    if _identity(path) != identity:
+        raise RecoveryError("write_conflict")
+    return digest, identity
+
+
+def _flush_write(path: Path, data: bytes) -> None:
+    with path.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _publish(source: Path, target: Path) -> None:
+    # Receipt ordering must survive process death before the save can be replaced.
+    if os.name == "nt":
+        move = ctypes.WinDLL("kernel32", use_last_error=True).MoveFileExW
+        move.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_ulong]
+        move.restype = ctypes.c_int
+        if not move(str(source), str(target), 0x1 | 0x8):
+            raise ctypes.WinError(ctypes.get_last_error())
+    else:
+        source.replace(target)
+        descriptor = os.open(target.parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+def _file_lock(stream: BinaryIO, *, unlock: bool = False) -> None:
+    stream.seek(0)
+    if sys.platform == "win32":
+        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK if unlock else msvcrt.LK_NBLCK, 1)
+    else:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_UN if unlock else fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@contextmanager
+def health_lock(path: Path) -> Iterator[None]:
+    """Hold an OS lock until the operation exits; never infer liveness from a PID."""
+    for parent in (path.parent, *path.parents):
+        info = parent.lstat()
+        if parent.is_symlink() or (
+            getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+        ):
+            raise RecoveryError("write_conflict")
+    _regular(path)
+    lock = path.with_name(f".{path.name}.health.lock")
+    _regular(lock, missing=True)
+    with lock.open("a+b") as stream:
+        if stream.seek(0, os.SEEK_END) == 0:
+            stream.write(b"0")
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            _file_lock(stream)
+        except OSError as exc:
+            raise RecoveryError("write_busy") from exc
+        try:
+            yield
+        finally:
+            _file_lock(stream, unlock=True)
+
+
+@dataclass(frozen=True)
+class Receipt:
+    """Versioned fingerprints; filenames are derived, never accepted from a receipt."""
+
+    operation: str
+    save: str
+    before: str
+    before_identity: list[int]
+    owner_pid: int
+    owner_started: int
+    after: str | None = None
+    after_identity: list[int] | None = None
+    phase: str = "prepared"
+    version: int = 1
+    intent: dict[str, object] | None = None
+
+
+class HealthTransaction:
+    """One health operation, used only while its save's health_lock is held."""
+
+    def __init__(
+        self, path: Path, operation: str, *, intent: dict[str, object] | None = None
+    ) -> None:
+        if not valid_operation(operation):
+            raise RecoveryError("invalid_request")
+        if intent is not None and not valid_intent(intent):
+            raise RecoveryError("invalid_request")
+        self.path = path
+        self.operation = operation
+        self.pending = path.with_name(f".{path.name}.health-pending.json")
+        self.archive = path.with_name(f".{path.name}.health-{operation}.json")
+        self.process_started = _current_started()
+        self.receipt_temp = path.with_name(
+            f".{path.name}.health-{operation}.{os.getpid()}-{self.process_started}.receipt.tmp"
+        )
+        self.temporary = path.with_name(f".{path.name}.health-{operation}.tmp")
+        self.backup = path.with_name(f"{path.name}.bak-health-{operation}")
+        self.started = False
+        self.resumed = False
+        self.intent = intent
+
+    def _read(self, path: Path) -> Receipt:
+        _regular(path)
+        with path.open("rb") as stream:
+            blob = stream.read(_RECEIPT_LIMIT + 1)
+        if len(blob) > _RECEIPT_LIMIT:
+            raise RecoveryError("write_conflict")
+        try:
+            raw = json.loads(blob)
+            if not isinstance(raw, dict):
+                raise TypeError("Invalid receipt shape")
+            fields = set(Receipt.__dataclass_fields__)
+            if raw.get("version") == 1:
+                fields.remove("intent")
+            if set(raw) != fields:
+                raise ValueError("Invalid receipt shape")
+            value = Receipt(**raw)
+            if (
+                type(value.version) is not int
+                or value.version not in {1, 2}
+                or (value.version == 2 and not valid_intent(value.intent))
+                or value.save != self.path.name
+                or value.operation != self.operation
+                or not valid_operation(value.operation)
+                or not isinstance(value.before, str)
+                or _HASH.fullmatch(value.before) is None
+                or not _identity_shape(value.before_identity)
+                or type(value.owner_pid) is not int
+                or not 0 < value.owner_pid <= 0xFFFFFFFF
+                or type(value.owner_started) is not int
+                or not 0 <= value.owner_started <= 0xFFFFFFFFFFFFFFFF
+                or value.phase not in {"prepared", "verified", "applied", "unchanged"}
+                or (
+                    value.after is not None
+                    and (not isinstance(value.after, str) or _HASH.fullmatch(value.after) is None)
+                )
+                or (value.phase in {"verified", "applied"} and value.after is None)
+                or (value.phase == "prepared" and value.after is not None)
+                or (value.after is not None and value.after == value.before)
+                or (value.after is None) != (value.after_identity is None)
+                or (value.after_identity is not None and not _identity_shape(value.after_identity))
+            ):
+                raise ValueError("Invalid receipt fields")
+            return value
+        except (TypeError, ValueError) as exc:
+            raise RecoveryError("write_conflict") from exc
+
+    def _write(self, value: Receipt, target: Path) -> None:
+        _regular(target, missing=True)
+        _regular(self.receipt_temp, missing=True)
+        # An existing temp can only be removed after a valid receipt attributes it.
+        if _present(self.receipt_temp):
+            self._read(self.pending if _present(self.pending) else self.archive)
+            self.receipt_temp.unlink()
+        payload = asdict(value)
+        if value.version == 1:
+            del payload["intent"]
+        _flush_write(self.receipt_temp, json.dumps(payload, sort_keys=True).encode())
+        _publish(self.receipt_temp, target)
+
+    def admit(self) -> None:
+        """Refuse unresolved targets and operation replay before mutation preparation."""
+        if pending_health(self.path):
+            raise RecoveryError("write_recovery_required")
+        if _present(self.archive):
+            raise RecoveryError("write_duplicate")
+        if any(_present(p) for p in (self.backup, self.temporary, self.receipt_temp)):
+            raise RecoveryError("write_conflict")
+
+    def prepare(self, source: bytes) -> None:
+        if self.resumed:
+            receipt = self._read(self.pending)
+            if (
+                receipt.phase != "prepared"
+                or receipt.owner_pid != os.getpid()
+                or receipt.owner_started != self.process_started
+                or _snapshot(self.path) != (receipt.before, receipt.before_identity)
+                or sha256(source).hexdigest() != receipt.before
+            ):
+                raise RecoveryError("write_conflict")
+            return
+        self.admit()
+        current, identity = _snapshot(self.path)
+        before = sha256(source).hexdigest()
+        if current != before:
+            raise RecoveryError("write_conflict")
+        self.started = True
+        self._write(
+            Receipt(
+                self.operation,
+                self.path.name,
+                before,
+                identity,
+                os.getpid(),
+                self.process_started,
+                version=2 if self.intent is not None else 1,
+                intent=self.intent,
+            ),
+            self.pending,
+        )
+
+    def resume(self) -> None:
+        """Claim a durably acknowledged reservation before doing any save work."""
+        if _present(self.archive):
+            raise RecoveryError("write_duplicate")
+        receipt = self._read(self.pending)
+        if receipt.phase != "prepared" or receipt.after is not None:
+            raise RecoveryError("write_recovery_required")
+        if not _owner_exited(receipt.owner_pid, receipt.owner_started):
+            raise RecoveryError("write_busy")
+        if _snapshot(self.path) != (receipt.before, receipt.before_identity):
+            raise RecoveryError("write_conflict")
+        self.started = True
+        self._write(
+            replace(receipt, owner_pid=os.getpid(), owner_started=self.process_started),
+            self.pending,
+        )
+        self.resumed = True
+        self.intent = receipt.intent
+
+    def create_backup(self, source: bytes) -> Path:
+        _flush_write(self.backup, source)
+        return self.backup
+
+    def stage(self, written: bytes) -> Path:
+        _flush_write(self.temporary, written)
+        return self.temporary
+
+    def verified(self, written: bytes) -> None:
+        receipt = self._read(self.pending)
+        after = sha256(written).hexdigest()
+        if after == receipt.before:
+            raise RecoveryError("write_conflict")
+        current, identity = _snapshot(self.temporary)
+        if current != after:
+            raise RecoveryError("write_conflict")
+        self._write(
+            replace(receipt, after=after, after_identity=identity, phase="verified"), self.pending
+        )
+
+    def _adopt_preparing(self) -> bool:
+        candidates = self._receipt_temps()
+        if not candidates:
+            return False
+        if len(candidates) != 1:
+            raise RecoveryError("write_conflict")
+        temporary, publisher, started = candidates[0]
+        preparing = self._read(temporary)
+        if preparing.phase != "prepared" or _present(self.backup) or _present(self.temporary):
+            raise RecoveryError("write_conflict")
+        if (publisher, started) != (preparing.owner_pid, preparing.owner_started):
+            raise RecoveryError("write_conflict")
+        if not _owner_exited(publisher, started):
+            raise RecoveryError("write_busy")
+        _publish(temporary, self.pending)
+        return True
+
+    def _receipt_temps(self) -> list[tuple[Path, int, int]]:
+        result: list[tuple[Path, int, int]] = []
+        prefix = f".{self.path.name}.health-{self.operation}."
+        with os.scandir(self.path.parent) as entries:
+            for entry in entries:
+                if not entry.name.startswith(prefix) or not entry.name.endswith(".receipt.tmp"):
+                    continue
+                if len(result) >= 16:
+                    raise RecoveryError("write_conflict")
+                identity = entry.name[len(prefix) : -len(".receipt.tmp")].split("-")
+                if (
+                    len(identity) != 2
+                    or any(not value.isascii() or not value.isdigit() for value in identity)
+                    or not 0 < int(identity[0]) <= 0xFFFFFFFF
+                    or not 0 <= int(identity[1]) <= 0xFFFFFFFFFFFFFFFF
+                ):
+                    raise RecoveryError("write_conflict")
+                result.append((self.path.parent / entry.name, int(identity[0]), int(identity[1])))
+        return result
+
+    def _cleanup(self) -> None:
+        for temporary, publisher, started in self._receipt_temps():
+            if (publisher, started) != (os.getpid(), self.process_started) and not _owner_exited(
+                publisher, started
+            ):
+                raise RecoveryError("write_busy")
+            _regular(temporary)
+            temporary.unlink()
+        _regular(self.temporary, missing=True)
+        self.temporary.unlink(missing_ok=True)
+
+    def _classify(self, receipt: Receipt, current: str, identity: list[int]) -> tuple[str, bool]:
+        backup_exact = _present(self.backup) and _hash(self.backup) == receipt.before
+        if (
+            receipt.after is not None
+            and current == receipt.after
+            and backup_exact
+            and identity == receipt.after_identity
+        ):
+            return "applied", backup_exact
+        if (
+            current == receipt.before
+            and receipt.phase != "applied"
+            and identity == receipt.before_identity
+        ):
+            return "unchanged", backup_exact
+        raise RecoveryError("write_conflict")
+
+    def recover(
+        self, *, own_completion: bool = False, acknowledge: bool = True
+    ) -> dict[str, object]:
+        """Classify actual bytes and settle once; never replay a mutation or delete backups."""
+        active = _present(self.pending)
+        archived = _present(self.archive)
+        if not active and not archived:
+            active = self._adopt_preparing()
+        if not active and not archived:
+            if _present(self.backup) or _present(self.temporary):
+                raise RecoveryError("write_conflict")
+            return self._result("rejected", _hash(self.path), False)
+        receipt = self._read(self.pending if active else self.archive)
+        if (
+            active
+            and not (
+                own_completion
+                and (receipt.owner_pid, receipt.owner_started)
+                == (os.getpid(), self.process_started)
+            )
+            and not _owner_exited(receipt.owner_pid, receipt.owner_started)
+        ):
+            raise RecoveryError("write_busy")
+        if archived:
+            previous = self._read(self.archive)
+            if (previous.before, previous.after) != (receipt.before, receipt.after):
+                raise RecoveryError("write_conflict")
+        current, current_identity = _snapshot(self.path)
+        outcome, backup_exact = self._classify(receipt, current, current_identity)
+        if not active:
+            if receipt.phase != outcome:
+                raise RecoveryError("write_conflict")
+            return self._result(outcome, current, backup_exact)
+        settled = replace(receipt, phase=outcome)
+        if not archived:
+            self._write(settled, self.archive)
+        elif self._read(self.archive) != settled:
+            raise RecoveryError("write_conflict")
+        if own_completion:
+            # Delivery can still be lost; only explicit reconciliation acknowledges the write.
+            return self._result(outcome, current, backup_exact)
+        self._cleanup()
+        if _snapshot(self.path) != (current, current_identity):
+            raise RecoveryError("write_conflict")
+        if acknowledge:
+            self.pending.unlink()
+        return self._result(outcome, current, backup_exact)
+
+    def _result(self, status: str, fingerprint: str | None, backup: bool) -> dict[str, object]:
+        return {
+            "operationId": self.operation,
+            "status": status,
+            "fingerprint": fingerprint,
+            "backupAvailable": backup,
+        }
+
+
+def valid_intent(value: object) -> bool:
+    """Validate presentation intent without interpreting encrypted save semantics."""
+    if not isinstance(value, dict) or set(value) != {"playerId", "health", "before"}:
+        return False
+    player = value["playerId"]
+    return (
+        isinstance(player, str)
+        and 0 < len(player) <= 20
+        and player.isascii()
+        and player.isdigit()
+        and type(value["health"]) is int
+        and 0 <= value["health"] <= 2_147_483_647
+        and type(value["before"]) is int
+        and 0 <= value["before"] <= 9_007_199_254_740_991
+    )
+
+
+def inspect_pending(path: Path) -> Receipt | None:
+    """Read the fixed pending marker or one preparing receipt; never settle or replay it."""
+    pending = path.with_name(f".{path.name}.health-pending.json")
+    if not _present(pending):
+        prefix = f".{path.name}.health-"
+        candidates: list[Path] = []
+        with os.scandir(path.parent) as entries:
+            for entry in entries:
+                if entry.name.startswith(prefix) and entry.name.endswith(".receipt.tmp"):
+                    candidates.append(path.parent / entry.name)
+                    if len(candidates) > 1:
+                        raise RecoveryError("write_conflict")
+        if not candidates:
+            return None
+        pending = candidates[0]
+    _regular(pending)
+    with pending.open("rb") as stream:
+        blob = stream.read(_RECEIPT_LIMIT + 1)
+    try:
+        if len(blob) > _RECEIPT_LIMIT:
+            raise ValueError("Oversized receipt")
+        raw = json.loads(blob)
+        operation = raw.get("operation") if isinstance(raw, dict) else None
+        if not isinstance(operation, str) or not valid_operation(operation):
+            raise ValueError("Invalid identity")
+        transaction = HealthTransaction(path, operation)
+        receipt = transaction._read(pending)
+        if pending != transaction.pending:
+            publishers = transaction._receipt_temps()
+            if receipt.phase != "prepared" or publishers != [
+                (pending, receipt.owner_pid, receipt.owner_started)
+            ]:
+                raise RecoveryError("write_conflict")
+        return receipt
+    except (TypeError, ValueError) as exc:
+        raise RecoveryError("write_conflict") from exc

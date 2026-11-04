@@ -12,6 +12,7 @@ from pathlib import Path
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
+from repo_save_editor.storage.health_recovery import HealthTransaction
 
 
 class SaveBackupError(OSError):
@@ -54,6 +55,7 @@ class EncryptedSaveRepository:
         *,
         expected_source: bytes | None = None,
         encoder: Callable[[SaveData, bytes], bytes] | None = None,
+        health_transaction: HealthTransaction | None = None,
     ) -> tuple[Path, bytes]:
         """Back up and atomically replace one encrypted save.
 
@@ -78,11 +80,21 @@ class EncryptedSaveRepository:
         if expected_source is not None and source != expected_source:
             raise SaveStaleError("The save changed after it was opened.")
 
-        backup = self._create_backup(path, source)
+        if health_transaction is not None:
+            health_transaction.prepare(source)
+        backup = (
+            self._create_backup(path, source)
+            if health_transaction is None
+            else health_transaction.create_backup(source)
+        )
         written = encrypt_save(data) if encoder is None else encoder(data, source)
         temp_path: Path | None = None
         try:
-            temp_path = self._write_temp(path, written)
+            temp_path = (
+                self._write_temp(path, written)
+                if health_transaction is None
+                else health_transaction.stage(written)
+            )
             try:
                 if self.load(temp_path) != data:
                     raise SaveVerificationError("The staged save did not match the edited data.")
@@ -91,6 +103,8 @@ class EncryptedSaveRepository:
             except (OSError, ValueError) as exc:
                 raise SaveVerificationError("The staged save could not be verified.") from exc
 
+            if health_transaction is not None:
+                health_transaction.verified(written)
             if path.read_bytes() != source:
                 raise SaveStaleError("The save changed while edits were being prepared.")
             try:

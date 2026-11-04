@@ -1,0 +1,27 @@
+{
+  "app": {
+    "security": {
+      "capabilities": [
+        {
+          "identifier": "synthetic-recovery",
+          "windows": ["main"],
+          "permissions": [
+            "allow-environment-detect",
+            "allow-saves-open",
+            "allow-game-status",
+            "allow-players-list",
+            "allow-upgrades-list",
+            "allow-run-get",
+            "allow-advanced-get",
+            "allow-maps-list",
+            "allow-cosmetics-get",
+            "allow-preview-close",
+            "allow-test-health-write",
+            "allow-test-health-recover",
+            "allow-test-health-state"
+          ]
+        }
+      ]
+    }
+  }
+}

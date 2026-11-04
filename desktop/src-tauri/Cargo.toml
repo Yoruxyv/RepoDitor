@@ -4,6 +4,10 @@ version = "0.2.1"
 edition = "2021"
 publish = false
 
+[features]
+synthetic-health-recovery = []
+synthetic-health-ui = ["synthetic-health-recovery"]
+
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
 

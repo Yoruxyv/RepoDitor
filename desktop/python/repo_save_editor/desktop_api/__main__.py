@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 
 from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
 from repo_save_editor.desktop_api.cosmetic_preparation import (
@@ -19,6 +21,12 @@ from repo_save_editor.desktop_api.game_assets import (
     read_upgrade_keys_stdin,
 )
 from repo_save_editor.desktop_api.game_status import get_game_status
+from repo_save_editor.desktop_api.health_recovery import (
+    health_state,
+    prepare_health,
+    recover_health,
+    write_health,
+)
 from repo_save_editor.desktop_api.icons import (
     get_baked_artwork,
     get_icon_roots,
@@ -132,6 +140,13 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
     changes = _parse_changes(args.payload)
     if changes is _INVALID_JSON:
         return _invalid_request("The pending changes payload is invalid.")
+    if args.health_operation is not None:
+        root = _recovery_test_root()
+        if root is None:
+            return _invalid_request("Experimental recovery requires an isolated test root.")
+        return write_health(
+            args.save_id, args.fingerprint, changes, args.health_operation, root, reserved=True
+        )
     if args.recharge_evidence is None:
         return save_changes(args.save_id, args.fingerprint, changes)
     parsed_evidence = _parse_changes(args.recharge_evidence)
@@ -142,6 +157,48 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
         args.fingerprint,
         changes,
         recharge_evidence=parsed_evidence,
+    )
+
+
+def _recovery_test_root() -> Path | None:
+    low = os.environ.get("REPODITOR_E2E_LOCAL_APP_DATA_LOW", "")
+    if os.environ.get("REPODITOR_E2E") != "1" or not low or not Path(low).is_absolute():
+        return None
+    return Path(low) / "semiwork" / "Repo" / "saves"
+
+
+def _recover_health(args: argparse.Namespace) -> dict[str, object]:
+    root = _recovery_test_root()
+    if root is None or args.save_id is None or args.operation is None:
+        return _invalid_request("Experimental recovery requires an isolated test request.")
+    return recover_health(
+        args.save_id,
+        args.operation,
+        root,
+        canonical=args.canonical,
+        acknowledge=not args.canonical or args.acknowledge,
+    )
+
+
+def _health_state(args: argparse.Namespace) -> dict[str, object]:
+    root = _recovery_test_root()
+    if root is None:
+        return _invalid_request("Experimental recovery requires an isolated test request.")
+    return health_state(args.save_id, root)
+
+
+def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
+    root = _recovery_test_root()
+    changes = _parse_changes(args.payload)
+    if root is None or changes is _INVALID_JSON:
+        return _invalid_request("Experimental recovery requires an isolated test request.")
+    return prepare_health(
+        args.save_id,
+        args.fingerprint,
+        changes,
+        args.operation,
+        root,
+        remember_intent=args.intent,
     )
 
 
@@ -183,7 +240,27 @@ def _parser() -> argparse.ArgumentParser:
     saves_write.add_argument("fingerprint", nargs="?")
     saves_write.add_argument("payload", nargs="?")
     saves_write.add_argument("recharge_evidence", nargs="?")
+    saves_write.add_argument("--health-operation")
     saves_write.set_defaults(handler=_save_changes)
+
+    health_recover = commands.add_parser("health-recover")
+    health_recover.add_argument("save_id", nargs="?")
+    health_recover.add_argument("operation", nargs="?")
+    health_recover.add_argument("--canonical", action="store_true")
+    health_recover.add_argument("--acknowledge", action="store_true")
+    health_recover.set_defaults(handler=_recover_health)
+
+    health_prepare = commands.add_parser("health-prepare")
+    health_prepare.add_argument("save_id")
+    health_prepare.add_argument("fingerprint")
+    health_prepare.add_argument("payload")
+    health_prepare.add_argument("operation")
+    health_prepare.add_argument("--intent", action="store_true")
+    health_prepare.set_defaults(handler=_prepare_health)
+
+    health_status = commands.add_parser("health-state")
+    health_status.add_argument("save_id")
+    health_status.set_defaults(handler=_health_state)
 
     players_list = commands.add_parser("players-list")
     players_list.add_argument("save_id", nargs="?")

@@ -18,6 +18,7 @@ import { useEnvironmentDiscovery } from "./useEnvironmentDiscovery";
 
 function DiscoveryPreview() {
   const [workspace, setWorkspace] = useState<"run-saves" | "cosmetics">("run-saves");
+  const [healthEnabled, setHealthEnabled] = useState(false);
   const save = useSaveSession(tauriReadApi.saves.open);
   const safety = useGameSafety(tauriReadApi.game.status);
   const opening = save.openingSaveId !== null;
@@ -67,7 +68,15 @@ function DiscoveryPreview() {
       />
     );
   } else if (save.session !== null) {
-    view = <TauriWorkspace session={save.session} onClose={close} />;
+    view = (
+      <TauriWorkspace
+        key={save.session.id}
+        session={save.session}
+        onClose={close}
+        onCanonical={save.enter}
+        onHealthAvailability={setHealthEnabled}
+      />
+    );
   }
   return (
     <AppShell>
@@ -79,7 +88,9 @@ function DiscoveryPreview() {
         tabIndex={-1}
       >
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-secondary">{t("app.discoveryPreview")}</p>
+          <p className="text-sm text-secondary">
+            {t(healthEnabled ? "health.testOnly" : "app.discoveryPreview")}
+          </p>
           <div className="flex gap-2">
             <ThemeMenu />
             <LanguageMenu />

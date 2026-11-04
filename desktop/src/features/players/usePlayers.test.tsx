@@ -33,6 +33,22 @@ describe("usePlayers health edits", () => {
 });
 
 describe("injected player reads", () => {
+  it("keeps an accepted canonical snapshot when an older read completes late", async () => {
+    let finish: (value: DesktopOperationResult<PlayerDto[]>) => void = (_value) => undefined;
+    const list = vi.fn(
+      () =>
+        new Promise<DesktopOperationResult<PlayerDto[]>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { result } = renderHook(() => usePlayers(saveId, null, list), { wrapper });
+    await waitFor(() => expect(list).toHaveBeenCalledOnce());
+    act(() => result.current.acceptSnapshot([{ ...player, health: 17 }]));
+    await act(async () => finish({ ok: true, data: [player] }));
+    expect(result.current.players[0]?.health).toBe(17);
+    expect(result.current.selectedPlayerId).toBe("111");
+    expect(result.current.loading).toBe(false);
+  });
   it("scopes selection to loaded players and recovers from failure without an Electron bridge", async () => {
     const list = vi
       .fn()

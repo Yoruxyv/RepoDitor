@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
 from repo_save_editor.services.player.profiles import get_steam_avatar_url
@@ -22,18 +23,20 @@ def list_players(save_id: str, root: Path | None = None) -> dict[str, object]:
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
-    return {
-        "ok": True,
-        "players": [
-            {
-                "id": player.player_id,
-                "name": player.name,
-                "health": get_player_health(data, player.player_id),
-                "maxHealth": get_player_max_health(data, player.player_id),
-            }
-            for player in get_players(data)
-        ],
-    }
+    return {"ok": True, "players": serialize_players(data)}
+
+
+def serialize_players(data: SaveData) -> list[dict[str, object]]:
+    """Project player identity and health from one already validated save snapshot."""
+    return [
+        {
+            "id": player.player_id,
+            "name": player.name,
+            "health": get_player_health(data, player.player_id),
+            "maxHealth": get_player_max_health(data, player.player_id),
+        }
+        for player in get_players(data)
+    ]
 
 
 def get_player_avatar(
