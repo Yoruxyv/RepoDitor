@@ -214,9 +214,108 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  windows-tauri-safety:
+    name: Windows Tauri save safety
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Sync locked test and packaging dependencies
+        working-directory: .
+        run: uv sync --locked --group test --group package
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Install validated Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt
+
+      - name: Cache Rust dependencies and builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Ensure WebView2 test runtime
+        run: |
+          $keys = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          )
+          $installed = @($keys | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
+            (Get-ItemProperty -LiteralPath $_ -Name pv).pv
+          } | Where-Object { $_ -and $_ -ne '0.0.0.0' })
+          if ($installed.Count -eq 0) {
+            $bootstrapper = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2Setup.exe'
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $bootstrapper
+            $signature = Get-AuthenticodeSignature -LiteralPath $bootstrapper
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+              throw 'WebView2 bootstrapper signature is invalid.'
+            }
+            $installer = Start-Process -FilePath $bootstrapper -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
+            if ($installer.ExitCode -ne 0) { throw "WebView2 setup failed: $($installer.ExitCode)" }
+          }
+
+      - name: Windows Python, Rust, artifact and native safety gate
+        run: npm run test:tauri-safety
+
+      - name: Preserve safety diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-tauri-safety-diagnostics
+          path: |
+            desktop/build/tauri-safety/validation.log
+            desktop/build/tauri-safety/python.xml
+            desktop/build/tauri-safety/native.json
+            desktop/build/tauri-safety/artifact-tests/**/artifact-check.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/trace.zip
+            desktop/build/recovery-checkpoint/tauri-safety/**/test-failed-*.png
+            desktop/build/recovery-checkpoint/tauri-safety/**/error-context.md
+            desktop/build/recovery-checkpoint/tauri-safety/**/phase.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/.*.health-*.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/*.receipt.tmp
+            desktop/build/recovery-checkpoint/tauri-safety/**/*.bak-health-*
+            desktop/build/recovery-checkpoint/tauri-safety/**/AppData/LocalLow/**/saves/**/*.es3
+            "!desktop/build/recovery-checkpoint/tauri-safety/**/backend/**"
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   quality-gate:
     name: Quality gate
-    needs: [python-quality, python-tests, desktop-quality, windows-e2e, package-smoke]
+    needs:
+      [
+        python-quality,
+        python-tests,
+        desktop-quality,
+        windows-e2e,
+        package-smoke,
+        windows-tauri-safety,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
@@ -245,6 +344,11 @@ jobs:
 
           if [ "${{ needs.package-smoke.result }}" != "success" ]; then
             echo "Windows package smoke failed."
+            exit 1
+          fi
+
+          if [ "${{ needs.windows-tauri-safety.result }}" != "success" ]; then
+            echo "Windows Tauri save safety failed."
             exit 1
           fi
 

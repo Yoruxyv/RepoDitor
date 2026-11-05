@@ -1,4 +1,4 @@
-/** Native workspace presentation with explicitly authorized synthetic health controls. */
+/** Native workspace with synthetic health controls and memory-only upgrade drafts. */
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -8,7 +8,7 @@ import { usePlayers } from "@/features/players/usePlayers";
 import { useTauriHealth } from "@/features/players/useTauriHealth";
 import { TauriHealthControls } from "@/features/players/TauriHealthControls";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
-import { UpgradesView } from "@/features/upgrades/UpgradesView";
+import { TauriUpgradesView } from "@/features/upgrades/TauriUpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { ItemsView } from "@/features/items/ItemsView";
 import { useItems } from "@/features/items/useItems";
@@ -35,6 +35,7 @@ export function TauriWorkspace({
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
+  const [upgradeResetVersion, setUpgradeResetVersion] = useState(0);
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
@@ -62,6 +63,12 @@ export function TauriWorkspace({
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
+  const hasUpgradeDrafts = upgrades.pendingEdits.length > 0;
+  const upgradeSaveUnavailable = hasUpgradeDrafts || section === "upgrades";
+  function revertUpgrades() {
+    upgrades.revertAll();
+    setUpgradeResetVersion((version) => version + 1);
+  }
   const run = useRunState(session.id, null, tauriReadApi.run.get);
   const items = useItems(session.id, null, tauriReadApi.advanced.get);
   const maps = useMaps(null, tauriReadApi.maps.list);
@@ -102,7 +109,10 @@ export function TauriWorkspace({
               onKeyDown={(event) => moveTab(event, index)}
             >
               {t(`nav.${item}`)}
-              <span aria-hidden="true" className="ml-1 inline-block size-1.5 align-middle" />
+              <span
+                aria-hidden="true"
+                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${item === "upgrades" && hasUpgradeDrafts ? "bg-accent" : ""}`}
+              />
             </button>
           ))}
         </div>
@@ -134,22 +144,14 @@ export function TauriWorkspace({
             <TauriPlayersView players={players} health={health} avatarUrls={avatarUrls} />
           ) : null}
           {section === "upgrades" ? (
-            <UpgradesView
+            <TauriUpgradesView
               avatarUrls={avatarUrls}
-              error={players.error ?? upgrades.error}
-              loading={players.loading || upgrades.loading}
-              pendingByUpgrade={{}}
-              players={players.players}
-              selectedPlayerId={players.selectedPlayerId}
-              upgrades={upgrades.upgrades}
-              onChange={null}
-              onRevert={null}
-              onRejectAvatar={() => undefined}
-              onRetry={() => {
-                if (players.error) players.reload();
-                else void upgrades.reload();
-              }}
-              onSelectPlayer={players.setSelectedPlayerId}
+              players={players}
+              upgrades={upgrades}
+              enabled={health.enabled}
+              locked={health.locked}
+              resetVersion={upgradeResetVersion}
+              onRevertAll={revertUpgrades}
             />
           ) : null}
           {section === "items" ? (
@@ -189,14 +191,21 @@ export function TauriWorkspace({
       </div>
       {health.enabled ? (
         <PendingChangesBar
-          edits={health.pending ? [health.pending] : []}
+          edits={[...(health.pending ? [health.pending] : []), ...upgrades.pendingEdits]}
           saving={health.phase === "saving" || health.phase === "reconciling"}
           error={null}
           backupPath={null}
           blocked={health.locked}
           invalid={health.invalid}
-          onRevert={() => void health.revert()}
-          onSave={() => void health.save()}
+          saveUnavailableReason={upgradeSaveUnavailable ? t("upgrades.saveUnavailable") : null}
+          onRevert={() => {
+            revertUpgrades();
+            void health.revert();
+          }}
+          onSave={() => {
+            // The only native writer accepts health; never silently omit upgrade drafts.
+            if (!upgradeSaveUnavailable) void health.save();
+          }}
         />
       ) : null}
     </section>

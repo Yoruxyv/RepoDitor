@@ -81,8 +81,9 @@ Electron reference in `release/win-unpacked/`, built with the unchanged commands
 above. The native package command writes only its preview output; production
 NSIS configuration, signing and default Electron build remain unchanged. Rust process
 tests use a compiled synthetic helper; packaged tests use only synthetic game/save
-fixtures and isolated browser data. Rust and preview E2E are Windows-only local
-checks while this host is experimental; existing production CI gates are unchanged.
+fixtures and isolated browser data. The Windows Tauri safety CI job runs the critical
+Python, Rust, artifact and native regressions; the broader Electron/native comparison
+journeys remain separate local checks.
 The preview E2E command first runs the Rust contract/process tests.
 It compares both hosts against the same synthetic save, verifies fresh reads
 after external fixture changes, and exercises malformed responses, failed
@@ -139,8 +140,13 @@ Reservation and writing share the existing 30-second request deadline.
 
 The additional `synthetic-health-ui` feature enables a single-player health editor
 only with that test permission configuration and runtime root restriction. It
-reuses Players, numeric validation and the Save/Revert bar; all other domains stay
-read-only. Python persists the operation ID and attempted value in the reservation,
+reuses Players, numeric validation and the Save/Revert bar. Upgrades additionally
+supports in-memory per-player drafts, review and Revert in this admitted test mode.
+Upgrade Save is explicitly unavailable: the durable native transaction admits only
+health. Pending upgrade drafts block Save across sections; revert them before
+saving health. Drafts survive section/player changes but are discarded when changing
+saves or closing the window. Other domains and ordinary artifacts stay read-only.
+Python persists the health operation ID and attempted value in the reservation,
 so reload/restart discovers unresolved intent before another save is admitted.
 Uncertain outcomes require explicit reconciliation. An applied result refreshes
 the canonical session and players before acknowledgement; an unchanged result
@@ -155,8 +161,34 @@ Build `e2e/support/recovery-sidecar.py` with the same PyInstaller options as
 Set `REPODITOR_RECOVERY_EXECUTABLE` and `REPODITOR_RECOVERY_DEFAULT_EXECUTABLE` to
 separate feature-enabled and normal test-host executables, then run
 `npm run test:e2e:recovery`. Keep this host and fault-injection sidecar separate from
-the normal portable preview. These tests share the native preview's local Windows
-validation exception; Python recovery tests run in the ordinary Python suite.
+the normal portable preview. The portable stager rejects hosts with synthetic
+features, development-mode hosts, unmarked older hosts and unexpected frozen startup
+entries. It verifies executable snapshots before replacing its output, rechecks the
+published executables and records their hashes in
+`artifact-check.json`. This detects accidental contamination; it is not package
+signing or production write authorization.
+
+For the required Windows safety gate, use Python 3.13, Rust 1.99.0/MSVC,
+PowerShell 7 and WebView2, then run:
+
+```powershell
+uv sync --locked --project .. --group test --group package
+npm run test:tauri-safety
+```
+
+The gate builds development, ordinary, protocol, no-test-permissions and synthetic UI hosts and
+both frozen backend entry points. Python suites, Rust default/all-feature tests,
+artifact rejection and native recovery/permission checks must pass without skips.
+The quality workflow requires this job and retains its diagnostics. CI provisions
+WebView2 if absent; no installed game or personal saves are required.
+
+Outputs use fresh `build/tauri-safety` and `build/recovery-checkpoint/tauri-safety`
+directories. For another local run, pass a new `-OutputDirectory` to
+`scripts/test-tauri-safety.ps1`. Its optional `-NormalBackend` and `-FaultBackend`
+arguments reuse already validated immutable bundles matching current Python source;
+native fixtures share those bundles through test-only directory junctions while
+save/profile roots stay isolated. Do not mutate a shared bundle. Existing source
+and backend hashes must be checked before reuse; CI always builds from source.
 
 For packaged UI validation, build a separate host with
 `tauri build --features synthetic-health-ui --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.

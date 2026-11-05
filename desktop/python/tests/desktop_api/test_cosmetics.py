@@ -338,6 +338,59 @@ def test_game_start_after_early_check_blocks_cosmetics_write_before_persistence(
     assert not list(meta_path.parent.glob("MetaSave.es3.bak-*"))
 
 
+@pytest.mark.parametrize(
+    ("final_status", "reason"),
+    [
+        (GameProcessStatus.NOT_RUNNING, None),
+        (GameProcessStatus.RUNNING, "game_running"),
+        (GameProcessStatus.UNKNOWN, "game_status_unknown"),
+        ("query_error", "game_status_unknown"),
+    ],
+)
+def test_cosmetics_write_rechecks_game_after_staged_verification(
+    tmp_path, monkeypatch, final_status, reason
+):
+    save_root, path = _write_fixture(tmp_path)
+    before = path.read_bytes()
+    load = cosmetics_api.EncryptedSaveRepository.load
+    verified = False
+    observations = []
+
+    def verify(repository, staging, *, directory=None):
+        nonlocal verified
+        data = load(repository, staging, directory=directory)
+        verified = True
+        return data
+
+    def status():
+        observations.append(verified)
+        if verified and final_status == "query_error":
+            raise OSError("private process query failure")
+        return final_status if verified else GameProcessStatus.NOT_RUNNING
+
+    monkeypatch.setattr(cosmetics_api.EncryptedSaveRepository, "load", verify)
+    result = save_cosmetics(
+        sha256(before).hexdigest(),
+        [{"feature": "cosmetics", "entity": "known", "field": "unlockAll", "after": True}],
+        save_root,
+        game_status_loader=status,
+        catalog_loader=_catalog_loader,
+    )
+
+    assert observations == [False, False, True]
+    assert next(path.parent.glob("MetaSave.es3.bak-*")).read_bytes() == before
+    assert not list(path.parent.glob("*.tmp"))
+    if reason is None:
+        assert result["ok"] is True
+        assert 0 in decrypt_save(path.read_bytes())["cosmeticHistory"]["value"]
+    else:
+        assert result["ok"] is False
+        assert result["error"]["code"] == reason
+        assert "result" not in result
+        assert "private" not in str(result)
+        assert path.read_bytes() == before
+
+
 def test_get_cosmetics_round_trips_dynamic_metadata_and_duplicate_names(tmp_path: Path) -> None:
     save_root, _meta_path_value = _write_fixture(tmp_path)
     catalog = _catalog(names=("Duplicate Name", "Duplicate Name", "Monkey"))

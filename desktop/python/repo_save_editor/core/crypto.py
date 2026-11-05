@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from decimal import Decimal, DecimalException
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -131,6 +132,42 @@ def _encrypt_plaintext(plaintext: bytes) -> bytes:
     ciphertext = encryptor.update(padded) + encryptor.finalize()
 
     return iv + ciphertext
+
+
+def validate_numeric_roundtrip(source: bytes) -> None:
+    """Reject numeric loss and ambiguous objects before whole-document serialization."""
+
+    def number(literal: str) -> float:
+        value = float(literal)
+        # Compare decimal values, not binary float equality or rounded parsed objects.
+        if Decimal(literal) != Decimal(json.dumps(value, allow_nan=False)):
+            raise ValueError("A numeric value would change during serialization.")
+        return value
+
+    def integer(literal: str) -> int:
+        if literal == "-0":
+            raise ValueError("An integer zero would lose its sign during serialization.")
+        return int(literal)
+
+    def object_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        fields = dict(pairs)
+        if len(fields) != len(pairs):
+            raise ValueError("Duplicate JSON fields cannot be preserved by serialization.")
+        return fields
+
+    plaintext = _decrypt_plaintext(source).decode("utf-8")
+    try:
+        json.loads(
+            plaintext,
+            parse_float=number,
+            parse_constant=number,
+            parse_int=integer,
+            object_pairs_hook=object_fields,
+        )
+    except (ValueError, DecimalException, OverflowError) as exc:
+        raise SaveCryptoError(
+            "The save contains unsupported numeric values or ambiguous JSON fields."
+        ) from exc
 
 
 def encrypt_save_fields(data: dict[str, Any], source: bytes, fields: frozenset[str]) -> bytes:

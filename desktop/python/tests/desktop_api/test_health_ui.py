@@ -7,6 +7,7 @@ import sys
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
+from shutil import copyfile, copytree
 
 import pytest
 
@@ -128,19 +129,34 @@ def test_verified_health_canonical_and_exact_backup(fixture, tmp_path, sample_sa
     assert tx.backup.read_bytes() == before
 
 
-def test_legacy_receipt_remains_readable_and_uses_its_original_schema(fixture, tmp_path):
+@pytest.mark.parametrize("version", [1, 2])
+def test_legacy_receipt_remains_readable_without_inventing_namespace_authority(
+    fixture, tmp_path, version
+):
     path, before, root = fixture
     prepare(tmp_path, before, legacy=True)
     tx = HealthTransaction(path, OP)
-    assert "intent" not in json.loads(tx.pending.read_text())
+    raw = json.loads(tx.pending.read_text())
+    raw["version"] = version
+    raw.pop("namespace", None)
+    if version == 1:
+        raw.pop("intent", None)
+    else:
+        raw["intent"] = {"playerId": "111", "health": 17, "before": 80}
+    tx.pending.write_text(json.dumps(raw))
+    receipt = tx.pending.read_bytes()
     pending = api.health_state(ID, root)["pending"]
     assert pending["operationId"] == OP
-    assert pending["intent"] is None
-    assert (
-        api.recover_health(ID, OP, root, canonical=True, acknowledge=False)["transaction"]["status"]
-        == "unchanged"
-    )
-    assert "intent" not in json.loads(tx.archive.read_text())
+    assert pending["intent"] == raw.get("intent")
+    result = api.recover_health(ID, OP, root, canonical=True, acknowledge=False)["transaction"]
+    if os.name == "nt":
+        assert result["status"] == "conflict"
+        assert result["reason"] == "write_conflict"
+        assert tx.pending.read_bytes() == receipt
+        assert not tx.archive.exists()
+    else:
+        assert result["status"] == "unchanged"
+        assert json.loads(tx.archive.read_text())["version"] == version
     assert path.read_bytes() == before
 
 
@@ -232,3 +248,60 @@ def test_reserved_writer_cannot_change_the_recorded_intent(fixture, tmp_path):
     assert result["reason"] == "invalid_request"
     assert path.read_bytes() == before
     assert not HealthTransaction(path, OP).backup.exists()
+
+
+@pytest.mark.parametrize("damaged_backup", [False, True])
+def test_offline_manual_restore_preserves_conflict_and_checks_exact_backup(
+    fixture, tmp_path, sample_save, damaged_backup
+):
+    path, before, root = fixture
+    prepare(tmp_path, before)
+    change = [{"feature": "players", "entity": "111", "field": "health", "after": 17}]
+    assert (
+        command(
+            tmp_path,
+            "saves-write",
+            ID,
+            sha256(before).hexdigest(),
+            json.dumps(change),
+            "--health-operation",
+            OP,
+        )["transaction"]["status"]
+        == "applied"
+    )
+    tx = HealthTransaction(path, OP)
+    changed = deepcopy(sample_save)
+    changed["dictionaryOfDictionaries"]["value"]["playerHealth"]["111"] = 41
+    SaveRepository(root).save_as(path, changed)
+    if damaged_backup:
+        tx.backup.write_bytes(b"damaged synthetic backup")
+    snapshot = {p.name: p.read_bytes() for p in path.parent.iterdir()}
+    assert command(tmp_path, "health-state", ID)["state"] == "pending"
+    assert {p.name: p.read_bytes() for p in path.parent.iterdir()} == snapshot
+    assert (
+        api.recover_health(ID, OP, root, canonical=True, acknowledge=False)["transaction"]["status"]
+        == "conflict"
+    )
+    assert {p.name: p.read_bytes() for p in path.parent.iterdir()} == snapshot
+    intake = tmp_path / "intake" / ID
+    copytree(path.parent, intake)
+    candidate = intake / tx.backup.name
+    receipt = json.loads((intake / tx.pending.name).read_text(encoding="utf-8"))
+    if damaged_backup:
+        assert sha256(candidate.read_bytes()).hexdigest() != receipt["before"]
+        assert {p.name: p.read_bytes() for p in path.parent.iterdir()} == snapshot
+        return
+    assert sha256(candidate.read_bytes()).hexdigest() == receipt["before"]
+    assert SaveRepository.load(candidate) == sample_save
+    # Offline drill only: quarantine the original slot, without rebasing its receipts.
+    quarantine = tmp_path / "quarantine" / ID
+    quarantine.parent.mkdir()
+    path.parent.rename(quarantine)
+    path.parent.mkdir()
+    copyfile(candidate, path)
+    assert path.read_bytes() == before
+    assert SaveRepository.load(path) == sample_save
+    assert {p.name: p.read_bytes() for p in quarantine.iterdir()} == snapshot
+    assert api.health_state(ID, root)["state"] == "idle"
+    assert not tx.pending.exists()
+    assert (quarantine / tx.pending.name).exists()

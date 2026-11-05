@@ -168,6 +168,11 @@ export const en = {
   "upgrades.empty": "This save contains no player upgrades.",
   "upgrades.input": "{upgrade} for {player}",
   "upgrades.error": "Upgrade value must be between 0 and 2,147,483,647.",
+  "upgrades.draftOnly":
+    "Upgrade drafts stay in memory. They are discarded when you change saves or close this window.",
+  "upgrades.revertDrafts": "Revert upgrade drafts",
+  "upgrades.saveUnavailable":
+    "Saving upgrades is unavailable in this preview. Revert upgrade drafts before saving health.",
   "run.readOnlyDescription": "View the saved run values and resume location.",
   "run.loading": "Loading run state…",
   "run.unavailable": "Run unavailable",
@@ -356,7 +361,8 @@ export const en = {
   "error.saveStale": "The save changed on disk. Reopen it before saving edits.",
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
-  "health.testOnly": "Synthetic health test. Other features remain read-only.",
+  "health.testOnly":
+    "Synthetic test: health saves and upgrade drafts. Upgrade drafts never write files.",
   "health.checking": "Checking unfinished health operations…",
   "health.reconciling": "Reconciling health with the saved file…",
   "health.recovery": "The health outcome is uncertain. Reconcile before editing again.",

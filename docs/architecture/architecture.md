@@ -35,6 +35,33 @@ R.E.P.O. .es3 files
 
 Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer sandboxing enabled. Input is validated at both the Electron and Python boundaries. Python verifies the validated R.E.P.O. process is closed before supported writes; startup and focus checks keep the renderer state current, and an unknown process state fails closed.
 
+Run-save writes (including experimental health transactions) and MetaSave cosmetic
+writes repeat the authoritative Python game-status check after encrypted staging,
+reopen verification and the final stale-source read, immediately before repository
+replacement. Running, unknown or failed inspection aborts replacement, preserves the
+original encrypted bytes and exact backup, and cleans staging through the existing
+failure path. A prepared health transaction retains its pending receipt and intent;
+reconciliation after its owner exits classifies the unchanged source without replay.
+This is a sampled process check: the game can still start after the final observation
+and before replacement. It does not provide a game-launch interlock or resolve
+filesystem namespace and uncooperating-writer races.
+
+Updated Python run-save and MetaSave mutation entry points acquire the existing
+per-save OS lock before reading the mutation snapshot; they hold it through pending
+inspection, validation, replacement and result construction. Health preparation,
+writing and reconciliation use that same lock. A health writer already holding the
+lock does not reacquire it inside `save_changes`. Contention fails immediately;
+process exit releases the OS lock, while pending receipts still require reconciliation.
+
+This coordination covers updated participating backends only. Older deployed
+Electron backends and other tools do not honor it. The currently enforced production
+policy is the read-only Tauri capability set; synthetic health writes remain confined
+to their test root. Production write authorization must remain blocked until old
+writers are enforceably retired or isolated, or a stronger coexistence mechanism is
+validated. A version warning or process-name check alone cannot enforce that policy.
+The lock also does not stabilize filesystem ancestry: current pathname-based
+parent validation leaves directory movement and reparse substitution unresolved.
+
 ## Experimental native host
 
 The opt-in Windows Tauri host under `desktop/src-tauri/` exposes
@@ -75,11 +102,24 @@ This does not compare independent reads with a cached Players snapshot: external
 save changes are read afresh. Reopening refreshes the workspace and selection.
 Players and Upgrades share the selected-player state. The injected Upgrades hook
 coalesces overlapping reads and ignores late results after unmount. The shared
-view retains editable Electron controls by default; the native variant renders
+view retains editable Electron controls by default; the ordinary native variant renders
 read-only text fields with keyboard focus/copying and no mutation handlers,
 pending edits or revert actions. Validated `iconKey` metadata is discarded and
 `iconToken` is always null; the existing Phosphor fallback needs no native artwork
-URL, protocol or cache authorization. Other workspace controls remain unavailable.
+URL, protocol or cache authorization. In an admitted `synthetic-health-ui` fixture,
+the native binding reuses the existing in-memory upgrade hook and numeric inputs
+for per-player drafts, pending review, field revert and global revert. Values stay
+in memory across section/player navigation and are discarded on save/workspace close.
+Invalid inputs can be reset locally. Busy/conflicting recovery disables editing;
+the existing read-loading, sanitized error/retry and empty states remain available.
+Upgrade drafts have no write transport. The shared Save action is disabled with an
+explanation while upgrade drafts exist, including on other sections; it never
+silently omits them and applies only health. Reverting upgrade drafts restores the
+existing health-only Save workflow. Python's general typed upgrade mutation is
+not a native durable transaction contract: native reservation, persisted intent,
+request admission and canonical recovery currently bind only one health edit.
+Those contracts require a separately validated upgrade extension before saving
+upgrades can be offered. No generic writer or additional native permission is added.
 Visual readiness is unresolved when upgrade keys exist because artwork is not
 migrated; Overview does not wait for that optional work. Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
@@ -178,8 +218,40 @@ A versioned pending receipt
 records the original fingerprint before backup/staging, then records the verified
 encrypted-output fingerprint before replacement. File identity and modification-time
 evidence additionally reject external restoration of the original bytes. Receipt publication uses fsynced
-files and atomic replacement with write-through on Windows. Filenames are derived
+files and atomic replacement. Receipt inspection accepts at most 4,096 bytes.
+Before Windows publication, Python compares the expected payload plus one possible
+extra byte through the retained rename handle; it requests at most 4,097 bytes and
+rejects an expected payload exceeding the inspection limit. A mismatch retains the
+temporary and existing transaction evidence. Filenames are derived
 from a validated operation identity, never accepted from receipt content.
+
+On Windows, mutation admission retains ordinary directory handles from the local
+NTFS volume root through the save's parent, denying directory deletion/rename while
+allowing writes needed by legitimate atomic replacement. Each component is opened
+relative to its predecessor without following reparse points, then checked through
+that actual handle. Save, lock, receipt, backup and staging operations use simple
+leaf names relative to the admitted parent. Python calls `NtCreateFile` and
+`NtSetInformationFile(FileRenameInformation)`; the tested Win32
+`SetFileInformationByHandle(FileRenameInfo)` relative form returned error 87 despite
+an SDK-verified layout. There is no pathname fallback for admitted Windows writes.
+Opened files must be ordinary, non-reparse and singly linked. The staged rename
+source denies additional writers/deletion through verification and replacement;
+write-through file handles and explicit buffer flushes preserve publication ordering
+across process termination. Physical power-loss durability requires separate evidence.
+
+Windows schema-3 receipts include a fingerprint of the admitted ancestry's volume
+and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
+processes independently acquire the namespace and require that fingerprint to match
+before claiming or settling a receipt. Matching save bytes and leaf inode alone do
+not authorize a different parent directory. Schema-1/2 receipts remain inspectable,
+but Windows cannot automatically resume or acknowledge them without namespace
+evidence; they stay blocked and retain their evidence for explicit reconciliation.
+UNC paths, remote/unknown devices, non-NTFS volumes and reparse ancestry fail closed for mutation. Device information is queried through the admitted volume handle.
+These
+constraints do not expand Tauri write permissions or guarantee protection against
+uncooperating old writers, privileged filesystem changes or arbitrary modification
+of transaction evidence. Windows/filesystem compatibility beyond the validated
+configuration remains a release validation requirement.
 
 Recovery reads actual source and backup bytes under the lock. It distinguishes an
 unexecuted request, unchanged source, applied verified output and conflicting state.
@@ -192,8 +264,38 @@ finalization. In UI mode, reconciliation retains the pending marker until a sepa
 acknowledgement after canonical projection. Acknowledgement rechecks disk evidence
 before removing the marker. Malformed receipts, damaged required backups,
 links, unreadable metadata or external changes fail closed. Backups are never automatically deleted.
-Unresolved receipts block new health requests and the legacy save-write path; normal
-Electron writes without experimental receipts retain their existing behavior.
+Unresolved receipts block new health requests and ordinary Run-save writes. Updated
+ordinary writers share the transaction lock and retain their existing validation,
+backup and encrypted-staging pipeline.
+
+Desktop encrypted-save reads, decryption and JSON processing do not yet have an
+enforced size ceiling. The ES3 container's IV and cipher-block constraints define no
+maximum size. Small synthetic fixtures and the browser's separate 16 MiB resource
+policy do not establish a compatible desktop limit. A desktop policy requires
+size distributions from supported Run and Meta saves, including long-running and
+large-player-state cases, with documented growth allowance and rejection behavior.
+Read-only opening, preparation, backups, canonical projection and recovery must all
+be considered before treating this resource-safety gate as complete.
+
+Before a whole-document overwrite, Python validates numeric literals in the original
+encrypted snapshot against their existing JSON encoder representation using exact
+decimal comparison. Values that would round, overflow or underflow, non-finite
+constants, signed integer zero and duplicate object fields fail before transaction
+preparation or backup creation in that writer. Ordinary integer/float domain types
+stay unchanged. Numeric values are preserved; whitespace, exponent spelling and
+decimal scale may normalize with the existing whole-document serializer. The check
+does not turn a source-free `encrypt_save` call into a lossless parser/serializer.
+The existing cosmetic encoder preserves untouched plaintext spans and remains able
+to retain high-precision values outside its selected integer-array edits.
+
+An unsupported high-precision Run save remains readable, but whole-document editing
+fails closed rather than rounding unrelated values. A reservation created by the
+separate preparation process remains pending when its writer rejects this input;
+recovery can classify the exact unchanged source without replaying the edit.
+Read-only parsed-object equality is not evidence of original numeric preservation.
+Supporting edits to such saves would require a separately validated lossless
+representation or targeted Run-save serializer. Game-build compatibility remains
+a production gate even for inputs admitted by this numeric check.
 
 The experimental native write uses the existing bounded domain worker. Known
 pre-execution rejection stays rejected; any launched write with an unverified
@@ -204,8 +306,9 @@ separate bounded lane. Fault injection lives only in the E2E sidecar, not the pr
 transaction. Tests use synthetic encrypted saves.
 
 React stages one typed health edit in memory and reuses the Players controls and
-Save/Revert presentation. Before mutation, Python's schema-2 reservation durably
-binds its nonce to the player ID, requested health and previous health; schema-1
+Save/Revert presentation. Before mutation, Python's reservation (schema 3 on Windows,
+schema 2 elsewhere when intent is requested) durably binds its nonce to the player ID,
+requested health and previous health; schema-1
 protocol receipts remain readable without invented intent. The pending receipt
 beside the authorized save is the durable owner. Native state discovery reads only
 that fixed receipt namespace, validates evidence and returns bounded DTOs; React
@@ -253,8 +356,50 @@ must retain Python's authoritative `require_game_closed` check immediately aroun
 real writes; cached renderer status is never write authorization.
 
 The portable preview staging command copies the whole PyInstaller `--onedir`
-tree into `build/tauri-preview/backend`. It never changes production release
-output. See [Desktop setup and preview checks](../../desktop/README.md#optional-native-discovery-preview).
+tree into `build/tauri-preview/backend`. The host build embeds a versioned Windows
+resource derived from its compiled synthetic feature flags and packaged/development
+mode. Staging reads that resource as data, without executing the host, and admits
+only the read-only variant.
+Unmarked older hosts require rebuilding. The frozen backend must contain the
+expected startup hooks and production entry-point identity; a fault-injection
+entry point is rejected. Staging validates copied executable snapshots before
+replacing its output, verifies the published copies against those hashes and
+records host/backend executable hashes. These checks do
+not authenticate every mutable dependency or replace package signing. Synthetic
+commands still require their compile feature, Tauri ACL and existing runtime fence.
+No production write authority is added.
+
+Environment discovery exposes `healthWriteCompatibility` separately from structural
+game detection. Authoritative Steam provenance is reread and matched to the
+discovered installation. A missing, unreadable, malformed or changed identity is
+`unknown`; an identified build is `unsupported` for Tauri Player Health writes.
+`supported` is always false: neither historical Recharge build `23363152` nor the
+cosmetic approval for build `26294889` establishes this write capability. The Rust
+boundary rejects a positive or inconsistent admission claim; older sidecars missing
+this metadata default to unknown. Read-only discovery remains available. A future
+production command must enforce independently reviewed, domain-specific compatibility
+at the Python mutation boundary; cached discovery metadata cannot authorize it.
+
+Old Electron/portable binaries do not participate in the new Python lock. Sharing a
+writable profile with one is unsupported. The current enforceable boundary is that
+production Tauri artifacts cannot write at all. A future cutover must establish
+exclusive access before enabling writes; process-name checks, uninstalling one known
+copy or a user confirmation cannot prove that an arbitrary old binary cannot run.
+See the [operator recovery and cutover procedure](../release-checklist.md#tauri-save-recovery-and-cutover)
+for its enforcement prerequisites and unsupported cases.
+
+The required Windows Tauri safety job runs the relevant full Python owner/API
+suites, including namespace, cooperating-writer, final-game-state, receipt and
+numeric regressions. It runs Rust default/all-feature tests, builds separate
+ordinary/synthetic hosts and frozen backends, and runs native permission, handoff,
+final-state and process-recovery checks. Missing required cases or skipped cases
+fail the gate. Native fixtures share immutable backend bundles while saves and
+profiles remain isolated. The workflow's aggregate quality gate requires success;
+it does not replace the separate Electron checks. Hosted WebView2/native behavior
+still requires actual CI confirmation for a given change.
+
+Staging never changes production release output. See
+[Desktop setup and preview checks](../../desktop/README.md#optional-native-discovery-preview).
 
 Installer ownership is independent of the application host. The existing C#
 WebView2 installer and React UI remain the required installation interface,

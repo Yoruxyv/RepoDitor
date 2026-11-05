@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
+from repo_save_editor.services.game.processes import (
+    GameProcessStatus,
+    ProcessInspectionError,
+    get_game_process_status,
+)
 
 GAME_RUNNING_MESSAGE = (
     "Close R.E.P.O. before saving. The game can keep save state in memory and write it later."
@@ -53,7 +57,10 @@ def require_game_closed(
     Raises:
         GameSafetyError: The game is running or its status cannot be verified.
     """
-    status = status_loader()
+    try:
+        status = status_loader()
+    except (OSError, ProcessInspectionError) as exc:
+        raise GameSafetyError("game_status_unknown", GAME_STATUS_UNKNOWN_MESSAGE) from exc
     if status is GameProcessStatus.RUNNING:
         raise GameSafetyError("game_running", GAME_RUNNING_MESSAGE)
     if status is not GameProcessStatus.NOT_RUNNING:

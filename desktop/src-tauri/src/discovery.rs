@@ -20,6 +20,22 @@ pub enum GameStatus {
     DiscoveryError,
 }
 
+#[derive(Default, Deserialize, Serialize, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum HealthWriteStatus {
+    #[default]
+    Unknown,
+    Unsupported,
+}
+
+#[derive(Default, Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct HealthWriteCompatibility {
+    build_id: Option<String>,
+    status: HealthWriteStatus,
+    supported: bool,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PythonSave {
@@ -43,6 +59,8 @@ struct PythonEnvironment {
     game_root: Option<String>,
     game_status: GameStatus,
     game_detected: bool,
+    #[serde(default)]
+    health_write_compatibility: HealthWriteCompatibility,
 }
 fn nullable_string<'de, D: serde::Deserializer<'de>>(value: D) -> Result<Option<String>, D::Error> {
     Option::<String>::deserialize(value)
@@ -65,6 +83,7 @@ pub struct EnvironmentDiscovery {
     game_root: Option<String>,
     game_status: GameStatus,
     game_detected: bool,
+    health_write_compatibility: HealthWriteCompatibility,
     pub saves: Vec<SaveSummary>,
 }
 
@@ -80,6 +99,16 @@ pub fn parse(bytes: &[u8]) -> Result<EnvironmentDiscovery, BackendError> {
         || (value.save_root_status != SaveRootStatus::Available && !value.saves.is_empty())
         || value.game_detected != (value.game_status == GameStatus::Found)
         || value.game_detected != value.game_root.is_some()
+        || value.health_write_compatibility.supported
+        || (value.health_write_compatibility.status == HealthWriteStatus::Unknown)
+            != value.health_write_compatibility.build_id.is_none()
+        || value
+            .health_write_compatibility
+            .build_id
+            .as_ref()
+            .is_some_and(|id| {
+                !value.game_detected || id.is_empty() || !id.bytes().all(|c| c.is_ascii_digit())
+            })
         || value
             .save_root
             .as_ref()
@@ -116,6 +145,7 @@ pub fn parse(bytes: &[u8]) -> Result<EnvironmentDiscovery, BackendError> {
         game_root: value.game_root,
         game_status: value.game_status,
         game_detected: value.game_detected,
+        health_write_compatibility: value.health_write_compatibility,
         saves,
     })
 }
@@ -138,6 +168,35 @@ mod tests {
         assert_eq!(result["saves"][0]["name"], "Example");
         assert_eq!(result["saves"][0]["sizeBytes"], 123);
         assert!(result.get("gameDiscoveryIssues").is_none());
+        assert_eq!(
+            result["healthWriteCompatibility"],
+            serde_json::json!({
+                "buildId":null,"status":"unknown","supported":false
+            })
+        );
+    }
+    #[test]
+    fn health_build_metadata_cannot_admit_writes() {
+        let mut raw = environment();
+        raw["gameDetected"] = serde_json::json!(true);
+        raw["gameRoot"] = serde_json::json!("C:/fixture/game");
+        raw["gameStatus"] = serde_json::json!("found");
+        let unsupported =
+            serde_json::json!({"buildId":"23363152","status":"unsupported","supported":false});
+        raw["healthWriteCompatibility"] = unsupported.clone();
+        assert!(parse(&serde_json::to_vec(&raw).unwrap()).is_ok());
+        for (key, value) in [
+            ("supported", serde_json::json!(true)),
+            ("status", serde_json::json!("supported")),
+            ("buildId", serde_json::Value::Null),
+            ("buildId", serde_json::json!("../game")),
+            ("status", serde_json::json!("unknown")),
+        ] {
+            let mut bad = unsupported.clone();
+            bad[key] = value;
+            raw["healthWriteCompatibility"] = bad;
+            assert!(parse(&serde_json::to_vec(&raw).unwrap()).is_err());
+        }
     }
     #[test]
     fn rejects_missing_wrong_and_inconsistent_fields() {

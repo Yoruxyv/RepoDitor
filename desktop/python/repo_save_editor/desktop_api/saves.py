@@ -38,7 +38,12 @@ from repo_save_editor.services.saves.discovery import (
     discover_saves,
 )
 from repo_save_editor.services.saves.summaries import get_save_summary
-from repo_save_editor.storage.health_recovery import HealthTransaction, pending_health
+from repo_save_editor.storage.health_recovery import (
+    HealthTransaction,
+    RecoveryError,
+    health_lock,
+    pending_health,
+)
 from repo_save_editor.storage.repository import (
     SaveBackupError,
     SaveRepository,
@@ -46,6 +51,7 @@ from repo_save_editor.storage.repository import (
     SaveVerificationError,
     SaveWriteError,
 )
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 RechargeCapabilityLoader = Callable[
     [tuple[str, ...]],
@@ -57,11 +63,7 @@ RechargeEvidenceVerifier = Callable[
 ]
 
 
-def load_discovered_save(
-    save_id: str,
-    root: Path | None = None,
-) -> tuple[DiscoveredSave, SaveData, bytes]:
-    """Resolve and load one save previously exposed by discovery."""
+def _discovered_save(save_id: str, root: Path | None = None) -> DiscoveredSave:
     discovery = discover_saves(root)
     if discovery.status is SaveRootStatus.UNREADABLE:
         raise DesktopSaveError("backend_unavailable", "The save folder could not be read.")
@@ -69,9 +71,20 @@ def load_discovered_save(
     save = next((item for item in discovery.saves if item.identifier == save_id), None)
     if save is None:
         raise DesktopSaveError("save_missing", "The selected save no longer exists.")
+    return save
+
+
+def load_discovered_save(
+    save_id: str,
+    root: Path | None = None,
+    *,
+    directory: SaveDirectory | None = None,
+) -> tuple[DiscoveredSave, SaveData, bytes]:
+    """Resolve and load one save previously exposed by discovery."""
+    save = _discovered_save(save_id, root)
 
     try:
-        source = save.path.read_bytes()
+        source = directory.read(save.path) if directory is not None else save.path.read_bytes()
         return save, SaveRepository.load_bytes(source), source
     except FileNotFoundError as exc:
         raise DesktopSaveError("save_missing", "The selected save no longer exists.") from exc
@@ -254,64 +267,73 @@ def save_changes(
     """
     try:
         require_game_closed(game_status_loader)
-        save, data, source = load_discovered_save(save_id, root)
-        if health_transaction is None and pending_health(save.path):
-            return _failure("save_stale", "An interrupted health write requires recovery first.")
-        if (
-            not isinstance(expected_fingerprint, str)
-            or len(expected_fingerprint) != 64
-            or any(character not in "0123456789abcdef" for character in expected_fingerprint)
-        ):
-            return _failure("save_validation_failed", "The opened save fingerprint is invalid.")
-        if _fingerprint(source) != expected_fingerprint:
-            return _failure(
-                "save_stale",
-                "The save changed after it was opened. Reopen it before saving edits.",
-            )
-        refill_item_types = requested_refill_item_types(changes)
-        recharge_capabilities: Mapping[str, ItemRechargeCapability]
-        if refill_item_types:
-            verified_evidence = (
-                recharge_evidence_verifier(recharge_evidence, refill_item_types)
-                if recharge_evidence is not None
-                else None
-            )
-            recharge_capabilities = (
-                verified_evidence
-                if verified_evidence is not None
-                else recharge_capability_loader(refill_item_types)
-            )
-        else:
-            recharge_capabilities = {}
-        apply_run_save_changes(data, changes, recharge_capabilities)
-        require_game_closed(game_status_loader)
-        backup, written = SaveRepository(save.path.parent).overwrite(
-            save.path,
-            data,
-            expected_source=source,
-            health_transaction=health_transaction,
-        )
-        try:
-            metadata = save.path.stat()
-            modified_at = datetime.fromtimestamp(metadata.st_mtime, tz=UTC)
-        except OSError:
-            modified_at = datetime.now(tz=UTC)
-        updated_save = replace(
-            save,
-            modified_at=modified_at,
-            file_size=len(written),
-        )
-        session = _session(updated_save, data, written)
-        result = {
-            "backupPath": str(backup),
-            "session": session,
-            "canonical": _canonical_applied_state(
+        with (
+            health_lock(_discovered_save(save_id, root).path)
+            if health_transaction is None
+            else contextlib.nullcontext(health_transaction.directory)
+        ) as directory:
+            save, data, source = load_discovered_save(save_id, root, directory=directory)
+            if health_transaction is None and pending_health(save.path, directory):
+                return _failure(
+                    "save_stale", "An interrupted health write requires recovery first."
+                )
+            if (
+                not isinstance(expected_fingerprint, str)
+                or len(expected_fingerprint) != 64
+                or any(character not in "0123456789abcdef" for character in expected_fingerprint)
+            ):
+                return _failure("save_validation_failed", "The opened save fingerprint is invalid.")
+            if _fingerprint(source) != expected_fingerprint:
+                return _failure(
+                    "save_stale",
+                    "The save changed after it was opened. Reopen it before saving edits.",
+                )
+            refill_item_types = requested_refill_item_types(changes)
+            recharge_capabilities: Mapping[str, ItemRechargeCapability]
+            if refill_item_types:
+                verified_evidence = (
+                    recharge_evidence_verifier(recharge_evidence, refill_item_types)
+                    if recharge_evidence is not None
+                    else None
+                )
+                recharge_capabilities = (
+                    verified_evidence
+                    if verified_evidence is not None
+                    else recharge_capability_loader(refill_item_types)
+                )
+            else:
+                recharge_capabilities = {}
+            apply_run_save_changes(data, changes, recharge_capabilities)
+            require_game_closed(game_status_loader)
+            backup, written = SaveRepository(save.path.parent).overwrite(
+                save.path,
                 data,
-                changes,
-                cast(str, session["fingerprint"]),
-                recharge_capabilities,
-            ),
-        }
+                expected_source=source,
+                health_transaction=health_transaction,
+                directory=directory,
+                before_replace=lambda: require_game_closed(game_status_loader),
+            )
+            try:
+                metadata = directory.stat(save.path) if directory is not None else save.path.stat()
+                modified_at = datetime.fromtimestamp(metadata.st_mtime, tz=UTC)
+            except OSError:
+                modified_at = datetime.now(tz=UTC)
+            updated_save = replace(
+                save,
+                modified_at=modified_at,
+                file_size=len(written),
+            )
+            session = _session(updated_save, data, written)
+            result = {
+                "backupPath": str(backup),
+                "session": session,
+                "canonical": _canonical_applied_state(
+                    data,
+                    changes,
+                    cast(str, session["fingerprint"]),
+                    recharge_capabilities,
+                ),
+            }
     except GameSafetyError as exc:
         return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
@@ -324,10 +346,10 @@ def save_changes(
         return _failure(
             "backup_failed", "The original save could not be backed up. Nothing was written."
         )
-    except SaveStaleError:
+    except (SaveStaleError, RecoveryError):
         return _failure(
             "save_stale",
-            "The save changed while edits were being prepared. Reopen it before saving.",
+            "The save changed or is busy. Reopen it before saving edits.",
         )
     except SaveVerificationError:
         return _failure(

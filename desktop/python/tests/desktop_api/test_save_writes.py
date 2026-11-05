@@ -3,6 +3,8 @@ from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
@@ -11,6 +13,7 @@ from repo_save_editor.services.player.upgrades import UPGRADE_VALUE_MAX
 from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 
 def _game_closed() -> GameProcessStatus:
@@ -475,7 +478,7 @@ def test_backup_failure_blocks_replacement(tmp_path: Path, sample_save, monkeypa
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_backup(_path: Path, _source: bytes):
+    def fail_backup(_path: Path, _source: bytes, _directory=None):
         raise SaveBackupError("simulated backup failure")
 
     monkeypatch.setattr(SaveRepository, "_create_backup", staticmethod(fail_backup))
@@ -499,7 +502,7 @@ def test_staging_failure_leaves_original_and_backup_recoverable(
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_write(_path: Path, _blob: bytes):
+    def fail_write(_path: Path, _blob: bytes, _directory=None):
         raise OSError("simulated disk failure")
 
     monkeypatch.setattr(SaveRepository, "_write_temp", staticmethod(fail_write))
@@ -528,6 +531,9 @@ def test_replacement_failure_leaves_original_and_backup_recoverable(
         raise OSError("simulated replacement failure")
 
     monkeypatch.setattr(repository_module.os, "replace", fail_replace)
+    monkeypatch.setattr(
+        SaveDirectory, "replace", lambda _directory, source, target: fail_replace(source, target)
+    )
     result = save_changes(
         path.parent.name,
         _fingerprint(tmp_path),
@@ -549,7 +555,8 @@ def test_verification_failure_leaves_original_and_backup_recoverable(
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_verification(_path: Path):
+    def fail_verification(_path: Path, *, directory=None):
+        assert directory is not None or repository_module.os.name != "nt"
         raise ValueError("simulated verification failure")
 
     monkeypatch.setattr(SaveRepository, "load", staticmethod(fail_verification))
@@ -645,3 +652,56 @@ def test_unknown_game_status_blocks_run_write_before_backup(tmp_path: Path, samp
     assert result["error"]["code"] == "game_status_unknown"
     assert path.read_bytes() == original
     assert not list(path.parent.glob("*.bak-*"))
+
+
+@pytest.mark.parametrize(
+    ("final_status", "reason"),
+    [
+        (GameProcessStatus.NOT_RUNNING, None),
+        (GameProcessStatus.RUNNING, "game_running"),
+        (GameProcessStatus.UNKNOWN, "game_status_unknown"),
+        ("query_error", "game_status_unknown"),
+    ],
+)
+def test_run_write_rechecks_game_after_staged_verification(
+    tmp_path, sample_save, monkeypatch, final_status, reason
+):
+    path = _write_fixture(tmp_path, sample_save)
+    before = path.read_bytes()
+    load = SaveRepository.load
+    verified = False
+    observations = []
+
+    def verify(staging, *, directory=None):
+        nonlocal verified
+        data = load(staging, directory=directory)
+        verified = True
+        return data
+
+    def status():
+        observations.append(verified)
+        if verified and final_status == "query_error":
+            raise OSError("private process query failure")
+        return final_status if verified else GameProcessStatus.NOT_RUNNING
+
+    monkeypatch.setattr(SaveRepository, "load", staticmethod(verify))
+    result = save_changes(
+        path.parent.name,
+        sha256(before).hexdigest(),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
+        tmp_path,
+        game_status_loader=status,
+    )
+
+    assert observations == [False, False, True]
+    assert next(path.parent.glob("*.bak-*")).read_bytes() == before
+    assert not list(path.parent.glob("*.tmp"))
+    if reason is None:
+        assert result["ok"] is True
+        assert load(path)["dictionaryOfDictionaries"]["value"]["runStats"]["currency"] == 20
+    else:
+        assert result["ok"] is False
+        assert result["error"]["code"] == reason
+        assert "result" not in result
+        assert "private" not in str(result)
+        assert path.read_bytes() == before

@@ -103,6 +103,13 @@ def validated_installed_build(installation: GameInstallation) -> ValidatedInstal
     return _validated_for_build_ids(installation, frozenset({VALIDATED_BUILD_ID}))
 
 
+def installed_build_identity(installation: GameInstallation) -> ValidatedInstalledBuild | None:
+    """Recheck discovered Steam provenance without granting a feature capability."""
+    if installation.steam_build_id is None:
+        return None
+    return _validated_for_build_ids(installation, frozenset({installation.steam_build_id}))
+
+
 def validated_installed_artwork_build(
     installation: GameInstallation,
 ) -> ValidatedInstalledBuild | None:
@@ -116,6 +123,7 @@ __all__ = [
     "SUNSTONE_ARTWORK_BUILD_ID",
     "VALIDATED_BUILD_ID",
     "ValidatedInstalledBuild",
+    "installed_build_identity",
     "steam_manifest_path",
     "validated_installed_artwork_build",
     "validated_installed_build",

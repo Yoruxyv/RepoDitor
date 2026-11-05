@@ -17,6 +17,7 @@ from repo_save_editor.desktop_api import __main__ as entry
 from repo_save_editor.desktop_api import saves
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as recovery
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 
 def phase(name: str) -> None:
@@ -37,10 +38,26 @@ def install_synthetic_status() -> None:
         "unknown": GameProcessStatus.UNKNOWN,
     }.get(os.environ.get("REPODITOR_RECOVERY_SYNTHETIC_STATUS", ""))
     if status is not None:
+        staged = False
+        original_verified = recovery.HealthTransaction.verified
+
+        def verified(transaction, written):
+            nonlocal staged
+            original_verified(transaction, written)
+            staged = True
+
+        recovery.HealthTransaction.verified = verified
+
+        def current_status():
+            final = os.environ.get("REPODITOR_RECOVERY_FINAL_GAME_STATUS", "")
+            if staged and final == "query_error":
+                raise OSError("Synthetic final game-status query failure")
+            return GameProcessStatus(final) if staged and final else status
+
         original_write = entry.write_health
 
         def isolated_write(*args, **kwargs):
-            return original_write(*args, **kwargs, game_status_loader=lambda: status)
+            return original_write(*args, **kwargs, game_status_loader=current_status)
 
         entry.write_health = isolated_write
         original_prepare = entry.prepare_health
@@ -84,6 +101,29 @@ def io_fault(name: str) -> None:
         raise OSError("Synthetic transaction I/O failure")
 
 
+def install_bound_faults() -> None:
+    original_replace = SaveDirectory.replace
+    original_remove = SaveDirectory.remove
+
+    def replace(directory, stream, target):
+        is_save = target.suffix == ".es3"
+        if is_save:
+            phase("before_replace")
+        result = original_replace(directory, stream, target)
+        if is_save:
+            phase("after_replace")
+        return result
+
+    def remove(directory, path):
+        result = original_remove(directory, path)
+        if path.suffix == ".tmp" and not path.name.endswith(".receipt.tmp"):
+            phase("recovery_cleanup")
+        return result
+
+    SaveDirectory.replace = replace
+    SaveDirectory.remove = remove
+
+
 def install_faults() -> None:
     original_backup = recovery.HealthTransaction.create_backup
     original_stage = recovery.HealthTransaction.stage
@@ -100,7 +140,9 @@ def install_faults() -> None:
         io_fault("backup_error")
         phase("before_transaction")
         if os.environ.get("REPODITOR_RECOVERY_PHASE") == "backup_partial":
-            recovery._flush_write(transaction.backup, source[: len(source) // 2])
+            recovery._flush_write(
+                transaction.backup, source[: len(source) // 2], transaction.directory
+            )
             phase("backup_partial")
         result = original_backup(transaction, source)
         phase("backup_complete")
@@ -109,7 +151,9 @@ def install_faults() -> None:
     def stage(transaction, written):
         io_fault("staging_error")
         if os.environ.get("REPODITOR_RECOVERY_PHASE") == "staging_partial":
-            recovery._flush_write(transaction.temporary, written[: len(written) // 2])
+            recovery._flush_write(
+                transaction.temporary, written[: len(written) // 2], transaction.directory
+            )
             phase("staging_partial")
         return original_stage(transaction, written)
 
@@ -127,9 +171,9 @@ def install_faults() -> None:
             phase("after_replace")
         return result
 
-    def publish(source, target):
+    def publish(source, target, *args, **kwargs):
         io_fault("receipt_publish_error")
-        original_publish(source, target)
+        original_publish(source, target, *args, **kwargs)
         if target.name.endswith(".json") and not target.name.endswith("health-pending.json"):
             phase("recovery_archive")
 
@@ -161,4 +205,5 @@ if __name__ == "__main__":
     install_synthetic_status()
     install_completion_fault()
     install_faults()
+    install_bound_faults()
     entry.main()

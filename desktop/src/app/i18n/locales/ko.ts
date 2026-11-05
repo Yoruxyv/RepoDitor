@@ -168,6 +168,11 @@ export const ko: Record<keyof typeof en, string> = {
   "upgrades.empty": "이 세이브에는 플레이어 업그레이드가 없습니다.",
   "upgrades.input": "{player}의 {upgrade}",
   "upgrades.error": "업그레이드 값은 0에서 2,147,483,647 사이의 정수여야 합니다.",
+  "upgrades.draftOnly":
+    "업그레이드 초안은 메모리에만 보관됩니다. 저장 파일을 바꾸거나 이 창을 닫으면 삭제됩니다.",
+  "upgrades.revertDrafts": "업그레이드 초안 되돌리기",
+  "upgrades.saveUnavailable":
+    "이 미리보기에서는 업그레이드를 저장할 수 없습니다. 체력을 저장하기 전에 업그레이드 초안을 되돌리세요.",
   "run.readOnlyDescription": "저장된 런 값과 재개 위치를 확인합니다.",
   "run.loading": "런 상태 불러오는 중…",
   "run.unavailable": "런을 사용할 수 없음",
@@ -357,7 +362,8 @@ export const ko: Record<keyof typeof en, string> = {
   "error.saveStale": "디스크의 세이브가 변경되었습니다. 다시 연 뒤 저장하세요.",
   "error.write": "RepoDitor가 세이브를 안전하게 기록하지 못했습니다. 파일은 교체되지 않았습니다.",
   "error.copyPath": "경로를 복사하지 못했습니다",
-  "health.testOnly": "합성 저장 파일의 체력 테스트입니다. 다른 기능은 읽기 전용입니다.",
+  "health.testOnly":
+    "합성 테스트: 체력 저장과 업그레이드 초안. 업그레이드 초안은 파일에 기록되지 않습니다.",
   "health.checking": "완료되지 않은 체력 작업을 확인하는 중…",
   "health.reconciling": "체력을 저장 파일과 대조하는 중…",
   "health.recovery": "체력 변경 결과가 불확실합니다. 다시 편집하기 전에 대조하세요.",

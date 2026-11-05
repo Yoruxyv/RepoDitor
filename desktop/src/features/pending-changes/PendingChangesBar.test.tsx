@@ -17,6 +17,35 @@ const edit: PendingEdit = {
 };
 
 describe("PendingChangesBar", () => {
+  it("explains an unavailable Save while retaining Review and Revert", async () => {
+    const user = userEvent.setup();
+    const revert = vi.fn();
+    const save = vi.fn();
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          edits={[edit]}
+          saving={false}
+          error={null}
+          backupPath={null}
+          saveUnavailableReason="Saving this domain is unavailable."
+          onRevert={revert}
+          onSave={save}
+        />
+      </PreferencesProvider>,
+    );
+    const button = screen.getByRole("button", { name: "Save Changes" });
+    expect(button.matches(":disabled")).toBe(true);
+    expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Saving this domain is unavailable.",
+    );
+    await user.click(button);
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText("12 → 20")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(revert).toHaveBeenCalledOnce();
+    expect(save).not.toHaveBeenCalled();
+  });
   it("keeps exact changes collapsed until Review is requested", async () => {
     const user = userEvent.setup();
     render(

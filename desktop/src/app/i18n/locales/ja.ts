@@ -166,6 +166,11 @@ export const ja: Record<keyof typeof en, string> = {
   "upgrades.empty": "このセーブにプレイヤーアップグレードはありません。",
   "upgrades.input": "{player} の {upgrade}",
   "upgrades.error": "アップグレード値は 0 から 2,147,483,647 の整数で入力してください。",
+  "upgrades.draftOnly":
+    "アップグレードの下書きはメモリ内にのみ保持されます。セーブを切り替えるか、このウィンドウを閉じると破棄されます。",
+  "upgrades.revertDrafts": "アップグレードの下書きを元に戻す",
+  "upgrades.saveUnavailable":
+    "このプレビューではアップグレードを保存できません。体力を保存する前にアップグレードの下書きを元に戻してください。",
   "run.readOnlyDescription": "保存されたランの値と再開場所を表示します。",
   "run.loading": "ラン状態を読み込み中…",
   "run.unavailable": "ランを利用できません",
@@ -356,7 +361,8 @@ export const ja: Record<keyof typeof en, string> = {
   "error.saveStale": "セーブがディスク上で変更されました。再度開いてから保存してください。",
   "error.write": "セーブを安全に書き込めませんでした。元のファイルは置き換えていません。",
   "error.copyPath": "パスをコピーできませんでした",
-  "health.testOnly": "合成セーブでの体力テストです。他の機能は読み取り専用です。",
+  "health.testOnly":
+    "合成テスト：体力の保存とアップグレードの下書き。アップグレードの下書きはファイルに書き込みません。",
   "health.checking": "未完了の体力変更を確認しています…",
   "health.reconciling": "体力の状態をセーブファイルと照合しています…",
   "health.recovery": "体力変更の結果を確認できません。再編集の前に照合してください。",

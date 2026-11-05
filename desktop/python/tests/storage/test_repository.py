@@ -97,3 +97,46 @@ def test_repository_verification_failure_preserves_source(tmp_path: Path, sample
 
     assert path.read_bytes() == original
     assert list(tmp_path.glob("*.bak-*"))
+
+
+@pytest.mark.parametrize("reject", [False, True])
+def test_final_check_runs_after_stale_read_and_before_replace(
+    tmp_path, sample_save, monkeypatch, reject
+):
+    repository = SaveRepository(tmp_path)
+    path = tmp_path / "synthetic.es3"
+    repository.save_as(path, sample_save)
+    before = path.read_bytes()
+    edited = deepcopy(sample_save)
+    set_run_stat(edited, "currency", 20)
+    events = []
+    read_bytes = Path.read_bytes
+    replace = Path.replace
+
+    def read(target):
+        result = read_bytes(target)
+        events.append("source" if target == path else "staging")
+        return result
+
+    def final_check():
+        events.append("check")
+        if reject:
+            raise RuntimeError("final check rejected")
+
+    def commit(staging, target):
+        events.append("replace")
+        return replace(staging, target)
+
+    monkeypatch.setattr(Path, "read_bytes", read)
+    monkeypatch.setattr(Path, "replace", commit)
+    if reject:
+        with pytest.raises(RuntimeError, match="final check rejected"):
+            repository.overwrite(path, edited, before_replace=final_check)
+        assert events == ["source", "staging", "source", "check"]
+        assert path.read_bytes() == before
+    else:
+        repository.overwrite(path, edited, before_replace=final_check)
+        assert events == ["source", "staging", "source", "check", "replace"]
+        assert repository.load(path) == edited
+    assert next(tmp_path.glob("*.bak-*")).read_bytes() == before
+    assert not list(tmp_path.glob("*.tmp"))

@@ -18,6 +18,7 @@
   "include": [
     "vite.config.ts",
     "vite.tauri.config.ts",
+    "playwright.tauri-safety.config.ts",
     "vitest.config.ts",
     "installer/ui/vite.config.ts"
   ]

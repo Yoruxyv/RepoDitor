@@ -11,6 +11,7 @@ from repo_save_editor.services.game.discovery import (
 from repo_save_editor.services.game.installed_build import (
     SUNSTONE_ARTWORK_BUILD_ID,
     VALIDATED_BUILD_ID,
+    installed_build_identity,
     validated_installed_artwork_build,
     validated_installed_build,
 )
@@ -78,6 +79,24 @@ def test_build_validation_rechecks_authoritative_manifest(tmp_path: Path) -> Non
     )
 
     assert validated_installed_build(result.installation) is None
+    assert installed_build_identity(result.installation) is None
+
+
+def test_identity_for_an_unreviewed_build_is_not_a_mutation_capability(tmp_path: Path) -> None:
+    steam_root, _ = _steam_install(tmp_path, "99999999")
+    result = discover_game_installation(steam_roots=(steam_root,), environment={})
+    assert result.installation is not None
+    identity = installed_build_identity(result.installation)
+    assert identity is not None
+    assert identity.build_id == "99999999"
+    assert validated_installed_build(result.installation) is None
+
+
+def test_identity_requires_authoritative_provenance(tmp_path: Path) -> None:
+    _, game_root = _steam_install(tmp_path, VALIDATED_BUILD_ID)
+    installation = discover_game_installation(game_root).installation
+    assert installation is not None
+    assert installed_build_identity(installation) is None
 
 
 def test_artwork_compatibility_does_not_authorize_recharge_mutations(tmp_path: Path) -> None:

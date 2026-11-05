@@ -1,7 +1,7 @@
 /** Shared isolated packaged native harness; fixture sidecars never ship. */
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, symlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -29,6 +29,13 @@ export async function native<T>(
     },
     { command, args },
   ) as Promise<T>;
+}
+
+export async function stageFrozenBackend(home: string, backend: string) {
+  const source = path.resolve(DESKTOP_ROOT, backend);
+  await access(path.join(source, "repoditor-backend.exe"));
+  // Immutable bundle shared by isolated processes; saves and profiles stay per test.
+  await symlink(source, path.join(home, "backend"), "junction");
 }
 
 export async function stageSyntheticBackend(home: string) {

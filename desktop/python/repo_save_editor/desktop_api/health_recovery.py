@@ -1,4 +1,4 @@
-"""Opt-in single-player health transactions; Electron's existing writes stay unchanged."""
+"""Opt-in single-player health transactions over the shared Python save-write boundary."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from repo_save_editor.storage.health_recovery import (
     inspect_pending,
     valid_operation,
 )
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 
 def _outcome(operation: str, status: str, reason: str | None = None) -> dict[str, object]:
@@ -63,11 +64,11 @@ def prepare_health(
         return _outcome(operation, "rejected", "invalid_request")
     try:
         path = _path(save_id, root)
-        with health_lock(path):
-            transaction = HealthTransaction(path, operation)
+        with health_lock(path) as directory:
+            transaction = HealthTransaction(path, operation, directory=directory)
             transaction.admit()
             require_game_closed(game_status_loader)
-            _save, data, source = load_discovered_save(save_id, root)
+            _save, data, source = load_discovered_save(save_id, root, directory=directory)
             if sha256(source).hexdigest() != fingerprint:
                 return _outcome(operation, "rejected", "save_stale")
             change = cast(list[dict[str, object]], changes)[0]
@@ -78,6 +79,7 @@ def prepare_health(
                 transaction = HealthTransaction(
                     path,
                     operation,
+                    directory=directory,
                     intent={
                         "playerId": change["entity"],
                         "health": change["after"],
@@ -121,8 +123,8 @@ def write_health(
         return _outcome(operation, "rejected", "invalid_request")
     try:
         path = _path(save_id, root)
-        with health_lock(path):
-            transaction = HealthTransaction(path, operation)
+        with health_lock(path) as directory:
+            transaction = HealthTransaction(path, operation, directory=directory)
             if reserved:
                 transaction.resume()
                 change = cast(list[dict[str, object]], changes)[0]
@@ -171,11 +173,13 @@ def recover_health(
         return _outcome(operation, "conflict", "invalid_request")
     try:
         path = _path(save_id, root)
-        with health_lock(path):
-            transaction = HealthTransaction(path, operation)
+        with health_lock(path) as directory:
+            transaction = HealthTransaction(path, operation, directory=directory)
             result = transaction.recover(acknowledge=not canonical)
             if canonical:
-                result["canonical"] = _canonical(save_id, root, cast(str, result["fingerprint"]))
+                result["canonical"] = _canonical(
+                    save_id, root, cast(str, result["fingerprint"]), directory
+                )
                 if acknowledge:
                     transaction.recover()
             return {"ok": True, "transaction": {**result, "reason": None}}
@@ -185,8 +189,10 @@ def recover_health(
         return _outcome(operation, "conflict", "backend_unavailable")
 
 
-def _canonical(save_id: str, root: Path, fingerprint: str | None = None) -> dict[str, object]:
-    save, data, source = load_discovered_save(save_id, root)
+def _canonical(
+    save_id: str, root: Path, fingerprint: str | None = None, directory: SaveDirectory | None = None
+) -> dict[str, object]:
+    save, data, source = load_discovered_save(save_id, root, directory=directory)
     if fingerprint is not None and sha256(source).hexdigest() != fingerprint:
         raise RecoveryError("write_conflict")
     return {"opened": serialize_open_save(save, data, source), "players": serialize_players(data)}
@@ -196,10 +202,14 @@ def health_state(save_id: str, root: Path) -> dict[str, object]:
     """Rediscover pending identity/intent without acknowledging or replaying an operation."""
     try:
         path = _path(save_id, root)
-        with health_lock(path):
-            receipt = inspect_pending(path)
+        with health_lock(path) as directory:
+            receipt = inspect_pending(path, directory)
             if receipt is None:
-                return {"ok": True, "state": "idle", "canonical": _canonical(save_id, root)}
+                return {
+                    "ok": True,
+                    "state": "idle",
+                    "canonical": _canonical(save_id, root, directory=directory),
+                }
             return {
                 "ok": True,
                 "state": "pending",

@@ -26,6 +26,7 @@ from repo_save_editor.services.cosmetics.presentation_catalog import (
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
 from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
+from repo_save_editor.storage.health_recovery import RecoveryError, health_lock
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
     SaveBackupError,
@@ -33,6 +34,7 @@ from repo_save_editor.storage.repository import (
     SaveVerificationError,
     SaveWriteError,
 )
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 META_SAVE_NAME = "MetaSave.es3"
 MAX_COSMETIC_CHANGES = len(PROVEN_MUTATION_IDS)
@@ -54,11 +56,12 @@ def _meta_path(root: Path | None) -> Path:
 
 def _load_meta_save(
     root: Path | None,
+    directory: SaveDirectory | None = None,
 ) -> tuple[Path, SaveData, bytes, EncryptedSaveRepository]:
     path = _meta_path(root)
     repository = EncryptedSaveRepository(path.parent, validate_meta_save)
     try:
-        source = path.read_bytes()
+        source = directory.read(path) if directory is not None else path.read_bytes()
         return path, repository.load_bytes(source), source, repository
     except FileNotFoundError as exc:
         raise DesktopSaveError("meta_missing", "MetaSave.es3 was not found.") from exc
@@ -217,37 +220,40 @@ def save_cosmetics(
     """
     try:
         require_game_closed(game_status_loader)
-        path, data, source, repository = _load_meta_save(root)
-        if (
-            not isinstance(expected_fingerprint, str)
-            or len(expected_fingerprint) != 64
-            or any(character not in "0123456789abcdef" for character in expected_fingerprint)
-        ):
-            return _failure("save_validation_failed", "The MetaSave fingerprint is invalid.")
-        if sha256(source).hexdigest() != expected_fingerprint:
-            return _failure("save_stale", "MetaSave.es3 changed after it was opened.")
-        installed_catalog = catalog_loader()
-        _apply_changes(data, changes, installed_catalog)
-        require_game_closed(game_status_loader)
-        backup, written = repository.overwrite(
-            path,
-            data,
-            expected_source=source,
-            encoder=lambda edited, original: encrypt_save_fields(
-                edited,
-                original,
-                frozenset(
-                    {"cosmeticHistory", "cosmeticUnlocks", "cosmeticPresets", "colorPresets"}
+        with health_lock(_meta_path(root)) as directory:
+            path, data, source, repository = _load_meta_save(root, directory)
+            if (
+                not isinstance(expected_fingerprint, str)
+                or len(expected_fingerprint) != 64
+                or any(character not in "0123456789abcdef" for character in expected_fingerprint)
+            ):
+                return _failure("save_validation_failed", "The MetaSave fingerprint is invalid.")
+            if sha256(source).hexdigest() != expected_fingerprint:
+                return _failure("save_stale", "MetaSave.es3 changed after it was opened.")
+            installed_catalog = catalog_loader()
+            _apply_changes(data, changes, installed_catalog)
+            require_game_closed(game_status_loader)
+            backup, written = repository.overwrite(
+                path,
+                data,
+                expected_source=source,
+                directory=directory,
+                before_replace=lambda: require_game_closed(game_status_loader),
+                encoder=lambda edited, original: encrypt_save_fields(
+                    edited,
+                    original,
+                    frozenset(
+                        {"cosmeticHistory", "cosmeticUnlocks", "cosmeticPresets", "colorPresets"}
+                    ),
                 ),
-            ),
-        )
-        return {
-            "ok": True,
-            "result": {
-                "backupPath": str(backup),
-                "cosmetics": _serialize(data, written, installed_catalog),
-            },
-        }
+            )
+            return {
+                "ok": True,
+                "result": {
+                    "backupPath": str(backup),
+                    "cosmetics": _serialize(data, written, installed_catalog),
+                },
+            }
     except GameSafetyError as exc:
         return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
@@ -261,10 +267,10 @@ def save_cosmetics(
             "backup_failed",
             "MetaSave.es3 could not be backed up. Nothing was written.",
         )
-    except SaveStaleError:
+    except (SaveStaleError, RecoveryError):
         return _failure(
             "save_stale",
-            "MetaSave.es3 changed while edits were being prepared.",
+            "MetaSave.es3 changed or is busy. Reopen it before saving edits.",
         )
     except SaveVerificationError:
         return _failure(

@@ -447,6 +447,96 @@ well below its existing headroom and one workstation measurement is not enough
 to set a durable blocking threshold. Coverage is reported without a percentage
 gate; correctness-critical save and desktop-boundary paths retain focused tests.
 
+## Tauri save recovery and cutover
+
+Production Tauri writes and production manual restore remain disabled. The
+procedure below is validated against disposable synthetic saves; it is not
+permission to apply these steps to a player profile. Use the required Windows
+`npm run test:tauri-safety` gate to reproduce the Python and packaged Tauri drills.
+Its native fixtures live under `desktop/build/recovery-checkpoint/tauri-safety`.
+Use a fresh output name for repeated runs; preserve previous evidence.
+
+Before any future production authorization, an operator must have a tested offline
+maintenance window and exclusive access to the save profile. Close the game, all
+RepoDitor windows and their workers; a running, unknown or failed authoritative
+game-status query is a stop condition. Suspend cloud synchronization and other
+writers for the entire maintenance operation. A Python transaction lock excludes
+updated cooperating writers only. It does not stop an old Electron binary or the
+game from starting after a status check.
+
+1. **Preserve first.** Reject reparse ancestry, linked files and non-NTFS/remote
+   storage before copying; do not follow links during intake. With all writers
+   quiescent, record the exact source path,
+   encrypted source SHA-256, file identity, and every slot filename. Copy the entire
+   slot, including hidden pending/archive/temporary receipts and exact backups, to
+   a separate intake directory outside save discovery. Verify every copied file's
+   size and SHA-256 against its source. Keep the original slot intact. If a file
+   changes during the copy or a writer cannot be excluded, stop. Do not edit receipt
+   fields, rename backups to make them appear valid, or delete a lock file to bypass
+   an active owner.
+2. **Inspect without reconciling.** In the synthetic environment, run the explicit
+   validated sidecar as `repoditor-backend.exe health-state <save-id>`. E2E roots
+   must point only to the disposable fixture. This command may create/open the
+   coordination lock; it preserves save, backup, receipt and staging bytes. Pending
+   intent is evidence, never an instruction to replay. `blocked` or `busy` requires
+   investigation, not a retry loop. Inspect receipt bytes only within their 4,096-byte
+   limit, using the fixed operation-derived namespace; treat invalid data as conflict.
+3. **Reconcile only a supported operation.** After preserving intake, an exited-owner
+   schema-3 operation in its original admitted Windows namespace can be reconciled
+   with `health-recover <save-id> <operation-id> --canonical`. This is a maintenance
+   operation: even without `--acknowledge`, it can write the archive and clean staged
+   files. It does not replay the edit. An exact `applied` or `unchanged` result must
+   agree with the reopened canonical state and expected encrypted fingerprint.
+   Only then explicitly repeat with `--canonical --acknowledge` to clear the pending
+   marker. Keep intake, backups and the operation archive. A conflict must remain
+   unresolved; do not infer success from a visible health value.
+4. **Handle conflicts offline.** Identify the chosen backup explicitly. For a
+   transaction backup, its encrypted SHA-256 must equal the independently recorded
+   original snapshot and the receipt's `before` hash. Validate a copy through
+   Python decryption/schema checks before selecting it. A missing, damaged, ambiguous
+   or schema-invalid backup is a stop condition. Do not pick the newest file by
+   timestamp or re-encrypt parsed data as a substitute for exact restoration.
+5. **Restore as a new slot, preserving the old one.** In the synthetic drill, move
+   the whole conflicting slot to quarantine outside discovery, verify its complete
+   intake manifest again, create a fresh slot at the admitted save location and
+   copy only the selected encrypted backup bytes to its canonical save filename.
+   Preserve receipts, backups and conflict bytes in quarantine/intake; do not copy
+   old receipts into the new namespace. Confirm restored SHA-256 and bytes exactly,
+   then reopen through the ordinary read-only Tauri host and verify canonical data.
+   This is an offline restore, not settlement or success of the old transaction.
+   If validation fails, preserve both trees and stop. A new slot's successful open
+   does not authorize writing or establish game-build compatibility.
+
+Windows schema-1/2 receipts lack the namespace proof required for automatic
+settlement. Their identities/intents may remain inspectable, but reconciliation
+must fail closed and preserve the receipt. Do not add a fabricated namespace field,
+upgrade their version, or acknowledge them with a different OS implementation.
+The offline intake/quarantine procedure can salvage an independently verified backup;
+without that evidence, manual recovery remains unsupported. Reparse ancestry,
+non-NTFS/remote storage, unknown owner state, conflicting backups and unreadable
+receipts remain stop conditions. No normal production UI restore command exists.
+
+For old Electron coexistence, the supported policy is a hard cutover, not mixed
+writers. Do not authorize a shared writable profile while older or unknown portable
+binaries retain access. An enforceable deployment would need a separately managed
+maintenance/profile security boundary plus application-control rules that exclude
+unapproved executables and sidecars. A same-user directory ACL alone does not
+distinguish old and new applications. Broad path/publisher allow rules must not
+silently allow older releases. Validate denial by actually attempting an old binary
+against synthetic data, including portable/renamed copies, and verify source bytes
+remain unchanged; also validate approved game/editor access and recovery. Windows
+[access control](https://learn.microsoft.com/windows/security/identity-protection/access-control/access-control)
+and [application-control rule behavior](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/applocker/understanding-applocker-rule-behavior)
+describe those separate boundaries. This deployment enforcement is not installed
+or validated by RepoDitor today; environments without it remain unsupported for
+production Tauri writes. Do not change system policy or production permissions as
+part of the synthetic drill.
+
+Production release additionally requires domain-specific game-build approval,
+an encrypted-save resource policy, supported Windows/filesystem validation, remote
+CI confirmation and ordinary release/installer acceptance. These prerequisites
+cannot be replaced by the synthetic recovery drill or a successful read-only open.
+
 ## Manual security and safety review
 
 - `contextIsolation` remains enabled; Node integration remains disabled; the

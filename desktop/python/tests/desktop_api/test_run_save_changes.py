@@ -17,6 +17,25 @@ def _currency_change(after: object = 20) -> dict[str, object]:
     return {"feature": "run", "entity": "run", "field": "currency", "after": after}
 
 
+def test_upgrade_draft_contract_keeps_dynamic_keys_players_and_unrelated_data(sample_save):
+    sample_save["dictionaryOfDictionaries"]["value"]["playerUpgradeFutureBoost"] = {"222": 7}
+    before = deepcopy(sample_save)
+    changes = [
+        {"feature": "upgrades", "entity": "111", "field": "playerUpgradeStrength", "after": 3},
+        {
+            "feature": "upgrades",
+            "entity": "222",
+            "field": "playerUpgradeFutureBoost",
+            "after": 2147483647,
+        },
+    ]
+    apply_run_save_changes(sample_save, changes)
+    expected = deepcopy(before)
+    expected["dictionaryOfDictionaries"]["value"]["playerUpgradeStrength"]["111"] = 3
+    expected["dictionaryOfDictionaries"]["value"]["playerUpgradeFutureBoost"]["222"] = 2147483647
+    assert sample_save == expected
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [

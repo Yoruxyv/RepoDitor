@@ -17,6 +17,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Limit Windows filesystem contention between jsdom and native I/O tests.
+    maxWorkers: process.platform === "win32" ? 2 : undefined,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: [

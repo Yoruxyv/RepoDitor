@@ -20,6 +20,7 @@ interface PendingChangesBarProps {
   readonly testIdPrefix?: string;
   readonly blocked?: boolean;
   readonly invalid?: boolean;
+  readonly saveUnavailableReason?: string | null;
 }
 
 function changeCount(count: number, t: Translate): string {
@@ -81,6 +82,7 @@ export function PendingChangesBar({
   testIdPrefix = "workspace",
   blocked = false,
   invalid = false,
+  saveUnavailableReason = null,
 }: PendingChangesBarProps) {
   const { t } = usePreferences();
   const [reviewing, setReviewing] = useState(false);
@@ -160,6 +162,11 @@ export function PendingChangesBar({
                   {error}
                 </p>
               ) : null}
+              {saveUnavailableReason ? (
+                <p className="mt-1 text-xs text-secondary" id={`${testIdPrefix}-save-unavailable`}>
+                  {saveUnavailableReason}
+                </p>
+              ) : null}
               {backupPath ? (
                 <output
                   aria-atomic="true"
@@ -192,7 +199,10 @@ export function PendingChangesBar({
                 </button>
                 <button
                   className="ui-feedback rounded-sm bg-accent px-3 py-2 font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving || blocked || invalid}
+                  aria-describedby={
+                    saveUnavailableReason ? `${testIdPrefix}-save-unavailable` : undefined
+                  }
+                  disabled={saving || blocked || invalid || saveUnavailableReason !== null}
                   type="button"
                   onClick={onSave}
                 >

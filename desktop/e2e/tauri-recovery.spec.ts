@@ -11,7 +11,7 @@ import {
   PYTHON_ROOT,
 } from "./support/fixtureEnvironment";
 import { createGameFixture } from "./support/harness";
-import { close, launch, native } from "./support/tauriHarness";
+import { close, launch, native, stageFrozenBackend } from "./support/tauriHarness";
 
 interface Transaction {
   operationId: string;
@@ -32,14 +32,10 @@ async function fixture(info: TestInfo, phase = "") {
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
   await cp(path.resolve(DESKTOP_ROOT, FEATURE), executable);
-  await cp(
-    path.resolve(
-      DESKTOP_ROOT,
-      process.env["REPODITOR_RECOVERY_BACKEND"] ??
-        "build/recovery-checkpoint/fault-backend/repoditor-backend",
-    ),
-    path.join(home, "backend"),
-    { recursive: true },
+  await stageFrozenBackend(
+    home,
+    process.env["REPODITOR_RECOVERY_BACKEND"] ??
+      "build/recovery-checkpoint/fault-backend/repoditor-backend",
   );
   const before = await readFile(source);
   const environment = {

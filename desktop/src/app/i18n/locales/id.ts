@@ -169,6 +169,11 @@ export const id: Record<keyof typeof en, string> = {
   "upgrades.empty": "Save ini tidak berisi upgrade pemain.",
   "upgrades.input": "{upgrade} untuk {player}",
   "upgrades.error": "Nilai upgrade harus antara 0 dan 2.147.483.647.",
+  "upgrades.draftOnly":
+    "Draf upgrade hanya tersimpan di memori. Draf dibuang saat Anda mengganti save atau menutup jendela ini.",
+  "upgrades.revertDrafts": "Batalkan draf upgrade",
+  "upgrades.saveUnavailable":
+    "Menyimpan upgrade belum tersedia dalam pratinjau ini. Batalkan draf upgrade sebelum menyimpan kesehatan.",
   "run.readOnlyDescription": "Lihat nilai run dan lokasi melanjutkan yang tersimpan.",
   "run.loading": "Memuat status run…",
   "run.unavailable": "Run tidak tersedia",
@@ -359,7 +364,8 @@ export const id: Record<keyof typeof en, string> = {
   "error.saveStale": "Save berubah di disk. Buka ulang sebelum menyimpan perubahan.",
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",
   "error.copyPath": "Path tidak dapat disalin",
-  "health.testOnly": "Uji kesehatan sintetis. Fitur lain tetap hanya baca.",
+  "health.testOnly":
+    "Uji sintetis: simpan kesehatan dan draf upgrade. Draf upgrade tidak pernah menulis file.",
   "health.checking": "Memeriksa operasi kesehatan yang belum selesai…",
   "health.reconciling": "Mencocokkan kesehatan dengan berkas simpanan…",
   "health.recovery": "Hasil perubahan kesehatan belum pasti. Rekonsiliasi sebelum mengedit lagi.",

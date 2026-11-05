@@ -232,6 +232,11 @@ def test_environment_serialization_adapts_domain_names(tmp_path: Path) -> None:
     assert payload["saveCount"] == 1
     assert payload["gameDetected"] is True
     assert payload["gameRoot"] == str(game_root)
+    assert payload["healthWriteCompatibility"] == {
+        "buildId": None,
+        "status": "unknown",
+        "supported": False,
+    }
     saves = payload["saves"]
     assert isinstance(saves, list)
     assert saves[0]["path"] == str(save_path)
@@ -251,6 +256,31 @@ def test_environment_serialization_preserves_unavailable_local_data_state(
     assert payload["saveRootStatus"] == "unavailable"
     assert payload["saveRootDetected"] is False
     assert payload["saves"] == []
+
+
+@pytest.mark.parametrize("build_id", ["23363152", "26294889", "99999999"])
+def test_health_write_build_admission_does_not_reuse_other_feature_approval(tmp_path, build_id):
+    library = tmp_path / "Steam"
+    game_root = library / "steamapps/common/REPO"
+    catalog = game_root / "REPO_Data/StreamingAssets/aa/catalog.json"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("{}", encoding="utf-8")
+    manifest = library / "steamapps/appmanifest_3241660.acf"
+    manifest.write_text(
+        f'"AppState" {{ "appid" "3241660" "installdir" "REPO" "buildid" "{build_id}" }}',
+        encoding="utf-8",
+    )
+    game = discover_game_installation(steam_roots=(library,), environment={})
+    payload = serialize_environment(SaveDiscoveryResult(None, SaveRootStatus.UNAVAILABLE, ()), game)
+    assert payload["healthWriteCompatibility"] == {
+        "buildId": build_id,
+        "status": "unsupported",
+        "supported": False,
+    }
+    manifest.write_text("malformed", encoding="utf-8")
+    assert serialize_environment(SaveDiscoveryResult(None, SaveRootStatus.UNAVAILABLE, ()), game)[
+        "healthWriteCompatibility"
+    ] == {"buildId": None, "status": "unknown", "supported": False}
 
 
 def test_cosmetics_get_cli_requires_no_run_save_id(monkeypatch, capsys) -> None:

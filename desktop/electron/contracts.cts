@@ -365,6 +365,11 @@ export interface InstalledMapsDto {
 }
 
 export interface EnvironmentDiscovery {
+  healthWriteCompatibility?: {
+    buildId: string | null;
+    status: "unknown" | "unsupported";
+    supported: false;
+  };
   saveRoot: string | null;
   saveRootStatus: SaveRootStatus;
   saveRootDetected: boolean;
