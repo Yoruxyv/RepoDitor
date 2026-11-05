@@ -268,14 +268,43 @@ Unresolved receipts block new health requests and ordinary Run-save writes. Upda
 ordinary writers share the transaction lock and retain their existing validation,
 backup and encrypted-staging pipeline.
 
-Desktop encrypted-save reads, decryption and JSON processing do not yet have an
-enforced size ceiling. The ES3 container's IV and cipher-block constraints define no
-maximum size. Small synthetic fixtures and the browser's separate 16 MiB resource
-policy do not establish a compatible desktop limit. A desktop policy requires
-size distributions from supported Run and Meta saves, including long-running and
-large-player-state cases, with documented growth allowance and rejection behavior.
-Read-only opening, preparation, backups, canonical projection and recovery must all
-be considered before treating this resource-safety gate as complete.
+Desktop Python save processing uses provisional engineering ceilings: **32 MiB
+encrypted and 128 MiB plaintext JSON per save**, with **64 MiB encrypted and
+256 MiB plaintext per operation**. These are selected resource budgets, not measured
+limits of legitimate R.E.P.O. saves. Large legitimate saves may be unsupported;
+compatibility expansion requires representative authorized metadata and resource
+measurements, including long-running and large-player-state cases. This policy
+does not authorize production writes or change the browser's separate resource policy.
+
+An operation is one desktop command or outer `save_operation()` library context;
+nested reads, edits, staging verification and recovery share it. Separate reservation,
+writer and recovery subprocesses each enforce their own operation budget. Aggregates
+count distinct immutable payloads by SHA-256: exact source rereads, exact backups
+and repeated JSON validation share an entry. Generated output also counts before
+transaction preparation or backup creation. This bounds the set of payloads being
+processed rather than cumulative I/O across the fixed verification passes. Counting
+every reread as a new input would reject a large transaction after its receipt or
+backup had already been created. Fingerprints used for resource accounting do not
+replace filesystem identities, source-byte comparisons or mutation authorization.
+
+Run, MetaSave, backup and recovery reads check the opened object's size, then cap
+actual reads at the encrypted limit plus one byte to detect growth. Recovery hashes
+in bounded chunks and preflights current, backup and staged bytes before adopting
+or settling receipts or deleting temporary evidence. Canonical recovery additionally
+preflights decoding. Size failures retain original bytes and recovery evidence and
+return sanitized `save_unsupported` errors; a failure after staging retains the
+staging file for explicit recovery. Existing receipt-size bounds remain separate.
+
+ES3 uses AES-CBC without decompression, so admitted encrypted input already limits
+raw decrypted output to less than 32 MiB. The explicit plaintext limits are enforced
+before UTF-8 decoding and JSON parsing, and on edited output before encryption.
+Decryption, standard JSON parsing/serialization and preservation of raw JSON spans
+still materialize buffers and object graphs; these byte budgets are **not streaming
+JSON, a strict process-memory limit, or a measured peak-RSS guarantee**. Multiple
+bounded cipher buffers, Unicode strings, parsed objects, deep copies and serializer
+output coexist. Source-free library encryption accepts caller-owned Python objects;
+its standard serializer materializes output before checking the plaintext ceiling.
+Malformed and excessively nested JSON is rejected without exposing plaintext.
 
 Before a whole-document overwrite, Python validates numeric literals in the original
 encrypted snapshot against their existing JSON encoder representation using exact

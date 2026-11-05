@@ -79,6 +79,13 @@ from desktop.python.repo_save_editor.services.player.state import get_players
 
 ## Desktop runtime
 
+Run and MetaSave processing enforce provisional encrypted/plaintext and aggregate
+byte ceilings. Oversized inputs fail with a sanitized unsupported-size error while
+retaining recovery evidence. These are engineering budgets, not measured game-save
+compatibility limits or strict process-memory bounds; see the
+[save-processing architecture](../../docs/architecture/architecture.md) for exact
+limits, operation boundaries and allocation limitations.
+
 During development, Electron launches the repository-root `.venv` and
 uses `repo_save_editor.desktop_api`.
 

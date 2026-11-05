@@ -7,6 +7,11 @@ from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.crypto import SaveCryptoError, encrypt_save_fields
+from repo_save_editor.core.save_resources import (
+    RESOURCE_MESSAGE,
+    SaveResourceError,
+    bounded_save_operation,
+)
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
@@ -33,6 +38,7 @@ from repo_save_editor.storage.repository import (
     SaveStaleError,
     SaveVerificationError,
     SaveWriteError,
+    read_save_bytes,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
@@ -54,6 +60,7 @@ def _meta_path(root: Path | None) -> Path:
     return roots.meta_save
 
 
+@bounded_save_operation
 def _load_meta_save(
     root: Path | None,
     directory: SaveDirectory | None = None,
@@ -61,10 +68,12 @@ def _load_meta_save(
     path = _meta_path(root)
     repository = EncryptedSaveRepository(path.parent, validate_meta_save)
     try:
-        source = directory.read(path) if directory is not None else path.read_bytes()
+        source = read_save_bytes(path, directory)
         return path, repository.load_bytes(source), source, repository
     except FileNotFoundError as exc:
         raise DesktopSaveError("meta_missing", "MetaSave.es3 was not found.") from exc
+    except SaveResourceError as exc:
+        raise DesktopSaveError("save_unsupported", RESOURCE_MESSAGE) from exc
     except SaveCryptoError as exc:
         raise DesktopSaveError(
             "save_decrypt_failed", "MetaSave.es3 could not be decrypted."
@@ -195,6 +204,7 @@ def _apply_changes(
     validate_meta_save(data)
 
 
+@bounded_save_operation
 def save_cosmetics(
     expected_fingerprint: str,
     changes: object,
@@ -258,6 +268,8 @@ def save_cosmetics(
         return _failure(exc.code, exc.message)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
+    except SaveResourceError:
+        return _failure("save_unsupported", RESOURCE_MESSAGE)
     except SaveCryptoError:
         return _failure("save_write_failed", "MetaSave.es3 could not be written safely.")
     except (ValueError, TypeError) as exc:

@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import cast
 
 from repo_save_editor.core.crypto import SaveCryptoError
+from repo_save_editor.core.save_resources import (
+    RESOURCE_MESSAGE,
+    SaveResourceError,
+    bounded_save_operation,
+)
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
@@ -50,6 +55,7 @@ from repo_save_editor.storage.repository import (
     SaveStaleError,
     SaveVerificationError,
     SaveWriteError,
+    read_save_bytes,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
@@ -74,6 +80,7 @@ def _discovered_save(save_id: str, root: Path | None = None) -> DiscoveredSave:
     return save
 
 
+@bounded_save_operation
 def load_discovered_save(
     save_id: str,
     root: Path | None = None,
@@ -84,10 +91,12 @@ def load_discovered_save(
     save = _discovered_save(save_id, root)
 
     try:
-        source = directory.read(save.path) if directory is not None else save.path.read_bytes()
+        source = read_save_bytes(save.path, directory)
         return save, SaveRepository.load_bytes(source), source
     except FileNotFoundError as exc:
         raise DesktopSaveError("save_missing", "The selected save no longer exists.") from exc
+    except SaveResourceError as exc:
+        raise DesktopSaveError("save_unsupported", RESOURCE_MESSAGE) from exc
     except SaveCryptoError as exc:
         if "too small" in str(exc):
             raise DesktopSaveError("save_corrupt", "The selected save is corrupted.") from exc
@@ -235,6 +244,7 @@ def _canonical_applied_state(
     return canonical
 
 
+@bounded_save_operation
 def save_changes(
     save_id: str,
     expected_fingerprint: str,
@@ -341,7 +351,10 @@ def save_changes(
     except SaveCryptoError:
         return _failure("save_write_failed", "The edited save could not be encrypted safely.")
     except (ValueError, TypeError) as exc:
-        return _failure("save_validation_failed", str(exc))
+        return _failure(
+            "save_unsupported" if isinstance(exc, SaveResourceError) else "save_validation_failed",
+            str(exc),
+        )
     except SaveBackupError:
         return _failure(
             "backup_failed", "The original save could not be backed up. Nothing was written."

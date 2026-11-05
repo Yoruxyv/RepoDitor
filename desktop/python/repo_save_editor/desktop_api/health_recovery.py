@@ -7,6 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import cast
 
+from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
@@ -49,6 +50,7 @@ def _path(save_id: str, root: Path) -> Path:
     raise RecoveryError("save_missing")
 
 
+@bounded_save_operation
 def prepare_health(
     save_id: str,
     fingerprint: str,
@@ -90,6 +92,8 @@ def prepare_health(
             return _outcome(operation, "prepared")
     except (RecoveryError, DesktopSaveError, GameSafetyError) as exc:
         return _outcome(operation, "rejected", exc.code)
+    except SaveResourceError:
+        return _outcome(operation, "rejected", "save_unsupported")
     except (OSError, ValueError, TypeError):
         return _outcome(operation, "rejected", "backend_unavailable")
 
@@ -105,6 +109,7 @@ def _health_change(changes: object) -> bool:
     )
 
 
+@bounded_save_operation
 def write_health(
     save_id: str,
     fingerprint: str,
@@ -157,6 +162,9 @@ def write_health(
     except RecoveryError as exc:
         status = "uncertain" if transaction is not None and transaction.started else "rejected"
         return _outcome(operation, status, exc.code)
+    except SaveResourceError:
+        status = "uncertain" if transaction is not None and transaction.started else "rejected"
+        return _outcome(operation, status, "save_unsupported")
     except (OSError, ValueError, TypeError):
         return _outcome(
             operation,
@@ -165,6 +173,7 @@ def write_health(
         )
 
 
+@bounded_save_operation
 def recover_health(
     save_id: str, operation: str, root: Path, *, canonical: bool = False, acknowledge: bool = True
 ) -> dict[str, object]:
@@ -175,6 +184,9 @@ def recover_health(
         path = _path(save_id, root)
         with health_lock(path) as directory:
             transaction = HealthTransaction(path, operation, directory=directory)
+            if canonical:
+                # Preflight decoding before recovery can settle receipts or clean staging.
+                load_discovered_save(save_id, root, directory=directory)
             result = transaction.recover(acknowledge=not canonical)
             if canonical:
                 result["canonical"] = _canonical(
@@ -185,6 +197,10 @@ def recover_health(
             return {"ok": True, "transaction": {**result, "reason": None}}
     except RecoveryError as exc:
         return _outcome(operation, "busy" if exc.code == "write_busy" else "conflict", exc.code)
+    except SaveResourceError:
+        return _outcome(operation, "conflict", "save_unsupported")
+    except DesktopSaveError as exc:
+        return _outcome(operation, "conflict", exc.code)
     except (OSError, ValueError, TypeError):
         return _outcome(operation, "conflict", "backend_unavailable")
 
@@ -198,6 +214,7 @@ def _canonical(
     return {"opened": serialize_open_save(save, data, source), "players": serialize_players(data)}
 
 
+@bounded_save_operation
 def health_state(save_id: str, root: Path) -> dict[str, object]:
     """Rediscover pending identity/intent without acknowledging or replaying an operation."""
     try:

@@ -14,6 +14,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import BinaryIO, cast
 
+from repo_save_editor.core.save_resources import hash_encrypted, read_encrypted
+
 if os.name == "nt":
     import msvcrt
 
@@ -295,7 +297,7 @@ class SaveDirectory:
 
     def read(self, path: Path) -> bytes:
         with self.open(path) as stream:
-            return stream.read()
+            return read_encrypted(stream)
 
     def regular(self, path: Path, *, missing: bool = False) -> None:
         try:
@@ -324,12 +326,10 @@ class SaveDirectory:
     def snapshot(self, path: Path) -> tuple[str, list[int]]:
         with self.open(path) as stream:
             identity = self.file_identity(stream)
-            digest = sha256()
-            for chunk in iter(lambda: stream.read(65536), b""):
-                digest.update(chunk)
+            digest = hash_encrypted(stream)
             if self.file_identity(stream) != identity:
                 raise SaveNamespaceError("Save object changed during inspection")
-            return digest.hexdigest(), identity
+            return digest, identity
 
     def replace(self, source: BinaryIO, target: Path) -> None:
         name = self._leaf(target)

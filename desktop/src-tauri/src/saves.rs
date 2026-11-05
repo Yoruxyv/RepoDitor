@@ -233,7 +233,7 @@ pub(super) fn domain_error(raw: &serde_json::Value) -> Result<BackendError, Back
         ),
         Some("save_unsupported") => (
             "save_unsupported",
-            "The selected save format is not supported.",
+            "The save format is unsupported or its size exceeds RepoDitor's experimental resource limits.",
         ),
         Some("backend_unavailable") => (
             "backend_unavailable",

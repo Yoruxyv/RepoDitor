@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from repo_save_editor.services.run import set_run_stat
+from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import (
     SaveRepository,
     SaveStaleError,
@@ -110,11 +111,11 @@ def test_final_check_runs_after_stale_read_and_before_replace(
     edited = deepcopy(sample_save)
     set_run_stat(edited, "currency", 20)
     events = []
-    read_bytes = Path.read_bytes
+    read_bytes = repository_module.read_save_bytes
     replace = Path.replace
 
-    def read(target):
-        result = read_bytes(target)
+    def read(target, directory=None):
+        result = read_bytes(target, directory)
         events.append("source" if target == path else "staging")
         return result
 
@@ -127,7 +128,7 @@ def test_final_check_runs_after_stale_read_and_before_replace(
         events.append("replace")
         return replace(staging, target)
 
-    monkeypatch.setattr(Path, "read_bytes", read)
+    monkeypatch.setattr(repository_module, "read_save_bytes", read)
     monkeypatch.setattr(Path, "replace", commit)
     if reject:
         with pytest.raises(RuntimeError, match="final check rejected"):

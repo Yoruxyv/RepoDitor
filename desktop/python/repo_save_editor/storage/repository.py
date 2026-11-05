@@ -11,6 +11,12 @@ from pathlib import Path
 from secrets import token_hex
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save, validate_numeric_roundtrip
+from repo_save_editor.core.save_resources import (
+    SaveResourceError,
+    bounded_save_operation,
+    check_encrypted,
+    read_encrypted,
+)
 from repo_save_editor.core.schema import validate_run_save
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.storage.health_recovery import HealthTransaction, _unlink
@@ -33,6 +39,15 @@ class SaveWriteError(OSError):
     """Raised when staged output cannot atomically replace the source."""
 
 
+@bounded_save_operation
+def read_save_bytes(path: Path, directory: SaveDirectory | None = None) -> bytes:
+    """Read through the validated namespace when held, with actual byte bounds."""
+    if directory is not None:
+        return directory.read(path)
+    with path.open("rb") as stream:
+        return read_encrypted(stream)
+
+
 class EncryptedSaveRepository:
     """Shared encrypted-save persistence with caller-owned schema validation."""
 
@@ -40,9 +55,10 @@ class EncryptedSaveRepository:
         self.root = root
         self.validator = validator
 
+    @bounded_save_operation
     def load(self, path: Path, *, directory: SaveDirectory | None = None) -> SaveData:
         """Decrypt and validate one save."""
-        return self.load_bytes(directory.read(path) if directory is not None else path.read_bytes())
+        return self.load_bytes(read_save_bytes(path, directory))
 
     def load_bytes(self, blob: bytes) -> SaveData:
         """Decrypt and validate one in-memory save snapshot."""
@@ -50,6 +66,7 @@ class EncryptedSaveRepository:
         self.validator(data)
         return data
 
+    @bounded_save_operation
     def overwrite(
         self,
         path: Path,
@@ -82,12 +99,14 @@ class EncryptedSaveRepository:
             SaveWriteError: Staging or atomic replacement fails.
         """
         self.validator(data)
-        source = directory.read(path) if directory is not None else path.read_bytes()
+        source = read_save_bytes(path, directory)
         if expected_source is not None and source != expected_source:
             raise SaveStaleError("The save changed after it was opened.")
 
         if encoder is None:
             validate_numeric_roundtrip(source)
+        written = encrypt_save(data) if encoder is None else encoder(data, source)
+        check_encrypted(written)
         if health_transaction is not None:
             health_transaction.prepare(source)
         backup = (
@@ -95,7 +114,6 @@ class EncryptedSaveRepository:
             if health_transaction is None
             else health_transaction.create_backup(source)
         )
-        written = encrypt_save(data) if encoder is None else encoder(data, source)
         temp_path: Path | None = None
         ownership = ExitStack()
         try:
@@ -109,22 +127,11 @@ class EncryptedSaveRepository:
                 if directory is not None
                 else None
             )
-            try:
-                verified = (
-                    self.load(temp_path, directory=directory)
-                    if directory is not None
-                    else self.load(temp_path)
-                )
-                if verified != data:
-                    raise SaveVerificationError("The staged save did not match the edited data.")
-            except SaveVerificationError:
-                raise
-            except (OSError, ValueError) as exc:
-                raise SaveVerificationError("The staged save could not be verified.") from exc
+            self._verify_staged(temp_path, data, directory)
 
             if health_transaction is not None:
                 health_transaction.verified(written)
-            current = directory.read(path) if directory is not None else path.read_bytes()
+            current = read_save_bytes(path, directory)
             if current != source:
                 raise SaveStaleError("The save changed while edits were being prepared.")
             if before_replace is not None:
@@ -137,9 +144,13 @@ class EncryptedSaveRepository:
             except OSError as exc:
                 raise SaveWriteError("The original save could not be replaced.") from exc
             temp_path = None
-        except (SaveStaleError, SaveVerificationError, SaveWriteError):
+        except SaveResourceError:
+            # Preserve attributed staging and receipts for explicit operator recovery.
+            temp_path = None
             raise
         except OSError as exc:
+            if isinstance(exc, (SaveStaleError, SaveVerificationError, SaveWriteError)):
+                raise
             raise SaveWriteError("The edited save could not be staged.") from exc
         finally:
             try:
@@ -150,6 +161,17 @@ class EncryptedSaveRepository:
                         _unlink(temp_path, directory, missing=True)
         return backup, written
 
+    def _verify_staged(self, path: Path, data: SaveData, directory: SaveDirectory | None) -> None:
+        try:
+            verified = self.load(path, directory=directory) if directory else self.load(path)
+            if verified != data:
+                raise SaveVerificationError("The staged save did not match the edited data.")
+        except (SaveVerificationError, SaveResourceError):
+            raise
+        except (OSError, ValueError) as exc:
+            raise SaveVerificationError("The staged save could not be verified.") from exc
+
+    @bounded_save_operation
     def save_as(self, path: Path, data: SaveData) -> None:
         """Write edited save data to a separate path atomically."""
         self.validator(data)
@@ -237,11 +259,10 @@ class SaveRepository(EncryptedSaveRepository):
         super().__init__(root, validate_run_save)
 
     @staticmethod
+    @bounded_save_operation
     def load(path: Path, *, directory: SaveDirectory | None = None) -> SaveData:
         """Decrypt and validate one run save."""
-        return SaveRepository.load_bytes(
-            directory.read(path) if directory is not None else path.read_bytes()
-        )
+        return SaveRepository.load_bytes(read_save_bytes(path, directory))
 
     @staticmethod
     def load_bytes(blob: bytes) -> SaveData:

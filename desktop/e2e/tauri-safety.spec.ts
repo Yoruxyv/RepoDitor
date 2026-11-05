@@ -1,6 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, cp, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  stat,
+  truncate,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
 import {
@@ -64,6 +74,73 @@ async function exactBackup(source: string, before: Buffer) {
   expect(name).toBeTruthy();
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
+
+test("ordinary frozen reads reject oversized Run and MetaSave inputs", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const meta = path.join(path.dirname(path.dirname(path.dirname(f.source))), "MetaSave.es3");
+  await writeFile(meta, "");
+  const size = 32 * 1024 * 1024 + 1;
+  await truncate(f.source, size);
+  await truncate(meta, size);
+  const app = await launch(f.executable, f.home);
+  try {
+    for (const [command, args] of [
+      ["saves_open", { saveId: E2E_SAVE_ID }],
+      ["cosmetics_get", {}],
+    ] as const) {
+      expect(await native(app.page, command, args)).toMatchObject({
+        ok: false,
+        error: {
+          code: "save_unsupported",
+          message: expect.stringMatching(/size.*resource limits/),
+        },
+      });
+    }
+    expect((await stat(f.source)).size).toBe(size);
+    expect((await stat(meta)).size).toBe(size);
+    expect(await readdir(path.dirname(f.source))).toEqual([path.basename(f.source)]);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("frozen recovery preserves oversized backup and pending evidence", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info);
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  try {
+    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+      status: "applied",
+    });
+    const parent = path.dirname(f.source);
+    const names = await readdir(parent);
+    const backup = path.join(
+      parent,
+      names.find((name) => name.includes(".bak-health-"))!,
+    );
+    const receipt = path.join(parent, `.${path.basename(f.source)}.health-pending.json`);
+    const originalReceipt = await readFile(receipt);
+    const applied = await readFile(f.source);
+    await truncate(backup, 32 * 1024 * 1024 + 1);
+    expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+      status: "conflict",
+      reason: "save_unsupported",
+    });
+    expect(await readFile(receipt)).toEqual(originalReceipt);
+    expect(await readFile(f.source)).toEqual(applied);
+    expect((await stat(backup)).size).toBe(32 * 1024 * 1024 + 1);
+    expect(await readdir(parent)).toEqual(names);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
 
 for (const final of ["not_running", "running", "unknown", "query_error"]) {
   test(`final ${final}: frozen Python blocks unsafe replacement`, async ({ browserName }, info) => {

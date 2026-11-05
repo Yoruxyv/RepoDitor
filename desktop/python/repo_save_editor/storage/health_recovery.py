@@ -15,6 +15,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import BinaryIO
 
+from repo_save_editor.core.save_resources import (
+    bounded_save_operation,
+    check_encrypted,
+    hash_encrypted,
+)
 from repo_save_editor.storage.windows_save_directory import SaveDirectory, SaveNamespaceError
 
 if sys.platform == "win32":
@@ -102,11 +107,8 @@ def _hash(path: Path, directory: SaveDirectory | None = None) -> str:
     if directory is not None:
         return directory.snapshot(path)[0]
     _regular(path)
-    result = sha256()
     with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            result.update(chunk)
-    return result.hexdigest()
+        return hash_encrypted(stream)
 
 
 def _identity(path: Path) -> list[int]:
@@ -393,7 +395,9 @@ class HealthTransaction:
         ):
             raise RecoveryError("write_conflict")
 
+    @bounded_save_operation
     def prepare(self, source: bytes) -> None:
+        check_encrypted(source)
         if self.resumed:
             receipt = self._read(self.pending)
             if (
@@ -431,6 +435,7 @@ class HealthTransaction:
         if self.directory is not None and receipt.namespace != self.directory.identity:
             raise RecoveryError("write_conflict")
 
+    @bounded_save_operation
     def resume(self) -> None:
         """Claim a durably acknowledged reservation before doing any save work."""
         if _present(self.archive, directory=self.directory):
@@ -455,14 +460,17 @@ class HealthTransaction:
         self.intent = receipt.intent
 
     def create_backup(self, source: bytes) -> Path:
+        check_encrypted(source)
         _flush_write(self.backup, source, directory=self.directory)
         return self.backup
 
     def stage(self, written: bytes) -> Path:
+        check_encrypted(written)
         _flush_write(self.temporary, written, directory=self.directory)
         return self.temporary
 
     def verified(self, written: bytes) -> None:
+        check_encrypted(written)
         receipt = self._read(self.pending)
         after = sha256(written).hexdigest()
         if after == receipt.before:
@@ -546,10 +554,18 @@ class HealthTransaction:
             return "unchanged", backup_exact
         raise RecoveryError("write_conflict")
 
+    def _preflight_resources(self) -> None:
+        # Resource rejection must precede adoption, settlement, and evidence cleanup.
+        for path in (self.path, self.backup, self.temporary):
+            if _present(path, directory=self.directory):
+                _hash(path, directory=self.directory)
+
+    @bounded_save_operation
     def recover(
         self, *, own_completion: bool = False, acknowledge: bool = True
     ) -> dict[str, object]:
         """Classify actual bytes and settle once; never replay a mutation or delete backups."""
+        self._preflight_resources()
         active = _present(self.pending, directory=self.directory)
         archived = _present(self.archive, directory=self.directory)
         if not active and not archived:

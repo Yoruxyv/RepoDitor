@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 
+from repo_save_editor.core.save_resources import bounded_save_operation
 from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
 from repo_save_editor.desktop_api.cosmetic_preparation import (
     parse_cosmetic_ids,
@@ -297,6 +298,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+@bounded_save_operation
 def main() -> None:
     """Execute one bounded desktop command and emit its declared JSON protocol."""
     args = _parser().parse_args()

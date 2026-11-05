@@ -12,6 +12,13 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.padding import PKCS7
 
 from repo_save_editor.core.json_fields import replace_es3_values
+from repo_save_editor.core.save_resources import (
+    ENCRYPTED_LIMIT,
+    SaveResourceError,
+    bounded_save_operation,
+    check_encrypted,
+    check_plaintext,
+)
 
 
 class SaveCryptoError(ValueError):
@@ -45,6 +52,7 @@ def _derive_key(password: bytes, iv: bytes) -> bytes:
     )
 
 
+@bounded_save_operation
 def decrypt_save(blob: bytes) -> dict[str, Any]:
     """Decrypt an ES3 container and decode its JSON object.
 
@@ -61,7 +69,7 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
     plaintext = _decrypt_plaintext(blob)
     try:
         data = json.loads(plaintext.decode("utf-8"))
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise SaveCryptoError("The decrypted save is not valid JSON.") from exc
 
     if not isinstance(data, dict):
@@ -71,6 +79,7 @@ def decrypt_save(blob: bytes) -> dict[str, Any]:
 
 
 def _decrypt_plaintext(blob: bytes) -> bytes:
+    check_encrypted(blob)
     if len(blob) <= ES3_COMPAT_IV_SIZE_BYTES:
         raise SaveCryptoError("The selected file is too small to be a supported save.")
 
@@ -85,17 +94,21 @@ def _decrypt_plaintext(blob: bytes) -> bytes:
 
         unpadder = PKCS7(ES3_COMPAT_AES_BLOCK_SIZE_BITS).unpadder()
         plaintext = unpadder.update(padded) + unpadder.finalize()
-
-        plaintext.decode("utf-8")
     except ValueError as exc:
         raise SaveCryptoError(
             "Unable to decrypt this save. It may be corrupted or from an "
             "unsupported R.E.P.O. version."
         ) from exc
 
+    check_plaintext(plaintext)
+    try:
+        plaintext.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SaveCryptoError("The decrypted save is not valid UTF-8.") from exc
     return plaintext
 
 
+@bounded_save_operation
 def encrypt_save(data: dict[str, Any]) -> bytes:
     """Encode and encrypt a save using the game-compatible ES3 container.
 
@@ -114,13 +127,17 @@ def encrypt_save(data: dict[str, Any]) -> bytes:
             ensure_ascii=False,
             indent=4,
         ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, RecursionError) as exc:
         raise SaveCryptoError("The edited save cannot be serialized.") from exc
 
     return _encrypt_plaintext(plaintext)
 
 
 def _encrypt_plaintext(plaintext: bytes) -> bytes:
+    check_plaintext(plaintext)
+    # CBC adds an IV and at least one padding byte; reject before cipher allocation.
+    if ES3_COMPAT_IV_SIZE_BYTES + (len(plaintext) // 16 + 1) * 16 > ENCRYPTED_LIMIT:
+        raise SaveResourceError
     iv = os.urandom(ES3_COMPAT_IV_SIZE_BYTES)
     key = _derive_key(ES3_PASSWORD.encode("utf-8"), iv)
 
@@ -131,9 +148,12 @@ def _encrypt_plaintext(plaintext: bytes) -> bytes:
     encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
     ciphertext = encryptor.update(padded) + encryptor.finalize()
 
-    return iv + ciphertext
+    blob = iv + ciphertext
+    check_encrypted(blob)
+    return blob
 
 
+@bounded_save_operation
 def validate_numeric_roundtrip(source: bytes) -> None:
     """Reject numeric loss and ambiguous objects before whole-document serialization."""
 
@@ -164,12 +184,13 @@ def validate_numeric_roundtrip(source: bytes) -> None:
             parse_int=integer,
             object_pairs_hook=object_fields,
         )
-    except (ValueError, DecimalException, OverflowError) as exc:
+    except (ValueError, DecimalException, OverflowError, RecursionError) as exc:
         raise SaveCryptoError(
             "The save contains unsupported numeric values or ambiguous JSON fields."
         ) from exc
 
 
+@bounded_save_operation
 def encrypt_save_fields(data: dict[str, Any], source: bytes, fields: frozenset[str]) -> bytes:
     """Replace only selected ES3 .value fields and preserve all other plaintext bytes."""
     from_source = _decrypt_plaintext(source).decode("utf-8")
@@ -192,6 +213,8 @@ def encrypt_save_fields(data: dict[str, Any], source: bytes, fields: frozenset[s
         if before["value"] != after["value"]:
             replacements[key] = after["value"]
     plaintext = replace_es3_values(from_source, replacements)
+    encoded = plaintext.encode("utf-8")
+    check_plaintext(encoded)
     if json.loads(plaintext) != data:
         raise SaveCryptoError("Preserved JSON does not match the requested edit.")
-    return _encrypt_plaintext(plaintext.encode("utf-8"))
+    return _encrypt_plaintext(encoded)

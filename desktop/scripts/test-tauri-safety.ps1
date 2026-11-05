@@ -90,7 +90,7 @@ try {
         '--basetemp', (Join-Path $output 'python-fixtures'), '-o', "cache_dir=$output/pytest-cache", '--junitxml', (Join-Path $output 'python.xml'))
     [xml]$python = Get-Content -LiteralPath (Join-Path $output 'python.xml') -Raw
     if ($python.SelectNodes('//testcase/skipped').Count -ne 0) { throw 'Mandatory Windows save-integrity tests were skipped.' }
-    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui')) {
+    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
@@ -138,7 +138,9 @@ try {
         'legacy receipt 2 remains blocked without rewriting namespace evidence',
         'synthetic upgrade drafts review and revert without writing save or receipt bytes',
         'upgrade drafts block partial health Save until explicitly reverted',
-        'ordinary artifact retains read-only upgrades with no draft controls'
+        'ordinary artifact retains read-only upgrades with no draft controls',
+        'ordinary frozen reads reject oversized Run and MetaSave inputs',
+        'frozen recovery preserves oversized backup and pending evidence'
     )) {
         if ($case -notin $titles) { throw "Required native case was not collected: $case" }
     }

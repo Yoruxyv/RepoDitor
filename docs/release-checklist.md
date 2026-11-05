@@ -533,8 +533,9 @@ production Tauri writes. Do not change system policy or production permissions a
 part of the synthetic drill.
 
 Production release additionally requires domain-specific game-build approval,
-an encrypted-save resource policy, supported Windows/filesystem validation, remote
-CI confirmation and ordinary release/installer acceptance. These prerequisites
+compatibility measurements for the provisional encrypted-save resource ceilings,
+supported Windows/filesystem validation, remote CI confirmation and ordinary
+release/installer acceptance. These prerequisites
 cannot be replaced by the synthetic recovery drill or a successful read-only open.
 
 ## Manual security and safety review
