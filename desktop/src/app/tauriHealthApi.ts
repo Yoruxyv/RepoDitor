@@ -1,16 +1,31 @@
 /** Narrow synthetic-only health transport; the native host owns authority. */
 import { invoke } from "@tauri-apps/api/core";
-import type { PlayerDto, SaveOpenResult } from "@electron/contracts";
+import type { PlayerDto, PlayerUpgradeDto, SaveOpenResult } from "@electron/contracts";
 
 export interface HealthCanonical {
   opened: SaveOpenResult;
   players: PlayerDto[];
+  upgrades?: PlayerUpgradeDto[];
 }
 
-export interface HealthIntent {
+export interface HealthValueIntent {
   playerId: string;
   health: number;
   before: number;
+}
+export interface UpgradeIntentEdit {
+  playerId: string;
+  key: string;
+  before: number;
+  value: number;
+}
+export type HealthIntent = HealthValueIntent | { upgrades: UpgradeIntentEdit[] };
+export const UPGRADE_INTENT_LIMIT = 2048;
+export function upgradeIntentFits(upgrades: readonly UpgradeIntentEdit[]): boolean {
+  return (
+    upgrades.length > 0 &&
+    new TextEncoder().encode(JSON.stringify({ upgrades })).length <= UPGRADE_INTENT_LIMIT
+  );
 }
 
 export interface HealthState {
@@ -18,6 +33,7 @@ export interface HealthState {
   state: "disabled" | "idle" | "pending" | "busy" | "blocked";
   pending: { operationId: string; fingerprint: string; intent: HealthIntent | null } | null;
   canonical: HealthCanonical | null;
+  upgradeSession?: string | null;
 }
 
 export interface HealthTransaction {
@@ -36,6 +52,13 @@ export interface HealthWrite {
   health: number;
   operationId: string;
 }
+export interface UpgradesWrite {
+  saveId: string;
+  fingerprint: string;
+  operationId: string;
+  session: string;
+  upgrades: UpgradeIntentEdit[];
+}
 
 function unresolved(operationId: string, status: "uncertain" | "conflict"): HealthTransaction {
   return {
@@ -49,6 +72,13 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
+  async writeUpgrades(request: UpgradesWrite): Promise<HealthTransaction> {
+    try {
+      return await invoke<HealthTransaction>("test_upgrades_write", { request });
+    } catch {
+      return unresolved(request.operationId, "uncertain");
+    }
+  },
   async state(saveId: string): Promise<HealthState> {
     try {
       const result = await invoke<HealthState>("test_health_state", { saveId });

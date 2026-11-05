@@ -30,6 +30,7 @@ else:
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _RECEIPT_LIMIT = 4096
+UPGRADE_INTENT_LIMIT = 2048
 
 
 class RecoveryError(OSError):
@@ -281,7 +282,7 @@ def _receipt_bytes(value: Receipt) -> bytes:
         del payload["namespace"]
     if value.version == 1:
         del payload["intent"]
-    return json.dumps(payload, sort_keys=True).encode()
+    return json.dumps(payload, sort_keys=True, ensure_ascii=value.version != 4).encode()
 
 
 class HealthTransaction:
@@ -297,7 +298,7 @@ class HealthTransaction:
     ) -> None:
         if not valid_operation(operation):
             raise RecoveryError("invalid_request")
-        if intent is not None and not valid_intent(intent):
+        if intent is not None and not (valid_intent(intent) or valid_upgrade_intent(intent)):
             raise RecoveryError("invalid_request")
         self.path = path
         self.directory = directory
@@ -334,8 +335,17 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3}
+                or value.version not in {1, 2, 3, 4}
                 or (value.version == 2 and not valid_intent(value.intent))
+                or (
+                    value.version == 4
+                    and (
+                        not valid_upgrade_intent(value.intent)
+                        or (
+                            value.namespace is not None and _HASH.fullmatch(value.namespace) is None
+                        )
+                    )
+                )
                 or (
                     value.version == 3
                     and (
@@ -371,6 +381,9 @@ class HealthTransaction:
             raise RecoveryError("write_conflict") from exc
 
     def _write(self, value: Receipt, target: Path) -> None:
+        blob = _receipt_bytes(value)
+        if len(blob) > _RECEIPT_LIMIT:
+            raise RecoveryError("write_conflict")
         _regular(target, missing=True, directory=self.directory)
         _regular(self.receipt_temp, missing=True, directory=self.directory)
         # An existing temp can only be removed after a valid receipt attributes it.
@@ -379,7 +392,6 @@ class HealthTransaction:
                 self.pending if _present(self.pending, directory=self.directory) else self.archive
             )
             _unlink(self.receipt_temp, self.directory)
-        blob = _receipt_bytes(value)
         _flush_write(self.receipt_temp, blob, directory=self.directory)
         _publish(self.receipt_temp, target, self.directory, expected=blob)
 
@@ -424,7 +436,15 @@ class HealthTransaction:
                 identity,
                 os.getpid(),
                 self.process_started,
-                version=3 if self.directory is not None else 2 if self.intent is not None else 1,
+                version=(
+                    4
+                    if valid_upgrade_intent(self.intent)
+                    else 3
+                    if self.directory is not None
+                    else 2
+                    if self.intent is not None
+                    else 1
+                ),
                 namespace=self.directory.identity if self.directory is not None else None,
                 intent=self.intent,
             ),
@@ -620,6 +640,46 @@ class HealthTransaction:
             "fingerprint": fingerprint,
             "backupAvailable": backup,
         }
+
+
+def valid_upgrade_intent(value: object) -> bool:
+    """Bound durable upgrade identities and values without granting schema authority."""
+    if not isinstance(value, dict) or set(value) != {"upgrades"}:
+        return False
+    edits = value["upgrades"]
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 512:
+        return False
+    seen = set()
+    for edit in edits:
+        if not isinstance(edit, dict) or set(edit) != {"playerId", "key", "value", "before"}:
+            return False
+        player, key = edit["playerId"], edit["key"]
+        if (
+            not isinstance(player, str)
+            or not 0 < len(player) <= 20
+            or not player.isascii()
+            or not player.isdigit()
+            or not isinstance(key, str)
+            or not key.startswith("playerUpgrade")
+            or key == "playerUpgrade"
+            or "\0" in key
+            or len(key.encode("utf-8", errors="surrogatepass")) > 512
+            or type(edit["value"]) is not int
+            or not 0 <= edit["value"] <= 2_147_483_647
+            or type(edit["before"]) is not int
+            or not 0 <= edit["before"] <= 9_007_199_254_740_991
+            or edit["value"] == edit["before"]
+            or (player, key) in seen
+        ):
+            return False
+        seen.add((player, key))
+    try:
+        return (
+            len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+            <= UPGRADE_INTENT_LIMIT
+        )
+    except UnicodeEncodeError:
+        return False
 
 
 def valid_intent(value: object) -> bool:

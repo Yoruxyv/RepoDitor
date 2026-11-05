@@ -2,7 +2,7 @@
 use crate::{
     backend::{self, Operation},
     error::{BackendError, Outcome},
-    players, saves,
+    players, saves, upgrades,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -26,14 +26,50 @@ pub struct Transaction {
 pub struct Canonical {
     opened: saves::SaveOpenResult,
     players: Vec<players::Player>,
+    upgrades: Vec<upgrades::Upgrade>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Intent {
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HealthIntent {
     player_id: String,
     health: i64,
     before: i64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpgradeEdit {
+    player_id: String,
+    key: String,
+    value: i64,
+    before: i64,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum Intent {
+    Health(HealthIntent),
+    Upgrades(UpgradeIntent),
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpgradeIntent {
+    upgrades: Vec<UpgradeEdit>,
+}
+
+fn valid_upgrade_intent(intent: &UpgradeIntent) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    !intent.upgrades.is_empty()
+        && intent.upgrades.len() <= 512
+        && intent.upgrades.iter().all(|edit| {
+            players::valid_id(&edit.player_id)
+                && saves::valid_upgrade_key(&edit.key)
+                && (0..=2_147_483_647).contains(&edit.value)
+                && (0..=9_007_199_254_740_991).contains(&edit.before)
+                && edit.value != edit.before
+                && seen.insert((&edit.player_id, &edit.key))
+        })
+        && serde_json::to_vec(intent).is_ok_and(|bytes| bytes.len() <= 2048)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -45,11 +81,13 @@ pub struct Pending {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HealthState {
     enabled: bool,
     state: String,
     pending: Option<Pending>,
     canonical: Option<Canonical>,
+    upgrade_session: Option<String>,
 }
 
 fn unavailable(enabled: bool, state: &str) -> HealthState {
@@ -58,6 +96,7 @@ fn unavailable(enabled: bool, state: &str) -> HealthState {
         state: state.into(),
         pending: None,
         canonical: None,
+        upgrade_session: None,
     }
 }
 
@@ -78,6 +117,10 @@ fn canonical(
             &serde_json::to_vec(&json!({"ok":true,"players":raw["players"]}))
                 .map_err(|_| BackendError::Invalid)?,
         )?,
+        upgrades: upgrades::parse(
+            &serde_json::to_vec(&json!({"ok":true,"upgrades":raw["upgrades"]}))
+                .map_err(|_| BackendError::Invalid)?,
+        )?,
     })
 }
 
@@ -95,10 +138,13 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
                 .map_err(|_| BackendError::Invalid)?;
             if !hex(&pending.operation_id, 32)
                 || !hex(&pending.fingerprint, 64)
-                || pending.intent.as_ref().is_some_and(|i| {
-                    !players::valid_id(&i.player_id)
-                        || !(0..=2_147_483_647).contains(&i.health)
-                        || !(0..=9_007_199_254_740_991).contains(&i.before)
+                || pending.intent.as_ref().is_some_and(|intent| match intent {
+                    Intent::Health(i) => {
+                        !players::valid_id(&i.player_id)
+                            || !(0..=2_147_483_647).contains(&i.health)
+                            || !(0..=9_007_199_254_740_991).contains(&i.before)
+                    }
+                    Intent::Upgrades(i) => !valid_upgrade_intent(i),
                 })
             {
                 return Err(BackendError::Invalid);
@@ -119,12 +165,20 @@ pub async fn state(app: tauri::AppHandle, save: String) -> HealthState {
         return unavailable(true, "busy");
     }
     let expected = save.clone();
+    let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let session_save = save.clone();
     match backend::request(app, Operation::TestHealthState(save), move |bytes| {
         parse_state(bytes, &expected)
     })
     .await
     {
-        Outcome::Success { data, .. } => data,
+        Outcome::Success { mut data, .. } => {
+            if let Some(projection) = &data.canonical {
+                host.update_editor(&session_save, projection.opened.fingerprint());
+            }
+            data.upgrade_session = host.upgrade_session(&session_save);
+            data
+        }
         Outcome::Failure { .. } => unavailable(true, "blocked"),
     }
 }
@@ -302,6 +356,65 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
     dispatch(app, command, operation.into(), true, save).await
 }
 
+pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
+    let Some((save, operation)) = identity(&raw) else {
+        return failure("", "rejected", "invalid_request");
+    };
+    let intent: Result<UpgradeIntent, _> =
+        serde_json::from_value(json!({"upgrades":raw["upgrades"]}));
+    let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let valid = cfg!(feature = "synthetic-health-ui")
+        && test_root()
+        && raw.as_object().is_some_and(|r| r.len() == 5)
+        && raw["fingerprint"].as_str().is_some_and(|fp| {
+            hex(fp, 64)
+                && raw["session"]
+                    .as_str()
+                    .is_some_and(|session| host.accepts_upgrade(save, fp, session))
+        })
+        && intent.as_ref().is_ok_and(valid_upgrade_intent);
+    if !valid {
+        return failure(operation, "rejected", "invalid_request");
+    }
+    let payload = raw["upgrades"].to_string();
+    let fingerprint = raw["fingerprint"].as_str().unwrap();
+    let started = Instant::now();
+    let prepared = dispatch(
+        app.clone(),
+        Operation::TestUpgradesPrepare(
+            save.into(),
+            fingerprint.into(),
+            payload.clone(),
+            operation.into(),
+            started,
+        ),
+        operation.into(),
+        true,
+        save,
+    )
+    .await;
+    if prepared.status != "prepared" {
+        return prepared;
+    }
+    if !host.accepts_upgrade(save, fingerprint, raw["session"].as_str().unwrap()) {
+        return failure(operation, "uncertain", "invalid_request");
+    }
+    dispatch(
+        app,
+        Operation::TestUpgrades(
+            save.into(),
+            fingerprint.into(),
+            payload,
+            operation.into(),
+            started,
+        ),
+        operation.into(),
+        true,
+        save,
+    )
+    .await
+}
+
 pub async fn recover(app: tauri::AppHandle, raw: Value) -> Transaction {
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "conflict", "invalid_request");
@@ -318,20 +431,57 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Transaction {
     {
         return failure(operation, "conflict", "invalid_request");
     }
-    dispatch(
+    let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let result = dispatch(
         app,
         Operation::TestHealthRecover(save.into(), operation.into(), canonical, acknowledge),
         operation.into(),
         false,
         save,
     )
-    .await
+    .await;
+    if let Some(projection) = &result.canonical {
+        host.update_editor(save, projection.opened.fingerprint());
+    }
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
+    #[test]
+    fn upgrade_intent_rejects_forged_duplicate_and_oversized_entries() {
+        let raw = json!({"upgrades":[{"playerId":"111","key":"playerUpgradeStrength","before":2,"value":3}]});
+        let intent: UpgradeIntent = serde_json::from_value(raw.clone()).unwrap();
+        assert!(valid_upgrade_intent(&intent));
+        for (key, value) in [
+            ("playerId", json!("../111")),
+            ("key", json!("arbitrary")),
+            ("key", json!("playerUpgrade")),
+            ("key", json!("playerUpgrade\0X")),
+            ("before", json!(-1)),
+            ("value", json!(-1)),
+            ("value", json!(2_147_483_648i64)),
+        ] {
+            let mut bad = raw.clone();
+            bad["upgrades"][0][key] = value;
+            let intent: UpgradeIntent = serde_json::from_value(bad).unwrap();
+            assert!(!valid_upgrade_intent(&intent));
+        }
+        let duplicate = json!({"upgrades":[raw["upgrades"][0],raw["upgrades"][0]]});
+        assert!(!valid_upgrade_intent(
+            &serde_json::from_value(duplicate).unwrap()
+        ));
+        let mut forged = raw.clone();
+        forged["upgrades"][0]["path"] = json!("private");
+        assert!(serde_json::from_value::<UpgradeIntent>(forged).is_err());
+        let mut large = raw;
+        large["upgrades"] = json!((0..10).map(|n| json!({"playerId":n.to_string(),"key":format!("playerUpgrade{}", "X".repeat(400)),"before":0,"value":1})).collect::<Vec<_>>());
+        assert!(!valid_upgrade_intent(
+            &serde_json::from_value(large).unwrap()
+        ));
+    }
     #[test]
     fn pending_ui_state_is_bounded_and_does_not_accept_paths_or_forged_identities() {
         let raw = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":{"playerId":"111","health":17,"before":80}}});
@@ -359,6 +509,8 @@ mod tests {
     #[test]
     fn canonical_projection_reuses_read_validators_and_matches_the_reconciled_fingerprint() {
         let raw = json!({"opened":{"ok":true,"session":{"id":SAVE,"displayName":"Synthetic","path":"E:/synthetic/save.es3","lastModified":"2026-11-04T00:00:00+00:00","fingerprint":"b".repeat(64),"level":5,"currency":12,"playerCount":1,"resumeLocation":"Normal","private":"excluded"},"requiredUpgradeVisualKeys":[]},"players":[{"id":"111","name":"Alpha","health":17,"maxHealth":100,"private":"excluded"}]});
+        let mut raw = raw;
+        raw["upgrades"] = json!([]);
         let public =
             serde_json::to_value(canonical(&raw, SAVE, Some(&"b".repeat(64))).unwrap()).unwrap();
         assert_eq!(public["opened"]["session"]["name"], "Synthetic");

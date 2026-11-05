@@ -339,7 +339,7 @@ test("lost response restores durable intent after renderer reload without replay
     await openRecovery(app, "0 → 40");
     await expect(status).toHaveAttribute("data-operation-id", operation!);
     await expect(app.page.getByRole("spinbutton", { name: "Current health" })).toBeDisabled();
-    await app.page.getByRole("button", { name: "Reconcile health", exact: true }).focus();
+    await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).focus();
     await app.page.keyboard.press("Enter");
     await expect(status).toHaveAttribute("data-phase", "saved");
     await expect(app.page.getByRole("button", { name: /Beta/ })).toHaveAttribute(
@@ -388,7 +388,7 @@ test("native timeout preserves intent and keeps the status lane responsive", asy
     const timeoutMs = performance.now() - time;
     await reaped(pid);
     await expect(app.page.getByTestId("pending-health-edit")).toContainText("80 → 17");
-    await app.page.getByRole("button", { name: "Reconcile health", exact: true }).click();
+    await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
     await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "saved");
     expect(await backupNames(f.source)).toHaveLength(1);
     await writeFile(
@@ -429,7 +429,7 @@ for (const resolution of ["save", "revert"] as const) {
         "data-operation-id",
         operation!,
       );
-      await app.page.getByRole("button", { name: "Reconcile health", exact: true }).click();
+      await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
       await expect(app.page.getByTestId("health-status")).toHaveAttribute(
         "data-phase",
         "unchanged",
@@ -492,7 +492,7 @@ test("a matching health value cannot hide an external conflict", async ({ browse
     app = await launch(f.executable, f.home);
     closed = false;
     await openRecovery(app);
-    await app.page.getByRole("button", { name: "Reconcile health", exact: true }).click();
+    await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
     await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "conflict");
     await expect(
       app.page.getByRole("button", { name: "Save Changes", exact: true }),
@@ -533,7 +533,7 @@ test("interrupted reconciliation resumes after another application restart", asy
     });
     closed = false;
     await openRecovery(app);
-    await app.page.getByRole("button", { name: "Reconcile health", exact: true }).click();
+    await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
     pid = await started(f.home, "recovery_archive");
     await expect(app.page.getByTestId("health-status")).toHaveAttribute(
       "data-phase",
@@ -546,7 +546,7 @@ test("interrupted reconciliation resumes after another application restart", asy
     app = await launch(f.executable, f.home);
     closed = false;
     await openRecovery(app);
-    await app.page.getByRole("button", { name: "Reconcile health", exact: true }).click();
+    await app.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
     await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "saved");
     expect(await readFile(f.source)).toEqual(current);
     expect(await backupNames(f.source)).toHaveLength(1);

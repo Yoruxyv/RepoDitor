@@ -17,6 +17,7 @@
             "allow-cosmetics-get",
             "allow-preview-close",
             "allow-test-health-write",
+            "allow-test-upgrades-write",
             "allow-test-health-recover",
             "allow-test-health-state"
           ]

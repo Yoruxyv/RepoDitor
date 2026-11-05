@@ -15,6 +15,24 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 }
 
 describe("injected upgrade reads", () => {
+  it("keeps a canonical transaction snapshot when an older read completes later", async () => {
+    let complete!: (value: DesktopOperationResult<PlayerUpgradeDto[]>) => void;
+    const list = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useUpgrades(saveId, null, list), { wrapper });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    const canonical = upgrades.map((upgrade) => ({
+      ...upgrade,
+      values: upgrade.values.map((entry) => ({ ...entry, value: 9 })),
+    }));
+    act(() => result.current.acceptSnapshot(canonical));
+    await act(async () => complete({ ok: true, data: upgrades }));
+    expect(result.current.upgrades).toEqual(canonical);
+    expect(result.current.loading).toBe(false);
+  });
   it("loads once under StrictMode, coalesces retries and recovers from a translated failure", async () => {
     let complete!: (value: DesktopOperationResult<PlayerUpgradeDto[]>) => void;
     const list = vi

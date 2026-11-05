@@ -31,6 +31,8 @@ interface UpgradesViewProps {
   readonly onChange: ((upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void) | null;
   readonly onRevert: ((playerId: string, upgradeKey: string) => void) | null;
   readonly onRetry: () => void;
+  readonly onValidityChange?:
+    ((playerId: string, key: string, invalid: boolean) => void) | undefined;
 }
 
 function UpgradesSkeleton({ label }: { readonly label: string }) {
@@ -95,6 +97,7 @@ export function UpgradesView({
   onChange,
   onRevert,
   onRetry,
+  onValidityChange,
 }: UpgradesViewProps) {
   const { t } = usePreferences();
   const player = players.find((item) => item.id === selectedPlayerId) ?? players[0] ?? null;
@@ -203,6 +206,7 @@ export function UpgradesView({
                   resetVersion={resetVersion}
                   onChange={onChange}
                   onRevert={onRevert}
+                  onValidityChange={onValidityChange}
                 />
               </div>
             );
@@ -220,7 +224,11 @@ function UpgradeValue({
   resetVersion,
   onChange,
   onRevert,
-}: Pick<UpgradesViewProps, "pendingByUpgrade" | "resetVersion" | "onChange" | "onRevert"> & {
+  onValidityChange,
+}: Pick<
+  UpgradesViewProps,
+  "pendingByUpgrade" | "resetVersion" | "onChange" | "onRevert" | "onValidityChange"
+> & {
   readonly player: PlayerDto;
   readonly upgrade: PlayerUpgradeDto;
 }) {
@@ -235,6 +243,9 @@ function UpgradeValue({
   const parsed = Number(input);
   const invalid =
     input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0 || parsed > SAVE_INT32_MAX;
+  useEffect(() => {
+    onValidityChange?.(player.id, upgrade.key, invalid);
+  }, [onValidityChange, player.id, upgrade.key, invalid]);
   const errorId = `${upgrade.key}-error`;
   const pendingId = `${upgrade.key}-pending`;
   const description =
@@ -272,12 +283,12 @@ function UpgradeValue({
             const next = Number(value);
             if (value.trim() && Number.isSafeInteger(next) && next >= 0 && next <= SAVE_INT32_MAX) {
               onChange(upgrade, player, next);
-            } else {
+            } else if (!onValidityChange) {
               onRevert?.(player.id, upgrade.key);
             }
           }}
         />
-        {edit ? (
+        {edit || invalid ? (
           <button
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
             type="button"
@@ -288,6 +299,7 @@ function UpgradeValue({
                 return next;
               });
               onRevert?.(player.id, upgrade.key);
+              onValidityChange?.(player.id, upgrade.key, false);
             }}
           >
             {t("action.revert")}

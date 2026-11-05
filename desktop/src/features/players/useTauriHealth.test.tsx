@@ -6,7 +6,7 @@ import {
   type HealthState,
   type HealthTransaction,
 } from "@/app/tauriHealthApi";
-import { players, session } from "@/test/repoditorApiFixture";
+import { players, session, upgrades } from "@/test/repoditorApiFixture";
 import { useTauriHealth } from "./useTauriHealth";
 
 function canonical(health = 80, fingerprint = session.fingerprint): HealthCanonical {
@@ -17,10 +17,17 @@ function canonical(health = 80, fingerprint = session.fingerprint): HealthCanoni
       presentationReadiness: "ready",
     },
     players: players.map((player) => (player.id === "111" ? { ...player, health } : player)),
+    upgrades,
   };
 }
 function idle(projection = canonical()): HealthState {
-  return { enabled: true, state: "idle", pending: null, canonical: projection };
+  return {
+    enabled: true,
+    state: "idle",
+    pending: null,
+    canonical: projection,
+    upgradeSession: "synthetic-session",
+  };
 }
 function transaction(
   operationId: string,
@@ -38,6 +45,9 @@ function transaction(
 }
 function setup() {
   const api = {
+    writeUpgrades: vi
+      .fn<typeof tauriHealthApi.writeUpgrades>()
+      .mockImplementation(async (request) => transaction(request.operationId, "applied")),
     state: vi.fn<typeof tauriHealthApi.state>().mockResolvedValue(idle()),
     write: vi
       .fn<typeof tauriHealthApi.write>()
@@ -60,6 +70,108 @@ function stage(subject: ReturnType<typeof setup>, health = 17) {
 }
 
 describe("synthetic health ownership", () => {
+  function projectedUpgrade(value: number): HealthCanonical {
+    return {
+      ...canonical(80, "b".repeat(64)),
+      upgrades: upgrades.map((upgrade) => ({
+        ...upgrade,
+        values: upgrade.values.map((entry) =>
+          upgrade.key === "playerUpgradeStrength" && entry.playerId === "111"
+            ? { ...entry, value }
+            : entry,
+        ),
+      })),
+    };
+  }
+  it("keeps upgrade drafts locked after response loss and clears them only after canonical acknowledgement", async () => {
+    const subject = setup();
+    await ready(subject);
+    subject.api.writeUpgrades.mockImplementation(async (request) =>
+      transaction(request.operationId, "uncertain"),
+    );
+    subject.api.recover.mockImplementation(async (_save, operation) =>
+      transaction(operation, "applied", projectedUpgrade(3)),
+    );
+    const strength = upgrades.find((upgrade) => upgrade.key === "playerUpgradeStrength")!;
+    act(() => subject.result.current.editUpgrade(strength, players[0]!, 3));
+    await act(() => subject.result.current.save());
+    expect(subject.result.current.phase).toBe("recovery");
+    expect(subject.result.current.locked).toBe(true);
+    act(() => subject.result.current.revertUpgrade("111", strength.key));
+    expect(subject.result.current.upgradeEdits).toHaveLength(1);
+    await act(() => subject.result.current.recover());
+    expect(subject.result.current.phase).toBe("saved");
+    expect(subject.result.current.upgradeEdits).toHaveLength(0);
+    expect(subject.api.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);
+    expect(subject.api.write).not.toHaveBeenCalled();
+  });
+  it("does not acknowledge or clear a purported applied upgrade whose canonical value differs", async () => {
+    const subject = setup();
+    await ready(subject);
+    subject.api.recover.mockImplementation(async (_save, operation) =>
+      transaction(operation, "applied", projectedUpgrade(4)),
+    );
+    act(() =>
+      subject.result.current.editUpgrade(
+        upgrades.find((u) => u.key === "playerUpgradeStrength")!,
+        players[0]!,
+        3,
+      ),
+    );
+    await act(() => subject.result.current.save());
+    expect(subject.result.current.phase).toBe("conflict");
+    expect(subject.result.current.upgradeEdits[0]?.after).toBe(3);
+    expect(subject.api.recover).toHaveBeenCalledTimes(1);
+    expect(subject.api.recover).toHaveBeenCalledWith(session.id, expect.any(String), false);
+  });
+  it("blocks mixed Save and retains the other group when health alone is reverted", async () => {
+    const subject = setup();
+    await ready(subject);
+    stage(subject);
+    act(() =>
+      subject.result.current.editUpgrade(
+        upgrades.find((u) => u.key === "playerUpgradeStrength")!,
+        players[0]!,
+        3,
+      ),
+    );
+    await act(() => subject.result.current.save());
+    expect(subject.api.write).not.toHaveBeenCalled();
+    expect(subject.api.writeUpgrades).not.toHaveBeenCalled();
+    act(() => subject.result.current.revertHealth());
+    expect(subject.result.current.pending).toBeNull();
+    expect(subject.result.current.upgradeEdits).toHaveLength(1);
+  });
+  it("restores a durable batch after remount and retains unchanged drafts until explicit Revert", async () => {
+    const subject = setup();
+    await ready(subject);
+    const op = "c".repeat(32);
+    subject.api.state.mockResolvedValue({
+      enabled: true,
+      state: "pending",
+      canonical: null,
+      pending: {
+        operationId: op,
+        fingerprint: session.fingerprint,
+        intent: {
+          upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+        },
+      },
+      upgradeSession: "synthetic-session",
+    });
+    await act(() => subject.result.current.refresh());
+    await waitFor(() => expect(subject.result.current.phase).toBe("recovery"));
+    expect(subject.result.current.upgradeEdits[0]?.after).toBe(3);
+    subject.api.recover.mockImplementation(async (_save, operation) =>
+      transaction(operation, "unchanged", canonical()),
+    );
+    await act(() => subject.result.current.recover());
+    expect(subject.result.current.phase).toBe("unchanged");
+    expect(subject.result.current.upgradeEdits).toHaveLength(1);
+    await act(() => subject.result.current.revert());
+    expect(subject.result.current.upgradeEdits).toHaveLength(0);
+    expect(subject.api.recover).toHaveBeenLastCalledWith(session.id, op, true);
+  });
   it("keeps a read-only busy poll after an explicit refresh without replaying changes", async () => {
     const subject = setup();
     await ready(subject);

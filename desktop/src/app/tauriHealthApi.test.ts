@@ -8,6 +8,22 @@ beforeEach(() => {
   call.mockReset();
 });
 describe("synthetic native health transport", () => {
+  it("uses only the typed upgrade channel and treats response loss as uncertain", async () => {
+    const request = {
+      saveId: "save",
+      fingerprint: "a".repeat(64),
+      operationId: "b".repeat(32),
+      session: "test-session",
+      upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+    };
+    call.mockRejectedValue(new Error("private backend path"));
+    expect(await tauriHealthApi.writeUpgrades(request)).toMatchObject({
+      operationId: request.operationId,
+      status: "uncertain",
+      canonical: null,
+    });
+    expect(call).toHaveBeenCalledWith("test_upgrades_write", { request });
+  });
   it("keeps a normal host disabled and never guesses a successful outcome", async () => {
     call.mockRejectedValue(new Error("private backend path"));
     expect(await tauriHealthApi.state("save")).toMatchObject({ enabled: false, state: "disabled" });

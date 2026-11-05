@@ -60,8 +60,13 @@ async fn saves_open(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Save);
     };
+    #[cfg(feature = "synthetic-health-recovery")]
+    let state = app.state::<Arc<HostState>>().inner().clone();
     backend::request(app, Operation::Open(id.clone()), move |bytes| {
-        saves::parse(bytes, &id)
+        let opened = saves::parse(bytes, &id)?;
+        #[cfg(feature = "synthetic-health-recovery")]
+        state.open_editor(&id, opened.fingerprint());
+        Ok(opened)
     })
     .await
 }
@@ -164,6 +169,15 @@ async fn test_health_write(
 
 #[cfg(feature = "synthetic-health-recovery")]
 #[tauri::command]
+async fn test_upgrades_write(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::write_upgrades(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
 async fn test_health_recover(
     app: tauri::AppHandle,
     request: serde_json::Value,
@@ -193,6 +207,8 @@ fn main() {
             preview_close,
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_write,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_upgrades_write,
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_recover,
             #[cfg(feature = "synthetic-health-recovery")]

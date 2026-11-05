@@ -170,10 +170,10 @@ export const id: Record<keyof typeof en, string> = {
   "upgrades.input": "{upgrade} untuk {player}",
   "upgrades.error": "Nilai upgrade harus antara 0 dan 2.147.483.647.",
   "upgrades.draftOnly":
-    "Draf upgrade hanya tersimpan di memori. Draf dibuang saat Anda mengganti save atau menutup jendela ini.",
+    "Tinjau draf upgrade, lalu Simpan untuk menerapkannya ke save sintetis ini. Batalkan untuk membuang perubahan yang belum disimpan.",
   "upgrades.revertDrafts": "Batalkan draf upgrade",
   "upgrades.saveUnavailable":
-    "Menyimpan upgrade belum tersedia dalam pratinjau ini. Batalkan draf upgrade sebelum menyimpan kesehatan.",
+    "Simpan kesehatan dan upgrade secara terpisah. Batalkan salah satu kelompok atau kurangi draf upgrade yang terlalu besar sebelum menyimpan.",
   "run.readOnlyDescription": "Lihat nilai run dan lokasi melanjutkan yang tersimpan.",
   "run.loading": "Memuat status run…",
   "run.unavailable": "Run tidak tersedia",
@@ -364,23 +364,22 @@ export const id: Record<keyof typeof en, string> = {
   "error.saveStale": "Save berubah di disk. Buka ulang sebelum menyimpan perubahan.",
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",
   "error.copyPath": "Path tidak dapat disalin",
-  "health.testOnly":
-    "Uji sintetis: simpan kesehatan dan draf upgrade. Draf upgrade tidak pernah menulis file.",
-  "health.checking": "Memeriksa operasi kesehatan yang belum selesai…",
-  "health.reconciling": "Mencocokkan kesehatan dengan berkas simpanan…",
-  "health.recovery": "Hasil perubahan kesehatan belum pasti. Rekonsiliasi sebelum mengedit lagi.",
-  "health.saved": "Kesehatan disimpan dan diverifikasi.",
+  "health.testOnly": "Uji sintetis: simpan kesehatan dan upgrade. Build produksi tetap hanya-baca.",
+  "health.checking": "Memeriksa operasi penyimpanan yang belum selesai…",
+  "health.reconciling": "Mencocokkan perubahan dengan berkas simpanan…",
+  "health.recovery": "Hasil penyimpanan belum pasti. Rekonsiliasi sebelum mengedit lagi.",
+  "health.saved": "Perubahan disimpan dan diverifikasi.",
   "health.rejected": "Penyimpanan ditolak. Nilai tertunda tetap dipertahankan.",
   "health.unchanged":
     "Perubahan tertunda belum diterapkan. Tinjau nilainya sebelum menyimpan lagi.",
   "health.otherOperation":
-    "Operasi kesehatan lain perlu direkonsiliasi. Perubahan tertunda Anda tetap dipertahankan.",
+    "Operasi penyimpanan lain perlu direkonsiliasi. Perubahan tertunda Anda tetap dipertahankan.",
   "health.conflict":
     "Bukti pemulihan tidak dapat dicocokkan. Pengeditan diblokir; periksa kembali atau lakukan pemulihan manual.",
-  "health.status": "Status penyimpanan kesehatan",
+  "health.status": "Status penyimpanan",
   "health.persisted": "Di berkas: {name} · {health} / {max}",
   "health.backupVerified": "Cadangan asli terverifikasi.",
-  "health.reconcile": "Rekonsiliasi kesehatan",
+  "health.reconcile": "Rekonsiliasi perubahan",
   "health.recheck": "Periksa data pemulihan",
   "health.refresh": "Muat ulang nilai tersimpan",
 };

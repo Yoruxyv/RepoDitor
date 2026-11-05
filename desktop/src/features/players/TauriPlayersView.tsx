@@ -23,7 +23,7 @@ export function TauriPlayersView({
       selectedPlayerId={players.selectedPlayerId}
       pendingByPlayer={health.pending ? { [health.pending.entity]: health.pending } : {}}
       onHealthChange={canEdit ? health.edit : null}
-      onRevertHealth={canEdit ? () => void health.revert() : null}
+      onRevertHealth={canEdit ? health.revertHealth : null}
       healthEditingDisabled={canEdit && health.locked}
       onHealthValidityChange={health.setInvalid}
       resetVersion={health.resetVersion}

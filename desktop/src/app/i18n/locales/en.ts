@@ -169,10 +169,10 @@ export const en = {
   "upgrades.input": "{upgrade} for {player}",
   "upgrades.error": "Upgrade value must be between 0 and 2,147,483,647.",
   "upgrades.draftOnly":
-    "Upgrade drafts stay in memory. They are discarded when you change saves or close this window.",
+    "Review your upgrade drafts, then Save to persist them to this synthetic save. Revert discards unsaved changes.",
   "upgrades.revertDrafts": "Revert upgrade drafts",
   "upgrades.saveUnavailable":
-    "Saving upgrades is unavailable in this preview. Revert upgrade drafts before saving health.",
+    "Save health and upgrades separately. Revert one group or reduce a large upgrade batch before saving.",
   "run.readOnlyDescription": "View the saved run values and resume location.",
   "run.loading": "Loading run state…",
   "run.unavailable": "Run unavailable",
@@ -362,21 +362,21 @@ export const en = {
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
   "health.testOnly":
-    "Synthetic test: health saves and upgrade drafts. Upgrade drafts never write files.",
-  "health.checking": "Checking unfinished health operations…",
-  "health.reconciling": "Reconciling health with the saved file…",
-  "health.recovery": "The health outcome is uncertain. Reconcile before editing again.",
-  "health.saved": "Health saved and verified.",
+    "Synthetic test: health and upgrade saves. Production builds remain read-only.",
+  "health.checking": "Checking unfinished save operations…",
+  "health.reconciling": "Reconciling changes with the saved file…",
+  "health.recovery": "The save outcome is uncertain. Reconcile before editing again.",
+  "health.saved": "Changes saved and verified.",
   "health.rejected": "Save rejected. Your pending value is retained.",
   "health.unchanged": "The pending edit was not applied. Review its value before saving again.",
   "health.otherOperation":
-    "Another health operation needs reconciliation. Your pending edit will be retained.",
+    "Another save operation needs reconciliation. Your pending edits will be retained.",
   "health.conflict":
     "Recovery evidence could not be reconciled. Editing is blocked; recheck the evidence or seek manual recovery.",
-  "health.status": "Health save status",
+  "health.status": "Save status",
   "health.persisted": "On disk: {name} · {health} / {max}",
   "health.backupVerified": "Original backup verified.",
-  "health.reconcile": "Reconcile health",
+  "health.reconcile": "Reconcile changes",
   "health.recheck": "Recheck recovery data",
   "health.refresh": "Refresh saved values",
 } as const;

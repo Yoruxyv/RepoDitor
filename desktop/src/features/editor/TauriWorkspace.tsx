@@ -1,4 +1,4 @@
-/** Native workspace with synthetic health controls and memory-only upgrade drafts. */
+/** Native workspace with shared synthetic health/upgrade transaction recovery. */
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -35,10 +35,11 @@ export function TauriWorkspace({
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
-  const [upgradeResetVersion, setUpgradeResetVersion] = useState(0);
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
+  const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
+    if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
     onCanonical(projection.opened);
   });
   const restoredSelection = useRef<string | null>(null);
@@ -62,12 +63,11 @@ export function TauriWorkspace({
   const currentSession = health.canonical?.opened.session ?? session;
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
-  const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
-  const hasUpgradeDrafts = upgrades.pendingEdits.length > 0;
-  const upgradeSaveUnavailable = hasUpgradeDrafts || section === "upgrades";
+  const hasUpgradeDrafts = health.upgradeEdits.length > 0;
+  const upgradeSaveUnavailable =
+    hasUpgradeDrafts && (!!health.pending || !health.upgradeSession || !health.upgradeBatchFits);
   function revertUpgrades() {
-    upgrades.revertAll();
-    setUpgradeResetVersion((version) => version + 1);
+    health.revertUpgrades();
   }
   const run = useRunState(session.id, null, tauriReadApi.run.get);
   const items = useItems(session.id, null, tauriReadApi.advanced.get);
@@ -150,8 +150,9 @@ export function TauriWorkspace({
               upgrades={upgrades}
               enabled={health.enabled}
               locked={health.locked}
-              resetVersion={upgradeResetVersion}
+              resetVersion={health.resetVersion}
               onRevertAll={revertUpgrades}
+              transaction={health}
             />
           ) : null}
           {section === "items" ? (
@@ -191,7 +192,7 @@ export function TauriWorkspace({
       </div>
       {health.enabled ? (
         <PendingChangesBar
-          edits={[...(health.pending ? [health.pending] : []), ...upgrades.pendingEdits]}
+          edits={[...(health.pending ? [health.pending] : []), ...health.upgradeEdits]}
           saving={health.phase === "saving" || health.phase === "reconciling"}
           error={null}
           backupPath={null}
@@ -199,11 +200,9 @@ export function TauriWorkspace({
           invalid={health.invalid}
           saveUnavailableReason={upgradeSaveUnavailable ? t("upgrades.saveUnavailable") : null}
           onRevert={() => {
-            revertUpgrades();
             void health.revert();
           }}
           onSave={() => {
-            // The only native writer accepts health; never silently omit upgrade drafts.
             if (!upgradeSaveUnavailable) void health.save();
           }}
         />

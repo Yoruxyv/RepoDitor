@@ -138,20 +138,21 @@ The native boundary requires Python's durable reservation acknowledgement before
 launching a writer, including when the writer dies before executing Python code.
 Reservation and writing share the existing 30-second request deadline.
 
-The additional `synthetic-health-ui` feature enables a single-player health editor
-only with that test permission configuration and runtime root restriction. It
-reuses Players, numeric validation and the Save/Revert bar. Upgrades additionally
-supports in-memory per-player drafts, review and Revert in this admitted test mode.
-Upgrade Save is explicitly unavailable: the durable native transaction admits only
-health. Pending upgrade drafts block Save across sections; revert them before
-saving health. Drafts survive section/player changes but are discarded when changing
-saves or closing the window. Other domains and ordinary artifacts stay read-only.
-Python persists the health operation ID and attempted value in the reservation,
+The additional `synthetic-health-ui` feature enables health editing and durable
+upgrade-batch Save only with that test permission configuration and runtime root
+restriction. It reuses Players/Upgrades, numeric validation, pending review and the
+Save/Revert bar. Upgrade drafts across players form one atomic operation. Mixed
+health/upgrade pending sets block Save; save the groups separately. The bounded
+upgrade intent fits 2 KiB inside the existing 4 KiB receipt; excessive batches are
+rejected intact. Drafts survive section/player changes. Unsubmitted drafts are
+discarded on workspace close, while reserved intent survives restart. Other
+domains and ordinary artifacts stay read-only.
+Python persists the operation ID and exact previous/requested values in the reservation,
 so reload/restart discovers unresolved intent before another save is admitted.
 Uncertain outcomes require explicit reconciliation. An applied result refreshes
-the canonical session and players before acknowledgement; an unchanged result
+the canonical session, players and upgrade values before acknowledgement; an unchanged result
 retains the edit until an explicit new Save or Revert. Conflicting evidence blocks
-writes. No production health-write authority is provided.
+writes. No production write authority is provided.
 
 To validate this internal boundary, build the host with
 `tauri build --features synthetic-health-recovery --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.

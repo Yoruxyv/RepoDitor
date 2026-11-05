@@ -1,6 +1,7 @@
-/** Bind upgrade drafts to admitted synthetic UI state; no write transport exists here. */
+/** Bind the existing upgrade presentation to the synthetic transaction controller. */
 import { usePreferences } from "@/app/preferences";
 import type { usePlayers } from "@/features/players/usePlayers";
+import type { useTauriHealth } from "@/features/players/useTauriHealth";
 import { UpgradesView } from "./UpgradesView";
 import type { useUpgrades } from "./useUpgrades";
 
@@ -12,6 +13,7 @@ export function TauriUpgradesView({
   avatarUrls,
   resetVersion,
   onRevertAll,
+  transaction,
 }: {
   readonly players: ReturnType<typeof usePlayers>;
   readonly upgrades: ReturnType<typeof useUpgrades>;
@@ -20,6 +22,7 @@ export function TauriUpgradesView({
   readonly avatarUrls: Record<string, string | null>;
   readonly resetVersion: number;
   readonly onRevertAll: () => void;
+  readonly transaction: ReturnType<typeof useTauriHealth>;
 }) {
   const { t } = usePreferences();
   return (
@@ -47,13 +50,16 @@ export function TauriUpgradesView({
           avatarUrls={avatarUrls}
           error={players.error ?? upgrades.error}
           loading={players.loading || upgrades.loading}
-          pendingByUpgrade={upgrades.pendingByUpgrade}
+          pendingByUpgrade={Object.fromEntries(
+            transaction.upgradeEdits.map((edit) => [`${edit.entity}:${edit.field}`, edit]),
+          )}
           players={players.players}
           selectedPlayerId={players.selectedPlayerId}
           upgrades={upgrades.upgrades}
           resetVersion={resetVersion}
-          onChange={enabled ? upgrades.update : null}
-          onRevert={enabled ? upgrades.revert : null}
+          onChange={enabled ? transaction.editUpgrade : null}
+          onRevert={enabled ? transaction.revertUpgrade : null}
+          onValidityChange={enabled ? transaction.setUpgradeInvalid : undefined}
           onRejectAvatar={() => undefined}
           onRetry={() => {
             if (players.error) players.reload();

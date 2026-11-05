@@ -107,19 +107,18 @@ read-only text fields with keyboard focus/copying and no mutation handlers,
 pending edits or revert actions. Validated `iconKey` metadata is discarded and
 `iconToken` is always null; the existing Phosphor fallback needs no native artwork
 URL, protocol or cache authorization. In an admitted `synthetic-health-ui` fixture,
-the native binding reuses the existing in-memory upgrade hook and numeric inputs
-for per-player drafts, pending review, field revert and global revert. Values stay
-in memory across section/player navigation and are discarded on save/workspace close.
-Invalid inputs can be reset locally. Busy/conflicting recovery disables editing;
-the existing read-loading, sanitized error/retry and empty states remain available.
-Upgrade drafts have no write transport. The shared Save action is disabled with an
-explanation while upgrade drafts exist, including on other sections; it never
-silently omits them and applies only health. Reverting upgrade drafts restores the
-existing health-only Save workflow. Python's general typed upgrade mutation is
-not a native durable transaction contract: native reservation, persisted intent,
-request admission and canonical recovery currently bind only one health edit.
-Those contracts require a separately validated upgrade extension before saving
-upgrades can be offered. No generic writer or additional native permission is added.
+the native binding reuses the existing numeric inputs for per-player drafts,
+pending review, field Revert and global Revert. Drafts survive section/player
+navigation. An explicit Save persists one coherent upgrade batch through Python's
+existing typed upgrade mutation and encrypted repository pipeline. Health and
+upgrade drafts save separately: a mixed pending set disables Save with an
+explanation, rather than silently applying a subset. Invalid inputs and batches
+exceeding the durable-intent budget also block Save. Unsubmitted drafts are discarded
+on workspace close; submitted intent survives in the receipt. Busy/conflicting
+recovery disables editing. Read-loading, sanitized error/retry and empty states
+remain available. The canonical upgrade snapshot supersedes older pending reads
+and refreshes values while retaining optional presentation metadata. The separate
+test-only `test_upgrades_write` command adds no production mutation permission.
 Visual readiness is unresolved when upgrade keys exist because artwork is not
 migrated; Overview does not wait for that optional work. Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
@@ -195,14 +194,21 @@ with the `synthetic-health-recovery` Cargo feature and granted only by the separ
 `recovery.test.conf.json` configuration. A runtime check additionally requires E2E
 mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpoint`.
 The separate `synthetic-health-ui` feature includes the recovery feature and enables
-one existing player's health editor only with the same test permissions and runtime
-fence. Protocol-only builds keep the UI read-only; default builds have no mutation
+one existing player's health editor and bounded upgrade-batch editing with the same
+test permissions and runtime fence. Protocol-only builds keep the UI read-only and
+reject upgrade writes; default builds have no mutation
 commands. No general mutation bridge or production write permission is provided.
-The test transport builds exactly one Python-owned player-health change.
+The typed transports accept one player-health change or an upgrade-only batch.
+Upgrade requests bind the save ID, fingerprint and current native open-session token.
+Reopening a save rotates that token; stale/cross-session requests are rejected.
+The host rechecks session admission between reservation and writer launch. Python
+validates player/key membership against the loaded save, exact previous values,
+integer bounds, duplicate targets and operation identity; presentation metadata
+never grants authority.
 
 Python's opt-in health transaction reuses `save_changes` and repository verification.
 Before launching the mutating process, the host requires a Python-owned reservation
-acknowledgement. That first process validates the health request and persists the
+acknowledgement. That first process validates the typed request and persists the
 pending receipt without writing save bytes. The writer claims the reservation only
 after its owner exits and rechecks the source and domain constraints. Losing either
 process or its response therefore cannot leave a potentially executed write without
@@ -239,10 +245,17 @@ source denies additional writers/deletion through verification and replacement;
 write-through file handles and explicit buffer flushes preserve publication ordering
 across process termination. Physical power-loss durability requires separate evidence.
 
-Windows schema-3 receipts include a fingerprint of the admitted ancestry's volume
+Windows schema-3 and schema-4 receipts include a fingerprint of the admitted ancestry's volume
 and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
 processes independently acquire the namespace and require that fingerprint to match
-before claiming or settling a receipt. Matching save bytes and leaf inode alone do
+before claiming or settling a receipt. Schema 4 durably stores an upgrade-only
+intent with player IDs, exact upgrade keys, previous values and requested values.
+Its compact UTF-8 intent is limited to 2,048 bytes, with at most the existing 512
+typed changes; the complete receipt remains limited to 4,096 bytes, including after
+fingerprints and identities. An excessive batch is rejected intact before reservation.
+The legacy health filenames/lock are shared deliberately, so unresolved health and
+upgrade transactions exclude each other and ordinary cooperating writers. Matching
+save bytes and leaf inode alone do
 not authorize a different parent directory. Schema-1/2 receipts remain inspectable,
 but Windows cannot automatically resume or acknowledge them without namespace
 evidence; they stay blocked and retain their evidence for explicit reconciliation.
@@ -334,8 +347,9 @@ stream limits and Job Object cleanup remain enabled, and game status retains its
 separate bounded lane. Fault injection lives only in the E2E sidecar, not the product
 transaction. Tests use synthetic encrypted saves.
 
-React stages one typed health edit in memory and reuses the Players controls and
-Save/Revert presentation. Before mutation, Python's reservation (schema 3 on Windows,
+React stages a health edit or an upgrade batch in memory and reuses the existing
+Players/Upgrades controls and Save/Revert presentation. Before mutation, Python's
+health reservation (schema 3 on Windows,
 schema 2 elsewhere when intent is requested) durably binds its nonce to the player ID,
 requested health and previous health; schema-1
 protocol receipts remain readable without invented intent. The pending receipt
@@ -347,8 +361,10 @@ editing. A busy native transaction permits only bounded read-only state polling.
 Renderer reload or application restart restores the pending value and its player
 selection from the receipt. Uncertain writes require an explicit Reconcile action;
 neither discovery nor reconciliation replays the edit. Applied reconciliation returns
-session and player DTOs from one fingerprint-checked Python snapshot, then the UI
-acknowledges it. Unchanged reconciliation retains intent and requires a new explicit
+session, player and upgrade DTOs from one fingerprint-checked Python snapshot. The
+UI verifies every owned proposed value against that projection before acknowledgement
+and clears only that operation's confirmed drafts. Unchanged reconciliation retains
+intent and requires a new explicit
 Save with a new nonce or Revert. A draft belonging to another operation is retained
 when that operation is reconciled. Conflicts remain blocked. A verified backup
 indicator appears only after positive recovery evidence. Python archives and cleans

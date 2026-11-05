@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
 from repo_save_editor.services.player.installed_upgrades import (
@@ -34,25 +35,29 @@ def list_upgrades(
 
     discovered = discover_player_upgrades(data)
     presentations = presentation_loader(upgrade.key for upgrade in discovered)
+    return {"ok": True, "upgrades": serialize_upgrades(data, presentations)}
+
+
+def serialize_upgrades(
+    data: SaveData, presentations: Mapping[str, UpgradePresentation] | None = None
+) -> list[dict[str, object]]:
+    """Project authoritative values without I/O during transaction reconciliation."""
     upgrades = discover_player_upgrades(data, presentations)
     player_ids = [player.player_id for player in get_players(data)]
-    return {
-        "ok": True,
-        "upgrades": [
-            {
-                "key": upgrade.key,
-                "label": upgrade.label,
-                "presentationSource": upgrade.presentation_source.value,
-                "iconKey": upgrade.icon_cache_key,
-                "gameplayCap": upgrade.gameplay_cap,
-                "values": [
-                    {
-                        "playerId": player_id,
-                        "value": get_player_upgrade(data, player_id, upgrade.key),
-                    }
-                    for player_id in player_ids
-                ],
-            }
-            for upgrade in upgrades
-        ],
-    }
+    return [
+        {
+            "key": upgrade.key,
+            "label": upgrade.label,
+            "presentationSource": upgrade.presentation_source.value,
+            "iconKey": upgrade.icon_cache_key,
+            "gameplayCap": upgrade.gameplay_cap,
+            "values": [
+                {
+                    "playerId": player_id,
+                    "value": get_player_upgrade(data, player_id, upgrade.key),
+                }
+                for player_id in player_ids
+            ],
+        }
+        for upgrade in upgrades
+    ]

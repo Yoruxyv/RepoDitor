@@ -74,14 +74,16 @@ export function useUpgrades(
   const mounted = useRef(false);
   const initialResultRef = useRef(initialResult);
   const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
       if (requestInFlight.current) return false;
       requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
         const resolved = await list(saveId);
-        if (!mounted.current) return resolved.ok;
+        if (!mounted.current || version !== snapshotVersion.current) return resolved.ok;
         if (resolved.ok) {
           setState({ upgrades: resolved.data, error: null, loading: false });
           return true;
@@ -93,7 +95,7 @@ export function useUpgrades(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             upgrades: preserveExisting ? current.upgrades : [],
             error: "error.service",
@@ -162,6 +164,19 @@ export function useUpgrades(
     setPendingByUpgrade({});
   }
 
+  function acceptSnapshot(upgrades: PlayerUpgradeDto[]): void {
+    snapshotVersion.current += 1;
+    const known = new Map(state.upgrades.map((upgrade) => [upgrade.key, upgrade]));
+    setState({
+      loading: false,
+      error: null,
+      upgrades: upgrades.map((upgrade) => {
+        const presentation = known.get(upgrade.key);
+        return presentation ? { ...presentation, values: upgrade.values } : upgrade;
+      }),
+    });
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -171,6 +186,7 @@ export function useUpgrades(
     revert,
     revertAll,
     applyAfterSave,
+    acceptSnapshot,
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };

@@ -27,8 +27,42 @@ pub struct HostState {
     requests: [AtomicBool; OPERATIONS],
     domain_worker: Mutex<()>,
     pub closing: Arc<AtomicBool>,
+    #[cfg(feature = "synthetic-health-recovery")]
+    editor_session: Mutex<(u64, Option<(String, String)>)>,
 }
 impl HostState {
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn open_editor(&self, save: &str, fingerprint: &str) {
+        let mut session = self.editor_session.lock().unwrap();
+        session.0 += 1;
+        session.1 = Some((save.into(), fingerprint.into()));
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn upgrade_session(&self, save: &str) -> Option<String> {
+        let session = self.editor_session.lock().ok()?;
+        (session.1.as_ref()?.0 == save).then(|| format!("{}-{}", std::process::id(), session.0))
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn accepts_upgrade(&self, save: &str, fingerprint: &str, token: &str) -> bool {
+        let Ok(session) = self.editor_session.lock() else {
+            return false;
+        };
+        session
+            .1
+            .as_ref()
+            .is_some_and(|(id, fp)| id == save && fp == fingerprint)
+            && token == format!("{}-{}", std::process::id(), session.0)
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn update_editor(&self, save: &str, fingerprint: &str) {
+        if let Ok(mut session) = self.editor_session.lock() {
+            if let Some((id, fp)) = &mut session.1 {
+                if id == save {
+                    *fp = fingerprint.into();
+                }
+            }
+        }
+    }
     #[cfg(feature = "synthetic-health-recovery")]
     pub fn health_busy(&self) -> bool {
         self.requests[9].load(Ordering::SeqCst) || self.requests[10].load(Ordering::SeqCst)
@@ -72,6 +106,10 @@ pub enum Operation {
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthPrepare(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
+    TestUpgrades(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestUpgradesPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
     TestHealthRecover(String, String, bool, bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthState(String),
@@ -89,7 +127,10 @@ impl Operation {
             Self::Maps => 7,
             Self::Cosmetics => 8,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealth(..) | Self::TestHealthPrepare(..) => 9,
+            Self::TestHealth(..)
+            | Self::TestHealthPrepare(..)
+            | Self::TestUpgrades(..)
+            | Self::TestUpgradesPrepare(..) => 9,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthRecover(..) => 10,
             #[cfg(feature = "synthetic-health-recovery")]
@@ -110,6 +151,8 @@ impl Operation {
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
+            | Self::TestUpgrades(..)
+            | Self::TestUpgradesPrepare(..)
             | Self::TestHealthRecover(..)
             | Self::TestHealthState(..) => Service::Save,
         }
@@ -141,6 +184,19 @@ impl Operation {
                     args.push("--intent");
                 }
                 args
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestUpgrades(id, fingerprint, payload, operation, _) => vec![
+                "saves-write",
+                id,
+                fingerprint,
+                payload,
+                "--upgrade-operation",
+                operation,
+            ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestUpgradesPrepare(id, fingerprint, payload, operation, _) => {
+                vec!["upgrade-prepare", id, fingerprint, payload, operation]
             }
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthRecover(id, operation, canonical, acknowledge) => {
@@ -194,7 +250,7 @@ fn execute(
         .ok_or(BackendError::Timeout)?;
     let result = process::run(executable, args, remaining, state.closing.clone());
     #[cfg(feature = "synthetic-health-recovery")]
-    if request.1 == 9 && args.first() != Some(&"health-prepare") {
+    if request.1 == 9 && !matches!(args.first(), Some(&"health-prepare" | &"upgrade-prepare")) {
         return result.map_err(|error| {
             if error == BackendError::Unavailable {
                 error
@@ -226,7 +282,10 @@ where
     let service = operation.service();
     #[cfg(feature = "synthetic-health-recovery")]
     let started = match &operation {
-        Operation::TestHealth(.., started) | Operation::TestHealthPrepare(.., started) => *started,
+        Operation::TestHealth(.., started)
+        | Operation::TestHealthPrepare(.., started)
+        | Operation::TestUpgrades(.., started)
+        | Operation::TestUpgradesPrepare(.., started) => *started,
         _ => Instant::now(),
     };
     #[cfg(not(feature = "synthetic-health-recovery"))]
@@ -237,7 +296,10 @@ where
         Err(error) => return Outcome::for_service(Err(error), service),
     };
     #[cfg(feature = "synthetic-health-recovery")]
-    let is_write = matches!(operation, Operation::TestHealth(..));
+    let is_write = matches!(
+        operation,
+        Operation::TestHealth(..) | Operation::TestUpgrades(..)
+    );
     let result = tauri::async_runtime::spawn_blocking(move || {
         let root = if cfg!(debug_assertions) {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../build/backend/repoditor-backend")
@@ -272,6 +334,43 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "synthetic-health-recovery")]
+    #[test]
+    fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admission() {
+        let host = Arc::new(HostState::default());
+        let save = "REPO_SAVE_2026_08_08_10_20_30";
+        assert!(host.upgrade_session(save).is_none());
+        host.open_editor(save, &"a".repeat(64));
+        let first = host.upgrade_session(save).unwrap();
+        assert!(host.accepts_upgrade(save, &"a".repeat(64), &first));
+        assert!(!host.accepts_upgrade(save, &"b".repeat(64), &first));
+        host.open_editor(save, &"a".repeat(64));
+        let current = host.upgrade_session(save).unwrap();
+        assert_ne!(first, current);
+        assert!(!host.accepts_upgrade(save, &"a".repeat(64), &first));
+        host.update_editor(save, &"b".repeat(64));
+        assert!(host.accepts_upgrade(save, &"b".repeat(64), &current));
+        assert!(!host.accepts_upgrade("REPO_SAVE_2026_08_08_10_20_31", &"b".repeat(64), &current));
+        let upgrade = Operation::TestUpgrades(
+            save.into(),
+            "b".repeat(64),
+            "[]".into(),
+            "c".repeat(32),
+            Instant::now(),
+        );
+        let held = Request::reserve(host.clone(), upgrade.slot()).unwrap();
+        let health = Operation::TestHealth(
+            save.into(),
+            "b".repeat(64),
+            "[]".into(),
+            "d".repeat(32),
+            Instant::now(),
+        );
+        assert!(Request::reserve(host.clone(), health.slot()).is_err());
+        assert!(host.health_busy());
+        drop(held);
+        assert!(Request::reserve(host, health.slot()).is_ok());
+    }
     #[cfg(feature = "synthetic-health-recovery")]
     #[test]
     fn a_worker_panic_after_work_cannot_be_reported_as_a_rejected_write() {
