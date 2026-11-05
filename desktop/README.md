@@ -189,9 +189,13 @@ Before the synthetic matrix, an ordinary packaged-host control must expose the
 Tauri bridge and reject write authority. Startup failures retain bounded, redacted
 process output, the final CDP error, runtime/version and desktop-session diagnostics.
 Startup and matrix outputs are separate so Playwright preserves both captures.
-The opt-in startup-comparison workflow is diagnostic only: it builds one ordinary
-host and compares PATH, profile preparation and debugging settings with fresh
-synthetic profiles. It cannot satisfy the required Quality safety gate. The normal
+The opt-in packaged startup workflow tests one read-only host with the
+`native-ui-test` feature and `startup.test.conf.json`. It passes the configuration's
+`additionalBrowserArgs` directly to Tauri/Wry with a validated loopback test port,
+preserving the default browser flags. Both WebView2 debugging environment variables
+are empty during this control. The feature adds no save commands and marks its
+artifact as test-only, so production staging rejects it. It cannot satisfy the
+required Quality safety gate. The normal
 gate runs its ordinary startup control before the Python/Rust suites and synthetic
 host builds, retaining every mandatory check after startup succeeds.
 

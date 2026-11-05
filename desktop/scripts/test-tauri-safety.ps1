@@ -2,7 +2,8 @@ param(
     [string]$OutputDirectory = 'build/tauri-safety',
     [string]$NormalBackend = '',
     [string]$FaultBackend = '',
-    [switch]$CompareStartup
+    [switch]$CompareStartup,
+    [switch]$TestBrowserArgs
 )
 $ErrorActionPreference = 'Stop'
 $desktop = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -10,6 +11,7 @@ $repository = [IO.Path]::GetFullPath((Join-Path $desktop '..'))
 $output = [IO.Path]::GetFullPath((Join-Path $desktop $OutputDirectory))
 $build = Join-Path $desktop 'build'
 if (-not $IsWindows) { throw 'The Tauri safety gate requires Windows.' }
+if ($CompareStartup -and $TestBrowserArgs) { throw 'Select one startup test mode.' }
 if (-not $output.StartsWith("$build\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must be inside desktop/build.' }
 if (Test-Path -LiteralPath $output) { throw 'Use a fresh output directory; previous diagnostics are preserved.' }
 $nativeName = [IO.Path]::GetRelativePath($build, $output).Replace('\', '-')
@@ -21,10 +23,17 @@ function Run-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
 }
-function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions) {
+function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions, [bool]$BrowserArgs = $false) {
     $env:TAURI_CONFIG = if ($TestPermissions) { Get-Content -LiteralPath 'src-tauri/recovery.test.conf.json' -Raw } else { $null }
     $hostFeatures = 'tauri/custom-protocol'
     if ($Features) { $hostFeatures += ",$Features" }
+    if ($BrowserArgs) {
+        $hostFeatures += ',native-ui-test'
+        $configuration = if ($TestPermissions) { Get-Content -LiteralPath 'src-tauri/recovery.test.conf.json' -Raw | ConvertFrom-Json } else { [pscustomobject]@{ app = [pscustomobject]@{} } }
+        $browser = Get-Content -LiteralPath 'src-tauri/startup.test.conf.json' -Raw | ConvertFrom-Json
+        $configuration.app | Add-Member -NotePropertyName windows -NotePropertyValue $browser.app.windows
+        $env:TAURI_CONFIG = $configuration | ConvertTo-Json -Depth 12 -Compress
+    }
     $arguments = @('build', '--manifest-path', 'src-tauri/Cargo.toml', '--release', '--locked', '--features', $hostFeatures)
     Run-Checked 'cargo' $arguments
     $folder = Join-Path $output "hosts/$Name"
@@ -34,20 +43,31 @@ function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions) {
 }
 
 $previousConfig = $env:TAURI_CONFIG
+$previousBrowserArgs = $env:REPODITOR_NATIVE_BROWSER_ARGS
 Push-Location $desktop
 Start-Transcript -Path (Join-Path $output 'validation.log') | Out-Null
 try {
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:TAURI_CONFIG = $null
+    $env:REPODITOR_NATIVE_BROWSER_ARGS = $null
+    # Initialize the diagnostic provider before the bounded per-host process snapshot.
+    Get-CimInstance Win32_Process -Filter "ProcessId = $PID" | Out-Null
     # Even cargo test validates the configured resource; rebuild it before any Rust compile.
     Run-Checked 'npm' @('run', 'build:sidecar')
     if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
     Run-Checked 'npm' @('run', 'build:tauri-ui')
-    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false
+    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false $TestBrowserArgs.IsPresent
     $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'startup.json'
     Run-Checked 'npm' @('run', 'typecheck:e2e')
+    if ($TestBrowserArgs) {
+        $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
+        Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts', '--grep', 'startup ordinary')
+        $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
+        if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 1) { throw 'The ordinary browser-arguments control did not pass.' }
+        return
+    }
     if ($CompareStartup) {
         # Diagnostic-only dispatch: one immutable ordinary host, fresh profiles per comparison.
         $env:REPODITOR_STARTUP_COMPARISON_EXECUTABLE = $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE
@@ -122,6 +142,7 @@ try {
     }
 } finally {
     $env:TAURI_CONFIG = $previousConfig
+    $env:REPODITOR_NATIVE_BROWSER_ARGS = $previousBrowserArgs
     Stop-Transcript | Out-Null
     Pop-Location
 }

@@ -30,6 +30,16 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
     expect(diagnostics.endpoint.webSocketPresent).toBe(true);
     expect(diagnostics.windows.probeError).toBeUndefined();
     expect(diagnostics.windows.hostAlive).toBe(true);
+    if (process.env["REPODITOR_NATIVE_BROWSER_ARGS"] === "1") {
+      expect(diagnostics.environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.value).toBe("");
+      expect(diagnostics.environment.WEBVIEW2_REMOTE_DEBUGGING_PORT.value).toBe("");
+      expect(
+        diagnostics.windows.webviewChildren.some(
+          (child: { kind: string; debuggingPort: number | null }) =>
+            child.kind === "browser" && child.debuggingPort === diagnostics.requestedCdpPort,
+        ),
+      ).toBe(true);
+    }
     for (const command of ["test_health_write", "test_health_recover"]) {
       const denied = await native(app.page, command, { request: {} }).catch(String);
       expect(denied).toMatch(/not found|not allowed|not permitted|denied/i);

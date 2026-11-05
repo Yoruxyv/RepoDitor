@@ -265,6 +265,11 @@ export async function launch(
   environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] =
     `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`;
   environment["WEBVIEW2_REMOTE_DEBUGGING_PORT"] = String(port);
+  environment["REPODITOR_TEST_CDP_PORT"] = String(port);
+  if (process.env["REPODITOR_NATIVE_BROWSER_ARGS"] === "1") {
+    environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "";
+    environment["WEBVIEW2_REMOTE_DEBUGGING_PORT"] = "";
+  }
   environment["PATH"] = `${process.env["SYSTEMROOT"]}\\System32;${process.env["SYSTEMROOT"]}`;
   Object.assign(environment, extraEnvironment);
   const child = spawn(executable, [], {
@@ -296,6 +301,7 @@ export async function launch(
       state,
       executable: path.basename(executable),
       pid: child.pid ?? null,
+      requestedCdpPort: port,
       spawnError,
       exitCode: child.exitCode,
       signal: child.signalCode,

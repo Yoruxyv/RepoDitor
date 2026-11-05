@@ -1,4 +1,4 @@
-name: Tauri startup comparison (diagnostic)
+name: Tauri packaged startup smoke (test-only)
 
 on:
   workflow_dispatch:
@@ -6,14 +6,14 @@ on:
     branches: [feat/tauri-discovery-host]
     paths:
       - .github/workflows/tauri-startup.yml
-      - desktop/e2e/tauri-startup-comparison.spec.ts
+      - desktop/src-tauri/startup.test.conf.json
 
 permissions:
   contents: read
 
 jobs:
   startup-comparison:
-    name: Diagnostic packaged startup comparisons
+    name: Test-only packaged browser arguments
     runs-on: windows-latest
     timeout-minutes: 20
     defaults:
@@ -43,8 +43,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
-      - name: Compare one ordinary packaged host (not the Quality gate)
-        run: pwsh -NoProfile -File scripts/test-tauri-safety.ps1 -CompareStartup -OutputDirectory build/tauri-startup-comparison
+      - name: Test one read-only packaged host (not the Quality gate)
+        run: pwsh -NoProfile -File scripts/test-tauri-safety.ps1 -TestBrowserArgs -OutputDirectory build/tauri-startup-comparison
       - name: Preserve bounded comparison evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -54,7 +54,6 @@ jobs:
             desktop/build/tauri-startup-comparison/validation.log
             desktop/build/tauri-startup-comparison/startup.json
             desktop/build/recovery-checkpoint/tauri-startup-comparison/**/startup-*.json
-            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/comparison.json
             desktop/build/recovery-checkpoint/tauri-startup-comparison/**/trace.zip
           include-hidden-files: true
           if-no-files-found: error

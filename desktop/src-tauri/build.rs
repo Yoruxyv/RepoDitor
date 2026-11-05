@@ -1,12 +1,14 @@
 fn main() {
-    let authority =
-        if cfg!(feature = "synthetic-health-recovery") || cfg!(feature = "synthetic-health-ui") {
-            "synthetic"
-        } else if tauri_build::is_dev() {
-            "development"
-        } else {
-            "read-only"
-        };
+    let authority = if cfg!(feature = "native-ui-test")
+        || cfg!(feature = "synthetic-health-recovery")
+        || cfg!(feature = "synthetic-health-ui")
+    {
+        "synthetic"
+    } else if tauri_build::is_dev() {
+        "development"
+    } else {
+        "read-only"
+    };
     let windows = tauri_build::WindowsAttributes::new().append_rc_content(format!(
         "REPODITOR_AUTHORITY RCDATA {{ \"repoditor-tauri-authority-v2:{authority}\" }}"
     ));

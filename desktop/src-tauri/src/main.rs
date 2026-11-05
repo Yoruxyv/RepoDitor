@@ -20,6 +20,17 @@ use error::{BackendError, Outcome, Service};
 use std::sync::{atomic::Ordering, Arc};
 use tauri::Manager;
 
+#[cfg(all(windows, feature = "native-ui-test"))]
+fn ui_test_args(template: &str, e2e: &str, port: &str) -> Result<String, &'static str> {
+    if e2e != "1"
+        || !port.parse::<u16>().is_ok_and(|value| value >= 1024)
+        || template.matches("{{CDP_PORT}}").count() != 1
+    {
+        return Err("Invalid isolated UI test configuration");
+    }
+    Ok(template.replace("{{CDP_PORT}}", port))
+}
+
 fn allowed_navigation(url: &tauri::Url) -> bool {
     url.path() == "/tauri.html"
         && ((url.port().is_none()
@@ -201,7 +212,24 @@ fn main() {
             } else {
                 tauri::WebviewUrl::App("tauri.html".into())
             };
-            tauri::WebviewWindowBuilder::new(app, "main", url)
+            let window = tauri::WebviewWindowBuilder::new(app, "main", url);
+            #[cfg(all(windows, feature = "native-ui-test"))]
+            let window = {
+                let template = app
+                    .config()
+                    .app
+                    .windows
+                    .iter()
+                    .find(|window| window.label == "main")
+                    .and_then(|window| window.additional_browser_args.as_deref())
+                    .ok_or("Missing isolated UI test browser arguments")?;
+                window.additional_browser_args(&ui_test_args(
+                    template,
+                    &std::env::var("REPODITOR_E2E").unwrap_or_default(),
+                    &std::env::var("REPODITOR_TEST_CDP_PORT").unwrap_or_default(),
+                )?)
+            };
+            window
                 .title("RepoDitor Preview")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(960.0, 640.0)
@@ -237,6 +265,29 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::allowed_navigation;
+
+    #[cfg(all(windows, feature = "native-ui-test"))]
+    #[test]
+    fn browser_arguments_require_explicit_test_admission_and_preserve_defaults() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../startup.test.conf.json")).unwrap();
+        let window = &config["app"]["windows"][0];
+        assert_eq!(window["create"], false);
+        assert!(config["app"].get("security").is_none());
+        let template = window["additionalBrowserArgs"].as_str().unwrap();
+        let arguments = super::ui_test_args(template, "1", "54321").unwrap();
+        assert!(arguments.contains("--remote-debugging-port=54321"));
+        assert!(arguments.contains("--remote-debugging-address=127.0.0.1"));
+        assert!(
+            arguments.contains("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection")
+        );
+        assert!(arguments.contains("--autoplay-policy=no-user-gesture-required"));
+        for port in ["", "0", "80", "65536", "54321 --other-argument"] {
+            assert!(super::ui_test_args(template, "1", port).is_err());
+        }
+        assert!(super::ui_test_args(template, "0", "54321").is_err());
+        assert!(super::ui_test_args("missing placeholder", "1", "54321").is_err());
+    }
 
     #[test]
     fn navigation_is_limited_to_the_preview_page_and_origin() {

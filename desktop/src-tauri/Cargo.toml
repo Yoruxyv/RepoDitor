@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [features]
+native-ui-test = []
 synthetic-health-recovery = []
 synthetic-health-ui = ["synthetic-health-recovery"]
 
