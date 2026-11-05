@@ -42,10 +42,11 @@ if ($inputDesktop -ne [IntPtr]::Zero) { [void][TauriStartupDesktop]::CloseDeskto
 $hostProcess = if ($HostProcessId -gt 0) { Get-Process -Id $HostProcessId -ErrorAction SilentlyContinue } else { $null }
 $descendants = @()
 if ($hostProcess) {
+    # One snapshot avoids repeated WMI round trips exhausting the bounded hosted probe.
+    $processes = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name, CommandLine)
     $parents = @($HostProcessId)
     for ($depth = 0; $depth -lt 3 -and $parents.Count -gt 0; $depth++) {
-        $filter = ($parents | ForEach-Object { "ParentProcessId = $_" }) -join ' OR '
-        $children = @(Get-CimInstance Win32_Process -Filter $filter | Select-Object -First 32)
+        $children = @($processes | Where-Object { $_.ParentProcessId -in $parents } | Select-Object -First 32)
         $descendants += $children
         $parents = @($children | ForEach-Object { $_.ProcessId })
     }
