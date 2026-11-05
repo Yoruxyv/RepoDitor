@@ -176,8 +176,12 @@ uv sync --locked --project .. --group test --group package
 npm run test:tauri-safety
 ```
 
-The gate builds development, ordinary, protocol, no-test-permissions and synthetic UI hosts and
-both frozen backend entry points. Python suites, Rust default/all-feature tests,
+The gate runs `build:sidecar` before the first Rust compilation: Tauri validates
+`build/backend/repoditor-backend` even during `cargo test`. That freshly built
+ordinary backend is also the default artifact fixture, so it is frozen only once.
+The fault-injection backend is built separately for recovery tests. Development,
+ordinary, protocol, no-test-permissions and synthetic UI hosts retain their distinct
+authority. Python suites, Rust default/all-feature tests,
 artifact rejection and native recovery/permission checks must pass without skips.
 The quality workflow requires this job and retains its diagnostics. CI provisions
 WebView2 if absent; no installed game or personal saves are required.
@@ -185,8 +189,10 @@ WebView2 if absent; no installed game or personal saves are required.
 Outputs use fresh `build/tauri-safety` and `build/recovery-checkpoint/tauri-safety`
 directories. For another local run, pass a new `-OutputDirectory` to
 `scripts/test-tauri-safety.ps1`. Its optional `-NormalBackend` and `-FaultBackend`
-arguments reuse already validated immutable bundles matching current Python source;
-native fixtures share those bundles through test-only directory junctions while
+arguments reuse already validated immutable test fixtures matching current Python source.
+The configured ordinary resource backend is still rebuilt before Rust when these
+overrides are supplied; stale `build/backend` contents never satisfy that prerequisite.
+Native fixtures share those bundles through test-only directory junctions while
 save/profile roots stay isolated. Do not mutate a shared bundle. Existing source
 and backend hashes must be checked before reuse; CI always builds from source.
 

@@ -47,6 +47,9 @@ try {
     foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
+    # Even cargo test validates the configured resource; rebuild it before any Rust compile.
+    Run-Checked 'npm' @('run', 'build:sidecar')
+    if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--all-features')
@@ -62,10 +65,6 @@ try {
         '--noconfirm', '--onedir', '--console', '--name', 'repoditor-backend', '--paths', 'python',
         '--collect-all', 'UnityPy', '--collect-all', 'TypeTreeGeneratorAPI', '--collect-all', 'fmod_toolkit',
         '--collect-data', 'archspec', '--hidden-import', 'addressablestools', '--copy-metadata', 'addressablestools')
-    if (-not $NormalBackend) {
-        Run-Checked 'uv' ($packageArguments + @('--distpath', "$output/normal-backend", '--workpath', "$output/normal-work", '--specpath', "$output/normal-spec", 'python/repo_save_editor/desktop_api/__main__.py'))
-        $NormalBackend = "$output/normal-backend/repoditor-backend"
-    }
     if (-not $FaultBackend) {
         Run-Checked 'uv' ($packageArguments + @('--distpath', "$output/fault-backend", '--workpath', "$output/fault-work", '--specpath', "$output/fault-spec", '--hidden-import', 'repo_save_editor.desktop_api.__main__', 'e2e/support/recovery-sidecar.py'))
         $FaultBackend = "$output/fault-backend/repoditor-backend"
