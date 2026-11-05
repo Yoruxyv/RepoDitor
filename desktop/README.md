@@ -185,6 +185,10 @@ authority. Python suites, Rust default/all-feature tests,
 artifact rejection and native recovery/permission checks must pass without skips.
 The quality workflow requires this job and retains its diagnostics. CI provisions
 WebView2 if absent; no installed game or personal saves are required.
+Before the synthetic matrix, an ordinary packaged-host control must expose the
+Tauri bridge and reject write authority. Startup failures retain bounded, redacted
+process output, the final CDP error, runtime/version and desktop-session diagnostics.
+Startup and matrix outputs are separate so Playwright preserves both captures.
 
 Outputs use fresh `build/tauri-safety` and `build/recovery-checkpoint/tauri-safety`
 directories. For another local run, pass a new `-OutputDirectory` to

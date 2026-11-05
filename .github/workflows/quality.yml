@@ -291,11 +291,13 @@ jobs:
             desktop/build/tauri-safety/validation.log
             desktop/build/tauri-safety/python.xml
             desktop/build/tauri-safety/native.json
+            desktop/build/tauri-safety/startup.json
             desktop/build/tauri-safety/artifact-tests/**/artifact-check.json
             desktop/build/recovery-checkpoint/tauri-safety/**/trace.zip
             desktop/build/recovery-checkpoint/tauri-safety/**/test-failed-*.png
             desktop/build/recovery-checkpoint/tauri-safety/**/error-context.md
             desktop/build/recovery-checkpoint/tauri-safety/**/phase.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/startup-*.json
             desktop/build/recovery-checkpoint/tauri-safety/**/.*.health-*.json
             desktop/build/recovery-checkpoint/tauri-safety/**/*.receipt.tmp
             desktop/build/recovery-checkpoint/tauri-safety/**/*.bak-health-*

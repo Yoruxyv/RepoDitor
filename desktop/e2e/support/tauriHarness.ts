@@ -1,6 +1,7 @@
 /** Shared isolated packaged native harness; fixture sidecars never ship. */
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { randomUUID } from "node:crypto";
 import { access, copyFile, mkdir, symlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -12,6 +13,7 @@ import {
   getPythonExecutable,
   isolatedApplicationEnvironment,
 } from "./fixtureEnvironment";
+import { reapFailedStartup, startupEnvironment, startupText, windowsStartup } from "./tauriStartup";
 
 export async function native<T>(
   page: Page,
@@ -262,8 +264,45 @@ export async function launch(
     cwd: path.dirname(executable),
     env: environment,
     windowsHide: false,
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  const startupPath = path.join(home, `startup-${randomUUID()}.json`);
+  let stdout = "";
+  let stderr = "";
+  let spawnError: string | null = null;
+  let lastCdpError: string | null = null;
+  let windows: unknown;
+  let beforeCleanup: { exitCode: number | null; signal: NodeJS.Signals | null } | null = null;
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout = (stdout + chunk.toString()).slice(0, 8192);
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr = (stderr + chunk.toString()).slice(0, 8192);
+  });
+  child.once("error", (error) => {
+    spawnError = startupText(String(error), home);
+  });
+  const exited = new Promise<void>((resolve) => child.once("close", () => resolve()));
+  const record = async (state: string, cleanupError: string | null = null) => {
+    const report = {
+      state,
+      executable: path.basename(executable),
+      pid: child.pid ?? null,
+      spawnError,
+      exitCode: child.exitCode,
+      signal: child.signalCode,
+      stdout: startupText(stdout, home),
+      stderr: startupText(stderr, home),
+      lastCdpError,
+      cleanupError,
+      beforeCleanup,
+      environment: startupEnvironment(environment, home),
+      windows: windows ?? windowsStartup(child.pid, home),
+    };
+    await writeFile(startupPath, JSON.stringify(report, null, 2));
+    if (state === "failed")
+      console.error(`Packaged startup diagnostics: ${JSON.stringify(report)}`);
+  };
   let browser: Browser | undefined;
   try {
     const deadline = performance.now() + 20_000;
@@ -271,7 +310,9 @@ export async function launch(
       try {
         browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 1000 });
         break;
-      } catch {
+      } catch (error) {
+        lastCdpError = startupText(String(error), home);
+        if (spawnError) throw new Error(`Preview spawn failed: ${spawnError}`);
         if (child.exitCode !== null) throw new Error("Preview exited before becoming available");
         await delay(100);
       }
@@ -285,11 +326,17 @@ export async function launch(
           .__TAURI_INTERNALS__?.invoke === "function",
     );
     await page.getByTestId("editor-content").waitFor({ state: "attached" });
-    return { child, browser, page };
+    await record("ready");
+    return { child, browser, page, startupPath };
   } catch (error) {
-    child.kill();
+    beforeCleanup = { exitCode: child.exitCode, signal: child.signalCode };
+    windows = windowsStartup(child.pid, home);
+    const cleanupError = await reapFailedStartup(child, exited, home);
     await browser?.close();
-    throw error;
+    await record("failed", cleanupError);
+    throw new Error(
+      `${startupText(String(error), home)}; diagnostics: ${path.basename(startupPath)}`,
+    );
   }
 }
 

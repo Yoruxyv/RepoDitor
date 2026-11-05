@@ -56,6 +56,14 @@ try {
     Run-Checked 'cargo' @('build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
     Run-Checked 'npm' @('run', 'build:tauri-ui')
     $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false
+    $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
+    $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'
+    $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'startup.json'
+    Run-Checked 'npm' @('run', 'typecheck:e2e')
+    # Prove ordinary packaged startup before constructing or launching the synthetic matrix.
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
+    if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
     $env:REPODITOR_RECOVERY_EXECUTABLE = Build-Host 'protocol' 'synthetic-health-recovery' $true
     $env:REPODITOR_SAFETY_NO_ACL_HOST = Build-Host 'no-acl' 'synthetic-health-recovery' $false
     $env:REPODITOR_SAFETY_UI_HOST = Build-Host 'ui' 'synthetic-health-ui' $true
@@ -71,15 +79,13 @@ try {
     }
     $env:REPODITOR_ARTIFACT_HOST = $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE
     $env:REPODITOR_ARTIFACT_SYNTHETIC_HOST = $env:REPODITOR_SAFETY_UI_HOST
-    $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
     $env:REPODITOR_ARTIFACT_FAULT_BACKEND = [IO.Path]::GetFullPath($FaultBackend, $desktop)
     $env:REPODITOR_ARTIFACT_OUTPUT = Join-Path $output 'artifact-tests'
     $env:REPODITOR_RECOVERY_BACKEND = $env:REPODITOR_ARTIFACT_FAULT_BACKEND
-    $env:REPODITOR_NATIVE_OUTPUT = $nativeOutput
+    $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'matrix'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'native.json'
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
-    Run-Checked 'npm' @('run', 'typecheck:e2e')
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-recovery.spec.ts', 'e2e/tauri-safety.spec.ts', 'e2e/tauri-upgrade-drafts.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)
