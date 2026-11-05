@@ -1,6 +1,9 @@
 /** Bounded, path-redacted diagnostics for packaged native startup only. */
 import { execFileSync, type ChildProcess } from "node:child_process";
 import path from "node:path";
+import http from "node:http";
+import { statSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { DESKTOP_ROOT } from "./fixtureEnvironment";
 
@@ -106,6 +109,8 @@ export function windowsStartup(hostProcessId: number | undefined, home: string):
           path.join(DESKTOP_ROOT, "e2e/support/tauri-startup.ps1"),
           "-HostProcessId",
           String(hostProcessId ?? 0),
+          "-FixtureRoot",
+          home,
         ],
         { encoding: "utf8", windowsHide: true, timeout: 5000, maxBuffer: 16_384 },
       ),
@@ -113,4 +118,63 @@ export function windowsStartup(hostProcessId: number | undefined, home: string):
   } catch (error) {
     return { probeError: startupText(String(error), home) };
   }
+}
+
+export function startupDirectories(home: string) {
+  return Object.fromEntries(
+    ["Roaming", "Local", "Local/RepoDitorPreview"].map((name) => {
+      const directory = path.join(home, "AppData", name);
+      let isDirectory = false;
+      try {
+        isDirectory = statSync(directory).isDirectory();
+        writeFileSync(path.join(directory, `.startup-permission-${randomUUID()}`), "synthetic", {
+          flag: "wx",
+        });
+        return [name, { isDirectory, hostUserWriteSucceeded: true }];
+      } catch {
+        return [name, { isDirectory, hostUserWriteSucceeded: false }];
+      }
+    }),
+  );
+}
+
+/** Direct loopback HTTP, independent of Playwright and inherited proxy settings. */
+export function cdpEndpoint(port: number): Promise<unknown> {
+  return new Promise((resolve) => {
+    const request = http.get(
+      { hostname: "127.0.0.1", port, path: "/json/version", agent: false },
+      (response) => {
+        let body = "";
+        response.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+          if (body.length > 4096)
+            request.destroy(new Error("CDP response exceeded diagnostic bound"));
+        });
+        response.on("error", (error) => resolve({ error: String(error) }));
+        response.on("end", () => {
+          try {
+            const parsed = JSON.parse(body) as {
+              Browser?: unknown;
+              webSocketDebuggerUrl?: unknown;
+            };
+            resolve({
+              status: response.statusCode,
+              browser: typeof parsed.Browser === "string" ? parsed.Browser.slice(0, 128) : null,
+              webSocketPresent: typeof parsed.webSocketDebuggerUrl === "string",
+            });
+          } catch {
+            resolve({ status: response.statusCode, validJson: false });
+          }
+        });
+      },
+    );
+    const deadline = setTimeout(
+      () => request.destroy(new Error("CDP diagnostic HTTP timeout")),
+      1000,
+    );
+    request.once("close", () => clearTimeout(deadline));
+    request.on("error", (error: NodeJS.ErrnoException) =>
+      resolve({ error: error.code ?? error.message }),
+    );
+  });
 }

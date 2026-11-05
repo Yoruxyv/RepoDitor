@@ -1,4 +1,4 @@
-param([int]$HostProcessId = 0)
+param([int]$HostProcessId = 0, [string]$FixtureRoot = '')
 $ErrorActionPreference = 'Stop'
 $runtimeKeys = @(
     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
@@ -40,6 +40,33 @@ $inputDesktop = [TauriStartupDesktop]::OpenInputDesktop(0, $false, 1)
 $desktopError = if ($inputDesktop -eq [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::GetLastWin32Error() } else { 0 }
 if ($inputDesktop -ne [IntPtr]::Zero) { [void][TauriStartupDesktop]::CloseDesktop($inputDesktop) }
 $hostProcess = if ($HostProcessId -gt 0) { Get-Process -Id $HostProcessId -ErrorAction SilentlyContinue } else { $null }
+$descendants = @()
+if ($hostProcess) {
+    $parents = @($HostProcessId)
+    for ($depth = 0; $depth -lt 3 -and $parents.Count -gt 0; $depth++) {
+        $filter = ($parents | ForEach-Object { "ParentProcessId = $_" }) -join ' OR '
+        $children = @(Get-CimInstance Win32_Process -Filter $filter | Select-Object -First 32)
+        $descendants += $children
+        $parents = @($children | ForEach-Object { $_.ProcessId })
+    }
+}
+$webviews = @($descendants | Where-Object Name -eq 'msedgewebview2.exe' | ForEach-Object {
+    $commandLine = [string]$_.CommandLine
+    $debugPort = [regex]::Match($commandLine, '--remote-debugging-port=(\d+)')
+    $processType = [regex]::Match($commandLine, '--type=([\w-]+)')
+    @{
+        pid = $_.ProcessId
+        parentPid = $_.ParentProcessId
+        commandLineAvailable = ($null -ne $_.CommandLine)
+        kind = if ($processType.Success) { $processType.Groups[1].Value } elseif ($commandLine) { 'browser' } else { 'unavailable' }
+        debuggingPort = if ($debugPort.Success) { [int]$debugPort.Groups[1].Value } else { $null }
+        fixtureUserData = ($FixtureRoot -ne '' -and $commandLine.Replace('/', '\').Contains($FixtureRoot.Replace('/', '\')))
+    }
+})
+$policies = @(@{ scope = 'machine'; key = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' }, @{ scope = 'user'; key = 'HKCU:\SOFTWARE\Policies\Microsoft\Edge' } | ForEach-Object {
+    $policy = Get-ItemProperty -LiteralPath $_.key -ErrorAction SilentlyContinue
+    @{ scope = $_.scope; remoteDebuggingAllowed = $policy.RemoteDebuggingAllowed; developerToolsAvailability = $policy.DeveloperToolsAvailability }
+})
 @{
     registeredRuntimeVersions = $registered
     runtimeFiles = $available
@@ -51,4 +78,6 @@ $hostProcess = if ($HostProcessId -gt 0) { Get-Process -Id $HostProcessId -Error
     hostSessionId = if ($hostProcess) { $hostProcess.SessionId } else { $null }
     hostResponding = if ($hostProcess) { $hostProcess.Responding } else { $null }
     hostWindowPresent = if ($hostProcess) { $hostProcess.MainWindowHandle -ne [IntPtr]::Zero } else { $false }
+    webviewChildren = $webviews
+    debuggingPolicies = $policies
 } | ConvertTo-Json -Depth 4 -Compress

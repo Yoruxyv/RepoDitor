@@ -1,7 +1,8 @@
 param(
     [string]$OutputDirectory = 'build/tauri-safety',
     [string]$NormalBackend = '',
-    [string]$FaultBackend = ''
+    [string]$FaultBackend = '',
+    [switch]$CompareStartup
 )
 $ErrorActionPreference = 'Stop'
 $desktop = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -38,6 +39,30 @@ Start-Transcript -Path (Join-Path $output 'validation.log') | Out-Null
 try {
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:TAURI_CONFIG = $null
+    # Even cargo test validates the configured resource; rebuild it before any Rust compile.
+    Run-Checked 'npm' @('run', 'build:sidecar')
+    if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
+    Run-Checked 'npm' @('run', 'build:tauri-ui')
+    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false
+    $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
+    $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'
+    $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'startup.json'
+    Run-Checked 'npm' @('run', 'typecheck:e2e')
+    if ($CompareStartup) {
+        # Diagnostic-only dispatch: one immutable ordinary host, fresh profiles per comparison.
+        $env:REPODITOR_STARTUP_COMPARISON_EXECUTABLE = $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE
+        New-Item -ItemType Junction -Path (Join-Path (Split-Path $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE) 'backend') -Target $env:REPODITOR_ARTIFACT_BACKEND | Out-Null
+        Run-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.tauri-startup.config.ts')
+        $comparisons = @(Get-ChildItem -LiteralPath $env:REPODITOR_NATIVE_OUTPUT -Filter 'comparison.json' -Recurse | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json })
+        if ($comparisons.Count -ne 6) { throw 'Controlled comparisons were not all collected.' }
+        $comparisons | Select-Object mode, ready | ConvertTo-Json | Write-Host
+        if (@($comparisons | Where-Object ready).Count -eq 0) { throw 'No controlled startup variant exposed a bridge. Full safety validation has not run.' }
+        return
+    }
+    # Prove ordinary packaged startup before constructing or launching the synthetic matrix.
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
+    if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
     Run-Checked 'uv' @('run', '--locked', '--no-sync', '--project', $repository, '--group', 'test', 'pytest', '-q', '-rs',
         '../desktop/python/tests/core', '../desktop/python/tests/storage', '../desktop/python/tests/desktop_api',
         '../desktop/python/tests/services/test_installed_build.py',
@@ -47,23 +72,10 @@ try {
     foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
-    # Even cargo test validates the configured resource; rebuild it before any Rust compile.
-    Run-Checked 'npm' @('run', 'build:sidecar')
-    if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--all-features')
     Run-Checked 'cargo' @('build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
-    Run-Checked 'npm' @('run', 'build:tauri-ui')
-    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false
-    $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
-    $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'
-    $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'startup.json'
-    Run-Checked 'npm' @('run', 'typecheck:e2e')
-    # Prove ordinary packaged startup before constructing or launching the synthetic matrix.
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
-    $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
-    if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
     $env:REPODITOR_RECOVERY_EXECUTABLE = Build-Host 'protocol' 'synthetic-health-recovery' $true
     $env:REPODITOR_SAFETY_NO_ACL_HOST = Build-Host 'no-acl' 'synthetic-health-recovery' $false
     $env:REPODITOR_SAFETY_UI_HOST = Build-Host 'ui' 'synthetic-health-ui' $true

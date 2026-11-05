@@ -1,0 +1,61 @@
+name: Tauri startup comparison (diagnostic)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/tauri-discovery-host]
+    paths:
+      - .github/workflows/tauri-startup.yml
+      - desktop/e2e/tauri-startup-comparison.spec.ts
+
+permissions:
+  contents: read
+
+jobs:
+  startup-comparison:
+    name: Diagnostic packaged startup comparisons
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Sync locked packaging dependencies
+        working-directory: .
+        run: uv sync --locked --group package
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Compare one ordinary packaged host (not the Quality gate)
+        run: pwsh -NoProfile -File scripts/test-tauri-safety.ps1 -CompareStartup -OutputDirectory build/tauri-startup-comparison
+      - name: Preserve bounded comparison evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-startup-comparison-diagnostics
+          path: |
+            desktop/build/tauri-startup-comparison/validation.log
+            desktop/build/tauri-startup-comparison/startup.json
+            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/startup-*.json
+            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/comparison.json
+            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/trace.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

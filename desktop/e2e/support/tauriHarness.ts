@@ -13,7 +13,14 @@ import {
   getPythonExecutable,
   isolatedApplicationEnvironment,
 } from "./fixtureEnvironment";
-import { reapFailedStartup, startupEnvironment, startupText, windowsStartup } from "./tauriStartup";
+import {
+  cdpEndpoint,
+  reapFailedStartup,
+  startupDirectories,
+  startupEnvironment,
+  startupText,
+  windowsStartup,
+} from "./tauriStartup";
 
 export async function native<T>(
   page: Page,
@@ -272,6 +279,7 @@ export async function launch(
   let spawnError: string | null = null;
   let lastCdpError: string | null = null;
   let windows: unknown;
+  let endpoint: unknown;
   let beforeCleanup: { exitCode: number | null; signal: NodeJS.Signals | null } | null = null;
   child.stdout.on("data", (chunk: Buffer) => {
     stdout = (stdout + chunk.toString()).slice(0, 8192);
@@ -296,6 +304,8 @@ export async function launch(
       lastCdpError,
       cleanupError,
       beforeCleanup,
+      endpoint: endpoint ?? (await cdpEndpoint(port)),
+      directories: startupDirectories(home),
       environment: startupEnvironment(environment, home),
       windows: windows ?? windowsStartup(child.pid, home),
     };
@@ -330,6 +340,7 @@ export async function launch(
     return { child, browser, page, startupPath };
   } catch (error) {
     beforeCleanup = { exitCode: child.exitCode, signal: child.signalCode };
+    endpoint = await cdpEndpoint(port);
     windows = windowsStartup(child.pid, home);
     const cleanupError = await reapFailedStartup(child, exited, home);
     await browser?.close();

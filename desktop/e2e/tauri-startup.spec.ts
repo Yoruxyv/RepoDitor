@@ -26,6 +26,8 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
     const diagnostics = JSON.parse(await readFile(app.startupPath, "utf8"));
     expect(diagnostics.state).toBe("ready");
     expect(diagnostics.spawnError).toBeNull();
+    expect(diagnostics.endpoint.status).toBe(200);
+    expect(diagnostics.endpoint.webSocketPresent).toBe(true);
     expect(diagnostics.windows.probeError).toBeUndefined();
     expect(diagnostics.windows.hostAlive).toBe(true);
     for (const command of ["test_health_write", "test_health_recover"]) {
@@ -98,6 +100,7 @@ for (const kind of ["spawn error", "early exit", "no CDP"] as const) {
     expect(report.state).toBe("failed");
     expect(report.cleanupError).toBeNull();
     expect(report.lastCdpError).toBeTruthy();
+    expect(report.endpoint.error).toBe("ECONNREFUSED");
     if (kind === "spawn error") expect(report.spawnError).toContain("ENOENT");
     else {
       if (kind === "early exit") expect(report.exitCode).toBe(23);
