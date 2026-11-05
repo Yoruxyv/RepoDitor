@@ -12,6 +12,7 @@ function required(name) {
 }
 const host = required("REPODITOR_ARTIFACT_HOST");
 const synthetic = required("REPODITOR_ARTIFACT_SYNTHETIC_HOST");
+const browserTest = required("REPODITOR_ARTIFACT_BROWSER_TEST_HOST");
 const backend = required("REPODITOR_ARTIFACT_BACKEND");
 const fault = required("REPODITOR_ARTIFACT_FAULT_BACKEND");
 const root = path.resolve(
@@ -36,6 +37,10 @@ test("synthetic features cannot be staged and previous output survives", async (
   await writeFile(path.join(output, "sentinel"), "existing artifact evidence");
   await assert.rejects(stagePreview(synthetic, backend, output), /host authority cannot be staged/);
   assert.equal(await readFile(path.join(output, "sentinel"), "utf8"), "existing artifact evidence");
+});
+
+test("read-only browser test features cannot enter production artifacts", async () => {
+  await assert.rejects(checkArtifact(browserTest, backend), /host authority cannot be staged/);
 });
 
 test("unmarked hosts fail closed without executing the executable", async () => {

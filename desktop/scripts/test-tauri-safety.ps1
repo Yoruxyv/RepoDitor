@@ -56,13 +56,13 @@ try {
     Run-Checked 'npm' @('run', 'build:sidecar')
     if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
     Run-Checked 'npm' @('run', 'build:tauri-ui')
-    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false $TestBrowserArgs.IsPresent
+    $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false (-not $CompareStartup.IsPresent)
     $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'startup.json'
     Run-Checked 'npm' @('run', 'typecheck:e2e')
+    if (-not $CompareStartup) { $env:REPODITOR_NATIVE_BROWSER_ARGS = '1' }
     if ($TestBrowserArgs) {
-        $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
         Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts', '--grep', 'startup ordinary')
         $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
         if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 1) { throw 'The ordinary browser-arguments control did not pass.' }
@@ -83,6 +83,7 @@ try {
     Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
+    $env:TAURI_CONFIG = $null
     Run-Checked 'uv' @('run', '--locked', '--no-sync', '--project', $repository, '--group', 'test', 'pytest', '-q', '-rs',
         '../desktop/python/tests/core', '../desktop/python/tests/storage', '../desktop/python/tests/desktop_api',
         '../desktop/python/tests/services/test_installed_build.py',
@@ -96,9 +97,10 @@ try {
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--all-features')
     Run-Checked 'cargo' @('build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
-    $env:REPODITOR_RECOVERY_EXECUTABLE = Build-Host 'protocol' 'synthetic-health-recovery' $true
-    $env:REPODITOR_SAFETY_NO_ACL_HOST = Build-Host 'no-acl' 'synthetic-health-recovery' $false
-    $env:REPODITOR_SAFETY_UI_HOST = Build-Host 'ui' 'synthetic-health-ui' $true
+    $env:REPODITOR_ARTIFACT_HOST = Build-Host 'production' '' $false
+    $env:REPODITOR_RECOVERY_EXECUTABLE = Build-Host 'protocol' 'synthetic-health-recovery' $true $true
+    $env:REPODITOR_SAFETY_NO_ACL_HOST = Build-Host 'no-acl' 'synthetic-health-recovery' $false $true
+    $env:REPODITOR_SAFETY_UI_HOST = Build-Host 'ui' 'synthetic-health-ui' $true $true
     $env:TAURI_CONFIG = $null
 
     $packageArguments = @('run', '--locked', '--no-sync', '--project', $repository, '--group', 'package', 'pyinstaller',
@@ -109,7 +111,7 @@ try {
         Run-Checked 'uv' ($packageArguments + @('--distpath', "$output/fault-backend", '--workpath', "$output/fault-work", '--specpath', "$output/fault-spec", '--hidden-import', 'repo_save_editor.desktop_api.__main__', 'e2e/support/recovery-sidecar.py'))
         $FaultBackend = "$output/fault-backend/repoditor-backend"
     }
-    $env:REPODITOR_ARTIFACT_HOST = $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE
+    $env:REPODITOR_ARTIFACT_BROWSER_TEST_HOST = $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE
     $env:REPODITOR_ARTIFACT_SYNTHETIC_HOST = $env:REPODITOR_SAFETY_UI_HOST
     $env:REPODITOR_ARTIFACT_FAULT_BACKEND = [IO.Path]::GetFullPath($FaultBackend, $desktop)
     $env:REPODITOR_ARTIFACT_OUTPUT = Join-Path $output 'artifact-tests'

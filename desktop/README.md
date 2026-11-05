@@ -195,7 +195,9 @@ The opt-in packaged startup workflow tests one read-only host with the
 preserving the default browser flags. Both WebView2 debugging environment variables
 are empty during this control. The feature adds no save commands and marks its
 artifact as test-only, so production staging rejects it. It cannot satisfy the
-required Quality safety gate. The normal
+required Quality safety gate. The full gate uses this private configuration for
+interactive hosts and builds a separate production host without test features for
+artifact admission, including rejection of the read-only debugging test host. The normal
 gate runs its ordinary startup control before the Python/Rust suites and synthetic
 host builds, retaining every mandatory check after startup succeeds.
 
