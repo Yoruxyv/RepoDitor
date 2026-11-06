@@ -3,8 +3,8 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const packageJson = require("../package.json");
-const releaseConfig = require("../electron-builder.release.cjs");
+const packageJson = require("../../package.json");
+const releaseConfig = require("../../electron-builder.release.cjs");
 const { validateConfiguration } = require("app-builder-lib/out/util/config/config");
 const { DebugLogger } = require("builder-util/out/DebugLogger");
 

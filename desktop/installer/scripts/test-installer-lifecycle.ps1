@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string] $SetupPath,
-  [string] $ResultsPath = (Join-Path $PSScriptRoot '..\build\installer-lifecycle-results'),
+  [string] $ResultsPath = (Join-Path $PSScriptRoot '..\..\build\installer-lifecycle-results'),
   [switch] $RequireUnelevated,
   [switch] $ObserveSetupUi,
   [string] $ExpectedDisposableProfile,
@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $resultsRoot = [IO.Path]::GetFullPath($ResultsPath)
 $allowedBuildRoot = [IO.Path]::GetFullPath((Join-Path $desktopRoot 'build'))
 if (-not $resultsRoot.StartsWith($allowedBuildRoot + '\', [StringComparison]::OrdinalIgnoreCase) -and

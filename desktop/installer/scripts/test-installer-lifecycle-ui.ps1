@@ -31,7 +31,7 @@ Assert-UiCheck ($context.workerSession -eq $context.hostSession) 'Context lost t
 Assert-UiCheck ($context.apartment -ceq 'MTA') 'Context did not report the actual MTA worker.'
 Assert-UiCheck ($context.desktop -ne 'unavailable') 'Worker desktop is unavailable.'
 
-$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $buildRoot = Join-Path $desktopRoot 'build'
 $fixtureRoot = Join-Path $buildRoot ('installer-ui-check-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null

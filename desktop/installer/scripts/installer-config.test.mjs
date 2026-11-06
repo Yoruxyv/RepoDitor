@@ -8,8 +8,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const packageJson = require("../package.json");
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const packageJson = require("../../package.json");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const installerRoot = path.join(desktopRoot, "installer");
 const uiSourceRoot = path.join(installerRoot, "ui");
 const uiBuildRoot = path.join(desktopRoot, "build", "installer-ui");
@@ -23,8 +23,8 @@ test("the bare npm lifecycle command isolates its visible production worker and 
     /powershell .*run-installer-lifecycle\.ps1$/,
   );
   const [runner, worker, workflow] = await Promise.all([
-    readFile(path.join(desktopRoot, "scripts/run-installer-lifecycle.ps1"), "utf8"),
-    readFile(path.join(desktopRoot, "scripts/test-installer-lifecycle.ps1"), "utf8"),
+    readFile(path.join(desktopRoot, "installer/scripts/run-installer-lifecycle.ps1"), "utf8"),
+    readFile(path.join(desktopRoot, "installer/scripts/test-installer-lifecycle.ps1"), "utf8"),
     readFile(path.join(desktopRoot, "../.github/workflows/installer-lifecycle.yml"), "utf8"),
   ]);
   assert.match(runner, /SetAccessRuleProtection\(\$true, \$false\)/);
@@ -59,7 +59,7 @@ test(
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            path.join(desktopRoot, "scripts/run-installer-lifecycle.ps1"),
+            path.join(desktopRoot, "installer/scripts/run-installer-lifecycle.ps1"),
             "-Mode",
             "Create",
             "-ControlPath",
@@ -333,7 +333,7 @@ test("long paths stay semantic, single-line, and cannot displace Change", async 
 test("host building refreshes and stages Vite output before NSIS", async () => {
   const [sources, build, include] = await Promise.all([
     readHostSources(),
-    readFile(path.join(installerRoot, "build-host.ps1"), "utf8"),
+    readFile(path.join(installerRoot, "scripts/build-host.ps1"), "utf8"),
     readFile(path.join(installerRoot, "installer.nsh"), "utf8"),
   ]);
 

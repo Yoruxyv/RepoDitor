@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
-const assetsDirectory = path.resolve(scriptDirectory, "../dist/assets");
+const assetsDirectory = path.resolve(scriptDirectory, "../../dist/assets");
 
 const rawBudgetKiB = Number(process.env.BUNDLE_RAW_BUDGET_KIB ?? "450");
 const gzipBudgetKiB = Number(process.env.BUNDLE_GZIP_BUDGET_KIB ?? "135");

@@ -5,8 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const scriptPath = path.join(desktopRoot, "scripts", "normalize-imports.mjs");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const scriptPath = path.join(desktopRoot, "scripts", "quality", "normalize-imports.mjs");
 const sourceRoot = path.join(desktopRoot, "src");
 const featureOne = path.join(sourceRoot, "features", "__normalize_imports_one");
 const featureTwo = path.join(sourceRoot, "features", "__normalize_imports_two");

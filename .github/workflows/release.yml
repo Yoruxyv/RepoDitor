@@ -89,7 +89,7 @@ jobs:
             "release/win-unpacked/RepoDitor.exe"
             "release/win-unpacked/resources/backend/repoditor-backend.exe"
           )
-          ./scripts/verify-authenticode.ps1 -Path $executables -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
+          ./scripts/release/verify-authenticode.ps1 -Path $executables -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
 
       - name: Run packaged smoke test
         working-directory: desktop
@@ -126,7 +126,7 @@ jobs:
             (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName
             (Get-Item build/installer-host/RepoDitorInstallerHost.exe).FullName
           )
-          ./scripts/verify-authenticode.ps1 `
+          ./scripts/release/verify-authenticode.ps1 `
             -Path $artifacts `
             -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
 

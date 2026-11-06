@@ -538,7 +538,7 @@ the upgrade presentation cache, not every artwork domain.
 To audit the derived presentation cache after restarting RepoDitor, run:
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 The read-only script compares `manifest.json` with the stored hash-named PNGs

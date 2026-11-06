@@ -286,7 +286,7 @@ backup dibuat di sebelah sumber, bukan di dalam cache presentasi.
 Untuk mengaudit cache presentasi turunan setelah RepoDitor di-restart, jalankan:
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 Script read-only ini membandingkan `manifest.json` dengan PNG bernama hash yang

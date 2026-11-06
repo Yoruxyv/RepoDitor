@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { assertVersionAlignment } from "./version-metadata.mjs";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultRepoRoot = path.resolve(desktopRoot, "..");
 
 export function checkReleaseVersion(repoRoot = defaultRepoRoot, environment = process.env) {

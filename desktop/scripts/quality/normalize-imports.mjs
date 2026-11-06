@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
-const desktopRoot = path.resolve(scriptDirectory, "..");
+const desktopRoot = path.resolve(scriptDirectory, "../..");
 const srcRoot = path.join(desktopRoot, "src");
 const electronRoot = path.join(desktopRoot, "electron");
 const tsconfigPath = path.join(desktopRoot, "tsconfig.app.json");
@@ -24,11 +24,11 @@ const verbose = flags.has("--verbose") || !shouldWrite;
 
 if (flags.has("--help")) {
   console.log(`Usage:
-  node scripts/normalize-imports.mjs             Preview changes
-  node scripts/normalize-imports.mjs --write     Apply changes
-  node scripts/normalize-imports.mjs --check     Exit 1 when changes are needed
-  node scripts/normalize-imports.mjs --strict    Fail on unresolved local imports
-  node scripts/normalize-imports.mjs --verbose   Print every replacement
+  node scripts/quality/normalize-imports.mjs             Preview changes
+  node scripts/quality/normalize-imports.mjs --write     Apply changes
+  node scripts/quality/normalize-imports.mjs --check     Exit 1 when changes are needed
+  node scripts/quality/normalize-imports.mjs --strict    Fail on unresolved local imports
+  node scripts/quality/normalize-imports.mjs --verbose   Print every replacement
 `);
   process.exit(0);
 }

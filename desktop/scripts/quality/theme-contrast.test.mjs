@@ -4,7 +4,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const themeCss = readFileSync(path.join(desktopRoot, "src", "styles", "theme.css"), "utf8");
 const mainSource = readFileSync(path.join(desktopRoot, "electron", "main.cts"), "utf8");
 const indexHtml = readFileSync(path.join(desktopRoot, "index.html"), "utf8");

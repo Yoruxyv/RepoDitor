@@ -4,7 +4,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const hostRoot = path.join(desktopRoot, "build", "installer-host");
 const packageJson = JSON.parse(await readFile(path.join(desktopRoot, "package.json"), "utf8"));
 const nsisTarget = packageJson.build.win.target.find(({ target }) => target === "nsis");

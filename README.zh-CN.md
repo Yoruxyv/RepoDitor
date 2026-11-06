@@ -251,7 +251,7 @@ repository endpoint 读取；Steam 头像补充则会把从存档中得到、格
 重启 RepoDitor 后，如果要检查派生展示 cache，可以运行：
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 这个只读脚本会把 `manifest.json` 与保存的 hash 命名 PNG 进行比较，并报告未被引用或缺失的 artifact。

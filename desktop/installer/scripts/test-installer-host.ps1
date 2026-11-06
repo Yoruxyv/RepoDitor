@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $buildRoot = [IO.Path]::GetFullPath((Join-Path $desktopRoot 'build'))
 $checkRoot = [IO.Path]::GetFullPath((Join-Path $buildRoot "installer-checks-$([Guid]::NewGuid().ToString('N'))"))
 if (-not $checkRoot.StartsWith($buildRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {

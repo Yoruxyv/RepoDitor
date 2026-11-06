@@ -6,7 +6,7 @@ param(
     [switch]$TestBrowserArgs
 )
 $ErrorActionPreference = 'Stop'
-$desktop = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$desktop = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $repository = [IO.Path]::GetFullPath((Join-Path $desktop '..'))
 $output = [IO.Path]::GetFullPath((Join-Path $desktop $OutputDirectory))
 $build = Join-Path $desktop 'build'

@@ -17,7 +17,7 @@ import {
   versionPaths,
 } from "./version-metadata.mjs";
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultRepoRoot = path.resolve(desktopRoot, "..");
 
 function writeJson(filePath, value, source) {

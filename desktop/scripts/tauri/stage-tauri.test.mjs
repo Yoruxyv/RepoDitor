@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { checkArtifact, stagePreview } from "./stage-tauri.mjs";
 
-const desktop = path.resolve(import.meta.dirname, "..");
+const desktop = path.resolve(import.meta.dirname, "../..");
 function required(name) {
   if (!process.env[name]) throw new Error(`${name} must name a prepared Windows artifact`);
   return path.resolve(desktop, process.env[name]);

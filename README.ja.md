@@ -237,7 +237,7 @@ Steam アバター補完はセーブ由来の妥当な Steam ID を対応する�
 RepoDitor を再起動した後に派生表示キャッシュを監査するには次を実行します。
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 この読み取り専用スクリプトは `manifest.json` と保存済みの hash 名 PNG を比較し、参照されていない artifact や不足している artifact を報告します。

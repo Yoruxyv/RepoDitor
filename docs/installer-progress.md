@@ -194,7 +194,7 @@ runner. Local interactive QA retains its stricter postflight-based account clean
 and keeps failed disposable profiles for diagnosis. Never run the worker directly
 against an existing Windows profile.
 
-Run `pwsh -NoProfile -File scripts/test-installer-lifecycle-process.ps1` from
+Run `pwsh -NoProfile -File installer/scripts/test-installer-lifecycle-process.ps1` from
 `desktop` for synthetic supervision regressions. These exercise process exit,
 nonzero status, missing/partial/failed output, missing postflight, timeout tree
 termination and a completed worker with a surviving descendant, without invoking

@@ -11,7 +11,7 @@ import {
   validateExtractionTemplate,
 } from "./check-extraction-override.mjs";
 
-const desktop = fileURLToPath(new URL("../", import.meta.url));
+const desktop = fileURLToPath(new URL("../../", import.meta.url));
 
 test("extraction override rejects upstream drift and native counter overflow", async () => {
   const source = await readFile(

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "@playwright/test";
 
-const buildRoot = fileURLToPath(new URL("../build/installer-ui/", import.meta.url));
+const buildRoot = fileURLToPath(new URL("../../build/installer-ui/", import.meta.url));
 const origin = "https://repoditor-installer.local";
 const contentTypes = {
   ".html": "text/html",

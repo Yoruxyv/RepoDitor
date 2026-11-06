@@ -23,7 +23,7 @@ Var RepoDitor.Scope
     !ifdef ZIP_COMPRESSION | APP_PACKAGE_URL | APP_BUILD_DIR | APP_32 | APP_ARM64
       !error "RepoDitor extraction telemetry requires one embedded x64 7z payload."
     !endif
-    !execute '"node" "${PROJECT_DIR}\scripts\check-extraction-override.mjs" "${APP_64}"' = 0
+    !execute '"node" "${PROJECT_DIR}\installer\scripts\check-extraction-override.mjs" "${APP_64}"' = 0
     !cd "${PROJECT_DIR}\installer\nsis"
   !macroend
   Var RepoDitor.InstallPath

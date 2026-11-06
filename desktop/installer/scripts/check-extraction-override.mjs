@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { getNsisPluginsPath } from "app-builder-lib/out/toolsets/windows.js";
 import { getPath7za } from "app-builder-lib/out/toolsets/7zip.js";
 
-const desktopRoot = fileURLToPath(new URL("../", import.meta.url));
+const desktopRoot = fileURLToPath(new URL("../../", import.meta.url));
 const maximumBytes = 0xffff_ffffn;
 const templateDigest = "E4174388A0F7A1DF0B85A0742AA1EA7A4B2B18F9F29DCCD6EF10A66212F68148";
 const pluginDigest = "B393F05E8FF919EF071181050E1873C9A776E1A0AE8329AEFFF7007D0CADF592";

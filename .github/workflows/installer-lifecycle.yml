@@ -71,11 +71,11 @@ jobs:
 
       - name: Verify lifecycle supervision failure paths
         shell: pwsh
-        run: ./scripts/test-installer-lifecycle-process.ps1
+        run: ./installer/scripts/test-installer-lifecycle-process.ps1
 
       - name: Verify installer UI diagnostics and action eligibility
         shell: powershell
-        run: ./scripts/test-installer-lifecycle-ui.ps1
+        run: ./installer/scripts/test-installer-lifecycle-ui.ps1
 
       - name: Verify native installer stages and completion checks
         run: npm run test:installer:host
@@ -97,12 +97,12 @@ jobs:
           $passwordText = "Rdc1!$([Guid]::NewGuid().ToString('N').Substring(0, 9))"
           $stage = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item scripts/test-installer-lifecycle.ps1 (Join-Path $stage "lifecycle.ps1")
-          Copy-Item scripts/installer-lifecycle-ui.ps1 $stage
+          Copy-Item installer/scripts/test-installer-lifecycle.ps1 (Join-Path $stage "lifecycle.ps1")
+          Copy-Item installer/scripts/installer-lifecycle-ui.ps1 $stage
           Copy-Item (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName (Join-Path $stage "setup.exe")
 
-          . ./scripts/installer-lifecycle-process.ps1
-          Copy-Item scripts/installer-lifecycle-process.ps1 $stage
+          . ./installer/scripts/installer-lifecycle-process.ps1
+          Copy-Item installer/scripts/installer-lifecycle-process.ps1 $stage
           $controlRoot = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle-control"
           New-Item -ItemType Directory -Path $controlRoot | Out-Null
           $acl = [Security.AccessControl.DirectorySecurity]::new()
@@ -165,13 +165,13 @@ jobs:
             Wait-LifecycleWorker $worker $stage
           }
           finally {
-            ./scripts/cleanup-installer-lifecycle-ci.ps1
+            ./installer/scripts/cleanup-installer-lifecycle-ci.ps1
           }
 
       - name: Clean up disposable installer account after interruption
         if: ${{ always() }}
         shell: pwsh
-        run: ./scripts/cleanup-installer-lifecycle-ci.ps1
+        run: ./installer/scripts/cleanup-installer-lifecycle-ci.ps1
 
       - name: Upload installer lifecycle diagnostics
         if: ${{ always() }}

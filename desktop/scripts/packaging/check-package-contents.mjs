@@ -15,7 +15,7 @@ const requiredFiles = [
 ];
 
 for (const file of requiredFiles) {
-  await access(new URL(`../release/win-unpacked/${file}`, import.meta.url));
+  await access(new URL(`../../release/win-unpacked/${file}`, import.meta.url));
 }
 
 console.log(`Packaged application contains all ${requiredFiles.length} required files.`);

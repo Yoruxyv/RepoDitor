@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 
 $sdkVersion = "1.0.4191.47"
 $sdkSha256 = "F492BBF547D0DA329553B6727435B677579B1E9F91CC9E4A1AD029366D5F23D0"
-$desktopRoot = Split-Path $PSScriptRoot -Parent
+$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../.."))
 $buildRoot = Join-Path $desktopRoot "build\installer-host"
 $uiBuildRoot = Join-Path $desktopRoot "build\installer-ui"
 $dependencyRoot = Join-Path $desktopRoot "build\webview2-$sdkVersion"
@@ -81,7 +81,7 @@ $formsAssembly = Join-Path $dependencyRoot "lib\net462\Microsoft.Web.WebView2.Wi
 $loader = Join-Path $dependencyRoot "build\native\x64\WebView2Loader.dll"
 $license = Join-Path $dependencyRoot "LICENSE.txt"
 $notice = Join-Path $dependencyRoot "NOTICE.txt"
-$sources = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "host") -Filter "*.cs" -File -Recurse |
+$sources = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "../host") -Filter "*.cs" -File -Recurse |
     Sort-Object FullName | ForEach-Object FullName)
 if ($sources.Count -eq 0) {
     throw "The RepoDitor installer host source set is empty."

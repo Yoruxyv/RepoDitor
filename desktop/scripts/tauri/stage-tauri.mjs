@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const build = path.join(desktop, "build");
 const run = promisify(execFile);
 
@@ -22,7 +22,7 @@ export async function checkArtifact(host, backend) {
       "--project",
       path.dirname(desktop),
       "python",
-      path.join(desktop, "scripts/check-tauri-artifact.py"),
+      path.join(desktop, "scripts/tauri/check-tauri-artifact.py"),
       host,
       path.join(backend, "repoditor-backend.exe"),
     ],

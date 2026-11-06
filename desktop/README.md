@@ -204,7 +204,7 @@ host builds, retaining every mandatory check after startup succeeds.
 
 Outputs use fresh `build/tauri-safety` and `build/recovery-checkpoint/tauri-safety`
 directories. For another local run, pass a new `-OutputDirectory` to
-`scripts/test-tauri-safety.ps1`. Its optional `-NormalBackend` and `-FaultBackend`
+`scripts/tauri/test-tauri-safety.ps1`. Its optional `-NormalBackend` and `-FaultBackend`
 arguments reuse already validated immutable test fixtures matching current Python source.
 The configured ordinary resource backend is still rebuilt before Rust when these
 overrides are supplied; stale `build/backend` contents never satisfy that prerequisite.

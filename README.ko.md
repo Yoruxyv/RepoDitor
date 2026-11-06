@@ -235,7 +235,7 @@ Steam 아바타 보강은 세이브에서 파생된 타당한 Steam ID를 해당
 RepoDitor를 다시 시작한 뒤 파생 표시 캐시를 점검하려면 다음을 실행합니다.
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 이 읽기 전용 스크립트는 `manifest.json`과 저장된 hash 이름 PNG를 비교해 참조되지 않거나 누락된 artifact를 보고합니다.

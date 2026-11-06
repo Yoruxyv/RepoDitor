@@ -23,7 +23,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
   exit $LASTEXITCODE
 }
 if (-not $IsWindows) { throw 'Visible installer acceptance requires Windows and PowerShell 7.' }
-$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$desktopRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $buildRoot = Join-Path $desktopRoot 'build'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdministrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
