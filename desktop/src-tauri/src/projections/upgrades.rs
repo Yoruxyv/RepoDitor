@@ -1,9 +1,6 @@
 //! Validate Python's dynamic upgrade DTOs; optional artwork never crosses as a URL.
-use crate::{
-    artwork::valid_icon_key,
-    error::{json, BackendError},
-    players, saves,
-};
+use super::{artwork::valid_icon_key, players, saves};
+use crate::error::{json, BackendError};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;

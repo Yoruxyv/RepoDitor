@@ -1,9 +1,6 @@
 //! Validate the public MetaSave projection; Python owns catalog and ownership semantics.
-use crate::{
-    artwork::valid_icon_key,
-    error::{json, BackendError},
-    saves,
-};
+use super::{artwork::valid_icon_key, saves};
+use crate::error::{json, BackendError};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 use std::collections::HashSet;
@@ -134,7 +131,7 @@ pub fn parse(bytes: &[u8]) -> Result<Cosmetics, BackendError> {
     }
     // Reuse the exact evidence behind Python/Electron's generated policy, never a catalog/range.
     let evidence: Value = serde_json::from_str(include_str!(
-        "../../../tools/capabilities/evidence/cosmetics.v2.json"
+        "../../../../tools/capabilities/evidence/cosmetics.v2.json"
     ))
     .map_err(|_| BackendError::Invalid)?;
     let proven: HashSet<i64> = evidence
@@ -221,7 +218,7 @@ mod tests {
     }
     fn response(count: usize) -> Value {
         let evidence: Value = serde_json::from_str(include_str!(
-            "../../../tools/capabilities/evidence/cosmetics.v2.json"
+            "../../../../tools/capabilities/evidence/cosmetics.v2.json"
         ))
         .unwrap();
         let proven = evidence
@@ -293,7 +290,7 @@ mod tests {
     #[test]
     fn frozen_policy_matches_both_existing_generated_consumers() {
         let evidence: Value = serde_json::from_str(include_str!(
-            "../../../tools/capabilities/evidence/cosmetics.v2.json"
+            "../../../../tools/capabilities/evidence/cosmetics.v2.json"
         ))
         .unwrap();
         let expected: Vec<i64> = evidence
@@ -305,8 +302,8 @@ mod tests {
             .map(|n| n.as_i64().unwrap())
             .collect();
         for generated in [
-            include_str!("../../python/repo_save_editor/services/cosmetics/known_cosmetics.py"),
-            include_str!("../../electron/ipc/known-cosmetics.cts"),
+            include_str!("../../../python/repo_save_editor/services/cosmetics/known_cosmetics.py"),
+            include_str!("../../../electron/ipc/known-cosmetics.cts"),
         ] {
             let actual: Vec<i64> = generated
                 .lines()

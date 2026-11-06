@@ -1,8 +1,6 @@
 //! Validate installed-map display data; Python owns discovery and artwork stays opaque.
-use crate::{
-    error::{json, BackendError},
-    saves,
-};
+use super::saves;
+use crate::error::{json, BackendError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;

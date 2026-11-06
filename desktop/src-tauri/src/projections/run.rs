@@ -1,8 +1,6 @@
 //! Validate Python's Run projection without interpreting raw save values.
-use crate::{
-    error::{json, BackendError},
-    saves,
-};
+use super::saves;
+use crate::error::{json, BackendError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;

@@ -1,8 +1,7 @@
 //! Fixed backend operations, bounded request admission, and lifetime ownership.
-use crate::{
-    error::{BackendError, Outcome, Service},
-    process,
-};
+pub(crate) mod process;
+
+use crate::error::{BackendError, Outcome, Service};
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},

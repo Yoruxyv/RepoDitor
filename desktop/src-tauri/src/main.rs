@@ -1,23 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-mod artwork;
 mod backend;
-mod cosmetics;
-mod discovery;
 mod error;
-mod game;
-mod items;
-mod maps;
-mod players;
-mod process;
+mod projections;
 #[cfg(feature = "synthetic-health-recovery")]
-mod recovery;
-mod run;
-mod saves;
-mod upgrades;
+mod synthetic;
 
 use backend::{HostState, Operation};
 use error::{BackendError, Outcome, Service};
+use projections::{cosmetics, discovery, game, items, maps, players, run, saves, upgrades};
 use std::sync::{atomic::Ordering, Arc};
+#[cfg(feature = "synthetic-health-recovery")]
+use synthetic::recovery;
 use tauri::Manager;
 
 #[cfg(all(windows, feature = "native-ui-test"))]

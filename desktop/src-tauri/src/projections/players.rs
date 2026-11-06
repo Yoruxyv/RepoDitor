@@ -15,7 +15,7 @@ pub struct Player {
 pub fn parse(bytes: &[u8]) -> Result<Vec<Player>, BackendError> {
     let mut raw = json(bytes)?;
     if raw.get("ok") == Some(&serde_json::Value::Bool(false)) {
-        return Err(crate::saves::read_error(&raw)?);
+        return Err(super::saves::read_error(&raw)?);
     }
     if raw.get("ok") != Some(&serde_json::Value::Bool(true)) {
         return Err(BackendError::Invalid);
@@ -37,7 +37,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Player>, BackendError> {
     Ok(players)
 }
 
-pub(super) fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 20 && id.bytes().all(|b| b.is_ascii_digit())
 }
 

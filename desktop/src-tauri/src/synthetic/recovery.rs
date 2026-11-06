@@ -2,7 +2,7 @@
 use crate::{
     backend::{self, Operation},
     error::{BackendError, Outcome},
-    players, saves, upgrades,
+    projections::{players, saves, upgrades},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

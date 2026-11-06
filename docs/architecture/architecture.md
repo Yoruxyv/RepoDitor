@@ -72,6 +72,14 @@ Overview, Players, Upgrades, Run, Items, selected-save header, preferences and g
 Electron remains the shipping host;
 its preload, IPC, save services, installer and release defaults are unchanged.
 
+The Rust source root keeps application bootstrap and typed command registration in
+`main.rs`, with public error mapping in `error.rs`. `backend/` owns fixed sidecar
+operations, request admission and process supervision; its process tests remain
+beside that implementation and use `tests/sidecar_fixture.rs`. `projections/` owns
+the validated Python DTOs returned to React. `synthetic/` owns transaction and
+recovery transport and is compiled only with `synthetic-health-recovery`; its
+existing command permissions and runtime test-root checks still apply.
+
 Rust translates the existing Python discovery DTO and validates required fields,
 dates, JavaScript-safe numbers, save counts, session fingerprints, response ID
 identity, required visual keys and root/game consistency before returning the

@@ -19,7 +19,7 @@ pub fn valid_id(id: &str) -> bool {
             .all(|(s, n)| s.len() == n && s.bytes().all(|b| b.is_ascii_digit()))
 }
 
-pub(super) fn valid_upgrade_key(key: &str) -> bool {
+pub(crate) fn valid_upgrade_key(key: &str) -> bool {
     key.starts_with("playerUpgrade")
         && key != "playerUpgrade"
         && key.len() <= 512
