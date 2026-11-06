@@ -282,6 +282,76 @@ describe("native upgrade drafts", () => {
     expect(tauriHealthApi.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);
   });
 
+  it("marks Health drafts on the Players tab across selection, navigation, Revert and Save", async () => {
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    const tab = screen.getByRole("tab", { name: "Players" });
+    await user.click(tab);
+    const health = await screen.findByRole("spinbutton", { name: "Current health" });
+    await waitFor(() => expect(health.hasAttribute("readonly")).toBe(false));
+    expect(tab.getAttribute("aria-describedby")).toBeNull();
+    health.focus();
+    fireEvent.change(health, { target: { value: "17" } });
+    await user.tab();
+    expect(tab.getAttribute("aria-describedby")).toBe("native-players-pending");
+    expect(document.getElementById("native-players-pending")?.textContent).toBe("1 pending change");
+    await user.click(screen.getByRole("button", { name: /Beta/ }));
+    expect(health.hasAttribute("readonly")).toBe(true);
+    tab.focus();
+    await user.keyboard("{ArrowRight}{ArrowLeft}");
+    expect(document.activeElement).toBe(tab);
+    expect(tab.getAttribute("aria-describedby")).toBe("native-players-pending");
+    await user.click(screen.getByRole("button", { name: /Alpha/ }));
+    expect(screen.getByRole("spinbutton", { name: "Current health" }).getAttribute("value")).toBe(
+      "17",
+    );
+    await user.click(screen.getByRole("button", { name: "Revert" }));
+    expect(tab.getAttribute("aria-describedby")).toBeNull();
+    expect(document.getElementById("native-players-pending")).toBeNull();
+    const stage = async () => {
+      const input = screen.getByRole("spinbutton", { name: "Current health" });
+      input.focus();
+      fireEvent.change(input, { target: { value: "17" } });
+      await user.tab();
+    };
+    await stage();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(tab.getAttribute("aria-describedby")).toBeNull();
+    expect(tauriHealthApi.write).not.toHaveBeenCalled();
+    expect(tauriHealthApi.recover).not.toHaveBeenCalled();
+    await stage();
+    const canonical = {
+      opened: openResult({ ...session, fingerprint: "b".repeat(64) }).data,
+      players: players.map((player) => (player.id === "111" ? { ...player, health: 17 } : player)),
+      upgrades,
+      run: runState,
+    };
+    vi.mocked(tauriHealthApi.write).mockImplementation(async (request) => ({
+      operationId: request.operationId,
+      status: "applied",
+      fingerprint: canonical.opened.session.fingerprint,
+      backupAvailable: true,
+      reason: null,
+      canonical,
+    }));
+    vi.mocked(tauriHealthApi.recover).mockImplementation(async (_save, operationId) => ({
+      operationId,
+      status: "applied",
+      fingerprint: canonical.opened.session.fingerprint,
+      backupAvailable: true,
+      reason: null,
+      canonical,
+    }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
+    );
+    expect(tab.getAttribute("aria-describedby")).toBeNull();
+    expect(document.getElementById("native-players-pending")).toBeNull();
+    expect(tauriHealthApi.write).toHaveBeenCalledOnce();
+    expect(tauriHealthApi.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);
+  });
+
   it("never partially saves health while upgrade drafts are pending", async () => {
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
     const user = await openUpgrades();

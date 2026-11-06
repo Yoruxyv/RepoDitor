@@ -321,6 +321,7 @@ export function useTauriHealth(
       pendingOperationId: null,
       restoredPlayerId: null,
       reason: null,
+      backupVerified: false,
       pending:
         health === player.health
           ? null

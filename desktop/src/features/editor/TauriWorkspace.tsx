@@ -75,9 +75,10 @@ export function TauriWorkspace({
   const currentSession = health.canonical?.opened.session ?? session;
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
-  const pendingSections: Partial<Record<Section, boolean>> = {
-    upgrades: health.upgradeEdits.length > 0,
-    run: health.runEdits.length > 0,
+  const pendingSections: Partial<Record<Section, number>> = {
+    players: Number(health.pending !== null),
+    upgrades: health.upgradeEdits.length,
+    run: health.runEdits.length,
   };
   const reason = saveUnavailable(health);
   const saveUnavailableReason = reason ? t(reason) : null;
@@ -112,6 +113,8 @@ export function TauriWorkspace({
           {SECTIONS.map((item, index) => (
             <button
               aria-controls="workspace-panel"
+              aria-describedby={pendingSections[item] ? `native-${item}-pending` : undefined}
+              aria-label={t(`nav.${item}`)}
               aria-selected={section === item}
               className={`ui-feedback rounded-sm py-2.5 pr-1.5 pl-4 text-sm font-semibold ${section === item ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"}`}
               id={`native-${item}-tab`}
@@ -125,8 +128,15 @@ export function TauriWorkspace({
               {t(`nav.${item}`)}
               <span
                 aria-hidden="true"
-                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${pendingSections[item] ? "bg-accent" : ""}`}
+                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${section === item ? "bg-accent-ink" : "bg-accent"} ${pendingSections[item] ? "" : "invisible"}`}
               />
+              {pendingSections[item] ? (
+                <span className="sr-only" id={`native-${item}-pending`}>
+                  {t(pendingSections[item] === 1 ? "pending.one" : "pending.many", {
+                    count: pendingSections[item],
+                  })}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>

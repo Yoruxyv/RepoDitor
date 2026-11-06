@@ -327,6 +327,24 @@ describe("synthetic health ownership", () => {
     expect(subject.api.recover).not.toHaveBeenCalled();
   });
 
+  it("keeps the first player's draft when another player is edited before Save", async () => {
+    const subject = setup();
+    await ready(subject);
+    stage(subject);
+    act(() => subject.result.current.edit(players[1]!, 42));
+    expect(subject.result.current.pending).toMatchObject({ entity: "111", after: 17 });
+    expect(subject.api.write).not.toHaveBeenCalled();
+    await act(() => subject.result.current.save());
+    expect(subject.api.write).toHaveBeenCalledOnce();
+    expect(subject.api.write).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: "111", health: 17 }),
+    );
+    expect(subject.result.current.backupVerified).toBe(true);
+    act(() => subject.result.current.edit(players[1]!, 42));
+    expect(subject.result.current.pending).toMatchObject({ entity: "222", after: 42 });
+    expect(subject.result.current.backupVerified).toBe(false);
+  });
+
   it("admits a single click, verifies canonical values and acknowledges only afterwards", async () => {
     const subject = setup();
     await ready(subject);

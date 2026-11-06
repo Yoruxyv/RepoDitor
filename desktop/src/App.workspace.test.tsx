@@ -110,6 +110,54 @@ describe("run-save workspace integration", () => {
     );
   });
 
+  it("submits multiple players' Health drafts in one explicit Save", async () => {
+    const updated = { ...session, fingerprint: "b".repeat(64) };
+    const write = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        backupPath: "C:\\fixture\\save.es3.bak-parity",
+        session: updated,
+        canonical: {
+          fingerprint: updated.fingerprint,
+          players: [
+            { id: "111", health: 17 },
+            { id: "222", health: 42 },
+          ],
+        },
+      },
+    });
+    window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players, undefined, write);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    const health = await screen.findByRole("spinbutton", { name: "Current health" });
+    health.focus();
+    fireEvent.change(health, { target: { value: "17" } });
+    await user.click(screen.getByRole("button", { name: /Beta/ }));
+    health.focus();
+    fireEvent.change(health, { target: { value: "42" } });
+    await user.tab();
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText("Alpha · Health")).toBeTruthy();
+    expect(screen.getByText("Beta · Health")).toBeTruthy();
+    expect(write).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() => expect(write).toHaveBeenCalledOnce());
+    expect(write).toHaveBeenCalledWith(session.id, session.fingerprint, [
+      { feature: "players", entity: "111", field: "health", after: 17 },
+      { feature: "players", entity: "222", field: "health", after: 42 },
+    ]);
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+        "No pending changes",
+      ),
+    );
+    expect(input(screen.getByRole("spinbutton", { name: "Current health" })).value).toBe("42");
+    await user.click(screen.getByRole("button", { name: /Alpha/ }));
+    expect(input(screen.getByRole("spinbutton", { name: "Current health" })).value).toBe("17");
+  });
+
   it("rejects invalid health without creating a pending edit", async () => {
     window.repoditor = bridge(vi.fn().mockResolvedValue(openResult()), players);
     const user = userEvent.setup();

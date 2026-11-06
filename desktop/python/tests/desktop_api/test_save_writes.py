@@ -41,6 +41,33 @@ def _fingerprint(root: Path) -> str:
     return result["session"]["fingerprint"]
 
 
+def test_save_changes_writes_multiple_players_with_one_exact_backup(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    before = path.read_bytes()
+    result = save_changes(
+        path.parent.name,
+        sha256(before).hexdigest(),
+        [
+            {"feature": "players", "entity": "111", "field": "health", "after": 17},
+            {"feature": "players", "entity": "222", "field": "health", "after": 42},
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+    assert result["ok"] is True
+    written = result["result"]
+    assert written["canonical"]["players"] == [
+        {"id": "111", "health": 17},
+        {"id": "222", "health": 42},
+    ]
+    assert Path(written["backupPath"]).read_bytes() == before
+    assert len(list(path.parent.glob(f"{path.name}.bak-*"))) == 1
+    assert written["session"]["fingerprint"] == sha256(path.read_bytes()).hexdigest()
+    expected = deepcopy(sample_save)
+    expected["dictionaryOfDictionaries"]["value"]["playerHealth"] = {"111": 17, "222": 42}
+    assert SaveRepository.load(path) == expected
+
+
 def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, sample_save):
     sample_save["futureField"] = {"value": "preserve me"}
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]

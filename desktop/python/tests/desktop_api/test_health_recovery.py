@@ -41,6 +41,27 @@ def change(value=17):
     return [{"feature": "players", "entity": "111", "field": "health", "after": value}]
 
 
+def test_health_batches_cannot_borrow_single_player_transaction_authority(tmp_path, sample_save):
+    path, before, root = prepare(tmp_path, sample_save)
+    payload = [
+        {"feature": "players", "entity": "111", "field": "health", "after": 17},
+        {"feature": "players", "entity": "222", "field": "health", "after": 42},
+    ]
+    for handler in (prepare_health, write_health):
+        result = handler(
+            ID,
+            sha256(before).hexdigest(),
+            payload,
+            OP,
+            root,
+            game_status_loader=lambda: GameProcessStatus.NOT_RUNNING,
+        )["transaction"]
+        assert result["status"] == "rejected"
+        assert result["reason"] == "invalid_request"
+        assert path.read_bytes() == before
+        assert list(path.parent.iterdir()) == [path]
+
+
 def test_upgrade_drafts_cannot_borrow_health_transaction_authority(tmp_path, sample_save):
     path, before, root = prepare(tmp_path, sample_save)
     payload = [

@@ -228,6 +228,22 @@ test("explicit synthetic UI retains its authorized health and recovery behavior"
       enabled: true,
       state: "idle",
     });
+    await app.page.getByRole("button", { name: /Open workspace/ }).click();
+    const playersTab = app.page.getByRole("tab", { name: "Players", exact: true });
+    await playersTab.click();
+    await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
+    const health = app.page.getByRole("spinbutton", { name: "Current health" });
+    await health.fill("29");
+    await health.press("Tab");
+    await expect(playersTab).toHaveAttribute("aria-describedby", "native-players-pending");
+    await expect(app.page.locator("#native-players-pending")).toHaveText("1 pending change");
+    await playersTab.focus();
+    await playersTab.press("ArrowRight");
+    await expect(playersTab).toHaveAttribute("aria-describedby", "native-players-pending");
+    await app.page.getByRole("button", { name: "Revert all", exact: true }).click();
+    await expect(app.page.locator("#native-players-pending")).toHaveCount(0);
+    expect(await playersTab.getAttribute("aria-describedby")).toBeNull();
+    expect(await readFile(f.source)).toEqual(f.before);
     expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
       status: "applied",
       backupAvailable: true,
