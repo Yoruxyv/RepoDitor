@@ -3,13 +3,13 @@ import path from "node:path";
 
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
 
-import { EXPECTED_DESKTOP_VERSION } from "./support/fixtureEnvironment";
-import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
+import { EXPECTED_DESKTOP_VERSION } from "../support/fixtureEnvironment";
+import { launchSourceE2eHarness, type SourceE2eHarness } from "../support/harness";
 import {
   waitForDiscoveredSave,
   waitForSafeSave,
   waitForWorkspaceOrContinue,
-} from "./support/waits";
+} from "../support/waits";
 
 const expectedVersion = EXPECTED_DESKTOP_VERSION;
 

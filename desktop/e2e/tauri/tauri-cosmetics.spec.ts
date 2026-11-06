@@ -2,16 +2,16 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import type { CosmeticsViewDto, DesktopOperationResult } from "../electron/contracts.cjs";
+import type { CosmeticsViewDto, DesktopOperationResult } from "../../electron/contracts.cjs";
 import {
   DESKTOP_ROOT,
   PYTHON_ROOT,
   createMetaSaveFixture,
   getPythonExecutable,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageSyntheticBackend } from "./support/tauriHarness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
 
 async function openCosmetics(page: Page) {
   const started = performance.now();

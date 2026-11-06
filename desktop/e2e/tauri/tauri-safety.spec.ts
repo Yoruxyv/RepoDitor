@@ -20,9 +20,9 @@ import {
   getPythonExecutable,
   isolatedApplicationEnvironment,
   PYTHON_ROOT,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageFrozenBackend } from "./support/tauriHarness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
 
 interface Transaction {
   status: string;

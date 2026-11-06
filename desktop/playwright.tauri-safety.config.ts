@@ -7,7 +7,7 @@ if (!process.env.REPODITOR_NATIVE_OUTPUT || !process.env.REPODITOR_NATIVE_REPORT
 }
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./e2e/tauri",
   testMatch: [
     "tauri-startup.spec.ts",
     "tauri-recovery.spec.ts",

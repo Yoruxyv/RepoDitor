@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { _electron as electron, expect, test, type Page, type TestInfo } from "@playwright/test";
-import type { AdvancedSaveDto, DesktopOperationResult } from "../electron/contracts.cjs";
+import type { AdvancedSaveDto, DesktopOperationResult } from "../../electron/contracts.cjs";
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
@@ -10,10 +10,10 @@ import {
   createRunSaveFixture,
   getPythonExecutable,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageSyntheticBackend } from "./support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "./support/waits";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
+import { waitForWorkspaceOrContinue } from "../support/waits";
 
 function rewriteSave(savePath: string, mode: "rich" | "changed" | "missing" | "empty") {
   execFileSync(

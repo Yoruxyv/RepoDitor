@@ -2,9 +2,9 @@ import { copyFile, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { expect, test, type TestInfo } from "@playwright/test";
-import { createRunSaveFixture, DESKTOP_ROOT, E2E_SAVE_ID } from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageFrozenBackend } from "./support/tauriHarness";
+import { createRunSaveFixture, DESKTOP_ROOT, E2E_SAVE_ID } from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
 
 function required(name: string) {
   const value = process.env[name];

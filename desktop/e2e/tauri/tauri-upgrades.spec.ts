@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type Page, type TestInfo } from "@playwright/test";
-import type { DesktopOperationResult, PlayerUpgradeDto } from "../electron/contracts.cjs";
+import type { DesktopOperationResult, PlayerUpgradeDto } from "../../electron/contracts.cjs";
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
@@ -12,16 +12,16 @@ import {
   createRunSaveFixture,
   getPythonExecutable,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
 import {
   close,
   launch,
   native,
   stageSyntheticBackend,
   stopSyntheticGame,
-} from "./support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "./support/waits";
+} from "../support/tauriHarness";
+import { waitForWorkspaceOrContinue } from "../support/waits";
 
 function rewriteSave(savePath: string, mode: "dynamic" | "changed" | "empty") {
   execFileSync(

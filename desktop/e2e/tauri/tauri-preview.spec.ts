@@ -12,22 +12,22 @@ import {
   createRunSaveFixture,
   getPythonExecutable,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
 import {
   close,
   launch,
   native,
   stageSyntheticBackend,
   stopSyntheticGame,
-} from "./support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "./support/waits";
+} from "../support/tauriHarness";
+import { waitForWorkspaceOrContinue } from "../support/waits";
 import type {
   DesktopOperationResult,
   GameProcessState,
   PlayerDto,
   SaveOpenResult,
-} from "../electron/contracts.cjs";
+} from "../../electron/contracts.cjs";
 
 test("packaged native discovery preserves the read-only contract and refresh", async ({
   browserName,

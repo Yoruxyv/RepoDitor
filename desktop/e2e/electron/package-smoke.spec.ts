@@ -11,13 +11,13 @@ import {
   createRunSaveFixture,
   createMetaSaveFixture,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
 import {
   waitForDiscoveredSave,
   waitForGameStatus,
   waitForWorkspaceOrContinue,
-} from "./support/waits";
+} from "../support/waits";
 
 const saveId = E2E_SAVE_ID;
 const expectedVersion = EXPECTED_DESKTOP_VERSION;

@@ -10,9 +10,9 @@ import {
   PYTHON_ROOT,
   createRunSaveFixture,
   getPythonExecutable,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native } from "./support/tauriHarness";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native } from "../support/tauriHarness";
 
 const BASE = "build/recovery-checkpoint/health-ui";
 const UI = process.env["REPODITOR_HEALTH_UI_EXECUTABLE"];

@@ -2,8 +2,8 @@
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type ElectronApplication } from "@playwright/test";
-import { launchSourceE2eHarness } from "./support/harness";
-import { waitForWorkspaceOrContinue } from "./support/waits";
+import { launchSourceE2eHarness } from "../support/harness";
+import { waitForWorkspaceOrContinue } from "../support/waits";
 
 const installedRoot = process.env.REPODITOR_MAPS_GAME_ROOT;
 

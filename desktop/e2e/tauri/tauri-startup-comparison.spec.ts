@@ -2,9 +2,9 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { createGameFixture } from "./support/harness";
-import { createRunSaveFixture, DESKTOP_ROOT } from "./support/fixtureEnvironment";
-import { close, launch, native } from "./support/tauriHarness";
+import { createGameFixture } from "../support/harness";
+import { createRunSaveFixture, DESKTOP_ROOT } from "../support/fixtureEnvironment";
+import { close, launch, native } from "../support/tauriHarness";
 
 for (const [index, mode] of [
   "baseline",

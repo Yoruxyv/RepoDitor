@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
-import { waitForDiscoveredSave } from "./support/waits";
+import { launchSourceE2eHarness, type SourceE2eHarness } from "../support/harness";
+import { waitForDiscoveredSave } from "../support/waits";
 
 async function imageNaturalWidth(locator: Locator): Promise<number> {
   return locator.evaluate((element) => {

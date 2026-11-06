@@ -1,10 +1,10 @@
 import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { createRunSaveFixture, DESKTOP_ROOT } from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageFrozenBackend } from "./support/tauriHarness";
-import { startupEnvironment, startupText } from "./support/tauriStartup";
+import { createRunSaveFixture, DESKTOP_ROOT } from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
+import { startupEnvironment, startupText } from "../support/tauriStartup";
 
 test("startup ordinary packaged host exposes its bridge and remains read-only", async ({
   browserName,

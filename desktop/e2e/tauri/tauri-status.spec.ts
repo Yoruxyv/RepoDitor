@@ -1,8 +1,8 @@
 import { copyFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { DESKTOP_ROOT, E2E_SAVE_ID } from "./support/fixtureEnvironment";
-import { close, launch, native, stageSyntheticBackend } from "./support/tauriHarness";
+import { DESKTOP_ROOT, E2E_SAVE_ID } from "../support/fixtureEnvironment";
+import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
 
 async function openItems(page: Page) {
   await page.getByRole("button", { name: /Open workspace/ }).click();

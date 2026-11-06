@@ -1,16 +1,16 @@
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import type { DesktopOperationResult, InstalledMapsDto } from "../electron/contracts.cjs";
+import type { DesktopOperationResult, InstalledMapsDto } from "../../electron/contracts.cjs";
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
   createRunSaveFixture,
   isolatedApplicationEnvironment,
-} from "./support/fixtureEnvironment";
-import { createGameFixture } from "./support/harness";
-import { close, launch, native, stageSyntheticBackend } from "./support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "./support/waits";
+} from "../support/fixtureEnvironment";
+import { createGameFixture } from "../support/harness";
+import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
+import { waitForWorkspaceOrContinue } from "../support/waits";
 
 async function openMaps(page: Page, reference = false) {
   await page.getByRole("button", { name: /Open workspace/ }).click();

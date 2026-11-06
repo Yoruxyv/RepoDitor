@@ -5,15 +5,15 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { E2E_SAVE_ID } from "./support/fixtureEnvironment";
-import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
+import { E2E_SAVE_ID } from "../support/fixtureEnvironment";
+import { launchSourceE2eHarness, type SourceE2eHarness } from "../support/harness";
 import {
   waitForDiscoveredSave,
   waitForGameDialogClosed,
   waitForGameRunningDialog,
   waitForGameStatus,
   waitForWorkspaceOrContinue,
-} from "./support/waits";
+} from "../support/waits";
 
 const saveId = E2E_SAVE_ID;
 

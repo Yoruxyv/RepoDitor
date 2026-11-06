@@ -220,7 +220,7 @@ permission checks. Set `REPODITOR_HEALTH_UI_EXECUTABLE`,
 `REPODITOR_HEALTH_NO_PERMISSION_EXECUTABLE` to those executables, and
 `REPODITOR_E2E_EXECUTABLE` to the UI executable. The UI spec expects a fault backend
 under `build/recovery-checkpoint/health-ui/fault-backend/repoditor-backend`.
-Run `npx playwright test e2e/tauri-health-ui.spec.ts` with a fresh `--output` directory
+Run `npx playwright test e2e/tauri/tauri-health-ui.spec.ts` with a fresh `--output` directory
 beneath `build/recovery-checkpoint/health-ui`. It exercises encrypted synthetic saves,
 process interruption, timeout/restart, durable intent, canonical refresh, exact-byte
 backups, permission isolation, keyboard access and three viewport sizes. Preserve

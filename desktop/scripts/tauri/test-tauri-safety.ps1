@@ -63,7 +63,7 @@ try {
     Run-Checked 'npm' @('run', 'typecheck:e2e')
     if (-not $CompareStartup) { $env:REPODITOR_NATIVE_BROWSER_ARGS = '1' }
     if ($TestBrowserArgs) {
-        Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts', '--grep', 'startup ordinary')
+        Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts', '--grep', 'startup ordinary')
         $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
         if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 1) { throw 'The ordinary browser-arguments control did not pass.' }
         return
@@ -80,7 +80,7 @@ try {
         return
     }
     # Prove ordinary packaged startup before constructing or launching the synthetic matrix.
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
     $env:TAURI_CONFIG = $null
@@ -119,7 +119,7 @@ try {
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'matrix'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'native.json'
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri-recovery.spec.ts', 'e2e/tauri-safety.spec.ts', 'e2e/tauri-upgrade-drafts.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)

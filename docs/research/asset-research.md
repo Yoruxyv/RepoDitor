@@ -337,7 +337,7 @@ For opt-in integration checks, point `REPODITOR_MAPS_GAME_ROOT` at the verified
 installation and run `npm run test:e2e` from `desktop`. Test saves, LocalLow and app
 profiles remain disposable fixtures. The installed-artwork test can also run
 against the unpacked app using `REPODITOR_E2E_EXECUTABLE` and
-`playwright test e2e/maps.spec.ts`. Comparison images and screenshots must stay in
+`playwright test e2e/electron/maps.spec.ts`. Comparison images and screenshots must stay in
 ignored local output; they must never enter fixtures, Git or application resources.
 
 Cold measurements mean a new backend process and an empty RepoDitor presentation

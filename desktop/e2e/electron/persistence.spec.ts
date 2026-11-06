@@ -4,14 +4,14 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { PYTHON_ROOT, getPythonExecutable } from "./support/fixtureEnvironment";
-import { launchSourceE2eHarness, type SourceE2eHarness } from "./support/harness";
+import { PYTHON_ROOT, getPythonExecutable } from "../support/fixtureEnvironment";
+import { launchSourceE2eHarness, type SourceE2eHarness } from "../support/harness";
 import {
   waitForDiscoveredSave,
   waitForSafeSave,
   waitForStaleSave,
   waitForWorkspaceOrContinue,
-} from "./support/waits";
+} from "../support/waits";
 
 function replaceFixtureCurrency(savePath: string, currency: number): void {
   execFileSync(
