@@ -50,6 +50,11 @@ public static class TauriStartupDesktop {
     [DllImport("kernel32.dll")]
     private static extern bool CloseHandle(IntPtr handle);
     public static bool IsRunning(uint processId) {
+        // Framework process inspection enables SeDebugPrivilege on elevated runners, bypassing ACLs.
+        try { System.Diagnostics.Process.LeaveDebugMode(); }
+        catch (System.ComponentModel.Win32Exception error) {
+            if (error.NativeErrorCode != 1300) throw; // No debug privilege in an ordinary user's token.
+        }
         IntPtr handle = OpenProcess(0x00100000, false, processId);
         if (handle == IntPtr.Zero) {
             int error = Marshal.GetLastWin32Error();

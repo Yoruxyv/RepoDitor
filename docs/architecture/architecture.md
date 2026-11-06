@@ -540,6 +540,10 @@ interop compilation, desktop, process/CIM, descendant, policy, response and JSON
 work. No environment dump or unrestricted command lines are added. Process
 inspection requires an accessible synchronization handle and a zero-wait liveness
 check; access denial fails the probe, while an exited process is reported absent.
+The diagnostic leaves .NET debug mode before opening the process: framework
+inspection can enable `SeDebugPrivilege` on elevated runners, which otherwise
+[bypasses process ACLs](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess).
+This changes only the disposable inspector's token, not the host or runner token.
 Disposable responsive, hung, exited and inspection-denied fixtures exercise first
 and subsequent fresh processes. Transport tests also cover malformed results,
 exceptions and forced termination with partial measurements.
