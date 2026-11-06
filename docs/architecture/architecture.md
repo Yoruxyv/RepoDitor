@@ -5,7 +5,57 @@ RepoDitor Web application at https://repoditor.vercel.app/. Python remains autho
 save-format and game behavior inside Desktop; Web is an independent browser implementation that
 shares evidence-backed semantics rather than Desktop implementation code.
 
-The diagram below describes the Desktop boundary.
+## Source and validation map
+
+| Location                                      | Ownership                                                                                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `desktop/src/`                                | React presentation, typed drafts and feature orchestration; component tests stay beside their implementation.   |
+| `desktop/src-tauri/src/`                      | Rust bootstrap, bounded Python process transport, validated projections and gated synthetic recovery.           |
+| `desktop/python/repo_save_editor/`            | Authoritative Desktop save semantics, encryption, validation, backups and transactions.                         |
+| `desktop/python/tests/`                       | Python domain, storage, protocol and synthetic integration regressions.                                         |
+| `desktop/electron/`                           | Shipping Electron main/preload, IPC validation and process ownership; retained during Tauri migration.          |
+| `desktop/installer/`                          | Installer host, UI, NSIS overrides and C# test fixtures; `scripts/` owns installer build and lifecycle tooling. |
+| `desktop/scripts/`                            | `quality/`, `tauri/`, `packaging/` and `release/` tooling, with implementation and Node tests kept together.    |
+| `desktop/e2e/electron/`, `desktop/e2e/tauri/` | Host-specific source and packaged journeys, permission boundaries and interruption/recovery tests.              |
+| `desktop/e2e/`                                | Shared `support/` harnesses, tracked `fixtures/` inputs and `fixture_generators/` used by both host suites.     |
+| `scripts/git-hooks/`, `.github/workflows/`    | Repository Git gates and CI orchestration; npm command names remain the stable contributor interface.           |
+| `web/`                                        | Independent browser product, with its own source, API and test ownership.                                       |
+
+Installer lifecycle helpers and their checks stay together because the launcher
+stages neighboring worker scripts into a disposable test directory. E2E specs are
+grouped by the host being validated; shared fixtures and harnesses retain one owner.
+Standard package, Cargo, Tauri, TypeScript and Python configuration stays at its
+existing package root rather than moving alongside operational scripts.
+
+Generated output is separate from this source map. `.venv/` holds the local Python
+environment; `node_modules/`, `desktop/dist/`, `desktop/dist-electron/`,
+`desktop/src-tauri/{target,gen}/` and `desktop/release/` hold dependencies or generated
+application artifacts. `desktop/build/` also retains synthetic snapshots, frozen
+backend bundles, nested checkpoint copies and recovery diagnostics. These locations
+are ignored; they are not source merely because they appear in a local folder dump.
+Tracked synthetic inputs under `desktop/e2e/fixtures/` remain source. The explicit
+`desktop/scripts/release/` ignore exception keeps release tooling tracked while
+generated `release/` output remains ignored. Use `git ls-files` for the source inventory
+and `git check-ignore -v <path>` to inspect an output's governing rule.
+
+For local editor navigation, the following workspace exclusions hide generated
+trees without deleting or relocating evidence. `.vscode/` stays local and ignored;
+merge these with existing preferences rather than replacing them.
+
+```json
+{
+  "files.exclude": {
+    ".venv": true,
+    "**/node_modules": true,
+    "desktop/build": true,
+    "desktop/src-tauri/target": true,
+    "desktop/src-tauri/gen": true,
+    "desktop/test-results": true
+  }
+}
+```
+
+The diagram below describes the shipping Electron Desktop boundary.
 
 ```text
 React renderer
