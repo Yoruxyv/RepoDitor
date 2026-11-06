@@ -523,6 +523,38 @@ profiles remain isolated. The workflow's aggregate quality gate requires success
 it does not replace the separate Electron checks. Hosted WebView2/native behavior
 still requires actual CI confirmation for a given change.
 
+The native startup diagnostic retains its 5,000 ms subprocess deadline and 16 KiB
+output cap. Its window responsiveness query uses `SendMessageTimeout(WM_NULL)`
+with a 1,000 ms allowance, leaving time for the remaining inspection and JSON
+emission. The .NET Framework [`Process.Responding` implementation](https://github.com/microsoft/referencesource/blob/main/System/services/monitoring/system/diagnosticts/Process.cs)
+can itself wait 5,000 ms, so calling that property inside the same outer deadline
+can discard an otherwise complete diagnostic. A hung window now produces an
+explicit false responsiveness result and its native error code. The ordinary
+startup control requires a present, responding window as well as successful CDP,
+the Tauri bridge and all four synthetic-write command denials.
+
+Fixed, numeric timing checkpoints are flushed to stderr after each inspection
+phase, then attached to the startup record even if the subprocess is killed before
+emitting JSON. They distinguish launch-to-script time from registry/runtime,
+interop compilation, desktop, process/CIM, descendant, policy, response and JSON
+work. No environment dump or unrestricted command lines are added. Process
+inspection requires an accessible synchronization handle and a zero-wait liveness
+check; access denial fails the probe, while an exited process is reported absent.
+Disposable responsive, hung, exited and inspection-denied fixtures exercise first
+and subsequent fresh processes. Transport tests also cover malformed results,
+exceptions and forced termination with partial measurements.
+The Windows safety gate requires all ten transport cases to pass without skips.
+The original hosted failure retained only the outer timeout, so its exact
+inspection phase cannot be reconstructed retrospectively. The five-second nested
+responsiveness wait is independently reproduced with an owned hung window.
+
+Registry, CIM, compilation and other Windows APIs do not each provide an intrinsic
+latency bound. They remain inside the separately killable diagnostic process;
+deadline expiry forcibly terminates it and fails the control. The gate does not
+prewarm CIM, retry the probe or accept `probeError`. CPU starvation, clock changes,
+or an OS failure to create or terminate a process remain environmental limitations;
+these checks do not establish a hard real-time guarantee under a stalled kernel.
+
 Staging never changes production release output. See
 [Desktop setup and preview checks](../../desktop/README.md#optional-native-discovery-preview).
 

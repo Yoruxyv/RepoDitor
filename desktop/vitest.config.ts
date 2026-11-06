@@ -24,6 +24,7 @@ export default defineConfig({
     include: [
       "src/**/*.test.{ts,tsx}",
       "electron/**/*.test.ts",
+      "e2e/support/*.test.ts",
       "installer/ui/src/**/*.test.{ts,tsx}",
     ],
     coverage: {

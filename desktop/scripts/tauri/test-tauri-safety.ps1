@@ -50,8 +50,9 @@ try {
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:TAURI_CONFIG = $null
     $env:REPODITOR_NATIVE_BROWSER_ARGS = $null
-    # Initialize the diagnostic provider before the bounded per-host process snapshot.
-    Get-CimInstance Win32_Process -Filter "ProcessId = $PID" | Out-Null
+    Run-Checked 'npx' @('--no-install', 'vitest', 'run', 'e2e/support/tauriStartup.test.ts', '--reporter=default', '--reporter=json', "--outputFile=$output/probe-transport.json")
+    $probe = Get-Content -LiteralPath (Join-Path $output 'probe-transport.json') -Raw | ConvertFrom-Json
+    if ($probe.numPassedTests -ne 10 -or $probe.numPendingTests -ne 0 -or $probe.numFailedTests -ne 0) { throw 'Required probe transport regressions did not all pass.' }
     # Even cargo test validates the configured resource; rebuild it before any Rust compile.
     Run-Checked 'npm' @('run', 'build:sidecar')
     if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }

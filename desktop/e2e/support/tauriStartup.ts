@@ -1,5 +1,10 @@
 /** Bounded, path-redacted diagnostics for packaged native startup only. */
-import { execFileSync, type ChildProcess } from "node:child_process";
+import {
+  execFileSync,
+  spawnSync,
+  type ChildProcess,
+  type SpawnSyncReturns,
+} from "node:child_process";
 import path from "node:path";
 import http from "node:http";
 import { statSync, writeFileSync } from "node:fs";
@@ -92,32 +97,65 @@ export function startupEnvironment(environment: Record<string, string>, home: st
 }
 
 export function windowsStartup(hostProcessId: number | undefined, home: string): unknown {
+  const started = performance.now();
+  const startedUtc = Date.now();
+  let result: SpawnSyncReturns<string> | undefined;
+  let diagnostics: object;
   try {
-    return JSON.parse(
-      execFileSync(
-        path.join(
-          process.env["SYSTEMROOT"] ?? "C:\\Windows",
-          "System32",
-          "WindowsPowerShell",
-          "v1.0",
-          "powershell.exe",
-        ),
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-File",
-          path.join(DESKTOP_ROOT, "e2e/support/tauri-startup.ps1"),
-          "-HostProcessId",
-          String(hostProcessId ?? 0),
-          "-FixtureRoot",
-          home,
-        ],
-        { encoding: "utf8", windowsHide: true, timeout: 5000, maxBuffer: 16_384 },
+    result = spawnSync(
+      path.join(
+        process.env["SYSTEMROOT"] ?? "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
       ),
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        path.join(DESKTOP_ROOT, "e2e/support/tauri-startup.ps1"),
+        "-HostProcessId",
+        String(hostProcessId ?? 0),
+        "-FixtureRoot",
+        home,
+      ],
+      {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 5000,
+        killSignal: "SIGKILL",
+        maxBuffer: 16_384,
+      },
     );
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(result.stderr || "Windows startup probe failed");
+    const value: unknown = JSON.parse(result.stdout);
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Invalid Windows startup probe result");
+    diagnostics = value;
   } catch (error) {
-    return { probeError: startupText(String(error), home) };
+    diagnostics = { probeError: startupText(String(error), home) };
   }
+  const stderr = (result?.stderr ?? "").slice(0, 16_384);
+  const checkpoints = stderr
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      const match =
+        /^REPODITOR_PROBE_TIMING ([a-z_]{1,32})\|(\d{1,7}(?:\.\d{1,9})?)\|(\d{1,13})$/.exec(line);
+      return match
+        ? [{ stage: match[1], elapsedMs: Number(match[2]), utcMs: Number(match[3]) }]
+        : [];
+    })
+    .slice(0, 32);
+  const timings = {
+    totalMs: performance.now() - started,
+    launchToScriptMs: checkpoints.length ? checkpoints[0].utcMs - startedUtc : null,
+    checkpoints,
+    probeProcessId: result?.pid,
+  };
+  const nativeError = /^REPODITOR_PROBE_WIN32_ERROR (\d{1,10})\r?$/m.exec(stderr);
+  return { ...diagnostics, probeErrorCode: nativeError ? Number(nativeError[1]) : null, timings };
 }
 
 export function startupDirectories(home: string) {
