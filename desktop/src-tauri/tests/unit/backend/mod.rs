@@ -32,8 +32,40 @@ fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admis
         Instant::now(),
     );
     assert!(Request::reserve(host.clone(), health.slot()).is_err());
+    let run = Operation::TestRun(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "e".repeat(32),
+        Instant::now(),
+    );
+    assert!(Request::reserve(host.clone(), run.slot()).is_err());
+    assert_eq!(
+        run.arguments(),
+        [
+            "saves-write",
+            save,
+            &"b".repeat(64),
+            "[]",
+            "--run-operation",
+            &"e".repeat(32)
+        ]
+    );
+    let prepare = Operation::TestRunPrepare(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "e".repeat(32),
+        Instant::now(),
+    );
+    assert_eq!(prepare.slot(), health.slot());
+    assert_eq!(prepare.arguments()[0], "run-prepare");
     assert!(host.health_busy());
     drop(held);
+    let run_held = Request::reserve(host.clone(), run.slot()).unwrap();
+    assert!(Request::reserve(host.clone(), health.slot()).is_err());
+    assert!(Request::reserve(host.clone(), upgrade.slot()).is_err());
+    drop(run_held);
     assert!(Request::reserve(host, health.slot()).is_ok());
 }
 #[cfg(feature = "synthetic-health-recovery")]

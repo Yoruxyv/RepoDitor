@@ -2,7 +2,7 @@
 use crate::{
     backend::{self, Operation},
     error::{BackendError, Outcome},
-    projections::{players, saves, upgrades},
+    projections::{players, run, saves, upgrades},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -27,6 +27,7 @@ pub struct Canonical {
     opened: saves::SaveOpenResult,
     players: Vec<players::Player>,
     upgrades: Vec<upgrades::Upgrade>,
+    run: Option<run::RunState>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -50,11 +51,59 @@ pub struct UpgradeEdit {
 pub enum Intent {
     Health(HealthIntent),
     Upgrades(UpgradeIntent),
+    Run(RunIntent),
 }
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpgradeIntent {
     upgrades: Vec<UpgradeEdit>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunEdit {
+    field: String,
+    before: Value,
+    value: Value,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunIntent {
+    run: Vec<RunEdit>,
+}
+fn valid_run_intent(intent: &RunIntent) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    !intent.run.is_empty()
+        && intent.run.len() <= 5
+        && intent.run.iter().all(|edit| {
+            edit.before != edit.value
+                && seen.insert(&edit.field)
+                && match edit.field.as_str() {
+                    "resumeLocation" => {
+                        edit.before.as_str().is_some_and(|s| s.len() <= 64)
+                            && matches!(
+                                edit.value.as_str(),
+                                Some("Normal" | "Shop / Service Station")
+                            )
+                    }
+                    "level" | "currency" | "lives" | "totalHaul" => {
+                        let level = edit.field == "level";
+                        edit.before.as_i64().is_some_and(|n| {
+                            (if level { 1 } else { -9_007_199_254_740_991 }..=9_007_199_254_740_991)
+                                .contains(&n)
+                        }) && edit.value.as_i64().is_some_and(|n| {
+                            (if level { 1 } else { -2_147_483_648 }..=if level {
+                                2_147_483_648
+                            } else {
+                                2_147_483_647
+                            })
+                                .contains(&n)
+                        })
+                    }
+                    _ => false,
+                }
+        })
+        && serde_json::to_vec(intent).is_ok_and(|bytes| bytes.len() <= 512)
 }
 
 fn valid_upgrade_intent(intent: &UpgradeIntent) -> bool {
@@ -121,6 +170,12 @@ fn canonical(
             &serde_json::to_vec(&json!({"ok":true,"upgrades":raw["upgrades"]}))
                 .map_err(|_| BackendError::Invalid)?,
         )?,
+        // Unsupported numeric projections must not round or disable unrelated editors.
+        run: run::parse(
+            &serde_json::to_vec(&json!({"ok":true,"run":raw["run"]}))
+                .map_err(|_| BackendError::Invalid)?,
+        )
+        .ok(),
     })
 }
 
@@ -145,6 +200,7 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
                             || !(0..=9_007_199_254_740_991).contains(&i.before)
                     }
                     Intent::Upgrades(i) => !valid_upgrade_intent(i),
+                    Intent::Run(i) => !valid_run_intent(i),
                 })
             {
                 return Err(BackendError::Invalid);
@@ -357,11 +413,24 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
 }
 
 pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
+    write_batch(app, raw, false).await
+}
+
+pub async fn write_run(app: tauri::AppHandle, raw: Value) -> Transaction {
+    write_batch(app, raw, true).await
+}
+
+async fn write_batch(app: tauri::AppHandle, raw: Value, run_batch: bool) -> Transaction {
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "rejected", "invalid_request");
     };
-    let intent: Result<UpgradeIntent, _> =
-        serde_json::from_value(json!({"upgrades":raw["upgrades"]}));
+    let valid_intent = if run_batch {
+        serde_json::from_value::<RunIntent>(json!({"run":raw["run"]}))
+            .is_ok_and(|i| valid_run_intent(&i))
+    } else {
+        serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw["upgrades"]}))
+            .is_ok_and(|i| valid_upgrade_intent(&i))
+    };
     let host = app.state::<Arc<backend::HostState>>().inner().clone();
     let valid = cfg!(feature = "synthetic-health-ui")
         && test_root()
@@ -372,22 +441,32 @@ pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
                     .as_str()
                     .is_some_and(|session| host.accepts_upgrade(save, fp, session))
         })
-        && intent.as_ref().is_ok_and(valid_upgrade_intent);
+        && valid_intent;
     if !valid {
         return failure(operation, "rejected", "invalid_request");
     }
-    let payload = raw["upgrades"].to_string();
+    let payload = raw[if run_batch { "run" } else { "upgrades" }].to_string();
     let fingerprint = raw["fingerprint"].as_str().unwrap();
     let started = Instant::now();
     let prepared = dispatch(
         app.clone(),
-        Operation::TestUpgradesPrepare(
-            save.into(),
-            fingerprint.into(),
-            payload.clone(),
-            operation.into(),
-            started,
-        ),
+        if run_batch {
+            Operation::TestRunPrepare(
+                save.into(),
+                fingerprint.into(),
+                payload.clone(),
+                operation.into(),
+                started,
+            )
+        } else {
+            Operation::TestUpgradesPrepare(
+                save.into(),
+                fingerprint.into(),
+                payload.clone(),
+                operation.into(),
+                started,
+            )
+        },
         operation.into(),
         true,
         save,
@@ -401,13 +480,23 @@ pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
     }
     dispatch(
         app,
-        Operation::TestUpgrades(
-            save.into(),
-            fingerprint.into(),
-            payload,
-            operation.into(),
-            started,
-        ),
+        if run_batch {
+            Operation::TestRun(
+                save.into(),
+                fingerprint.into(),
+                payload,
+                operation.into(),
+                started,
+            )
+        } else {
+            Operation::TestUpgrades(
+                save.into(),
+                fingerprint.into(),
+                payload,
+                operation.into(),
+                started,
+            )
+        },
         operation.into(),
         true,
         save,

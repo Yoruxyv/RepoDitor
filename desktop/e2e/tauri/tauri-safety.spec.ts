@@ -189,6 +189,7 @@ for (const host of ["REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", "REPODITOR_SAFETY_N
         "test_health_state",
         "test_health_write",
         "test_upgrades_write",
+        "test_run_write",
         "test_health_recover",
         "saves_write",
         "backend_exec",

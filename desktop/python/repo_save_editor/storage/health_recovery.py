@@ -1,4 +1,4 @@
-"""Operation-owned receipts and recovery for the experimental single-health transaction."""
+"""Operation-owned receipts and recovery for synthetic single-domain save transactions."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ _ID = re.compile(r"[0-9a-f]{32}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _RECEIPT_LIMIT = 4096
 UPGRADE_INTENT_LIMIT = 2048
+RUN_INTENT_LIMIT = 512
 
 
 class RecoveryError(OSError):
@@ -282,11 +283,11 @@ def _receipt_bytes(value: Receipt) -> bytes:
         del payload["namespace"]
     if value.version == 1:
         del payload["intent"]
-    return json.dumps(payload, sort_keys=True, ensure_ascii=value.version != 4).encode()
+    return json.dumps(payload, sort_keys=True, ensure_ascii=value.version < 4).encode()
 
 
 class HealthTransaction:
-    """One health operation, used only while its save's health_lock is held."""
+    """One synthetic save operation, used only while its save's health_lock is held."""
 
     def __init__(
         self,
@@ -298,7 +299,9 @@ class HealthTransaction:
     ) -> None:
         if not valid_operation(operation):
             raise RecoveryError("invalid_request")
-        if intent is not None and not (valid_intent(intent) or valid_upgrade_intent(intent)):
+        if intent is not None and not (
+            valid_intent(intent) or valid_upgrade_intent(intent) or valid_run_intent(intent)
+        ):
             raise RecoveryError("invalid_request")
         self.path = path
         self.directory = directory
@@ -335,12 +338,16 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3, 4}
+                or value.version not in {1, 2, 3, 4, 5}
                 or (value.version == 2 and not valid_intent(value.intent))
                 or (
-                    value.version == 4
+                    value.version in {4, 5}
                     and (
-                        not valid_upgrade_intent(value.intent)
+                        not (
+                            valid_upgrade_intent(value.intent)
+                            if value.version == 4
+                            else valid_run_intent(value.intent)
+                        )
                         or (
                             value.namespace is not None and _HASH.fullmatch(value.namespace) is None
                         )
@@ -437,7 +444,9 @@ class HealthTransaction:
                 os.getpid(),
                 self.process_started,
                 version=(
-                    4
+                    5
+                    if valid_run_intent(self.intent)
+                    else 4
                     if valid_upgrade_intent(self.intent)
                     else 3
                     if self.directory is not None
@@ -677,6 +686,50 @@ def valid_upgrade_intent(value: object) -> bool:
         return (
             len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
             <= UPGRADE_INTENT_LIMIT
+        )
+    except UnicodeEncodeError:
+        return False
+
+
+def valid_run_intent(value: object) -> bool:
+    """Five fixed fields fit 512 UTF-8 bytes; Python still verifies loaded-save authority."""
+    if not isinstance(value, dict) or set(value) != {"run"}:
+        return False
+    edits = value["run"]
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 5:
+        return False
+    seen = set()
+    for edit in edits:
+        if not isinstance(edit, dict) or set(edit) != {"field", "before", "value"}:
+            return False
+        field, before, after = edit["field"], edit["before"], edit["value"]
+        if not isinstance(field, str) or field in seen or before == after:
+            return False
+        seen.add(field)
+        if field == "resumeLocation":
+            if (
+                not isinstance(before, str)
+                or len(before.encode("utf-8", errors="surrogatepass")) > 64
+                or after not in ("Normal", "Shop / Service Station")
+            ):
+                return False
+        elif field in {"level", "currency", "lives", "totalHaul"}:
+            if (
+                type(before) is not int
+                or not -(2**53 - 1) <= before <= 2**53 - 1
+                or type(after) is not int
+                or not (1 if field == "level" else -(2**31))
+                <= after
+                <= (2**31 if field == "level" else 2**31 - 1)
+                or (field == "level" and before < 1)
+            ):
+                return False
+        else:
+            return False
+    try:
+        return (
+            len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+            <= RUN_INTENT_LIMIT
         )
     except UnicodeEncodeError:
         return False

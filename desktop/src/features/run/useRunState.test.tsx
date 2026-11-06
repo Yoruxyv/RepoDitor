@@ -15,6 +15,40 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 }
 
 describe("injected Run reads", () => {
+  it.each(["success", "failure", "throw"])(
+    "canonical Run snapshots supersede older %s reads",
+    async (outcome) => {
+      let complete!: (value: DesktopOperationResult<RunStateDto>) => void;
+      let reject!: (reason: Error) => void;
+      const get = vi.fn().mockReturnValue(
+        new Promise((resolve, failure) => {
+          complete = resolve;
+          reject = failure;
+        }),
+      );
+      const { result } = renderHook(() => useRunState(saveId, null, get), { wrapper });
+      await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+      const current = {
+        ...runState,
+        stats: runState.stats.map((stat) => ({
+          ...stat,
+          value: stat.key === "currency" ? -19 : stat.value,
+        })),
+      };
+      act(() => result.current.acceptSnapshot(current));
+      await act(async () => {
+        if (outcome === "throw") reject(new Error("private"));
+        else
+          complete(
+            outcome === "success"
+              ? { ok: true, data: runState }
+              : { ok: false, error: { code: "save_missing", message: "private" } },
+          );
+      });
+      expect(result.current.run).toEqual(current);
+      expect(result.current.error).toBeNull();
+    },
+  );
   it("loads once under StrictMode, coalesces retries and recovers from a translated failure", async () => {
     let complete!: (value: DesktopOperationResult<RunStateDto>) => void;
     const get = vi

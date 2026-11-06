@@ -141,7 +141,11 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
     changes = _parse_changes(args.payload)
     if changes is _INVALID_JSON:
         return _invalid_request("The pending changes payload is invalid.")
-    if args.health_operation is not None or args.upgrade_operation is not None:
+    if (
+        args.health_operation is not None
+        or args.upgrade_operation is not None
+        or args.run_operation is not None
+    ):
         root = _recovery_test_root()
         if root is None:
             return _invalid_request("Experimental recovery requires an isolated test root.")
@@ -149,10 +153,11 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
             args.save_id,
             args.fingerprint,
             changes,
-            args.upgrade_operation or args.health_operation,
+            args.run_operation or args.upgrade_operation or args.health_operation,
             root,
             reserved=True,
             upgrade_batch=args.upgrade_operation is not None,
+            run_batch=args.run_operation is not None,
         )
     if args.recharge_evidence is None:
         return save_changes(args.save_id, args.fingerprint, changes)
@@ -207,6 +212,7 @@ def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
         root,
         remember_intent=args.intent,
         upgrade_batch=getattr(args, "upgrade_batch", False),
+        run_batch=getattr(args, "run_batch", False),
     )
 
 
@@ -251,6 +257,7 @@ def _parser() -> argparse.ArgumentParser:
     transaction = saves_write.add_mutually_exclusive_group()
     transaction.add_argument("--health-operation")
     transaction.add_argument("--upgrade-operation")
+    transaction.add_argument("--run-operation")
     saves_write.set_defaults(handler=_save_changes)
 
     health_recover = commands.add_parser("health-recover")
@@ -274,6 +281,13 @@ def _parser() -> argparse.ArgumentParser:
     upgrade_prepare.add_argument("payload")
     upgrade_prepare.add_argument("operation")
     upgrade_prepare.set_defaults(handler=_prepare_health, upgrade_batch=True, intent=True)
+
+    run_prepare = commands.add_parser("run-prepare")
+    run_prepare.add_argument("save_id")
+    run_prepare.add_argument("fingerprint")
+    run_prepare.add_argument("payload")
+    run_prepare.add_argument("operation")
+    run_prepare.set_defaults(handler=_prepare_health, run_batch=True, intent=True)
 
     health_status = commands.add_parser("health-state")
     health_status.add_argument("save_id")

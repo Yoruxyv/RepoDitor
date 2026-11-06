@@ -1,4 +1,4 @@
-/** Native workspace with shared synthetic health/upgrade transaction recovery. */
+/** Native workspace with shared synthetic Health/Upgrades/Run recovery. */
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -12,7 +12,7 @@ import { TauriUpgradesView } from "@/features/upgrades/TauriUpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
 import { ItemsView } from "@/features/items/ItemsView";
 import { useItems } from "@/features/items/useItems";
-import { RunView } from "@/features/run/RunView";
+import { TauriRunView } from "@/features/run/TauriRunView";
 import { useRunState } from "@/features/run/useRunState";
 import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
@@ -21,6 +21,16 @@ import { SaveHeader } from "./SaveHeader";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 type Section = (typeof SECTIONS)[number];
+
+function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
+  const upgrades = health.upgradeEdits.length > 0;
+  const run = health.runEdits.length > 0;
+  if (Number(!!health.pending) + Number(upgrades) + Number(run) > 1) return "run.mixedDrafts";
+  if (upgrades && (!health.upgradeSession || !health.upgradeBatchFits))
+    return "upgrades.saveUnavailable";
+  if (run && !health.upgradeSession) return "run.saveUnavailable";
+  return null;
+}
 
 export function TauriWorkspace({
   session,
@@ -37,9 +47,11 @@ export function TauriWorkspace({
   const [section, setSection] = useState<Section>("overview");
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
+  const run = useRunState(session.id, null, tauriReadApi.run.get);
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
     if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
+    if (projection.run) run.acceptSnapshot(projection.run);
     onCanonical(projection.opened);
   });
   const restoredSelection = useRef<string | null>(null);
@@ -63,13 +75,15 @@ export function TauriWorkspace({
   const currentSession = health.canonical?.opened.session ?? session;
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
-  const hasUpgradeDrafts = health.upgradeEdits.length > 0;
-  const upgradeSaveUnavailable =
-    hasUpgradeDrafts && (!!health.pending || !health.upgradeSession || !health.upgradeBatchFits);
+  const pendingSections: Partial<Record<Section, boolean>> = {
+    upgrades: health.upgradeEdits.length > 0,
+    run: health.runEdits.length > 0,
+  };
+  const reason = saveUnavailable(health);
+  const saveUnavailableReason = reason ? t(reason) : null;
   function revertUpgrades() {
     health.revertUpgrades();
   }
-  const run = useRunState(session.id, null, tauriReadApi.run.get);
   const items = useItems(session.id, null, tauriReadApi.advanced.get);
   const maps = useMaps(null, tauriReadApi.maps.list);
   const avatarUrls = Object.fromEntries(players.players.map((player) => [player.id, null]));
@@ -111,7 +125,7 @@ export function TauriWorkspace({
               {t(`nav.${item}`)}
               <span
                 aria-hidden="true"
-                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${item === "upgrades" && hasUpgradeDrafts ? "bg-accent" : ""}`}
+                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${pendingSections[item] ? "bg-accent" : ""}`}
               />
             </button>
           ))}
@@ -167,18 +181,7 @@ export function TauriWorkspace({
               onRetry={() => void items.reload()}
             />
           ) : null}
-          {section === "run" ? (
-            <RunView
-              run={run.run}
-              loading={run.loading}
-              error={run.error}
-              pendingByField={{}}
-              onStatChange={null}
-              onResumeChange={null}
-              onRevert={null}
-              onRetry={() => void run.reload()}
-            />
-          ) : null}
+          {section === "run" ? <TauriRunView run={run} transaction={health} /> : null}
           {section === "maps" ? (
             <MapsView
               artworkAttempt={maps.artworkAttempt}
@@ -192,18 +195,22 @@ export function TauriWorkspace({
       </div>
       {health.enabled ? (
         <PendingChangesBar
-          edits={[...(health.pending ? [health.pending] : []), ...health.upgradeEdits]}
+          edits={[
+            ...(health.pending ? [health.pending] : []),
+            ...health.upgradeEdits,
+            ...health.runEdits,
+          ]}
           saving={health.phase === "saving" || health.phase === "reconciling"}
           error={null}
           backupPath={null}
           blocked={health.locked}
           invalid={health.invalid}
-          saveUnavailableReason={upgradeSaveUnavailable ? t("upgrades.saveUnavailable") : null}
+          saveUnavailableReason={saveUnavailableReason}
           onRevert={() => {
             void health.revert();
           }}
           onSave={() => {
-            if (!upgradeSaveUnavailable) void health.save();
+            if (!saveUnavailableReason) void health.save();
           }}
         />
       ) : null}

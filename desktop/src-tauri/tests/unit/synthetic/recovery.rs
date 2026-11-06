@@ -1,6 +1,39 @@
 use super::*;
 const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
 #[test]
+fn run_intent_preserves_signed_boundaries_and_rejects_forged_values() {
+    let raw = json!({"run":[{"field":"currency","before":-9_007_199_254_740_991i64,"value":-2_147_483_648i64},{"field":"level","before":5,"value":2_147_483_648i64},{"field":"resumeLocation","before":"Unknown (9)","value":"Shop / Service Station"}]});
+    assert!(valid_run_intent(
+        &serde_json::from_value(raw.clone()).unwrap()
+    ));
+    for (key, value) in [
+        ("field", json!("../save")),
+        ("before", json!(9_007_199_254_740_992i64)),
+        ("value", json!(true)),
+        ("value", json!(1.5)),
+        ("value", json!("4")),
+        ("value", json!(-2_147_483_649i64)),
+        ("value", json!(2_147_483_648i64)),
+    ] {
+        let mut bad = raw.clone();
+        bad["run"][0][key] = value;
+        assert!(!valid_run_intent(&serde_json::from_value(bad).unwrap()));
+    }
+    let mut bad = raw.clone();
+    bad["run"][2]["value"] = json!("Unknown (99)");
+    assert!(!valid_run_intent(&serde_json::from_value(bad).unwrap()));
+    let mut bad = raw.clone();
+    bad["run"][0]["path"] = json!("private");
+    assert!(serde_json::from_value::<RunIntent>(bad).is_err());
+    let mut bad = raw.clone();
+    bad["run"] = json!([raw["run"][0], raw["run"][0]]);
+    assert!(!valid_run_intent(&serde_json::from_value(bad).unwrap()));
+    let mut state = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":raw}});
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_ok());
+    state["pending"]["intent"]["run"][0]["value"] = json!(true);
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_err());
+}
+#[test]
 fn upgrade_intent_rejects_forged_duplicate_and_oversized_entries() {
     let raw =
         json!({"upgrades":[{"playerId":"111","key":"playerUpgradeStrength","before":2,"value":3}]});
@@ -68,6 +101,14 @@ fn canonical_projection_reuses_read_validators_and_matches_the_reconciled_finger
     assert!(!public.to_string().contains("excluded"));
     assert!(canonical(&raw, SAVE, Some(&"c".repeat(64))).is_err());
     assert!(canonical(&raw, "REPO_SAVE_2026_08_08_10_20_31", None).is_err());
+    raw["run"] = json!({"stats":[{"key":"currency","label":"Currency","value":-19}],"resumeLocation":{"value":"Unknown (9)","options":["Normal","Unknown (9)"]}});
+    assert_eq!(
+        serde_json::to_value(canonical(&raw, SAVE, None).unwrap()).unwrap()["run"]["stats"][0]
+            ["value"],
+        -19
+    );
+    raw["run"]["stats"][0]["value"] = json!(9_007_199_254_740_993i64);
+    assert!(serde_json::to_value(canonical(&raw, SAVE, None).unwrap()).unwrap()["run"].is_null());
     let mut bad = raw;
     bad["players"][0]["id"] = json!("../111");
     assert!(canonical(&bad, SAVE, None).is_err());

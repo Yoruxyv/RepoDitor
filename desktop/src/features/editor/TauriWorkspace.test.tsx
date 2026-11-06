@@ -17,7 +17,13 @@ import { TauriWorkspace } from "./TauriWorkspace";
 
 vi.mock("@/app/tauriHealthApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/app/tauriHealthApi")>()),
-  tauriHealthApi: { state: vi.fn(), write: vi.fn(), recover: vi.fn(), writeUpgrades: vi.fn() },
+  tauriHealthApi: {
+    state: vi.fn(),
+    write: vi.fn(),
+    recover: vi.fn(),
+    writeUpgrades: vi.fn(),
+    writeRun: vi.fn(),
+  },
 }));
 vi.mock("@/app/tauriReadApi", () => ({
   tauriReadApi: {
@@ -48,7 +54,7 @@ describe("native upgrade drafts", () => {
       enabled: true,
       state: "idle",
       pending: null,
-      canonical: { opened: openResult().data, players, upgrades },
+      canonical: { opened: openResult().data, players, upgrades, run: runState },
       upgradeSession: "synthetic-session",
     });
     vi.mocked(tauriHealthApi.write).mockImplementation(async (request) => ({
@@ -59,6 +65,113 @@ describe("native upgrade drafts", () => {
       reason: "save_stale",
       canonical: null,
     }));
+  });
+
+  it("explains why unsupported precision stays unavailable without exposing an editor", async () => {
+    vi.mocked(tauriReadApi.run.get).mockResolvedValue({
+      ok: false,
+      error: { code: "invalid_response", message: "private" },
+    });
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: true,
+      state: "idle",
+      pending: null,
+      canonical: { opened: openResult().data, players, upgrades, run: null },
+      upgradeSession: "synthetic-session",
+    });
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Run" }));
+    expect(
+      await screen.findByText(/Run stays read-only when its values cannot be represented exactly/),
+    ).toBeTruthy();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(tauriHealthApi.writeRun).not.toHaveBeenCalled();
+  });
+
+  it("reviews Run drafts across tabs, preserves invalid proposals and reverts without a writer", async () => {
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const currency = await screen.findByRole("spinbutton", { name: "Currency" });
+    fireEvent.change(currency, { target: { value: "-19" } });
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(within(screen.getByTestId("workspace-review")).getByText("Run · Currency")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const returned = screen.getByRole<HTMLInputElement>("spinbutton", { name: "Currency" });
+    expect(returned.value).toBe("-19");
+    fireEvent.change(returned, { target: { value: "2147483648" } });
+    expect(returned.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(true);
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Currency" }).value).toBe("12");
+    expect(tauriHealthApi.writeRun).not.toHaveBeenCalled();
+  });
+
+  it("saves Run drafts only after confirming canonical values and exposes refreshed fields", async () => {
+    const run = {
+      ...runState,
+      stats: runState.stats.map((stat) =>
+        stat.key === "currency" ? { ...stat, value: -19 } : stat,
+      ),
+    };
+    vi.mocked(tauriHealthApi.writeRun).mockImplementation(async (request) => ({
+      operationId: request.operationId,
+      status: "applied",
+      fingerprint: "b".repeat(64),
+      backupAvailable: true,
+      reason: null,
+      canonical: null,
+    }));
+    vi.mocked(tauriHealthApi.recover).mockImplementation(async (_save, operationId) => ({
+      operationId,
+      status: "applied",
+      fingerprint: "b".repeat(64),
+      backupAvailable: true,
+      reason: null,
+      canonical: { opened: openResult().data, players, upgrades, run },
+    }));
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Currency" }), {
+      target: { value: "-19" },
+    });
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
+    );
+    expect(tauriHealthApi.writeRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: "synthetic-session",
+        run: [{ field: "currency", before: 12, value: -19 }],
+      }),
+    );
+    expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Currency" }).value).toBe(
+      "-19",
+    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+  });
+
+  it("blocks a mixed Run and Upgrade Save until one domain is reverted", async () => {
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = await openUpgrades();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
+      target: { value: "3" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Currency" }), {
+      target: { value: "-19" },
+    });
+    expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(true);
+    expect(screen.getByText(/Save one group at a time/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /^Revert$/ }));
+    expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(false);
+    expect(tauriHealthApi.writeRun).not.toHaveBeenCalled();
+    expect(tauriHealthApi.writeUpgrades).not.toHaveBeenCalled();
   });
 
   it("reviews per-player drafts across keyboard tab navigation and reverts without a writer", async () => {

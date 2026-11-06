@@ -40,7 +40,12 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
         ),
       ).toBe(true);
     }
-    for (const command of ["test_health_write", "test_health_recover", "test_upgrades_write"]) {
+    for (const command of [
+      "test_health_write",
+      "test_health_recover",
+      "test_upgrades_write",
+      "test_run_write",
+    ]) {
       const denied = await native(app.page, command, { request: {} }).catch(String);
       expect(denied).toMatch(/not found|not allowed|not permitted|denied/i);
     }

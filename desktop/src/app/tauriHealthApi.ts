@@ -1,11 +1,18 @@
-/** Narrow synthetic-only health transport; the native host owns authority. */
+/** Narrow synthetic-only save transports; the native host owns authority. */
 import { invoke } from "@tauri-apps/api/core";
-import type { PlayerDto, PlayerUpgradeDto, SaveOpenResult } from "@electron/contracts";
+import type {
+  PlayerDto,
+  PlayerUpgradeDto,
+  RunStateDto,
+  RunStatDto,
+  SaveOpenResult,
+} from "@electron/contracts";
 
 export interface HealthCanonical {
   opened: SaveOpenResult;
   players: PlayerDto[];
   upgrades?: PlayerUpgradeDto[];
+  run?: RunStateDto | null;
 }
 
 export interface HealthValueIntent {
@@ -19,7 +26,21 @@ export interface UpgradeIntentEdit {
   before: number;
   value: number;
 }
-export type HealthIntent = HealthValueIntent | { upgrades: UpgradeIntentEdit[] };
+export interface RunIntentEdit {
+  field: RunStatDto["key"] | "resumeLocation";
+  before: number | string;
+  value: number | string;
+}
+export type HealthIntent =
+  HealthValueIntent | { upgrades: UpgradeIntentEdit[] } | { run: RunIntentEdit[] };
+export const RUN_INTENT_LIMIT = 512;
+export function runIntentFits(run: readonly RunIntentEdit[]): boolean {
+  return (
+    run.length > 0 &&
+    run.length <= 5 &&
+    new TextEncoder().encode(JSON.stringify({ run })).length <= RUN_INTENT_LIMIT
+  );
+}
 export const UPGRADE_INTENT_LIMIT = 2048;
 export function upgradeIntentFits(upgrades: readonly UpgradeIntentEdit[]): boolean {
   return (
@@ -59,6 +80,13 @@ export interface UpgradesWrite {
   session: string;
   upgrades: UpgradeIntentEdit[];
 }
+export interface RunWrite {
+  saveId: string;
+  fingerprint: string;
+  operationId: string;
+  session: string;
+  run: RunIntentEdit[];
+}
 
 function unresolved(operationId: string, status: "uncertain" | "conflict"): HealthTransaction {
   return {
@@ -72,6 +100,13 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
+  async writeRun(request: RunWrite): Promise<HealthTransaction> {
+    try {
+      return await invoke<HealthTransaction>("test_run_write", { request });
+    } catch {
+      return unresolved(request.operationId, "uncertain");
+    }
+  },
   async writeUpgrades(request: UpgradesWrite): Promise<HealthTransaction> {
     try {
       return await invoke<HealthTransaction>("test_upgrades_write", { request });

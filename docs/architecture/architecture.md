@@ -193,7 +193,11 @@ editor's Int32 write bounds. Resume value/options must be nonempty, unique and
 include the observed value; Rust has no location catalog or save-domain rules.
 The injected Run hook coalesces reads and discards late results on unmount. The
 shared view preserves Electron's numeric editors and location selector; native
-Run renders copyable read-only text fields without pending/revert/save controls.
+Run renders copyable read-only text fields without pending/revert/save controls
+in ordinary builds. Explicitly admitted synthetic UI builds reuse the same view
+for durable Run drafts, review, Save and Revert. Canonical snapshots supersede
+older in-flight Run reads. Values outside JavaScript's exact integer range never
+cross the typed projection; the synthetic Run error explains this read-only limit.
 
 Items calls Python's unchanged `advanced-get` service. Rust validates all six unique
 domain keys, evidence enums, nullable nonnegative counts, boolean capabilities,
@@ -254,12 +258,14 @@ with the `synthetic-health-recovery` Cargo feature and granted only by the separ
 `recovery.test.conf.json` configuration. A runtime check additionally requires E2E
 mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpoint`.
 The separate `synthetic-health-ui` feature includes the recovery feature and enables
-one existing player's health editor and bounded upgrade-batch editing with the same
+one existing player's health editor, bounded upgrade-batch and Run editing with the same
 test permissions and runtime fence. Protocol-only builds keep the UI read-only and
-reject upgrade writes; default builds have no mutation
+reject upgrade and Run writes; default builds have no mutation
 commands. No general mutation bridge or production write permission is provided.
-The typed transports accept one player-health change or an upgrade-only batch.
-Upgrade requests bind the save ID, fingerprint and current native open-session token.
+The typed transports accept one player-health change, an upgrade-only batch or
+a Run-only batch. Mixed Health/Upgrades/Run drafts block Save and identify the
+groups to revert; there is no partial-save or mixed-domain protocol.
+Upgrade and Run requests bind the save ID, fingerprint and current native open-session token.
 Reopening a save rotates that token; stale/cross-session requests are rejected.
 The host rechecks session admission between reservation and writer launch. Python
 validates player/key membership against the loaded save, exact previous values,
@@ -305,7 +311,7 @@ source denies additional writers/deletion through verification and replacement;
 write-through file handles and explicit buffer flushes preserve publication ordering
 across process termination. Physical power-loss durability requires separate evidence.
 
-Windows schema-3 and schema-4 receipts include a fingerprint of the admitted ancestry's volume
+Windows schema-3/4/5 receipts include a fingerprint of the admitted ancestry's volume
 and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
 processes independently acquire the namespace and require that fingerprint to match
 before claiming or settling a receipt. Schema 4 durably stores an upgrade-only
@@ -313,8 +319,22 @@ intent with player IDs, exact upgrade keys, previous values and requested values
 Its compact UTF-8 intent is limited to 2,048 bytes, with at most the existing 512
 typed changes; the complete receipt remains limited to 4,096 bytes, including after
 fingerprints and identities. An excessive batch is rejected intact before reservation.
-The legacy health filenames/lock are shared deliberately, so unresolved health and
-upgrade transactions exclude each other and ordinary cooperating writers. Matching
+Schema 5 stores a Run-only intent: one to five distinct loaded-save fields,
+each with exact previous/requested values. The compact intent has a 512-byte
+ceiling: four fixed numeric field names with safe-integer previous values and
+Int32 requested values, plus a resume field with at most 64 UTF-8 bytes of previous
+label and one of two known requested labels, fit below that ceiling. This retains
+the 4,096-byte receipt ceiling and existing encrypted/plaintext operation budgets.
+Python checks loaded-field membership and original integer types before applying
+the existing Run setters. Level is displayed one-based (1–2,147,483,648); other
+requested numbers use signed Int32 bounds. A future resume value is preserved
+unless explicitly changed to a known destination; forged new unknown destinations
+are rejected. Old binaries cannot interpret schema 5 and must fail closed.
+Canonical reconciliation confirms every owned Run draft before acknowledgement
+or clearing; an unavailable or mismatched Run projection remains conflicting.
+Recovery classifies authoritative bytes without replaying the intent.
+The legacy health filenames/lock are shared deliberately, so unresolved Health,
+Upgrade and Run transactions exclude each other and ordinary cooperating writers. Matching
 save bytes and leaf inode alone do
 not authorize a different parent directory. Schema-1/2 receipts remain inspectable,
 but Windows cannot automatically resume or acknowledge them without namespace

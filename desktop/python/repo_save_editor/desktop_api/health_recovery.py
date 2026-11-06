@@ -1,4 +1,4 @@
-"""Opt-in single-player health transactions over the shared Python save-write boundary."""
+"""Opt-in Health, Upgrades and Run intents over the shared Python save-write boundary."""
 
 from __future__ import annotations
 
@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any, cast
 
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
+from repo_save_editor.core.schema import get_dictionaries
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.player.upgrades import serialize_upgrades
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
+from repo_save_editor.desktop_api.run import serialize_run
 from repo_save_editor.desktop_api.run_save_changes import apply_run_save_changes
 from repo_save_editor.desktop_api.saves import (
     load_discovered_save,
@@ -22,6 +24,7 @@ from repo_save_editor.desktop_api.saves import (
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.player.state import get_player_health, get_players
 from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
+from repo_save_editor.services.run import get_available_run_stats, get_resume_location_label
 from repo_save_editor.services.saves.discovery import discover_saves
 from repo_save_editor.storage.health_recovery import (
     HealthTransaction,
@@ -29,6 +32,7 @@ from repo_save_editor.storage.health_recovery import (
     health_lock,
     inspect_pending,
     valid_operation,
+    valid_run_intent,
     valid_upgrade_intent,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
@@ -52,6 +56,26 @@ def _path(save_id: str, root: Path) -> Path:
         if save.identifier == save_id:
             return save.path
     raise RecoveryError("save_missing")
+
+
+def _run_changes(data: SaveData, changes: object) -> list[dict[str, object]]:
+    available: dict[str, object] = {
+        key: value for _label, key, value in get_available_run_stats(data)
+    }
+    available["resumeLocation"] = get_resume_location_label(data)
+    raw = get_dictionaries(data)["runStats"]
+    result = []
+    for edit in cast(list[dict[str, Any]], changes):
+        field = edit["field"]
+        if (
+            field not in available
+            or type(raw.get("save level" if field == "resumeLocation" else field, 0)) is not int
+        ):
+            raise DesktopSaveError("save_validation_failed", "The Run field is unavailable.")
+        if available[field] != edit["before"]:
+            raise DesktopSaveError("save_stale", "The Run field changed after it was opened.")
+        result.append({"feature": "run", "entity": "run", "field": field, "after": edit["value"]})
+    return result
 
 
 def _upgrade_changes(data: SaveData, changes: object) -> list[dict[str, object]]:
@@ -87,11 +111,10 @@ def prepare_health(
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     remember_intent: bool = False,
     upgrade_batch: bool = False,
+    run_batch: bool = False,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
-    valid = (
-        valid_upgrade_intent({"upgrades": changes}) if upgrade_batch else _health_change(changes)
-    )
+    valid = _valid_changes(changes, upgrade_batch=upgrade_batch, run_batch=run_batch)
     if not valid_operation(operation) or not valid:
         return _outcome(operation, "rejected", "invalid_request")
     try:
@@ -104,7 +127,10 @@ def prepare_health(
             if sha256(source).hexdigest() != fingerprint:
                 return _outcome(operation, "rejected", "save_stale")
             engine_changes: object
-            if upgrade_batch:
+            if run_batch:
+                intent = {"run": changes}
+                engine_changes = _run_changes(data, changes)
+            elif upgrade_batch:
                 intent = {"upgrades": changes}
                 engine_changes = _upgrade_changes(data, changes)
             else:
@@ -117,7 +143,7 @@ def prepare_health(
                 engine_changes = changes
             apply_run_save_changes(data, engine_changes, {})
             require_game_closed(game_status_loader)
-            if remember_intent or upgrade_batch:
+            if remember_intent or upgrade_batch or run_batch:
                 transaction = HealthTransaction(
                     path,
                     operation,
@@ -134,7 +160,7 @@ def prepare_health(
         return _outcome(
             operation,
             "rejected",
-            "save_validation_failed" if upgrade_batch else "backend_unavailable",
+            "save_validation_failed" if upgrade_batch or run_batch else "backend_unavailable",
         )
     except OSError:
         return _outcome(operation, "rejected", "backend_unavailable")
@@ -151,6 +177,14 @@ def _health_change(changes: object) -> bool:
     )
 
 
+def _valid_changes(changes: object, *, upgrade_batch: bool, run_batch: bool) -> bool:
+    if run_batch:
+        return not upgrade_batch and valid_run_intent({"run": changes})
+    if upgrade_batch:
+        return valid_upgrade_intent({"upgrades": changes})
+    return _health_change(changes)
+
+
 @bounded_save_operation
 def write_health(
     save_id: str,
@@ -162,14 +196,13 @@ def write_health(
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     reserved: bool = False,
     upgrade_batch: bool = False,
+    run_batch: bool = False,
 ) -> dict[str, object]:
-    """Delegate exactly one typed health edit, recording ambiguous completion explicitly."""
+    """Delegate one typed domain intent, recording ambiguous completion explicitly."""
     transaction: HealthTransaction | None = None
     if not valid_operation(operation):
         return _outcome(operation, "rejected", "invalid_request")
-    valid = (
-        valid_upgrade_intent({"upgrades": changes}) if upgrade_batch else _health_change(changes)
-    )
+    valid = _valid_changes(changes, upgrade_batch=upgrade_batch, run_batch=run_batch)
     if not valid:
         return _outcome(operation, "rejected", "invalid_request")
     try:
@@ -179,17 +212,24 @@ def write_health(
                 path,
                 operation,
                 directory=directory,
-                intent={"upgrades": changes} if upgrade_batch else None,
+                intent={"run": changes}
+                if run_batch
+                else {"upgrades": changes}
+                if upgrade_batch
+                else None,
             )
             if reserved:
                 transaction.resume()
                 change = cast(list[dict[str, object]], changes)[0]
                 mismatch = (
-                    transaction.intent != {"upgrades": changes}
+                    transaction.intent != {"run": changes}
+                    if run_batch
+                    else transaction.intent != {"upgrades": changes}
                     if upgrade_batch
                     else transaction.intent is not None
                     and (
                         "upgrades" in transaction.intent
+                        or "run" in transaction.intent
                         or transaction.intent["playerId"] != change["entity"]
                         or transaction.intent["health"] != change["after"]
                     )
@@ -198,9 +238,11 @@ def write_health(
                     return _outcome(operation, "uncertain", "invalid_request")
             else:
                 transaction.admit()
-            if upgrade_batch:
+            if run_batch or upgrade_batch:
                 _, data, _ = load_discovered_save(save_id, root, directory=directory)
-                changes = _upgrade_changes(data, changes)
+                changes = (
+                    _run_changes(data, changes) if run_batch else _upgrade_changes(data, changes)
+                )
             result = save_changes(
                 save_id,
                 fingerprint,
@@ -282,6 +324,7 @@ def _canonical(
         "opened": serialize_open_save(save, data, source),
         "players": serialize_players(data),
         "upgrades": serialize_upgrades(data),
+        "run": serialize_run(data),
     }
 
 

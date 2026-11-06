@@ -18,6 +18,7 @@
             "allow-preview-close",
             "allow-test-health-write",
             "allow-test-upgrades-write",
+            "allow-test-run-write",
             "allow-test-health-recover",
             "allow-test-health-state"
           ]

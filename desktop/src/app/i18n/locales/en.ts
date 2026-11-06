@@ -1,5 +1,11 @@
 /** Canonical RepoDitor-owned translation key catalog and English fallback text. */
 export const en = {
+  "run.mixedDrafts":
+    "Save one group at a time. Revert Health, Upgrades or Run drafts until only one group remains.",
+  "run.saveUnavailable":
+    "This save session cannot admit Run writes. Reopen the save before retrying.",
+  "run.unsupportedValues":
+    "Run stays read-only when its values cannot be represented exactly or its structure is unsupported.",
   "app.discoveryPreview": "Read-only preview. Editing and saving are unavailable.",
   "app.skipToContent": "Skip to content",
   "app.tagline": "R.E.P.O. save utility",
@@ -362,7 +368,7 @@ export const en = {
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
   "health.testOnly":
-    "Synthetic test: health and upgrade saves. Production builds remain read-only.",
+    "Synthetic test: health, upgrade and Run saves. Production builds remain read-only.",
   "health.checking": "Checking unfinished save operations…",
   "health.reconciling": "Reconciling changes with the saved file…",
   "health.recovery": "The save outcome is uncertain. Reconcile before editing again.",

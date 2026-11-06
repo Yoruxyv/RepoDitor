@@ -6,7 +6,7 @@ import {
   type HealthState,
   type HealthTransaction,
 } from "@/app/tauriHealthApi";
-import { players, session, upgrades } from "@/test/repoditorApiFixture";
+import { players, runState, session, upgrades } from "@/test/repoditorApiFixture";
 import { useTauriHealth } from "./useTauriHealth";
 
 function canonical(health = 80, fingerprint = session.fingerprint): HealthCanonical {
@@ -18,6 +18,7 @@ function canonical(health = 80, fingerprint = session.fingerprint): HealthCanoni
     },
     players: players.map((player) => (player.id === "111" ? { ...player, health } : player)),
     upgrades,
+    run: runState,
   };
 }
 function idle(projection = canonical()): HealthState {
@@ -45,6 +46,9 @@ function transaction(
 }
 function setup() {
   const api = {
+    writeRun: vi
+      .fn<typeof tauriHealthApi.writeRun>()
+      .mockImplementation(async (request) => transaction(request.operationId, "applied")),
     writeUpgrades: vi
       .fn<typeof tauriHealthApi.writeUpgrades>()
       .mockImplementation(async (request) => transaction(request.operationId, "applied")),
@@ -70,6 +74,85 @@ function stage(subject: ReturnType<typeof setup>, health = 17) {
 }
 
 describe("synthetic health ownership", () => {
+  const runEdit = {
+    feature: "run",
+    entity: "run",
+    field: "currency",
+    before: 12,
+    after: -19,
+    label: "Currency",
+    subject: "Run",
+  } as const;
+  function runProjection(value = -19): HealthCanonical {
+    return {
+      ...canonical(),
+      run: {
+        ...runState,
+        stats: runState.stats.map((stat) => (stat.key === "currency" ? { ...stat, value } : stat)),
+      },
+    };
+  }
+  it.each(["lost", "mismatch", "rejected"] as const)(
+    "retains Run intent after %s and never clears an unconfirmed draft",
+    async (outcome) => {
+      const subject = setup();
+      await ready(subject);
+      subject.api.writeRun.mockImplementation(async (request) =>
+        transaction(
+          request.operationId,
+          ({ lost: "uncertain", rejected: "rejected", mismatch: "applied" } as const)[outcome],
+        ),
+      );
+      subject.api.recover.mockImplementation(async (_save, id) =>
+        transaction(id, "applied", runProjection(20)),
+      );
+      act(() => subject.result.current.editRun(runEdit));
+      await act(() => subject.result.current.save());
+      expect(subject.result.current.runEdits).toHaveLength(1);
+      expect(subject.result.current.phase).toBe(
+        { lost: "recovery", rejected: "rejected", mismatch: "conflict" }[outcome],
+      );
+      if (outcome !== "rejected") expect(subject.result.current.locked).toBe(true);
+      if (outcome === "lost") {
+        subject.api.recover.mockImplementation(async (_save, id) =>
+          transaction(id, "applied", runProjection()),
+        );
+        await act(() => subject.result.current.recover());
+        expect(subject.result.current.phase).toBe("saved");
+        expect(subject.result.current.runEdits).toHaveLength(0);
+        expect(subject.api.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);
+      }
+    },
+  );
+  it("restores durable Run intent after host restart and reconciles unchanged without replay", async () => {
+    const subject = setup();
+    await ready(subject);
+    subject.api.state.mockResolvedValue({
+      enabled: true,
+      state: "pending",
+      canonical: null,
+      pending: {
+        operationId: "a".repeat(32),
+        fingerprint: session.fingerprint,
+        intent: { run: [{ field: "currency", before: 12, value: -19 }] },
+      },
+      upgradeSession: "synthetic-session",
+    });
+    act(() => subject.result.current.refresh());
+    await waitFor(() => expect(subject.result.current.phase).toBe("recovery"));
+    expect(subject.result.current.runEdits).toHaveLength(1);
+    act(() => subject.result.current.revertRun("currency"));
+    expect(subject.result.current.runEdits).toHaveLength(1);
+    subject.api.recover.mockImplementation(async (_save, id) =>
+      transaction(id, "unchanged", canonical()),
+    );
+    await act(() => subject.result.current.recover());
+    expect(subject.result.current.phase).toBe("unchanged");
+    expect(subject.result.current.runEdits).toHaveLength(1);
+    await act(() => subject.result.current.revert());
+    expect(subject.result.current.runEdits).toHaveLength(0);
+    expect(subject.api.writeRun).not.toHaveBeenCalled();
+  });
   function projectedUpgrade(value: number): HealthCanonical {
     return {
       ...canonical(80, "b".repeat(64)),

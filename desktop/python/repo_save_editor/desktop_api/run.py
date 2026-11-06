@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
 from repo_save_editor.services.run import (
@@ -20,21 +21,23 @@ def get_run_state(save_id: str, root: Path | None = None) -> dict[str, object]:
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
+    return {"ok": True, "run": serialize_run(data)}
+
+
+def serialize_run(data: SaveData) -> dict[str, object]:
+    """Project a locked snapshot using the same semantics as ordinary Run reads."""
     resume_location = get_resume_location_label(data)
     options = list(RESUME_LOCATION_OPTIONS)
     if resume_location not in options:
         options.append(resume_location)
 
     return {
-        "ok": True,
-        "run": {
-            "stats": [
-                {"key": key, "label": label, "value": value}
-                for label, key, value in get_available_run_stats(data)
-            ],
-            "resumeLocation": {
-                "value": resume_location,
-                "options": options,
-            },
+        "stats": [
+            {"key": key, "label": label, "value": value}
+            for label, key, value in get_available_run_stats(data)
+        ],
+        "resumeLocation": {
+            "value": resume_location,
+            "options": options,
         },
     }

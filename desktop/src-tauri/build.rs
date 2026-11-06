@@ -31,6 +31,8 @@ fn main() {
                 #[cfg(feature = "synthetic-health-recovery")]
                 "test_upgrades_write",
                 #[cfg(feature = "synthetic-health-recovery")]
+                "test_run_write",
+                #[cfg(feature = "synthetic-health-recovery")]
                 "test_health_recover",
                 #[cfg(feature = "synthetic-health-recovery")]
                 "test_health_state",

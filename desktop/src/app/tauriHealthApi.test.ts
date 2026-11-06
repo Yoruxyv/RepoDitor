@@ -8,6 +8,22 @@ beforeEach(() => {
   call.mockReset();
 });
 describe("synthetic native health transport", () => {
+  it("uses the fixed Run channel and fails closed after response loss", async () => {
+    const request = {
+      saveId: "save",
+      fingerprint: "a".repeat(64),
+      operationId: "b".repeat(32),
+      session: "test-session",
+      run: [{ field: "currency" as const, before: 12, value: -19 }],
+    };
+    call.mockRejectedValue(new Error("private backend path"));
+    expect(await tauriHealthApi.writeRun(request)).toMatchObject({
+      operationId: request.operationId,
+      status: "uncertain",
+      canonical: null,
+    });
+    expect(call).toHaveBeenCalledWith("test_run_write", { request });
+  });
   it("uses only the typed upgrade channel and treats response loss as uncertain", async () => {
     const request = {
       saveId: "save",

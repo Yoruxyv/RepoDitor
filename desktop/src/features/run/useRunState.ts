@@ -40,14 +40,16 @@ export function useRunState(
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
   const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
       if (requestInFlight.current) return false;
       requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
         const result = await get(saveId);
-        if (!mounted.current) return result.ok;
+        if (!mounted.current || version !== snapshotVersion.current) return result.ok;
         if (result.ok) {
           setState({ run: result.data, error: null, loading: false });
           return true;
@@ -59,7 +61,7 @@ export function useRunState(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             run: preserveExisting ? current.run : null,
             error: "error.service",
@@ -162,6 +164,11 @@ export function useRunState(
     setPendingByField({});
   }
 
+  function acceptSnapshot(run: RunStateDto): void {
+    snapshotVersion.current += 1;
+    setState({ run, error: null, loading: false });
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -172,6 +179,7 @@ export function useRunState(
     revert,
     revertAll,
     applyAfterSave,
+    acceptSnapshot,
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };

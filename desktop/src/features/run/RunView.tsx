@@ -7,7 +7,7 @@ import {
   MapPinIcon,
   PackageIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { RunStateDto, RunStatDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -41,6 +41,9 @@ interface RunViewProps {
   readonly onResumeChange: ((value: string) => void) | null;
   readonly onRevert: ((field: string) => void) | null;
   readonly onRetry: () => void;
+  readonly resetVersion?: number;
+  readonly onValidityChange?: ((field: string, invalid: boolean) => void) | undefined;
+  readonly precisionNotice?: boolean;
 }
 
 function RunSkeleton({ label }: { readonly label: string }) {
@@ -76,6 +79,9 @@ export function RunView({
   onResumeChange,
   onRevert,
   onRetry,
+  resetVersion = 0,
+  onValidityChange,
+  precisionNotice = false,
 }: RunViewProps) {
   const { t } = usePreferences();
   if (loading && !run) return <RunSkeleton label={t("run.loading")} />;
@@ -88,6 +94,9 @@ export function RunView({
         <p className="mt-2 text-sm text-secondary" role="alert">
           {error}
         </p>
+        {precisionNotice ? (
+          <p className="mt-2 text-sm text-secondary">{t("run.unsupportedValues")}</p>
+        ) : null}
         <button
           className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
           type="button"
@@ -128,10 +137,12 @@ export function RunView({
                 {stat.label}
               </label>
               <RunStatValue
+                key={`${stat.key}-${resetVersion}`}
                 stat={stat}
                 pendingByField={pendingByField}
                 onStatChange={onStatChange}
                 onRevert={onRevert}
+                onValidityChange={onValidityChange}
               />
             </div>
           );
@@ -199,7 +210,8 @@ function RunStatValue({
   pendingByField,
   onStatChange,
   onRevert,
-}: Pick<RunViewProps, "pendingByField" | "onStatChange" | "onRevert"> & {
+  onValidityChange,
+}: Pick<RunViewProps, "pendingByField" | "onStatChange" | "onRevert" | "onValidityChange"> & {
   readonly stat: RunStatDto;
 }) {
   const { t } = usePreferences();
@@ -216,6 +228,9 @@ function RunStatValue({
   const pendingId = `run-${stat.key}-pending`;
   const description =
     [invalid ? errorId : null, edit ? pendingId : null].filter(Boolean).join(" ") || undefined;
+  useEffect(() => {
+    if (onStatChange) onValidityChange?.(stat.key, invalid);
+  }, [onValidityChange, onStatChange, stat.key, invalid]);
 
   if (onStatChange === null)
     return (
@@ -247,12 +262,12 @@ function RunStatValue({
             const next = Number(value);
             if (value.trim() && Number.isSafeInteger(next) && next >= minimum && next <= maximum) {
               onStatChange(stat, next);
-            } else {
+            } else if (!onValidityChange) {
               onRevert?.(stat.key);
             }
           }}
         />
-        {edit ? (
+        {edit || (invalid && onValidityChange) ? (
           <button
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
             type="button"

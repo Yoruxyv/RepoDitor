@@ -2,6 +2,11 @@
 import type { en } from "./en";
 
 export const ja: Record<keyof typeof en, string> = {
+  "run.mixedDrafts":
+    "一度に保存できるのは1種類です。Health、Upgrades、Runの下書きを戻し、1種類だけにしてください。",
+  "run.saveUnavailable": "このセッションではRunを保存できません。セーブを開き直してください。",
+  "run.unsupportedValues":
+    "値を正確に表現できない場合や構造が未対応の場合、Runは読み取り専用です。",
   "app.discoveryPreview": "読み取り専用プレビューです。編集と保存は利用できません。",
   "app.skipToContent": "コンテンツへ移動",
   "app.tagline": "R.E.P.O. セーブユーティリティ",
@@ -361,7 +366,7 @@ export const ja: Record<keyof typeof en, string> = {
   "error.saveStale": "セーブがディスク上で変更されました。再度開いてから保存してください。",
   "error.write": "セーブを安全に書き込めませんでした。元のファイルは置き換えていません。",
   "error.copyPath": "パスをコピーできませんでした",
-  "health.testOnly": "合成テスト：体力とアップグレードの保存。製品版は読み取り専用のままです。",
+  "health.testOnly": "合成テスト：Health、Upgrade、Runの保存。本番ビルドは読み取り専用です。",
   "health.checking": "未完了の保存操作を確認しています…",
   "health.reconciling": "変更をセーブファイルと照合しています…",
   "health.recovery": "保存結果を確認できません。再編集の前に照合してください。",

@@ -2,6 +2,9 @@
 import type { en } from "./en";
 
 export const zhCN: Record<keyof typeof en, string> = {
+  "run.mixedDrafts": "每次只能保存一组。请撤销 Health、Upgrades 或 Run 草稿，直到仅剩一组。",
+  "run.saveUnavailable": "此存档会话不允许写入 Run。请重新打开存档后重试。",
+  "run.unsupportedValues": "数值无法精确表示或结构不受支持时，Run 保持只读。",
   "app.discoveryPreview": "只读预览。暂不支持编辑和保存。",
   "app.skipToContent": "跳转到内容",
   "app.tagline": "R.E.P.O. 存档工具",
@@ -342,7 +345,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.saveStale": "磁盘上的存档已更改。请重新打开后再保存。",
   "error.write": "RepoDitor 无法安全写入存档。未替换任何文件。",
   "error.copyPath": "无法复制路径",
-  "health.testOnly": "合成测试：保存生命值和升级。生产构建仍然只读。",
+  "health.testOnly": "合成测试：生命值、升级和 Run 保存。生产版本保持只读。",
   "health.checking": "正在检查未完成的保存操作…",
   "health.reconciling": "正在与存档文件核对更改…",
   "health.recovery": "保存结果尚不确定。请先核对，再继续编辑。",
