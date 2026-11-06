@@ -149,5 +149,5 @@ pub fn run(
 }
 
 #[cfg(test)]
-#[path = "process_tests.rs"]
+#[path = "../../tests/unit/backend/process.rs"]
 pub(crate) mod tests;

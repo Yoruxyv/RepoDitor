@@ -124,8 +124,10 @@ its preload, IPC, save services, installer and release defaults are unchanged.
 
 The Rust source root keeps application bootstrap and typed command registration in
 `main.rs`, with public error mapping in `error.rs`. `backend/` owns fixed sidecar
-operations, request admission and process supervision; its process tests remain
-beside that implementation and use `tests/sidecar_fixture.rs`. `projections/` owns
+operations, request admission and process supervision. Private unit-test modules
+load their implementations from `tests/unit/`, mirroring their owning modules;
+`entry.rs` contains bootstrap tests. Process tests reuse the unchanged
+`tests/sidecar_fixture.rs` executable fixture. `projections/` owns
 the validated Python DTOs returned to React. `synthetic/` owns transaction and
 recovery transport and is compiled only with `synthetic-health-recovery`; its
 existing command permissions and runtime test-root checks still apply.
