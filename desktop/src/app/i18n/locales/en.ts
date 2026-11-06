@@ -369,6 +369,8 @@ export const en = {
   "error.copyPath": "Path could not be copied",
   "health.testOnly":
     "Synthetic test: health, upgrade and Run saves. Production builds remain read-only.",
+  "health.saveUnavailable":
+    "This Health batch cannot be saved safely. Recheck the save or revert some pending Health changes.",
   "health.checking": "Checking unfinished save operations…",
   "health.reconciling": "Reconciling changes with the saved file…",
   "health.recovery": "The save outcome is uncertain. Reconcile before editing again.",

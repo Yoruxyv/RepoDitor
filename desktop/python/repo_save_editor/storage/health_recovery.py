@@ -30,6 +30,7 @@ else:
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _RECEIPT_LIMIT = 4096
+HEALTH_INTENT_LIMIT = 2048
 UPGRADE_INTENT_LIMIT = 2048
 RUN_INTENT_LIMIT = 512
 
@@ -300,7 +301,10 @@ class HealthTransaction:
         if not valid_operation(operation):
             raise RecoveryError("invalid_request")
         if intent is not None and not (
-            valid_intent(intent) or valid_upgrade_intent(intent) or valid_run_intent(intent)
+            valid_intent(intent)
+            or valid_health_batch_intent(intent)
+            or valid_upgrade_intent(intent)
+            or valid_run_intent(intent)
         ):
             raise RecoveryError("invalid_request")
         self.path = path
@@ -338,15 +342,17 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3, 4, 5}
+                or value.version not in {1, 2, 3, 4, 5, 6}
                 or (value.version == 2 and not valid_intent(value.intent))
                 or (
-                    value.version in {4, 5}
+                    value.version in {4, 5, 6}
                     and (
                         not (
                             valid_upgrade_intent(value.intent)
                             if value.version == 4
                             else valid_run_intent(value.intent)
+                            if value.version == 5
+                            else valid_health_batch_intent(value.intent)
                         )
                         or (
                             value.namespace is not None and _HASH.fullmatch(value.namespace) is None
@@ -444,7 +450,9 @@ class HealthTransaction:
                 os.getpid(),
                 self.process_started,
                 version=(
-                    5
+                    6
+                    if valid_health_batch_intent(self.intent)
+                    else 5
                     if valid_run_intent(self.intent)
                     else 4
                     if valid_upgrade_intent(self.intent)
@@ -649,6 +657,37 @@ class HealthTransaction:
             "fingerprint": fingerprint,
             "backupAvailable": backup,
         }
+
+
+def valid_health_batch_intent(value: object) -> bool:
+    """Admit only distinct Health edits within the existing batch/receipt budgets."""
+    if not isinstance(value, dict) or set(value) != {"health"}:
+        return False
+    edits = value["health"]
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 512:
+        return False
+    seen = set()
+    for edit in edits:
+        if not isinstance(edit, dict) or set(edit) != {"playerId", "before", "value"}:
+            return False
+        player = edit["playerId"]
+        if (
+            not isinstance(player, str)
+            or not 0 < len(player) <= 20
+            or not player.isascii()
+            or not player.isdigit()
+            or player in seen
+            or type(edit["before"]) is not int
+            or not 0 <= edit["before"] <= 9_007_199_254_740_991
+            or type(edit["value"]) is not int
+            or not 0 <= edit["value"] <= 2_147_483_647
+            or edit["value"] == edit["before"]
+        ):
+            return False
+        seen.add(player)
+    # ASCII IDs and integers cannot expand through Unicode escaping. Default receipt
+    # separators add six bytes per edit; complete receipts still have a 4096-byte cap.
+    return len(json.dumps(value, separators=(",", ":")).encode()) <= HEALTH_INTENT_LIMIT
 
 
 def valid_upgrade_intent(value: object) -> bool:

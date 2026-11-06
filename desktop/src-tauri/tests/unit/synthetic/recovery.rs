@@ -1,6 +1,69 @@
 use super::*;
 const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
 #[test]
+fn health_batches_reject_forged_duplicate_oversized_and_partial_intents() {
+    let raw = json!({"health":[{"playerId":"111","before":80,"value":17},{"playerId":"222","before":0,"value":42}]});
+    assert!(valid_health_batch_intent(
+        &serde_json::from_value(raw.clone()).unwrap()
+    ));
+    for (key, value) in [
+        ("playerId", json!("../222")),
+        ("before", json!(-1)),
+        ("before", json!(9_007_199_254_740_992i64)),
+        ("before", json!(true)),
+        ("value", json!(true)),
+        ("value", json!(1.5)),
+        ("value", json!(-1)),
+        ("value", json!(2_147_483_648i64)),
+        ("value", json!(0)),
+        ("field", json!("currency")),
+    ] {
+        let mut bad = raw.clone();
+        bad["health"][1][key] = value;
+        assert!(serde_json::from_value::<HealthBatchIntent>(bad)
+            .map(|i| !valid_health_batch_intent(&i))
+            .unwrap_or(true));
+    }
+    for edits in [
+        json!([]),
+        json!([raw["health"][0], raw["health"][0]]),
+        json!((0..100)
+            .map(|n| json!({"playerId":n.to_string(),"before":0,"value":1}))
+            .collect::<Vec<_>>()),
+    ] {
+        assert!(!valid_health_batch_intent(
+            &serde_json::from_value(json!({"health":edits})).unwrap()
+        ));
+    }
+    let mut state = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":raw}});
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_ok());
+    state["pending"]["intent"]["health"][1]["value"] = json!(true);
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_err());
+}
+#[test]
+fn health_batch_byte_boundary_matches_the_python_receipt_budget() {
+    for delta in [-1i32, 0, 1] {
+        let mut intent = HealthBatchIntent {
+            health: (0..40)
+                .map(|n| HealthEdit {
+                    player_id: n.to_string(),
+                    before: 0,
+                    value: 1,
+                })
+                .collect(),
+        };
+        let target = (2048 + delta) as usize;
+        for index in 0..intent.health.len() {
+            let size = serde_json::to_vec(&intent).unwrap().len();
+            let edit = &mut intent.health[index];
+            let padding = (target - size).min(20 - edit.player_id.len());
+            edit.player_id = format!("{}{}", "0".repeat(padding), edit.player_id);
+        }
+        assert_eq!(serde_json::to_vec(&intent).unwrap().len(), target);
+        assert_eq!(valid_health_batch_intent(&intent), delta <= 0);
+    }
+}
+#[test]
 fn run_intent_preserves_signed_boundaries_and_rejects_forged_values() {
     let raw = json!({"run":[{"field":"currency","before":-9_007_199_254_740_991i64,"value":-2_147_483_648i64},{"field":"level","before":5,"value":2_147_483_648i64},{"field":"resumeLocation","before":"Unknown (9)","value":"Shop / Service Station"}]});
     assert!(valid_run_intent(

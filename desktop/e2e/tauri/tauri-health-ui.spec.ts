@@ -233,10 +233,7 @@ test("invalid input and other domains cannot gain write authority", async ({
     await openPlayers(app);
     await stage(app);
     await app.page.getByRole("button", { name: /Beta/ }).click();
-    await expect(app.page.getByRole("spinbutton", { name: "Current health" })).toHaveAttribute(
-      "readonly",
-      "",
-    );
+    await expect(app.page.getByRole("spinbutton", { name: "Current health" })).toBeEditable();
     await app.page.getByRole("button", { name: /Alpha/ }).click();
     const input = app.page.getByRole("spinbutton", { name: "Current health" });
     await input.fill("1.5");

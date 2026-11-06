@@ -258,14 +258,15 @@ with the `synthetic-health-recovery` Cargo feature and granted only by the separ
 `recovery.test.conf.json` configuration. A runtime check additionally requires E2E
 mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpoint`.
 The separate `synthetic-health-ui` feature includes the recovery feature and enables
-one existing player's health editor, bounded upgrade-batch and Run editing with the same
+multi-player Health, bounded upgrade-batch and Run editing with the same
 test permissions and runtime fence. Protocol-only builds keep the UI read-only and
-reject upgrade and Run writes; default builds have no mutation
+reject Health-batch, upgrade and Run writes; default builds have no mutation
 commands. No general mutation bridge or production write permission is provided.
-The typed transports accept one player-health change, an upgrade-only batch or
+The typed transports retain the legacy one-player Health request and admit a
+Health-only batch, an upgrade-only batch or
 a Run-only batch. Mixed Health/Upgrades/Run drafts block Save and identify the
 groups to revert; there is no partial-save or mixed-domain protocol.
-Upgrade and Run requests bind the save ID, fingerprint and current native open-session token.
+Health-batch, upgrade and Run requests bind the save ID, fingerprint and current native open-session token.
 Reopening a save rotates that token; stale/cross-session requests are rejected.
 The host rechecks session admission between reservation and writer launch. Python
 validates player/key membership against the loaded save, exact previous values,
@@ -311,7 +312,7 @@ source denies additional writers/deletion through verification and replacement;
 write-through file handles and explicit buffer flushes preserve publication ordering
 across process termination. Physical power-loss durability requires separate evidence.
 
-Windows schema-3/4/5 receipts include a fingerprint of the admitted ancestry's volume
+Windows schema-3/4/5/6 receipts include a fingerprint of the admitted ancestry's volume
 and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
 processes independently acquire the namespace and require that fingerprint to match
 before claiming or settling a receipt. Schema 4 durably stores an upgrade-only
@@ -332,6 +333,22 @@ unless explicitly changed to a known destination; forged new unknown destination
 are rejected. Old binaries cannot interpret schema 5 and must fail closed.
 Canonical reconciliation confirms every owned Run draft before acknowledgement
 or clearing; an unavailable or mismatched Run projection remains conflicting.
+Schema 6 stores a Health-only intent with distinct existing player IDs and exact
+previous/requested Health values. IDs are 1–20 ASCII digits, previous values are
+nonnegative JavaScript-safe integers, and requested values are nonnegative Int32
+integers that Python also checks against each player's loaded maximum Health.
+The compact `{health:[...]}` intent uses the existing 2,048-byte and 512-change
+budgets. A record needs at least 37 compact bytes, so the byte budget admits at
+most 53 records; default receipt whitespace adds six bytes per record. With a
+conservative 811-byte metadata envelope, the complete receipt stays at most 3,177
+bytes, below the unchanged 4,096-byte checked ceiling. Larger metadata still fails
+closed at publication. These are transaction bounds, not a claimed game player limit.
+Python validates every member before publishing one reservation; the existing
+writer makes one exact backup and one verified replacement for the entire batch.
+Reconciliation must confirm every requested canonical Health value before
+acknowledgement or draft clearing. Missing or mismatched players remain conflicting.
+Schemas 1–5 retain their existing validation and recovery behavior; older readers
+must reject schema 6 rather than reinterpret it as a single-player transaction.
 Recovery classifies authoritative bytes without replaying the intent.
 The legacy health filenames/lock are shared deliberately, so unresolved Health,
 Upgrade and Run transactions exclude each other and ordinary cooperating writers. Matching
@@ -427,7 +444,7 @@ stream limits and Job Object cleanup remain enabled, and game status retains its
 separate bounded lane. Fault injection lives only in the E2E sidecar, not the product
 transaction. Tests use synthetic encrypted saves.
 
-React stages a health edit or an upgrade batch in memory and reuses the existing
+React stages Health, upgrade or Run drafts in memory and reuses the existing
 Players/Upgrades controls and Save/Revert presentation. Before mutation, Python's
 health reservation (schema 3 on Windows,
 schema 2 elsewhere when intent is requested) durably binds its nonce to the player ID,
@@ -438,7 +455,10 @@ that fixed receipt namespace, validates evidence and returns bounded DTOs; React
 has no transaction journal or filesystem access. Invalid or unreadable state blocks
 editing. A busy native transaction permits only bounded read-only state polling.
 
-Renderer reload or application restart restores the pending value and its player
+Health batches persist their full schema-6 intent before writer handoff. The legacy
+single-player reservation remains readable. Individual Revert removes only that
+player's draft; Revert all removes the Health set without writing save bytes.
+Renderer reload or application restart restores pending values and the first player's
 selection from the receipt. Uncertain writes require an explicit Reconcile action;
 neither discovery nor reconciliation replays the edit. Applied reconciliation returns
 session, player and upgrade DTOs from one fingerprint-checked Python snapshot. The

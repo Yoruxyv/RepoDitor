@@ -346,6 +346,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.write": "RepoDitor 无法安全写入存档。未替换任何文件。",
   "error.copyPath": "无法复制路径",
   "health.testOnly": "合成测试：生命值、升级和 Run 保存。生产版本保持只读。",
+  "health.saveUnavailable":
+    "无法安全保存这组生命值更改。请重新检查存档状态，或撤销部分待保存的生命值更改。",
   "health.checking": "正在检查未完成的保存操作…",
   "health.reconciling": "正在与存档文件核对更改…",
   "health.recovery": "保存结果尚不确定。请先核对，再继续编辑。",

@@ -25,7 +25,10 @@ type Section = (typeof SECTIONS)[number];
 function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
   const upgrades = health.upgradeEdits.length > 0;
   const run = health.runEdits.length > 0;
-  if (Number(!!health.pending) + Number(upgrades) + Number(run) > 1) return "run.mixedDrafts";
+  if (Number(health.healthEdits.length > 0) + Number(upgrades) + Number(run) > 1)
+    return "run.mixedDrafts";
+  if (health.healthEdits.length > 0 && (!health.upgradeSession || !health.healthBatchFits))
+    return "health.saveUnavailable";
   if (upgrades && (!health.upgradeSession || !health.upgradeBatchFits))
     return "upgrades.saveUnavailable";
   if (run && !health.upgradeSession) return "run.saveUnavailable";
@@ -76,7 +79,7 @@ export function TauriWorkspace({
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const pendingSections: Partial<Record<Section, number>> = {
-    players: Number(health.pending !== null),
+    players: health.healthEdits.length,
     upgrades: health.upgradeEdits.length,
     run: health.runEdits.length,
   };
@@ -205,11 +208,7 @@ export function TauriWorkspace({
       </div>
       {health.enabled ? (
         <PendingChangesBar
-          edits={[
-            ...(health.pending ? [health.pending] : []),
-            ...health.upgradeEdits,
-            ...health.runEdits,
-          ]}
+          edits={[...health.healthEdits, ...health.upgradeEdits, ...health.runEdits]}
           saving={health.phase === "saving" || health.phase === "reconciling"}
           error={null}
           backupPath={null}

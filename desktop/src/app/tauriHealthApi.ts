@@ -20,6 +20,11 @@ export interface HealthValueIntent {
   health: number;
   before: number;
 }
+export interface HealthIntentEdit {
+  playerId: string;
+  before: number;
+  value: number;
+}
 export interface UpgradeIntentEdit {
   playerId: string;
   key: string;
@@ -32,7 +37,18 @@ export interface RunIntentEdit {
   value: number | string;
 }
 export type HealthIntent =
-  HealthValueIntent | { upgrades: UpgradeIntentEdit[] } | { run: RunIntentEdit[] };
+  | HealthValueIntent
+  | { health: HealthIntentEdit[] }
+  | { upgrades: UpgradeIntentEdit[] }
+  | { run: RunIntentEdit[] };
+export const HEALTH_INTENT_LIMIT = 2048;
+export function healthIntentFits(health: readonly HealthIntentEdit[]): boolean {
+  return (
+    health.length > 0 &&
+    health.length <= 512 &&
+    new TextEncoder().encode(JSON.stringify({ health })).length <= HEALTH_INTENT_LIMIT
+  );
+}
 export const RUN_INTENT_LIMIT = 512;
 export function runIntentFits(run: readonly RunIntentEdit[]): boolean {
   return (
@@ -80,6 +96,13 @@ export interface UpgradesWrite {
   session: string;
   upgrades: UpgradeIntentEdit[];
 }
+export interface HealthBatchWrite {
+  saveId: string;
+  fingerprint: string;
+  operationId: string;
+  session: string;
+  health: HealthIntentEdit[];
+}
 export interface RunWrite {
   saveId: string;
   fingerprint: string;
@@ -100,6 +123,13 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
+  async writeHealthBatch(request: HealthBatchWrite): Promise<HealthTransaction> {
+    try {
+      return await invoke<HealthTransaction>("test_health_write", { request });
+    } catch {
+      return unresolved(request.operationId, "uncertain");
+    }
+  },
   async writeRun(request: RunWrite): Promise<HealthTransaction> {
     try {
       return await invoke<HealthTransaction>("test_run_write", { request });

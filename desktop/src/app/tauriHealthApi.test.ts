@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { tauriHealthApi } from "./tauriHealthApi";
+import { healthIntentFits, tauriHealthApi } from "./tauriHealthApi";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const call = vi.mocked(invoke);
@@ -8,6 +8,43 @@ beforeEach(() => {
   call.mockReset();
 });
 describe("synthetic native health transport", () => {
+  it("sends one typed Health batch on the existing synthetic-only channel and retains uncertain identity", async () => {
+    const request = {
+      saveId: "save",
+      fingerprint: "a".repeat(64),
+      operationId: "b".repeat(32),
+      session: "test-session",
+      health: [
+        { playerId: "111", before: 80, value: 17 },
+        { playerId: "222", before: 0, value: 42 },
+      ],
+    };
+    call.mockRejectedValue(new Error("private backend path"));
+    expect(await tauriHealthApi.writeHealthBatch(request)).toEqual({
+      operationId: request.operationId,
+      status: "uncertain",
+      fingerprint: null,
+      backupAvailable: false,
+      reason: null,
+      canonical: null,
+    });
+    expect(call).toHaveBeenCalledOnce();
+    expect(call).toHaveBeenCalledWith("test_health_write", { request });
+  });
+  it.each([-1, 0, 1])("uses the same Health byte ceiling at offset %s", (delta) => {
+    const health = Array.from({ length: 40 }, (_entry, n) => ({
+      playerId: String(n),
+      before: 0,
+      value: 1,
+    }));
+    const size = () => new TextEncoder().encode(JSON.stringify({ health })).length;
+    const target = 2048 + delta;
+    for (const edit of health)
+      edit.playerId =
+        "0".repeat(Math.min(target - size(), 20 - edit.playerId.length)) + edit.playerId;
+    expect(size()).toBe(target);
+    expect(healthIntentFits(health)).toBe(delta <= 0);
+  });
   it("uses the fixed Run channel and fails closed after response loss", async () => {
     const request = {
       saveId: "save",

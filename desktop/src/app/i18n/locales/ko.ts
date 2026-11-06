@@ -368,6 +368,8 @@ export const ko: Record<keyof typeof en, string> = {
   "error.write": "RepoDitor가 세이브를 안전하게 기록하지 못했습니다. 파일은 교체되지 않았습니다.",
   "error.copyPath": "경로를 복사하지 못했습니다",
   "health.testOnly": "합성 테스트: Health, Upgrade 및 Run 저장. 프로덕션 빌드는 읽기 전용입니다.",
+  "health.saveUnavailable":
+    "이 체력 변경 묶음을 안전하게 저장할 수 없습니다. 저장 상태를 다시 확인하거나 대기 중인 체력 변경 일부를 되돌리세요.",
   "health.checking": "완료되지 않은 저장 작업을 확인하는 중…",
   "health.reconciling": "변경을 저장 파일과 대조하는 중…",
   "health.recovery": "저장 결과가 불확실합니다. 다시 편집하기 전에 대조하세요.",

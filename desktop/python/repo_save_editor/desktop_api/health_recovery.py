@@ -31,6 +31,7 @@ from repo_save_editor.storage.health_recovery import (
     RecoveryError,
     health_lock,
     inspect_pending,
+    valid_health_batch_intent,
     valid_operation,
     valid_run_intent,
     valid_upgrade_intent,
@@ -56,6 +57,21 @@ def _path(save_id: str, root: Path) -> Path:
         if save.identifier == save_id:
             return save.path
     raise RecoveryError("save_missing")
+
+
+def _health_changes(data: SaveData, changes: object) -> list[dict[str, object]]:
+    players = {player.player_id for player in get_players(data)}
+    result = []
+    for edit in cast(list[dict[str, Any]], changes):
+        player = edit["playerId"]
+        if player not in players:
+            raise DesktopSaveError("save_validation_failed", "The player is unavailable.")
+        if get_player_health(data, player) != edit["before"]:
+            raise DesktopSaveError("save_stale", "The player's Health changed after it was opened.")
+        result.append(
+            {"feature": "players", "entity": player, "field": "health", "after": edit["value"]}
+        )
+    return result
 
 
 def _run_changes(data: SaveData, changes: object) -> list[dict[str, object]]:
@@ -110,11 +126,14 @@ def prepare_health(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     remember_intent: bool = False,
+    health_batch: bool = False,
     upgrade_batch: bool = False,
     run_batch: bool = False,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
-    valid = _valid_changes(changes, upgrade_batch=upgrade_batch, run_batch=run_batch)
+    valid = _valid_changes(
+        changes, health_batch=health_batch, upgrade_batch=upgrade_batch, run_batch=run_batch
+    )
     if not valid_operation(operation) or not valid:
         return _outcome(operation, "rejected", "invalid_request")
     try:
@@ -127,7 +146,10 @@ def prepare_health(
             if sha256(source).hexdigest() != fingerprint:
                 return _outcome(operation, "rejected", "save_stale")
             engine_changes: object
-            if run_batch:
+            if health_batch:
+                intent = {"health": changes}
+                engine_changes = _health_changes(data, changes)
+            elif run_batch:
                 intent = {"run": changes}
                 engine_changes = _run_changes(data, changes)
             elif upgrade_batch:
@@ -143,7 +165,7 @@ def prepare_health(
                 engine_changes = changes
             apply_run_save_changes(data, engine_changes, {})
             require_game_closed(game_status_loader)
-            if remember_intent or upgrade_batch or run_batch:
+            if remember_intent or health_batch or upgrade_batch or run_batch:
                 transaction = HealthTransaction(
                     path,
                     operation,
@@ -160,7 +182,9 @@ def prepare_health(
         return _outcome(
             operation,
             "rejected",
-            "save_validation_failed" if upgrade_batch or run_batch else "backend_unavailable",
+            "save_validation_failed"
+            if health_batch or upgrade_batch or run_batch
+            else "backend_unavailable",
         )
     except OSError:
         return _outcome(operation, "rejected", "backend_unavailable")
@@ -177,7 +201,13 @@ def _health_change(changes: object) -> bool:
     )
 
 
-def _valid_changes(changes: object, *, upgrade_batch: bool, run_batch: bool) -> bool:
+def _valid_changes(
+    changes: object, *, health_batch: bool, upgrade_batch: bool, run_batch: bool
+) -> bool:
+    if sum((health_batch, upgrade_batch, run_batch)) > 1:
+        return False
+    if health_batch:
+        return valid_health_batch_intent({"health": changes})
     if run_batch:
         return not upgrade_batch and valid_run_intent({"run": changes})
     if upgrade_batch:
@@ -195,6 +225,7 @@ def write_health(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     reserved: bool = False,
+    health_batch: bool = False,
     upgrade_batch: bool = False,
     run_batch: bool = False,
 ) -> dict[str, object]:
@@ -202,7 +233,9 @@ def write_health(
     transaction: HealthTransaction | None = None
     if not valid_operation(operation):
         return _outcome(operation, "rejected", "invalid_request")
-    valid = _valid_changes(changes, upgrade_batch=upgrade_batch, run_batch=run_batch)
+    valid = _valid_changes(
+        changes, health_batch=health_batch, upgrade_batch=upgrade_batch, run_batch=run_batch
+    )
     if not valid:
         return _outcome(operation, "rejected", "invalid_request")
     try:
@@ -212,7 +245,9 @@ def write_health(
                 path,
                 operation,
                 directory=directory,
-                intent={"run": changes}
+                intent={"health": changes}
+                if health_batch
+                else {"run": changes}
                 if run_batch
                 else {"upgrades": changes}
                 if upgrade_batch
@@ -222,14 +257,15 @@ def write_health(
                 transaction.resume()
                 change = cast(list[dict[str, object]], changes)[0]
                 mismatch = (
-                    transaction.intent != {"run": changes}
+                    transaction.intent != {"health": changes}
+                    if health_batch
+                    else transaction.intent != {"run": changes}
                     if run_batch
                     else transaction.intent != {"upgrades": changes}
                     if upgrade_batch
                     else transaction.intent is not None
                     and (
-                        "upgrades" in transaction.intent
-                        or "run" in transaction.intent
+                        "playerId" not in transaction.intent
                         or transaction.intent["playerId"] != change["entity"]
                         or transaction.intent["health"] != change["after"]
                     )
@@ -238,10 +274,14 @@ def write_health(
                     return _outcome(operation, "uncertain", "invalid_request")
             else:
                 transaction.admit()
-            if run_batch or upgrade_batch:
+            if health_batch or run_batch or upgrade_batch:
                 _, data, _ = load_discovered_save(save_id, root, directory=directory)
                 changes = (
-                    _run_changes(data, changes) if run_batch else _upgrade_changes(data, changes)
+                    _health_changes(data, changes)
+                    if health_batch
+                    else _run_changes(data, changes)
+                    if run_batch
+                    else _upgrade_changes(data, changes)
                 )
             result = save_changes(
                 save_id,

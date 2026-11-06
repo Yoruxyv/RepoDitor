@@ -91,7 +91,7 @@ try {
         '--basetemp', (Join-Path $output 'python-fixtures'), '-o', "cache_dir=$output/pytest-cache", '--junitxml', (Join-Path $output 'python.xml'))
     [xml]$python = Get-Content -LiteralPath (Join-Path $output 'python.xml') -Raw
     if ($python.SelectNodes('//testcase/skipped').Count -ne 0) { throw 'Mandatory Windows save-integrity tests were skipped.' }
-    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions')) {
+    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions', 'test_health_batches')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
@@ -120,7 +120,7 @@ try {
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'matrix'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'native.json'
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)
@@ -155,7 +155,16 @@ try {
         'native Run rejects forged fields values and previous-session requests',
         'final running game blocks Run replacement and retains recoverable drafts',
         'final unknown game blocks Run replacement and retains recoverable drafts',
-        'Run mixed drafts block partial Save and ordinary hosts retain read-only authority'
+        'Run mixed drafts block partial Save and ordinary hosts retain read-only authority',
+        'Health batch Save persists both players with one exact backup and no mixed-domain write',
+        'Health batch writer termination at before_replace retains one recoverable intent',
+        'Health batch writer termination at after_replace retains one recoverable intent',
+        'Health batch survives lost response and interrupted reconciliation across three hosts',
+        'native Health batches reject malformed stale oversized and previous-session payloads intact',
+        'final running game check preserves the entire Health batch and recovery evidence',
+        'final unknown game check preserves the entire Health batch and recovery evidence',
+        'final query_error game check preserves the entire Health batch and recovery evidence',
+        'ordinary packaged hosts deny Health batches and retain read-only Players'
     )) {
         if ($case -notin $titles) { throw "Required native case was not collected: $case" }
     }

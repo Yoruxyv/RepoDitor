@@ -12,8 +12,7 @@ export function TauriPlayersView({
   readonly health: ReturnType<typeof useTauriHealth>;
   readonly avatarUrls: Record<string, string | null>;
 }) {
-  const canEdit =
-    health.enabled && (!health.pending || health.pending.entity === players.selectedPlayerId);
+  const canEdit = health.enabled;
   return (
     <PlayersView
       avatarUrls={avatarUrls}
@@ -21,7 +20,7 @@ export function TauriPlayersView({
       loading={players.loading}
       players={players.players}
       selectedPlayerId={players.selectedPlayerId}
-      pendingByPlayer={health.pending ? { [health.pending.entity]: health.pending } : {}}
+      pendingByPlayer={Object.fromEntries(health.healthEdits.map((edit) => [edit.entity, edit]))}
       onHealthChange={canEdit ? health.edit : null}
       onRevertHealth={canEdit ? health.revertHealth : null}
       healthEditingDisabled={canEdit && health.locked}

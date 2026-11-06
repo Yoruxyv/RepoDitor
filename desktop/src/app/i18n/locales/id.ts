@@ -372,6 +372,8 @@ export const id: Record<keyof typeof en, string> = {
   "error.copyPath": "Path tidak dapat disalin",
   "health.testOnly":
     "Pengujian sintetis: save health, upgrade, dan Run. Build produksi tetap hanya baca.",
+  "health.saveUnavailable":
+    "Perubahan Health ini belum dapat disimpan dengan aman. Periksa kembali simpanan atau batalkan sebagian perubahan Health yang tertunda.",
   "health.checking": "Memeriksa operasi penyimpanan yang belum selesai…",
   "health.reconciling": "Mencocokkan perubahan dengan berkas simpanan…",
   "health.recovery": "Hasil penyimpanan belum pasti. Rekonsiliasi sebelum mengedit lagi.",

@@ -105,6 +105,10 @@ pub enum Operation {
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthPrepare(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
+    TestHealthBatch(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestHealthBatchPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
     TestUpgrades(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
     TestUpgradesPrepare(String, String, String, String, Instant),
@@ -132,6 +136,8 @@ impl Operation {
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
+            | Self::TestHealthBatch(..)
+            | Self::TestHealthBatchPrepare(..)
             | Self::TestUpgrades(..)
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
@@ -156,6 +162,8 @@ impl Operation {
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
+            | Self::TestHealthBatch(..)
+            | Self::TestHealthBatchPrepare(..)
             | Self::TestUpgrades(..)
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
@@ -201,6 +209,19 @@ impl Operation {
                 "--upgrade-operation",
                 operation,
             ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthBatch(id, fingerprint, payload, operation, _) => vec![
+                "saves-write",
+                id,
+                fingerprint,
+                payload,
+                "--health-batch-operation",
+                operation,
+            ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestHealthBatchPrepare(id, fingerprint, payload, operation, _) => {
+                vec!["health-batch-prepare", id, fingerprint, payload, operation]
+            }
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestUpgradesPrepare(id, fingerprint, payload, operation, _) => {
                 vec!["upgrade-prepare", id, fingerprint, payload, operation]
@@ -273,7 +294,7 @@ fn execute(
     if request.1 == 9
         && !matches!(
             args.first(),
-            Some(&"health-prepare" | &"upgrade-prepare" | &"run-prepare")
+            Some(&"health-prepare" | &"health-batch-prepare" | &"upgrade-prepare" | &"run-prepare")
         )
     {
         return result.map_err(|error| {
@@ -309,6 +330,8 @@ where
     let started = match &operation {
         Operation::TestHealth(.., started)
         | Operation::TestHealthPrepare(.., started)
+        | Operation::TestHealthBatch(.., started)
+        | Operation::TestHealthBatchPrepare(.., started)
         | Operation::TestUpgrades(.., started)
         | Operation::TestUpgradesPrepare(.., started)
         | Operation::TestRun(.., started)
@@ -325,7 +348,10 @@ where
     #[cfg(feature = "synthetic-health-recovery")]
     let is_write = matches!(
         operation,
-        Operation::TestHealth(..) | Operation::TestUpgrades(..) | Operation::TestRun(..)
+        Operation::TestHealth(..)
+            | Operation::TestHealthBatch(..)
+            | Operation::TestUpgrades(..)
+            | Operation::TestRun(..)
     );
     let result = tauri::async_runtime::spawn_blocking(move || {
         let root = if cfg!(debug_assertions) {

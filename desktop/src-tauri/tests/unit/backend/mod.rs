@@ -40,6 +40,35 @@ fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admis
         Instant::now(),
     );
     assert!(Request::reserve(host.clone(), run.slot()).is_err());
+    let batch = Operation::TestHealthBatch(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "f".repeat(32),
+        Instant::now(),
+    );
+    let batch_prepare = Operation::TestHealthBatchPrepare(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "f".repeat(32),
+        Instant::now(),
+    );
+    assert_eq!(batch.slot(), health.slot());
+    assert_eq!(batch_prepare.slot(), health.slot());
+    assert!(Request::reserve(host.clone(), batch.slot()).is_err());
+    assert_eq!(
+        batch.arguments(),
+        [
+            "saves-write",
+            save,
+            &"b".repeat(64),
+            "[]",
+            "--health-batch-operation",
+            &"f".repeat(32)
+        ]
+    );
+    assert_eq!(batch_prepare.arguments()[0], "health-batch-prepare");
     assert_eq!(
         run.arguments(),
         [

@@ -367,6 +367,8 @@ export const ja: Record<keyof typeof en, string> = {
   "error.write": "セーブを安全に書き込めませんでした。元のファイルは置き換えていません。",
   "error.copyPath": "パスをコピーできませんでした",
   "health.testOnly": "合成テスト：Health、Upgrade、Runの保存。本番ビルドは読み取り専用です。",
+  "health.saveUnavailable":
+    "この体力の一括変更は安全に保存できません。セーブの状態を再確認するか、未保存の体力変更の一部を元に戻してください。",
   "health.checking": "未完了の保存操作を確認しています…",
   "health.reconciling": "変更をセーブファイルと照合しています…",
   "health.recovery": "保存結果を確認できません。再編集の前に照合してください。",

@@ -60,7 +60,7 @@ export function TauriHealthControls({
       >
         {t(
           health.phase === "recovery" &&
-            health.pending &&
+            health.healthEdits.length > 0 &&
             health.pendingOperationId !== health.operationId
             ? "health.otherOperation"
             : LABELS[health.phase],

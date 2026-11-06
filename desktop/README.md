@@ -138,12 +138,14 @@ The native boundary requires Python's durable reservation acknowledgement before
 launching a writer, including when the writer dies before executing Python code.
 Reservation and writing share the existing 30-second request deadline.
 
-The additional `synthetic-health-ui` feature enables health editing and durable
+The additional `synthetic-health-ui` feature enables multi-player Health editing and durable
 upgrade-batch and Run Save only with that test permission configuration and runtime root
 restriction. It reuses Players/Upgrades, numeric validation, pending review and the
-Save/Revert bar. Upgrade drafts across players form one atomic operation. Mixed
-Health/Upgrades/Run pending sets block Save; revert other groups before saving. The bounded
-upgrade intent fits 2 KiB inside the existing 4 KiB receipt; excessive batches are
+Save/Revert bar. Health drafts across existing players form one atomic operation,
+as do upgrade drafts. Each Health draft can be reverted individually or all together;
+player selection and section changes preserve drafts. Mixed
+Health/Upgrades/Run pending sets block Save; revert other groups before saving.
+Health and upgrade intents each fit 2 KiB inside the existing 4 KiB receipt; excessive batches are
 rejected intact. Run admits up to five distinct fields (Level, Currency, optional
 Lives/Total Haul, and resume location) in a 512-byte intent. Numeric writes use
 signed Int32 bounds, except displayed Level uses 1–2,147,483,648 with Python's

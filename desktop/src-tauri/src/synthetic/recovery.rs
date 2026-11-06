@@ -40,6 +40,33 @@ pub struct HealthIntent {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HealthEdit {
+    player_id: String,
+    before: i64,
+    value: i64,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct HealthBatchIntent {
+    health: Vec<HealthEdit>,
+}
+
+fn valid_health_batch_intent(intent: &HealthBatchIntent) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    !intent.health.is_empty()
+        && intent.health.len() <= 512
+        && intent.health.iter().all(|edit| {
+            players::valid_id(&edit.player_id)
+                && (0..=9_007_199_254_740_991).contains(&edit.before)
+                && (0..=2_147_483_647).contains(&edit.value)
+                && edit.before != edit.value
+                && seen.insert(&edit.player_id)
+        })
+        && serde_json::to_vec(intent).is_ok_and(|bytes| bytes.len() <= 2048)
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpgradeEdit {
     player_id: String,
     key: String,
@@ -50,6 +77,7 @@ pub struct UpgradeEdit {
 #[serde(untagged)]
 pub enum Intent {
     Health(HealthIntent),
+    HealthBatch(HealthBatchIntent),
     Upgrades(UpgradeIntent),
     Run(RunIntent),
 }
@@ -199,6 +227,7 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
                             || !(0..=2_147_483_647).contains(&i.health)
                             || !(0..=9_007_199_254_740_991).contains(&i.before)
                     }
+                    Intent::HealthBatch(i) => !valid_health_batch_intent(i),
                     Intent::Upgrades(i) => !valid_upgrade_intent(i),
                     Intent::Run(i) => !valid_run_intent(i),
                 })
@@ -364,6 +393,9 @@ async fn dispatch(
 }
 
 pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
+    if raw["health"].is_array() {
+        return write_batch(app, raw, Batch::Health).await;
+    }
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "rejected", "invalid_request");
     };
@@ -413,23 +445,36 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
 }
 
 pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
-    write_batch(app, raw, false).await
+    write_batch(app, raw, Batch::Upgrades).await
 }
 
 pub async fn write_run(app: tauri::AppHandle, raw: Value) -> Transaction {
-    write_batch(app, raw, true).await
+    write_batch(app, raw, Batch::Run).await
 }
 
-async fn write_batch(app: tauri::AppHandle, raw: Value, run_batch: bool) -> Transaction {
+#[derive(Clone, Copy)]
+enum Batch {
+    Health,
+    Upgrades,
+    Run,
+}
+
+async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transaction {
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "rejected", "invalid_request");
     };
-    let valid_intent = if run_batch {
-        serde_json::from_value::<RunIntent>(json!({"run":raw["run"]}))
-            .is_ok_and(|i| valid_run_intent(&i))
-    } else {
-        serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw["upgrades"]}))
-            .is_ok_and(|i| valid_upgrade_intent(&i))
+    let field = match batch {
+        Batch::Health => "health",
+        Batch::Upgrades => "upgrades",
+        Batch::Run => "run",
+    };
+    let valid_intent = match batch {
+        Batch::Health => serde_json::from_value::<HealthBatchIntent>(json!({"health":raw[field]}))
+            .is_ok_and(|i| valid_health_batch_intent(&i)),
+        Batch::Run => serde_json::from_value::<RunIntent>(json!({"run":raw[field]}))
+            .is_ok_and(|i| valid_run_intent(&i)),
+        Batch::Upgrades => serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw[field]}))
+            .is_ok_and(|i| valid_upgrade_intent(&i)),
     };
     let host = app.state::<Arc<backend::HostState>>().inner().clone();
     let valid = cfg!(feature = "synthetic-health-ui")
@@ -445,27 +490,33 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, run_batch: bool) -> Tran
     if !valid {
         return failure(operation, "rejected", "invalid_request");
     }
-    let payload = raw[if run_batch { "run" } else { "upgrades" }].to_string();
+    let payload = raw[field].to_string();
     let fingerprint = raw["fingerprint"].as_str().unwrap();
     let started = Instant::now();
     let prepared = dispatch(
         app.clone(),
-        if run_batch {
-            Operation::TestRunPrepare(
+        match batch {
+            Batch::Health => Operation::TestHealthBatchPrepare(
                 save.into(),
                 fingerprint.into(),
                 payload.clone(),
                 operation.into(),
                 started,
-            )
-        } else {
-            Operation::TestUpgradesPrepare(
+            ),
+            Batch::Run => Operation::TestRunPrepare(
                 save.into(),
                 fingerprint.into(),
                 payload.clone(),
                 operation.into(),
                 started,
-            )
+            ),
+            Batch::Upgrades => Operation::TestUpgradesPrepare(
+                save.into(),
+                fingerprint.into(),
+                payload.clone(),
+                operation.into(),
+                started,
+            ),
         },
         operation.into(),
         true,
@@ -480,22 +531,28 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, run_batch: bool) -> Tran
     }
     dispatch(
         app,
-        if run_batch {
-            Operation::TestRun(
+        match batch {
+            Batch::Health => Operation::TestHealthBatch(
                 save.into(),
                 fingerprint.into(),
                 payload,
                 operation.into(),
                 started,
-            )
-        } else {
-            Operation::TestUpgrades(
+            ),
+            Batch::Run => Operation::TestRun(
                 save.into(),
                 fingerprint.into(),
                 payload,
                 operation.into(),
                 started,
-            )
+            ),
+            Batch::Upgrades => Operation::TestUpgrades(
+                save.into(),
+                fingerprint.into(),
+                payload,
+                operation.into(),
+                started,
+            ),
         },
         operation.into(),
         true,

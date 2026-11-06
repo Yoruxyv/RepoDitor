@@ -8,6 +8,7 @@ import {
   type HealthTransaction,
   upgradeIntentFits,
   runIntentFits,
+  healthIntentFits,
 } from "@/app/tauriHealthApi";
 import type {
   PlayerHealthEdit,
@@ -29,7 +30,7 @@ export type HealthPhase =
 interface State {
   enabled: boolean;
   phase: HealthPhase;
-  pending: PlayerHealthEdit | null;
+  healthEdits: PlayerHealthEdit[];
   operationId: string | null;
   pendingOperationId: string | null;
   restoredPlayerId: string | null;
@@ -44,7 +45,7 @@ interface State {
 const INITIAL: State = {
   enabled: false,
   phase: "checking",
-  pending: null,
+  healthEdits: [],
   operationId: null,
   pendingOperationId: null,
   restoredPlayerId: null,
@@ -68,7 +69,10 @@ const LOCKED: readonly HealthPhase[] = [
 function restorePending(current: State, operation: NonNullable<HealthState["pending"]>): State {
   const { intent, operationId } = operation;
   const hasDraft =
-    current.pending !== null || current.upgradeEdits.length > 0 || current.runEdits.length > 0;
+    current.healthEdits.length > 0 ||
+    current.upgradeEdits.length > 0 ||
+    current.runEdits.length > 0;
+  let healthEdits = current.healthEdits;
   let upgradeEdits = current.upgradeEdits;
   let runEdits = current.runEdits;
   let restoredPlayerId: string | null = null;
@@ -97,27 +101,29 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
             subject: "Run",
           }) as RunStatEdit,
       );
-    } else restoredPlayerId = intent.playerId;
+    } else {
+      const edits =
+        "playerId" in intent
+          ? [{ playerId: intent.playerId, before: intent.before, value: intent.health }]
+          : intent.health;
+      healthEdits = edits.map((edit) => ({
+        feature: "players",
+        entity: edit.playerId,
+        field: "health",
+        before: edit.before,
+        after: edit.value,
+        label: "Health",
+        subject: edit.playerId,
+      }));
+      restoredPlayerId = edits[0]?.playerId ?? null;
+    }
   }
-  const pending =
-    current.pending ??
-    (intent && !("upgrades" in intent) && !("run" in intent) && !hasDraft
-      ? {
-          feature: "players" as const,
-          entity: intent.playerId,
-          field: "health" as const,
-          before: intent.before,
-          after: intent.health,
-          label: "Health",
-          subject: intent.playerId,
-        }
-      : null);
   return {
     ...current,
     enabled: true,
     phase: "recovery",
     backupVerified: false,
-    pending,
+    healthEdits,
     operationId,
     upgradeEdits,
     runEdits,
@@ -129,7 +135,7 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
 
 function validDraft(state: State, players: PlayerDto[]): boolean {
   if (
-    Number(!!state.pending) +
+    Number(state.healthEdits.length > 0) +
       Number(state.upgradeEdits.length > 0) +
       Number(state.runEdits.length > 0) !==
     1
@@ -137,11 +143,15 @@ function validDraft(state: State, players: PlayerDto[]): boolean {
     return false;
   if (state.runEdits.length > 0)
     return !!state.upgradeSession && runIntentFits(runIntent(state.runEdits));
-  if (state.pending) {
-    const player = (state.canonical?.players ?? players).find(
-      (p) => p.id === state.pending?.entity,
+  if (state.healthEdits.length > 0) {
+    return (
+      !!state.upgradeSession &&
+      healthIntentFits(healthIntent(state.healthEdits)) &&
+      state.healthEdits.every((edit) => {
+        const player = (state.canonical?.players ?? players).find((p) => p.id === edit.entity);
+        return !!player && edit.after <= player.maxHealth;
+      })
     );
-    return state.upgradeEdits.length === 0 && !!player && state.pending.after <= player.maxHealth;
   }
   return (
     !!state.upgradeSession &&
@@ -158,6 +168,23 @@ function validDraft(state: State, players: PlayerDto[]): boolean {
 
 function runIntent(edits: RunStatEdit[]) {
   return edits.map((edit) => ({ field: edit.field, before: edit.before, value: edit.after }));
+}
+function healthIntent(edits: PlayerHealthEdit[]) {
+  return edits.map((edit) => ({ playerId: edit.entity, before: edit.before, value: edit.after }));
+}
+function healthValue(projection: HealthCanonical, edit: PlayerHealthEdit): number | undefined {
+  return projection.players.find((player) => player.id === edit.entity)?.health;
+}
+function rebaseHealth(
+  edits: PlayerHealthEdit[],
+  projection: HealthCanonical,
+): PlayerHealthEdit[] | null {
+  if (edits.some((edit) => healthValue(projection, edit) === undefined)) return null;
+  return edits.map((edit) => ({
+    ...edit,
+    before: healthValue(projection, edit)!,
+    subject: projection.players.find((player) => player.id === edit.entity)!.name,
+  }));
 }
 function runValue(projection: HealthCanonical, edit: RunStatEdit): number | string | undefined {
   return edit.field === "resumeLocation"
@@ -198,7 +225,7 @@ export function useTauriHealth(
   session: SaveSession,
   players: PlayerDto[],
   onCanonical: (projection: HealthCanonical) => void,
-  api: Pick<typeof tauriHealthApi, "state" | "write" | "recover"> &
+  api: Pick<typeof tauriHealthApi, "state" | "writeHealthBatch" | "recover"> &
     Partial<Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun">> = tauriHealthApi,
 ) {
   const [state, setState] = useState<State>(INITIAL);
@@ -239,16 +266,11 @@ export function useTauriHealth(
         }
         if (result.state !== "idle" || !result.canonical)
           return { ...current, enabled: true, phase: "conflict", backupVerified: false };
-        const pending = current.pending;
+        const healthEdits = rebaseHealth(current.healthEdits, result.canonical);
         const upgradeEdits = rebaseUpgrades(current.upgradeEdits, result.canonical);
         const runEdits = rebaseRun(current.runEdits, result.canonical);
-        if (!upgradeEdits || !runEdits)
+        if (!healthEdits || !upgradeEdits || !runEdits)
           return { ...current, phase: "conflict", backupVerified: false };
-        const player = pending
-          ? result.canonical.players.find((p) => p.id === pending.entity)
-          : null;
-        if (pending && !player)
-          return { ...current, enabled: true, phase: "conflict", canonical: result.canonical };
         return {
           ...current,
           enabled: true,
@@ -259,8 +281,7 @@ export function useTauriHealth(
           upgradeSession: result.upgradeSession ?? null,
           upgradeEdits,
           runEdits,
-          pending:
-            pending && player ? { ...pending, before: player.health, subject: player.name } : null,
+          healthEdits,
           reason: null,
           resetVersion: current.resetVersion + 1,
         };
@@ -305,10 +326,11 @@ export function useTauriHealth(
       health > player.maxHealth
     )
       return;
-    if (state.pending && state.pending.entity !== player.id) return;
     if (
       state.phase === "unchanged" &&
       health === player.health &&
+      state.healthEdits.length === 1 &&
+      state.healthEdits[0]?.entity === player.id &&
       state.upgradeEdits.length === 0 &&
       state.runEdits.length === 0
     ) {
@@ -322,18 +344,22 @@ export function useTauriHealth(
       restoredPlayerId: null,
       reason: null,
       backupVerified: false,
-      pending:
-        health === player.health
-          ? null
-          : {
-              feature: "players",
-              entity: player.id,
-              field: "health",
-              before: player.health,
-              after: health,
-              label: "Health",
-              subject: player.name,
-            },
+      healthEdits: [
+        ...current.healthEdits.filter((edit) => edit.entity !== player.id),
+        ...(health === player.health
+          ? []
+          : [
+              {
+                feature: "players" as const,
+                entity: player.id,
+                field: "health" as const,
+                before: player.health,
+                after: health,
+                label: "Health",
+                subject: player.name,
+              },
+            ]),
+      ],
     }));
   }
 
@@ -352,7 +378,7 @@ export function useTauriHealth(
       value === before &&
       state.phase === "unchanged" &&
       state.operationId &&
-      !state.pending &&
+      state.healthEdits.length === 0 &&
       state.runEdits.length === 0 &&
       state.upgradeEdits.length === 1
     ) {
@@ -390,7 +416,7 @@ export function useTauriHealth(
     if (
       state.phase === "unchanged" &&
       state.operationId &&
-      !state.pending &&
+      state.healthEdits.length === 0 &&
       state.runEdits.length === 0 &&
       state.upgradeEdits.length === 1
     ) {
@@ -415,7 +441,7 @@ export function useTauriHealth(
     if (
       state.phase === "unchanged" &&
       state.operationId &&
-      !state.pending &&
+      state.healthEdits.length === 0 &&
       state.runEdits.length === 0
     ) {
       void revert();
@@ -436,11 +462,13 @@ export function useTauriHealth(
         : { ...current, [`${playerId}:${key}`]: value },
     );
   }, []);
-  function revertHealth() {
+  function revertHealth(playerId: string) {
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
       state.phase === "unchanged" &&
       state.operationId &&
+      state.healthEdits.length === 1 &&
+      state.healthEdits[0]?.entity === playerId &&
       state.upgradeEdits.length === 0 &&
       state.runEdits.length === 0
     ) {
@@ -449,7 +477,7 @@ export function useTauriHealth(
     }
     setState((current) => ({
       ...current,
-      pending: null,
+      healthEdits: current.healthEdits.filter((edit) => edit.entity !== playerId),
       pendingOperationId: null,
       resetVersion: current.resetVersion + 1,
     }));
@@ -462,7 +490,7 @@ export function useTauriHealth(
       edit.before === edit.after &&
       state.phase === "unchanged" &&
       state.operationId &&
-      !state.pending &&
+      state.healthEdits.length === 0 &&
       state.upgradeEdits.length === 0 &&
       state.runEdits.length === 1
     ) {
@@ -486,7 +514,7 @@ export function useTauriHealth(
     if (
       state.phase === "unchanged" &&
       state.operationId &&
-      !state.pending &&
+      state.healthEdits.length === 0 &&
       state.upgradeEdits.length === 0 &&
       state.runEdits.length === 1 &&
       state.runEdits[0]?.field === field
@@ -527,22 +555,17 @@ export function useTauriHealth(
       }));
       return null;
     }
-    const player = state.pending
-      ? result.canonical.players.find((p) => p.id === state.pending?.entity)
-      : null;
-    if (state.pending && !player) {
-      setState((current) => ({ ...current, phase: "conflict", backupVerified: false }));
-      return null;
-    }
+    const healthEdits = rebaseHealth(state.healthEdits, result.canonical);
     const upgraded = rebaseUpgrades(state.upgradeEdits, result.canonical);
     const runEdits = rebaseRun(state.runEdits, result.canonical);
     const own = ownRequest;
     if (
+      !healthEdits ||
       !upgraded ||
       !runEdits ||
       (result.status === "applied" &&
         own &&
-        ((state.pending && player?.health !== state.pending.after) ||
+        (state.healthEdits.some((edit) => healthValue(result.canonical!, edit) !== edit.after) ||
           state.upgradeEdits.some((edit) => upgradeValue(result.canonical!, edit) !== edit.after) ||
           state.runEdits.some((edit) => runValue(result.canonical!, edit) !== edit.after)))
     ) {
@@ -556,12 +579,7 @@ export function useTauriHealth(
       backupVerified: result.backupAvailable,
       upgradeEdits: result.status !== "applied" || !own ? upgraded : current.upgradeEdits,
       runEdits: result.status !== "applied" || !own ? runEdits : current.runEdits,
-      pending:
-        current.pending &&
-        player &&
-        (result.status !== "applied" || current.pendingOperationId !== operationId)
-          ? { ...current.pending, before: player.health, subject: player.name }
-          : current.pending,
+      healthEdits: result.status !== "applied" || !own ? healthEdits : current.healthEdits,
       resetVersion: current.resetVersion + 1,
     }));
     return result;
@@ -575,14 +593,14 @@ export function useTauriHealth(
     if (result?.status === "applied") {
       setState((current) => {
         const own =
-          (!current.pending &&
+          (current.healthEdits.length === 0 &&
             current.upgradeEdits.length === 0 &&
             current.runEdits.length === 0) ||
           current.pendingOperationId === operationId;
         return {
           ...current,
           phase: own ? "saved" : "unchanged",
-          pending: own ? null : current.pending,
+          healthEdits: own ? [] : current.healthEdits,
           upgradeEdits: own ? [] : current.upgradeEdits,
           runEdits: own ? [] : current.runEdits,
           operationId: null,
@@ -623,7 +641,7 @@ export function useTauriHealth(
       !validDraft(state, players)
     )
       return;
-    const pending = state.pending;
+    const health = healthIntent(state.healthEdits);
     const upgrades = state.upgradeEdits.map((edit) => ({
       playerId: edit.entity,
       key: edit.field,
@@ -631,7 +649,7 @@ export function useTauriHealth(
       value: edit.after,
     }));
     const run = runIntent(state.runEdits);
-    if (!pending && (run.length > 0 ? !api.writeRun : !api.writeUpgrades)) return;
+    if (health.length === 0 && (run.length > 0 ? !api.writeRun : !api.writeUpgrades)) return;
     inFlight.current = true;
     try {
       if (state.phase === "unchanged" && state.operationId) {
@@ -652,12 +670,12 @@ export function useTauriHealth(
         backupVerified: false,
       }));
       let result: HealthTransaction;
-      if (pending) {
-        result = await api.write({
+      if (health.length > 0) {
+        result = await api.writeHealthBatch({
           saveId: session.id,
           fingerprint: base.current.fingerprint,
-          playerId: pending.entity,
-          health: pending.after,
+          health,
+          session: state.upgradeSession!,
           operationId,
         });
       } else if (run.length > 0) {
@@ -723,7 +741,7 @@ export function useTauriHealth(
       setState((current) => ({
         ...current,
         phase: "editing",
-        pending: null,
+        healthEdits: [],
         upgradeEdits: [],
         runEdits: [],
         operationId: null,
@@ -749,15 +767,12 @@ export function useTauriHealth(
 
   return {
     ...state,
-    pending: state.pending
-      ? {
-          ...state.pending,
-          subject:
-            (state.canonical?.players ?? players).find(
-              (player) => player.id === state.pending?.entity,
-            )?.name ?? state.pending.subject,
-        }
-      : null,
+    healthEdits: state.healthEdits.map((edit) => ({
+      ...edit,
+      subject:
+        (state.canonical?.players ?? players).find((player) => player.id === edit.entity)?.name ??
+        edit.subject,
+    })),
     invalid:
       invalid ||
       Object.values(invalidUpgrades).some(Boolean) ||
@@ -777,6 +792,8 @@ export function useTauriHealth(
     editRun,
     revertRun,
     setRunInvalid,
+    healthBatchFits:
+      state.healthEdits.length === 0 || healthIntentFits(healthIntent(state.healthEdits)),
     upgradeBatchFits:
       state.upgradeEdits.length === 0 ||
       upgradeIntentFits(
