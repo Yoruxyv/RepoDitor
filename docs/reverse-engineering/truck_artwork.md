@@ -58,6 +58,22 @@ The metadata sources are `REPO_Data/level0`, `resources.assets`,
 authoritative Steam app manifest. `globalgamemanagers.assets` is distinct from the
 extensionless ResourceManager file used by the upgrade visual pipeline.
 
+## R.E.P.O. v0.5.1 artwork admission
+
+Steam build `26407089`, also Unity `6000.3.17f1`, uses a separate reviewed assembly
+SHA-256: `7df0ff1d03755a71a6755d01fc4c58c3cc044f8aa740f3d1c1379a6d6bd66724`.
+The artwork admission owner associates each Unity 6 build with its own digest;
+the historical build and digest above remain valid independently. A manifest
+identity alone is insufficient to admit baked, Sprite, upgrade or native-map
+artwork. Changed assemblies and unknown builds retain the existing fallback.
+
+Read-only comparison confirmed the same baked naming relationships, all 557
+canonical cosmetic metadata projections, the 50/57 regular-item baked coverage,
+13 documented upgrade texture relationships and the five normal-map first-preview
+paths. This admits only artwork; it does not add this build to the independent
+Cosmetics or Recharge mutation policies. Native Tauri still has no artwork
+transport, so backend compatibility does not by itself display images there.
+
 ## Reconciliation
 
 | Domain        | Canonical identities | Installed baked PNGs | Matched identities / files | Missing | Extra files | Shared/ambiguous matches |

@@ -18,6 +18,7 @@ from repo_save_editor.services.game.installed_build import (
 )
 from repo_save_editor.services.game.installed_maps import read_installed_levels
 from repo_save_editor.services.player.upgrade_textures import UpgradeTextureError, _validated_paths
+from repo_save_editor.services.unity_serialized import UnityMetadataError
 from tests.services.test_installed_cosmetic_catalog import _build_install
 
 
@@ -191,13 +192,22 @@ def test_existing_proven_builds_keep_their_separate_catalog_paths(modern, monkey
     assert presentation.discover_cosmetic_mutation_catalog(root) == expected
 
 
-def test_new_metadata_does_not_admit_cosmetic_map_or_upgrade_artwork(modern):
+def test_new_metadata_alone_does_not_admit_artwork_without_assembly_pin(modern):
     root, *_ = modern
     installation = artwork_installation(root)
     assert installation is not None
-    assert validated_installed_artwork_build(installation) is None
-    assert read_installed_levels(installation) is None
-    with pytest.raises(UpgradeTextureError, match="not the validated build"):
+    assert validated_installed_artwork_build(installation) is not None
+    data = root / "REPO_Data"
+    (data / "Managed").mkdir()
+    (data / "Managed/Assembly-CSharp.dll").write_bytes(b"unreviewed assembly")
+    (data / "resources.assets").write_bytes(b"unreviewed resources")
+    (data / "globalgamemanagers").write_bytes(b"unreviewed resources")
+    (data / "sharedassets0.assets").write_bytes(b"unreviewed resources")
+    with pytest.raises(UnityMetadataError, match="assembly"):
+        read_installed_levels(installation)
+    with pytest.raises(UpgradeTextureError, match="assembly"):
         _validated_paths(installation)
-    with pytest.raises(CosmeticArtworkError, match="build"):
+    with pytest.raises(CosmeticArtworkError, match="assembly"):
         prepare_installed_cosmetic_artwork([0], game_dir=root)
+    with pytest.raises(ValueError, match="not approved"):
+        presentation.discover_cosmetic_mutation_catalog(root)

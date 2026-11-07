@@ -667,18 +667,11 @@ def test_stream_size_outside_file_rejected(tmp_path: Path) -> None:
         _resolve_stream(data_root, _metadata(stream_size=9))
 
 
-@pytest.mark.parametrize(
-    ("build_id", "hash_constant"),
-    [
-        ("23363152", "VALIDATED_ASSEMBLY_SHA256"),
-        ("26294889", "SUNSTONE_ARTWORK_ASSEMBLY_SHA256"),
-    ],
-)
+@pytest.mark.parametrize("build_id", ["23363152", "26294889", "26407089"])
 def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     build_id: str,
-    hash_constant: str,
 ) -> None:
     steamapps = tmp_path / "steamapps"
     game_root = steamapps / "common" / "REPO"
@@ -704,11 +697,15 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     managed.mkdir()
     assembly = managed / "Assembly-CSharp.dll"
     assembly.write_bytes(b"synthetic assembly")
-    monkeypatch.setattr(
-        upgrade_textures,
-        hash_constant,
-        hashlib.sha256(assembly.read_bytes()).hexdigest(),
-    )
+    expected = hashlib.sha256(assembly.read_bytes()).hexdigest()
+    if build_id == "23363152":
+        monkeypatch.setattr(upgrade_textures, "VALIDATED_ASSEMBLY_SHA256", expected)
+    else:
+        monkeypatch.setattr(
+            upgrade_textures,
+            "artwork_assembly_sha256",
+            lambda build: expected if build == build_id else None,
+        )
     # One opaque-red DXT1 block; only the top mip is read even if stream metadata grows later.
     (data_root / "resources.assets.resS").write_bytes(struct.pack("<HHI", 0xF800, 0, 0))
 

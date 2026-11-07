@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import sys
 from pathlib import Path
@@ -11,6 +12,43 @@ from typing import Any
 import pytest
 
 from repo_save_editor.services.cosmetics import installed_artwork as artwork
+from tests.services.test_installed_build import _steam_install
+
+
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+def test_sprite_admission_requires_the_build_specific_assembly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
+) -> None:
+    _, root = _steam_install(tmp_path, build_id)
+    assembly = root / "REPO_Data/Managed/Assembly-CSharp.dll"
+    assembly.parent.mkdir()
+    assembly.write_bytes(b"synthetic assembly")
+    expected = hashlib.sha256(b"synthetic assembly").hexdigest()
+    monkeypatch.setattr(
+        artwork, "artwork_assembly_sha256", lambda build: expected if build == build_id else None
+    )
+    assert artwork._installed_game_root(root) == root
+    assembly.write_bytes(b"changed assembly")
+    with pytest.raises(artwork.CosmeticArtworkError, match="assembly"):
+        artwork.prepare_installed_cosmetic_artwork([0], game_dir=root)
+
+
+@pytest.mark.parametrize("damage", ["wrong_digest", "oversized", "unknown_build"])
+def test_sprite_rejects_unreviewed_inputs_before_loading_unity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage: str
+) -> None:
+    _, root = _steam_install(tmp_path, "99999999" if damage == "unknown_build" else "26407089")
+    assembly = root / "REPO_Data/Managed/Assembly-CSharp.dll"
+    assembly.parent.mkdir()
+    assembly.write_bytes(b"unapproved")
+    if damage == "oversized":
+        with assembly.open("r+b") as handle:
+            handle.truncate(32 * 1024 * 1024 + 1)
+    monkeypatch.setattr(
+        artwork, "_installed_guids", lambda _: pytest.fail("Unapproved inputs reached Unity")
+    )
+    with pytest.raises(artwork.CosmeticArtworkError):
+        artwork.prepare_installed_cosmetic_artwork([0], game_dir=root)
 
 
 def _location(kind: str, asset_path: str, *, primary: str = "same") -> Any:
@@ -65,6 +103,20 @@ def test_catalog_preserves_sprite_type_and_rejects_duplicate_sprite_locations() 
     )
     with pytest.raises(artwork.CosmeticArtworkError, match="2 unique Sprite"):
         artwork._sprite_location_paths(catalog, {0: guid})
+
+
+@pytest.mark.parametrize("kind", ["shared_sprite_path", "missing", "invalid_path"])
+def test_ambiguous_or_invalid_sprite_mappings_fail_closed(tmp_path: Path, kind: str) -> None:
+    if kind == "shared_sprite_path":
+        with pytest.raises(artwork.CosmeticArtworkError, match="Multiple"):
+            artwork._find_unique_bundle_paths(
+                tmp_path, {0: "assets/icons/same.png", 1: "assets/icons/same.png"}
+            )
+        return
+    location = _location("Sprite", "../unsafe.png")
+    catalog = SimpleNamespace(resources={"a" * 32: [location] if kind == "invalid_path" else []})
+    with pytest.raises(artwork.CosmeticArtworkError):
+        artwork._sprite_location_paths(catalog, {0: "a" * 32})
 
 
 def test_sprite_dereference_requires_a_real_sprite() -> None:

@@ -2,7 +2,7 @@
 
 The source mapping is reconstructed from the installed CosmeticAsset vector and
 binary Addressables catalog, never from probe CSVs or a game's generated PNGs.
-Only the artwork-approved Steam build is accepted. This module does not make any
+Only artwork-approved Steam builds and assemblies are accepted. This module does not make any
 save-mutation decision and does not write caches or PNGs to disk.
 
 Sprite dependencies are imported lazily and shipped by the locked packaging group;
@@ -35,7 +35,11 @@ from repo_save_editor.services.game.discovery import (
     read_steam_app_manifest,
     validate_game_installation,
 )
-from repo_save_editor.services.game.installed_build import validated_installed_artwork_build
+from repo_save_editor.services.game.installed_build import (
+    artwork_assembly_sha256,
+    owned_file,
+    validated_installed_artwork_build,
+)
 
 GUID: Final = re.compile(r"^[a-f0-9]{32}$")
 MAX_COSMETICS: Final = 2_000
@@ -45,7 +49,6 @@ MAX_IMAGE_SIDE: Final = 4_096
 MAX_IMAGE_BYTES: Final = 16 * 1024 * 1024
 MAX_TOTAL_PNG_BYTES: Final = 128 * 1024 * 1024
 UNITY_VERSION: Final = "6000.3.17f1"
-SUNSTONE_STEAM_BUILD: Final = "26294889"
 
 
 class CosmeticArtworkError(ValueError):
@@ -248,7 +251,7 @@ def _source_identity(
 
 
 def _installed_game_root(game_dir: Path | None) -> Path:
-    """Require the independently approved Sunstone artwork build, not a mutation gate."""
+    """Require the independently approved artwork build/digest, not a mutation gate."""
 
     if game_dir is None:
         installation = discover_game_installation().installation
@@ -266,8 +269,22 @@ def _installed_game_root(game_dir: Path | None) -> Path:
     if installation is None:
         raise CosmeticArtworkError("A valid Steam game installation was not found.")
     build = validated_installed_artwork_build(installation)
-    if build is None or build.build_id != SUNSTONE_STEAM_BUILD:
-        raise CosmeticArtworkError("Installed game is not the validated Sunstone artwork build.")
+    expected_digest = artwork_assembly_sha256(build.build_id) if build else None
+    if expected_digest is None:
+        raise CosmeticArtworkError("Installed game is not a validated artwork build.")
+    library = installation.root.parents[2]
+    assembly = owned_file(library, installation.root / "REPO_Data/Managed/Assembly-CSharp.dll")
+    before = _watch(assembly, library)
+    if not 0 < before.size <= 32 * 1024 * 1024:
+        raise CosmeticArtworkError("Installed artwork assembly exceeds its bound.")
+    with assembly.open("rb") as handle:
+        raw = handle.read(32 * 1024 * 1024 + 1)
+    if (
+        len(raw) > 32 * 1024 * 1024
+        or hashlib.sha256(raw).hexdigest() != expected_digest
+        or _watch(assembly, library) != before
+    ):
+        raise CosmeticArtworkError("Installed artwork assembly does not match the validated build.")
     return installation.root.resolve(strict=True)
 
 

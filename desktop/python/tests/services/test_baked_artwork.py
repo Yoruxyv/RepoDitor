@@ -145,7 +145,9 @@ def test_item_keys_follow_authored_prefab_identity_including_removed_subfolder(
     assert baked._item_keys(tmp_path) == expected
 
 
-def _installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+def _installation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str = "26294889"
+) -> tuple[Path, Path]:
     library = tmp_path / "library"
     root = library / "steamapps/common/REPO"
     for name in (*baked._SOURCE_NAMES, "REPO_Data/sharedassets0.assets"):
@@ -154,11 +156,15 @@ def _installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
         source.write_bytes(b"synthetic source")
     manifest = library / "steamapps/appmanifest_3241660.acf"
     manifest.write_text(
-        '"AppState" {"appid" "3241660" "installdir" "REPO" "buildid" "26294889"}', encoding="utf-8"
+        f'"AppState" {{"appid" "3241660" "installdir" "REPO" "buildid" "{build_id}"}}',
+        encoding="utf-8",
     )
     (root / "REPO_Data/StreamingAssets/aa").mkdir(parents=True)
     (root / "REPO_Data/StreamingAssets/aa/catalog.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(baked, "ASSEMBLY_SHA256", hashlib.sha256(b"synthetic source").hexdigest())
+    expected = hashlib.sha256(b"synthetic source").hexdigest()
+    monkeypatch.setattr(
+        baked, "artwork_assembly_sha256", lambda build: expected if build == build_id else None
+    )
     monkeypatch.setattr(
         baked,
         "_cosmetic_keys",
@@ -191,10 +197,11 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     assert not (root / "REPO_Data/StreamingAssets/BakedIcons").exists()
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
 def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in (0, 546, 547, 556, 557))
     before = mutation_eligible_ids(catalog)
     cold = baked.discover_baked_artwork(root, cache_dir=cache)
@@ -210,19 +217,43 @@ def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     assert {p.suffix for p in cache.iterdir()} == {".json"}
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
 @pytest.mark.parametrize(
     "source", ["REPO_Data/level0", "REPO_Data/resources.assets", "REPO_Data/sharedassets0.assets"]
 )
 def test_changed_source_invalidates_identity_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, build_id: str
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
     (root / source).write_bytes(b"changed source")
     seen: list[Path] = []
     monkeypatch.setattr(baked, "_item_keys", lambda p: seen.append(p) or {})
     assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
     assert seen == [root]
+
+
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("change", ["timestamp", "identity"])
+def test_same_content_source_change_rebuilds_cached_mappings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str, change: str
+) -> None:
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
+    assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
+    source = root / "REPO_Data/level0"
+    before = source.stat()
+    if change == "identity":
+        replacement = source.with_suffix(".replacement")
+        replacement.write_bytes(source.read_bytes())
+        os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+        replacement.replace(source)
+        assert source.stat().st_ino != before.st_ino
+    else:
+        os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+    scans = []
+    monkeypatch.setattr(baked, "_item_keys", lambda p: scans.append(p) or {})
+    assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
+    assert scans == [root]
 
 
 @pytest.mark.parametrize(
@@ -256,10 +287,11 @@ def test_catalog_cache_migration_and_invalid_projection_rebuild(
     assert scans == [root]
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
 def test_bad_assembly_unsupported_build_and_missing_installation_fail_soft(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     (root / baked._SOURCE_NAMES[0]).write_bytes(b"unsupported assembly")
     assert baked.discover_baked_artwork(root, cache_dir=cache) is None
     monkeypatch.setattr(

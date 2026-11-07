@@ -32,10 +32,7 @@ from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
 )
 from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_ASSEMBLY_SHA256 as ASSEMBLY_SHA256,
-)
-from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_BUILD_ID,
+    artwork_assembly_sha256,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -260,7 +257,7 @@ def discover_baked_artwork(
         if installation is None:
             return None
         build = validated_installed_artwork_build(installation)
-        if build is None or build.build_id != SUNSTONE_ARTWORK_BUILD_ID:
+        if build is None or (expected_digest := artwork_assembly_sha256(build.build_id)) is None:
             return None
         root = installation.root.resolve(strict=True)
         library = root.parents[2]
@@ -272,7 +269,7 @@ def discover_baked_artwork(
             assembly_bytes = handle.read(32 * 1024 * 1024 + 1)
         if (
             len(assembly_bytes) > 32 * 1024 * 1024
-            or hashlib.sha256(assembly_bytes).hexdigest() != ASSEMBLY_SHA256
+            or hashlib.sha256(assembly_bytes).hexdigest() != expected_digest
             or _watch(library, assembly) != assembly_watch
         ):
             return None

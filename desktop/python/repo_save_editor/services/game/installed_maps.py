@@ -9,8 +9,7 @@ from pathlib import Path
 
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
-    SUNSTONE_ARTWORK_BUILD_ID,
+    artwork_assembly_sha256,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -113,7 +112,7 @@ def read_installed_levels(
 ) -> tuple[tuple[InstalledLevel, ...], tuple[Path, ...]] | None:
     """Return reviewed installed membership; unsupported builds retain JSON discovery."""
     build = validated_installed_artwork_build(installation)
-    if build is None or build.build_id != SUNSTONE_ARTWORK_BUILD_ID:
+    if build is None or (expected_digest := artwork_assembly_sha256(build.build_id)) is None:
         return None
     root = installation.root
     library = root.parents[2]
@@ -124,7 +123,7 @@ def read_installed_levels(
     if assembly.stat().st_size > 32 * 1024 * 1024:
         raise UnityMetadataError("Installed level assembly exceeds its bound.")
     with assembly.open("rb") as handle:
-        if hashlib.file_digest(handle, "sha256").hexdigest() != SUNSTONE_ARTWORK_ASSEMBLY_SHA256:
+        if hashlib.file_digest(handle, "sha256").hexdigest() != expected_digest:
             raise UnityMetadataError("Unsupported installed level assembly.")
     with ExitStack() as stack:
         indexes = {

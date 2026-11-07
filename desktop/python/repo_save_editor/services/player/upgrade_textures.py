@@ -14,10 +14,9 @@ from typing import Final
 
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
-    SUNSTONE_ARTWORK_BUILD_ID,
     VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
+    artwork_assembly_sha256,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
@@ -198,11 +197,12 @@ def _validated_paths(
     resources = _regular_owned_file(game_root, RESOURCES_RELATIVE_PATH)
     resource_manager = _regular_owned_file(game_root, RESOURCE_MANAGER_RELATIVE_PATH)
     assembly = _regular_owned_file(game_root, ASSEMBLY_RELATIVE_PATH)
-    if resolved_build.build_id == VALIDATED_BUILD_ID:
-        expected_assembly_sha256 = VALIDATED_ASSEMBLY_SHA256
-    elif resolved_build.build_id == SUNSTONE_ARTWORK_BUILD_ID:
-        expected_assembly_sha256 = SUNSTONE_ARTWORK_ASSEMBLY_SHA256
-    else:
+    expected_assembly_sha256 = (
+        VALIDATED_ASSEMBLY_SHA256
+        if resolved_build.build_id == VALIDATED_BUILD_ID
+        else artwork_assembly_sha256(resolved_build.build_id)
+    )
+    if expected_assembly_sha256 is None:
         raise UpgradeTextureError("Installed Steam build is not supported for artwork.")
     if _sha256_file(assembly) != expected_assembly_sha256:
         raise UpgradeTextureError("Installed managed assembly does not match the validated build.")

@@ -24,7 +24,16 @@ SUNSTONE_ARTWORK_BUILD_ID: Final = "26294889"
 SUNSTONE_ARTWORK_ASSEMBLY_SHA256: Final = (
     "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
 )
-_ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, SUNSTONE_ARTWORK_BUILD_ID})
+_UNITY6_ARTWORK_ASSEMBLIES: Final = {
+    SUNSTONE_ARTWORK_BUILD_ID: SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
+    "26407089": "7df0ff1d03755a71a6755d01fc4c58c3cc044f8aa740f3d1c1379a6d6bd66724",
+}
+_ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, *_UNITY6_ARTWORK_ASSEMBLIES})
+
+
+def artwork_assembly_sha256(build_id: str) -> str | None:
+    """Return the reviewed Unity 6 artwork digest; this never grants save authority."""
+    return _UNITY6_ARTWORK_ASSEMBLIES.get(build_id)
 
 
 def owned_file(root: Path, path: Path) -> Path:
@@ -123,6 +132,7 @@ __all__ = [
     "SUNSTONE_ARTWORK_BUILD_ID",
     "VALIDATED_BUILD_ID",
     "ValidatedInstalledBuild",
+    "artwork_assembly_sha256",
     "installed_build_identity",
     "steam_manifest_path",
     "validated_installed_artwork_build",

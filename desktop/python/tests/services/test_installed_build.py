@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
     CATALOG_RELATIVE_PATH,
@@ -11,6 +13,7 @@ from repo_save_editor.services.game.discovery import (
 from repo_save_editor.services.game.installed_build import (
     SUNSTONE_ARTWORK_BUILD_ID,
     VALIDATED_BUILD_ID,
+    artwork_assembly_sha256,
     installed_build_identity,
     validated_installed_artwork_build,
     validated_installed_build,
@@ -99,15 +102,49 @@ def test_identity_requires_authoritative_provenance(tmp_path: Path) -> None:
     assert installed_build_identity(installation) is None
 
 
-def test_artwork_compatibility_does_not_authorize_recharge_mutations(tmp_path: Path) -> None:
-    steam_root, game_root = _steam_install(tmp_path, SUNSTONE_ARTWORK_BUILD_ID)
+@pytest.mark.parametrize("build_id", [SUNSTONE_ARTWORK_BUILD_ID, "26407089"])
+def test_artwork_compatibility_does_not_authorize_recharge_mutations(
+    tmp_path: Path, build_id: str
+) -> None:
+    steam_root, game_root = _steam_install(tmp_path, build_id)
     result = discover_game_installation(steam_roots=(steam_root,), environment={})
     assert result.installation is not None
     assert result.installation.root == game_root.resolve()
     assert validated_installed_build(result.installation) is None
     artwork = validated_installed_artwork_build(result.installation)
     assert artwork is not None
-    assert artwork.build_id == SUNSTONE_ARTWORK_BUILD_ID
+    assert artwork.build_id == build_id
+
+
+def test_artwork_digests_are_bound_to_the_reviewed_builds() -> None:
+    assert artwork_assembly_sha256("26294889") == (
+        "aa6b1ce0deef8d2b7104a3722864c4ba94c107257726471f8e44b45c99e36888"
+    )
+    assert artwork_assembly_sha256("26407089") == (
+        "7df0ff1d03755a71a6755d01fc4c58c3cc044f8aa740f3d1c1379a6d6bd66724"
+    )
+    assert artwork_assembly_sha256("99999999") is None
+
+
+@pytest.mark.parametrize(
+    "manifest_text",
+    [
+        '"AppState" {"appid" "1" "installdir" "REPO" "buildid" "26407089"}',
+        '"AppState" {"appid" "3241660" "installdir" "Other" "buildid" "26407089"}',
+        '"AppState" {"appid" "3241660" "installdir" "REPO" "buildid" "26294889"}',
+        '"AppState" {"appid" "3241660" "installdir" "../REPO" "buildid" "26407089"}',
+    ],
+)
+def test_new_artwork_rejects_changed_manifest_provenance(
+    tmp_path: Path, manifest_text: str
+) -> None:
+    library, _ = _steam_install(tmp_path, "26407089")
+    installation = discover_game_installation(steam_roots=(library,), environment={}).installation
+    assert installation is not None
+    assert validated_installed_artwork_build(installation) is not None
+    assert installation.manifest_path is not None
+    installation.manifest_path.write_text(manifest_text, encoding="utf-8")
+    assert validated_installed_artwork_build(installation) is None
 
 
 def test_artwork_rejects_unreviewed_build(tmp_path: Path) -> None:

@@ -53,7 +53,9 @@ def roster(pointers: list[tuple[int, int]]) -> bytes:
     )
 
 
-def installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GameInstallation:
+def installation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str = "26294889"
+) -> GameInstallation:
     root = tmp_path / "steamapps/common/REPO"
     data = root / "REPO_Data"
     assembly = data / "Managed/Assembly-CSharp.dll"
@@ -63,13 +65,17 @@ def installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GameInstall
     manifest.write_text("synthetic manifest", encoding="utf-8")
     monkeypatch.setattr(
         native,
-        "SUNSTONE_ARTWORK_ASSEMBLY_SHA256",
-        hashlib.sha256(assembly.read_bytes()).hexdigest(),
+        "artwork_assembly_sha256",
+        lambda build: (
+            hashlib.sha256(b"synthetic assembly identity").hexdigest()
+            if build == build_id
+            else None
+        ),
     )
     monkeypatch.setattr(
         native,
         "validated_installed_artwork_build",
-        lambda _: ValidatedInstalledBuild(native.SUNSTONE_ARTWORK_BUILD_ID, manifest),
+        lambda _: ValidatedInstalledBuild(build_id, manifest),
     )
     write_serialized_file(
         data / "globalgamemanagers.assets",
@@ -100,14 +106,15 @@ def installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GameInstall
         catalog_path=data / "StreamingAssets/aa/catalog.json",
         steam_library_root=tmp_path,
         manifest_path=manifest,
-        steam_build_id=native.SUNSTONE_ARTWORK_BUILD_ID,
+        steam_build_id=build_id,
     )
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
 def test_normal_level_roster_supplies_membership_and_names_without_catalog(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
-    game = installation(tmp_path, monkeypatch)
+    game = installation(tmp_path, monkeypatch, build_id)
     levels, sources = native.read_installed_levels(game)
     assert [(v.family, v.name) for v in levels] == [
         ("Desert", "Sunstone Valley Resort"),
@@ -154,10 +161,11 @@ def test_unsafe_authored_resource_paths_are_rejected(tmp_path: Path, path: str) 
             native.level_metadata(reader, "Level - Future")
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
 def test_changed_or_unsupported_assembly_is_not_reinterpreted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
-    game = installation(tmp_path, monkeypatch)
+    game = installation(tmp_path, monkeypatch, build_id)
     (game.root / "REPO_Data/Managed/Assembly-CSharp.dll").write_bytes(b"changed")
     monkeypatch.setattr("repo_save_editor.services.game.maps.artwork_installation", lambda _: game)
     with pytest.raises(MapDiscoveryError, match="safely"):
