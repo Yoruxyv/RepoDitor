@@ -1,4 +1,16 @@
+use sha2::{Digest, Sha256};
+#[path = "src/synthetic/meta_anchor.rs"]
+mod meta_anchor;
+
 fn main() {
+    assert_eq!(
+        format!("{:x}", Sha256::digest(meta_anchor::manifest().as_bytes())),
+        meta_anchor::PIN,
+        "Synthetic MetaSave anchor mismatch"
+    );
+    println!(
+        "cargo:rerun-if-changed=../python/repo_save_editor/services/cosmetics/synthetic_fixture.py"
+    );
     let authority = if cfg!(feature = "native-ui-test")
         || cfg!(feature = "synthetic-health-recovery")
         || cfg!(feature = "synthetic-health-ui")
@@ -34,6 +46,12 @@ fn main() {
                 "test_run_write",
                 #[cfg(feature = "synthetic-health-recovery")]
                 "test_items_refill",
+                #[cfg(feature = "synthetic-health-recovery")]
+                "test_meta_state",
+                #[cfg(feature = "synthetic-health-recovery")]
+                "test_meta_write",
+                #[cfg(feature = "synthetic-health-recovery")]
+                "test_meta_recover",
                 #[cfg(feature = "synthetic-health-recovery")]
                 "test_health_recover",
                 #[cfg(feature = "synthetic-health-recovery")]

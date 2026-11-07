@@ -120,7 +120,7 @@ Cosmetics is an independent top-level workspace and does not require a Run save.
 Its fixed `cosmetics-get` projection retains fingerprints, catalog/ownership counts,
 unknown-owned IDs, capabilities and removal restrictions. Rust validates the public
 contract against the existing frozen capability evidence; it neither parses MetaSave
-nor discovers catalogs. A read-only composition reuses the existing summary and
+nor discovers catalogs. The ordinary read-only composition reuses the existing summary and
 search/filter/sort catalog without mounting artwork or pending-write workflows.
 Mutation handlers are null, so bulk/individual ownership, presets, pending, revert
 and save controls are omitted. Electron retains its default editable composition.
@@ -152,8 +152,7 @@ signed Int32 bounds, except displayed Level uses 1–2,147,483,648 with Python's
 one-based conversion. Unknown resume values stay intact unless explicitly changed
 to a known destination; unsafe numeric projections stay unavailable with an explanation.
 Drafts survive section/player changes. Unsubmitted drafts are
-discarded on workspace close, while reserved intent survives restart. Other
-domains and ordinary artifacts stay read-only.
+discarded on workspace close, while reserved intent survives restart. Ordinary artifacts stay read-only.
 Python persists the operation ID and exact previous/requested values in the reservation,
 so reload/restart discovers unresolved intent before another save is admitted.
 Uncertain outcomes require explicit reconciliation. An applied result refreshes
@@ -171,6 +170,16 @@ changes inventory, battery upgrades or another instance sharing the same name.
 Schema-7 receipts restore the full intent after restart. Canonical Items from the
 same save snapshot must confirm Full before drafts are acknowledged, and older
 pending reads cannot overwrite that snapshot. Missing icons do not block this flow.
+
+Synthetic Cosmetics uses an independent MetaSave session rather than Run-save
+authority. Only the source-pinned disposable build/catalog fixture can admit selected
+unlocks, bulk ownership changes or paired preset clearing. Explicit Save confirms
+the operation; Revert leaves disk unchanged. Schema-8 receipts, exact encrypted
+backups and plaintext-span preservation reuse the protected Python repository.
+Recovery-only authorization can reconcile existing evidence after catalog loss,
+without enabling another write. Normal builds retain null mutation handlers.
+See [MetaSave transactions](../docs/architecture/architecture.md#synthetic-metasave-transactions)
+for source pins, scope, bounds, final-check ordering and recovery restrictions.
 
 To validate this internal boundary, build the host with
 `tauri build --features synthetic-health-recovery --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.

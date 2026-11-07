@@ -142,6 +142,11 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
       "test_health_recover",
       "test_upgrades_write",
       "test_run_write",
+      "test_items_refill",
+      "test_health_state",
+      "test_meta_state",
+      "test_meta_write",
+      "test_meta_recover",
     ]) {
       const denied = await native(app.page, command, { request: {} }).catch(String);
       expect(denied).toMatch(/not found|not allowed|not permitted|denied/i);

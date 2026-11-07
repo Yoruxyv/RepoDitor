@@ -239,6 +239,14 @@ export const id: Record<keyof typeof en, string> = {
     "Kelola katalog kosmetik yang dikenal tanpa menebak nama yang belum tersedia.",
   "cosmetics.knownCatalog": "Katalog dikenal",
   "cosmetics.owned": "Dimiliki",
+  "cosmetics.syntheticUnavailable":
+    "Pengeditan kosmetik memerlukan build dan katalog sintetis yang terverifikasi. Transaksi yang ada tetap dapat direkonsiliasi.",
+  "cosmetics.confirmTitle": "Simpan perubahan kosmetik sintetis?",
+  "cosmetics.confirmOwnership":
+    "Ubah kepemilikan {count} kosmetik yang memenuhi syarat. ID yang tidak didukung dan perlengkapan dipertahankan. Cadangan persis dibuat sebelum penggantian.",
+  "cosmetics.confirmPresets":
+    "Kosongkan slot preset kosmetik dan warna, dengan mempertahankan panjang larik luar dan perlengkapan. Cadangan persis dibuat sebelum penggantian.",
+  "cosmetics.cancel": "Batal",
   "cosmetics.locked": "Terkunci",
   "cosmetics.savedPresets": "Preset tersimpan",
   "cosmetics.actions": "Tindakan massal kosmetik",

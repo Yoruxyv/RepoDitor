@@ -2438,8 +2438,10 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
+ "uuid",
  "windows-sys 0.61.2",
 ]
 

@@ -237,6 +237,14 @@ export const ko: Record<keyof typeof en, string> = {
     "사용할 수 없는 이름을 추측하지 않고 알려진 코스메틱 카탈로그를 관리합니다.",
   "cosmetics.knownCatalog": "알려진 카탈로그",
   "cosmetics.owned": "보유함",
+  "cosmetics.syntheticUnavailable":
+    "코스메틱 편집에는 검증된 합성 빌드와 카탈로그가 필요합니다. 기존 트랜잭션은 계속 대조할 수 있습니다.",
+  "cosmetics.confirmTitle": "합성 코스메틱 변경 사항을 저장할까요?",
+  "cosmetics.confirmOwnership":
+    "지원되는 코스메틱 {count}개의 소유 상태를 변경합니다. 미지원 ID와 장비는 유지되며 교체 전에 원본의 정확한 백업을 만듭니다.",
+  "cosmetics.confirmPresets":
+    "바깥 배열 길이와 장비를 유지하면서 코스메틱 및 색상 프리셋 슬롯을 비웁니다. 교체 전에 정확한 백업을 만듭니다.",
+  "cosmetics.cancel": "취소",
   "cosmetics.locked": "잠김",
   "cosmetics.savedPresets": "저장된 프리셋",
   "cosmetics.actions": "코스메틱 일괄 작업",

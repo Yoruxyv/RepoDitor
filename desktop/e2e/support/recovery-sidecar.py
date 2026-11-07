@@ -68,6 +68,12 @@ def install_synthetic_status() -> None:
         entry.prepare_health = isolated_prepare
         original_status = entry.get_game_status
         entry.get_game_status = lambda: original_status(lambda: status)
+        original_meta_write = entry.meta_write
+
+        def isolated_meta_write(*args, **kwargs):
+            return original_meta_write(*args, **kwargs, game_status_loader=current_status)
+
+        entry.meta_write = isolated_meta_write
 
 
 def response_fault() -> None:
@@ -94,6 +100,19 @@ def install_completion_fault() -> None:
         return result
 
     entry.prepare_health = prepared
+    original_meta = entry.meta_write
+
+    def completed_meta(*args, **kwargs):
+        result = original_meta(*args, **kwargs)
+        if kwargs.get("prepare"):
+            if result.get("status") == "prepared":
+                phase("reservation_response")
+        else:
+            response_fault()
+            phase("after_completion")
+        return result
+
+    entry.meta_write = completed_meta
 
 
 def io_fault(name: str) -> None:
@@ -200,7 +219,7 @@ def install_faults() -> None:
 if __name__ == "__main__":
     if os.environ.get("REPODITOR_E2E") != "1":
         raise SystemExit("Synthetic recovery harness requires isolated E2E mode")
-    if len(sys.argv) > 1 and sys.argv[1] == "saves-write":
+    if len(sys.argv) > 1 and sys.argv[1] in ("saves-write", "meta-write"):
         phase("before_execution")
     install_synthetic_status()
     install_completion_fault()

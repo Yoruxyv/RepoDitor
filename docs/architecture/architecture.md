@@ -238,7 +238,7 @@ generated consumers. Unknown IDs, signed metadata and eligible-but-removal-block
 entries retain the existing Electron contract. Icon tokens remain null and private
 MetaSave fields are discarded.
 
-The native read hook coalesces refresh clicks, ignores unmounted/superseded results
+The ordinary native read hook coalesces refresh clicks, ignores unmounted/superseded results
 and reloads on workspace entry or game-safety recovery. A superseding entry waits
 for the admitted read to release before starting one fresh read. Its composition reuses
 the Cosmetics summary/catalog with null mutation handlers. Search, filters, sorting,
@@ -250,6 +250,59 @@ game-safety boundary also covers global Cosmetics, including when no Run save is
 The local main-window capability grants only those ten commands. CSP and
 navigation constrain the bundled page; new windows are denied. The preview has
 its own application identifier/profile and does not migrate Electron data.
+
+### Synthetic MetaSave transactions
+
+The existing synthetic UI feature and test-only permission configuration also admit
+fixed `test_meta_state`, `test_meta_write` and `test_meta_recover` commands. Ordinary
+artifacts compile none of them. MetaSave opens independently of Run discovery and
+uses a separate host-instance/generation session bound to its own fingerprint,
+namespace and admission proof. The fixed target is
+`<isolated LocalLow>/semiwork/Repo/MetaSave.es3`; both its fixture home and target
+remain under the existing canonical recovery checkpoint fence. No renderer path,
+Run token or generic backend command can authorize it.
+
+Fresh mutations require the exact source-pinned synthetic catalog fixture, not
+presentation capabilities. The reviewed fixture manifest lives as immutable bytes
+in `services/cosmetics/synthetic_fixture.py`; Python verifies its literal SHA-256,
+Steam provenance, bounded source hashes and parsed ordered metadata/target vector.
+Rust embeds those same bytes only in its synthetic module and validates the proof
+against its own pin. Rust's build hashes the embedded bytes independently; the
+Python packaging prerequisite checks the Python digest and both source pins.
+Changing fixture files or supplying another expected manifest cannot change trust.
+This deliberately artificial 28-entry fixture is not installed-game approval.
+Real cosmetic semantics retain the separate 557-ID evidence for Steam build
+`26294889`; no other installed build is inferred safe and production remains read-only.
+
+Supported intents are selected-ID unlock, unlock remaining, guarded lock all, and
+paired preset clearing. One fixed action is saved at a time. Selected IDs must be
+unique, explicitly eligible and within both the 512-entry and 2 KiB intent caps;
+the full receipt retains the existing 4 KiB cap. Unknown ownership IDs and unrelated plaintext
+bytes, including numeric lexemes and ES3 wrapper metadata, are preserved. Preset
+clearing empties both existing slot arrays without changing outer lengths or
+equipment. Any eligible owned equipment/preset reference blocks the whole lock-all
+action. Equip, preset editing and arbitrary ownership/inventory mutations are absent.
+
+Schema 8 binds only MetaSave; Run schemas 1–7 remain unchanged and cannot authorize
+this endpoint. Existing basename-derived locks, backups, staging and receipts are
+reused with `MetaSave.es3` names. Preparation and writing compare the entire reserved
+intent across subprocesses. After backup, staged verification and the last stale
+comparison, the final callback revalidates catalog admission, checks authoritative
+game-stopped status, then returns directly to protected replacement. There is no
+catalog scan after that status check. The existing post-check game-start race and
+old noncooperating-binary limitation remain; updated legacy Cosmetics writers
+reject pending MetaSave evidence under the shared target lock.
+
+Recovery-only tokens are separate from mutation tokens and bind inspected operation,
+namespace and evidence. Read-only inspection neither adopts nor settles receipts.
+Catalog loss cannot authorize a fresh write, but validated existing evidence may
+still be reconciled after canonical decoding and a second proof check under lock.
+Recovery never restores save bytes or replays intent. Ambiguous, live-owner or
+invalid evidence stays blocked and preserved. Exact backups are retained. The
+standalone Cosmetics UI stages changes, confirms the affected action, supports
+Revert, and reconciles lost responses/restarts before permitting another Save.
+Optional artwork stays independent. The existing Windows safety matrix requires
+the packaged MetaSave cases alongside all earlier domain regressions.
 
 ### Experimental health recovery
 
@@ -574,7 +627,7 @@ can itself wait 5,000 ms, so calling that property inside the same outer deadlin
 can discard an otherwise complete diagnostic. A hung window now produces an
 explicit false responsiveness result and its native error code. The ordinary
 startup control requires a present, responding window as well as successful CDP,
-the Tauri bridge and all four synthetic-write command denials.
+the Tauri bridge and the synthetic-write/recovery command denials.
 
 Fixed, numeric timing checkpoints are flushed to stderr after each inspection
 phase, then attached to the startup record even if the subprocess is killed before

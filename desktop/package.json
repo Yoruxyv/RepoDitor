@@ -35,7 +35,7 @@
     "test:e2e:packaged": "npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test e2e/electron/package-smoke.spec.ts",
     "preview": "vite preview",
     "start": "electron .",
-    "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onedir --console --name repoditor-backend --paths python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller --collect-all UnityPy --collect-all TypeTreeGeneratorAPI --collect-all fmod_toolkit --collect-data archspec --hidden-import addressablestools --copy-metadata addressablestools python/repo_save_editor/desktop_api/__main__.py",
+    "build:sidecar": "uv run --locked --project .. python scripts/tauri/check-meta-anchor.py && uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onedir --console --name repoditor-backend --paths python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller --collect-all UnityPy --collect-all TypeTreeGeneratorAPI --collect-all fmod_toolkit --collect-data archspec --hidden-import addressablestools --copy-metadata addressablestools python/repo_save_editor/desktop_api/__main__.py",
     "installer:ui:build": "tsc -p installer/ui/tsconfig.json && vite build --config installer/ui/vite.config.ts",
     "installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/scripts/build-host.ps1",
     "installer:host:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/scripts/build-host.ps1 -Sign",

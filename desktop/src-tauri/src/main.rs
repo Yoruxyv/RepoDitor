@@ -143,6 +143,33 @@ async fn advanced_get(
     backend::request(app, Operation::Items(id), items::parse).await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_meta_state(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::State {
+    synthetic::meta::state(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_meta_write(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::Result {
+    synthetic::meta::write(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
+async fn test_meta_recover(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::Result {
+    synthetic::meta::recover(app, request).await
+}
+
 #[tauri::command]
 fn preview_close(app: tauri::AppHandle) -> Result<(), &'static str> {
     app.get_webview_window("main")
@@ -224,6 +251,12 @@ fn main() {
             test_run_write,
             #[cfg(feature = "synthetic-health-recovery")]
             test_items_refill,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_meta_state,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_meta_write,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_meta_recover,
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_recover,
             #[cfg(feature = "synthetic-health-recovery")]

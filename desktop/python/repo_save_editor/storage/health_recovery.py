@@ -308,7 +308,10 @@ class HealthTransaction:
             or valid_health_batch_intent(intent)
             or valid_upgrade_intent(intent)
             or valid_run_intent(intent)
+            or valid_meta_intent(intent)
         ):
+            raise RecoveryError("invalid_request")
+        if intent is not None and (path.name == "MetaSave.es3") != valid_meta_intent(intent):
             raise RecoveryError("invalid_request")
         self.path = path
         self.directory = directory
@@ -345,10 +348,18 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3, 4, 5, 6, 7}
+                or value.version not in {1, 2, 3, 4, 5, 6, 7, 8}
+                or ((value.version == 8) != (self.path.name == "MetaSave.es3"))
+                or (
+                    value.version == 8
+                    and (
+                        not isinstance(value.namespace, str)
+                        or _HASH.fullmatch(value.namespace) is None
+                    )
+                )
                 or (value.version == 2 and not valid_intent(value.intent))
                 or (
-                    value.version in {4, 5, 6, 7}
+                    value.version in {4, 5, 6, 7, 8}
                     and (
                         not (
                             valid_upgrade_intent(value.intent)
@@ -358,6 +369,8 @@ class HealthTransaction:
                             else valid_health_batch_intent(value.intent)
                             if value.version == 6
                             else valid_refill_intent(value.intent)
+                            if value.version == 7
+                            else valid_meta_intent(value.intent)
                         )
                         or (
                             value.namespace is not None and _HASH.fullmatch(value.namespace) is None
@@ -455,7 +468,9 @@ class HealthTransaction:
                 os.getpid(),
                 self.process_started,
                 version=(
-                    7
+                    8
+                    if valid_meta_intent(self.intent)
+                    else 7
                     if valid_refill_intent(self.intent)
                     else 6
                     if valid_health_batch_intent(self.intent)
@@ -469,13 +484,28 @@ class HealthTransaction:
                     if self.intent is not None
                     else 1
                 ),
-                namespace=self.directory.identity if self.directory is not None else None,
+                namespace=self.namespace()
+                if valid_meta_intent(self.intent)
+                else self.directory.identity
+                if self.directory is not None
+                else None,
                 intent=self.intent,
             ),
             self.pending,
         )
 
+    def namespace(self) -> str:
+        """Fingerprint the held namespace, with ordinary ancestry identity for POSIX tests."""
+        if self.directory is not None:
+            return self.directory.identity
+        info = self.path.parent.stat()
+        return sha256(
+            json.dumps([str(self.path.parent), info.st_dev, info.st_ino]).encode()
+        ).hexdigest()
+
     def _require_namespace(self, receipt: Receipt) -> None:
+        if receipt.version == 8 and receipt.namespace != self.namespace():
+            raise RecoveryError("write_conflict")
         if self.directory is not None and receipt.namespace != self.directory.identity:
             raise RecoveryError("write_conflict")
 
@@ -604,6 +634,51 @@ class HealthTransaction:
             if _present(path, directory=self.directory):
                 _hash(path, directory=self.directory)
 
+    def proof(self) -> str:
+        """Bind inspection to owned evidence without counting receipts as save payloads."""
+        paths = [self.path, self.pending, self.archive, self.backup, self.temporary]
+        paths.extend(p for p, _pid, _started in self._receipt_temps())
+        records = []
+        for path in paths:
+            if not _present(path, directory=self.directory):
+                continue
+            if path.suffix == ".json" or path.name.endswith(".receipt.tmp"):
+                self._read(path)
+                with self.directory.open(path) if self.directory else path.open("rb") as stream:
+                    blob = stream.read(_RECEIPT_LIMIT + 1)
+                if len(blob) > _RECEIPT_LIMIT:
+                    raise RecoveryError("write_conflict")
+                digest = sha256(blob).hexdigest()
+            else:
+                digest = _hash(path, directory=self.directory)
+            records.append([path.name, digest])
+        return sha256(json.dumps([self.namespace(), records], sort_keys=True).encode()).hexdigest()
+
+    @bounded_save_operation
+    def inspect(self) -> dict[str, object]:
+        """Classify attributed MetaSave evidence without adoption, settlement or cleanup."""
+        self._preflight_resources()
+        receipt = inspect_pending(self.path, self.directory)
+        active = receipt is not None
+        if receipt is None:
+            receipt = self._read(self.archive)
+        if receipt.operation != self.operation:
+            raise RecoveryError("write_conflict")
+        self._require_namespace(receipt)
+        if active and not _owner_exited(receipt.owner_pid, receipt.owner_started):
+            raise RecoveryError("write_busy")
+        if active and _present(self.archive, directory=self.directory):
+            archived = self._read(self.archive)
+            if (archived.before, archived.after) != (receipt.before, receipt.after):
+                raise RecoveryError("write_conflict")
+        current, identity = _snapshot(self.path, directory=self.directory)
+        outcome, backup = self._classify(receipt, current, identity)
+        if (not active and receipt.phase != outcome) or (
+            _present(self.backup, directory=self.directory) and not backup
+        ):
+            raise RecoveryError("write_conflict")
+        return self._result(outcome, current, backup)
+
     @bounded_save_operation
     def recover(
         self, *, own_completion: bool = False, acknowledge: bool = True
@@ -666,6 +741,34 @@ class HealthTransaction:
             "fingerprint": fingerprint,
             "backupAvailable": backup,
         }
+
+
+def valid_meta_intent(value: object) -> bool:
+    """Admit only the bounded MetaSave action union; domain policy checks actual IDs."""
+    if not isinstance(value, dict) or set(value) != {"metaCosmetics"}:
+        return False
+    action = value["metaCosmetics"]
+    if not isinstance(action, dict):
+        return False
+    tag, admission = action.get("action"), action.get("admission")
+    if not isinstance(admission, str) or _HASH.fullmatch(admission) is None:
+        return False
+    if tag == "unlockIds":
+        ids = action.get("ids")
+        if (
+            set(action) != {"action", "admission", "ids"}
+            or not isinstance(ids, list)
+            or not 1 <= len(ids) <= 512
+            or any(type(i) is not int or not 0 <= i <= 9_007_199_254_740_991 for i in ids)
+            or len(set(ids)) != len(ids)
+        ):
+            return False
+    elif tag not in ("unlockAll", "lockAll", "clearPresets") or set(action) != {
+        "action",
+        "admission",
+    }:
+        return False
+    return len(json.dumps(value, separators=(",", ":")).encode()) <= 2048
 
 
 def valid_refill_intent(value: object) -> bool:

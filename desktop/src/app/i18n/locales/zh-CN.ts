@@ -221,6 +221,12 @@ export const zhCN: Record<keyof typeof en, string> = {
   "cosmetics.description": "管理已知外观目录，不猜测尚不可用的名称。",
   "cosmetics.knownCatalog": "已知目录",
   "cosmetics.owned": "已拥有",
+  "cosmetics.syntheticUnavailable": "编辑外观需要已验证的合成构建和目录。现有事务仍可核对。",
+  "cosmetics.confirmTitle": "保存合成外观更改？",
+  "cosmetics.confirmOwnership":
+    "更改 {count} 个符合条件的外观的拥有状态。保留不支持的 ID 和装备，替换前创建原始文件的精确备份。",
+  "cosmetics.confirmPresets": "清空外观和颜色预设槽，保留外层数组长度与装备。替换前创建精确备份。",
+  "cosmetics.cancel": "取消",
   "cosmetics.locked": "未解锁",
   "cosmetics.savedPresets": "已保存预设",
   "cosmetics.actions": "外观批量操作",

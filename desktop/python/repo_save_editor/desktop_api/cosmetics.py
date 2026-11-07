@@ -31,7 +31,7 @@ from repo_save_editor.services.cosmetics.presentation_catalog import (
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
 from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
-from repo_save_editor.storage.health_recovery import RecoveryError, health_lock
+from repo_save_editor.storage.health_recovery import RecoveryError, health_lock, pending_health
 from repo_save_editor.storage.repository import (
     EncryptedSaveRepository,
     SaveBackupError,
@@ -231,6 +231,8 @@ def save_cosmetics(
     try:
         require_game_closed(game_status_loader)
         with health_lock(_meta_path(root)) as directory:
+            if pending_health(_meta_path(root), directory):
+                raise RecoveryError("write_recovery_required")
             path, data, source, repository = _load_meta_save(root, directory)
             if (
                 not isinstance(expected_fingerprint, str)

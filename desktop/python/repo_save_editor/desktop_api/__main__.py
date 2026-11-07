@@ -34,6 +34,7 @@ from repo_save_editor.desktop_api.icons import (
     get_upgrade_texture,
 )
 from repo_save_editor.desktop_api.items import get_advanced_save
+from repo_save_editor.desktop_api.meta_transactions import meta_recover, meta_state, meta_write
 from repo_save_editor.desktop_api.player.players import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
 from repo_save_editor.desktop_api.run import get_run_state
@@ -235,9 +236,43 @@ def _save_cosmetics(args: argparse.Namespace) -> dict[str, object]:
     return save_cosmetics(args.fingerprint, changes)
 
 
+def _meta_transaction(args: argparse.Namespace) -> dict[str, object]:
+    root = _recovery_test_root()
+    if root is None:
+        return _invalid_request("Synthetic MetaSave requires an isolated test root.")
+    if args.command == "meta-state":
+        return meta_state(root, args.operation)
+    if args.command == "meta-recover":
+        return meta_recover(root, args.operation, args.proof)
+    intent = _parse_changes(args.payload)
+    return meta_write(
+        root,
+        args.operation,
+        args.fingerprint,
+        intent,
+        namespace=args.namespace,
+        prepare=args.command == "meta-prepare",
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="repo_save_editor.desktop_api")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    meta_status = commands.add_parser("meta-state")
+    meta_status.add_argument("operation", nargs="?")
+    meta_status.set_defaults(handler=_meta_transaction)
+    for name in ("meta-prepare", "meta-write"):
+        meta = commands.add_parser(name)
+        meta.add_argument("operation")
+        meta.add_argument("fingerprint")
+        meta.add_argument("payload")
+        meta.add_argument("namespace")
+        meta.set_defaults(handler=_meta_transaction)
+    meta_recovery = commands.add_parser("meta-recover")
+    meta_recovery.add_argument("operation")
+    meta_recovery.add_argument("proof")
+    meta_recovery.set_defaults(handler=_meta_transaction)
 
     commands.add_parser("environment").set_defaults(handler=lambda _args: discover_environment())
     commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())

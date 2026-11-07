@@ -231,6 +231,14 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.description": "不明な名前を推測せず、既知のコスメティックカタログを管理します。",
   "cosmetics.knownCatalog": "既知のカタログ",
   "cosmetics.owned": "所有済み",
+  "cosmetics.syntheticUnavailable":
+    "コスメティックの編集には検証済みの合成ビルドとカタログが必要です。既存の取引は引き続き照合できます。",
+  "cosmetics.confirmTitle": "合成コスメティックの変更を保存しますか？",
+  "cosmetics.confirmOwnership":
+    "対象のコスメティック{count}個の所有状態を変更します。未対応IDと装備は保持され、置換前に元ファイルの正確なバックアップを作成します。",
+  "cosmetics.confirmPresets":
+    "外側の配列長と装備を保持し、コスメティックとカラーのプリセット枠を空にします。置換前に正確なバックアップを作成します。",
+  "cosmetics.cancel": "キャンセル",
   "cosmetics.locked": "未解除",
   "cosmetics.savedPresets": "保存済みプリセット",
   "cosmetics.actions": "コスメティック一括操作",

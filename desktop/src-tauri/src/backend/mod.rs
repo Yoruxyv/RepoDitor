@@ -28,6 +28,8 @@ pub struct HostState {
     pub closing: Arc<AtomicBool>,
     #[cfg(feature = "synthetic-health-recovery")]
     editor_session: Mutex<(u64, Option<(String, String)>)>,
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub meta_session: Mutex<crate::synthetic::meta::Session>,
 }
 impl HostState {
     #[cfg(feature = "synthetic-health-recovery")]
@@ -124,6 +126,14 @@ pub enum Operation {
     TestHealthRecover(String, String, bool, bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthState(String),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestMetaState(Option<String>),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestMetaPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestMetaWrite(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestMetaRecover(String, String),
 }
 impl Operation {
     fn slot(&self) -> usize {
@@ -138,7 +148,9 @@ impl Operation {
             Self::Maps => 7,
             Self::Cosmetics => 8,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealth(..)
+            Self::TestMetaPrepare(..)
+            | Self::TestMetaWrite(..)
+            | Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
@@ -149,9 +161,9 @@ impl Operation {
             | Self::TestRun(..)
             | Self::TestRunPrepare(..) => 9,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealthRecover(..) => 10,
+            Self::TestHealthRecover(..) | Self::TestMetaRecover(..) => 10,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealthState(..) => 11,
+            Self::TestHealthState(..) | Self::TestMetaState(..) => 11,
         }
     }
     fn service(&self) -> Service {
@@ -166,7 +178,11 @@ impl Operation {
             Self::Maps => Service::Maps,
             Self::Cosmetics => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealth(..)
+            Self::TestMetaState(..)
+            | Self::TestMetaPrepare(..)
+            | Self::TestMetaWrite(..)
+            | Self::TestMetaRecover(..)
+            | Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
@@ -273,6 +289,24 @@ impl Operation {
             }
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthState(id) => vec!["health-state", id],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMetaState(operation) => {
+                let mut args = vec!["meta-state"];
+                if let Some(id) = operation {
+                    args.push(id);
+                }
+                args
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMetaPrepare(id, fingerprint, intent, namespace, _) => {
+                vec!["meta-prepare", id, fingerprint, intent, namespace]
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMetaWrite(id, fingerprint, intent, namespace, _) => {
+                vec!["meta-write", id, fingerprint, intent, namespace]
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMetaRecover(id, proof) => vec!["meta-recover", id, proof],
         }
     }
 }
@@ -316,7 +350,8 @@ fn execute(
         && !matches!(
             args.first(),
             Some(
-                &"health-prepare"
+                &"meta-prepare"
+                    | &"health-prepare"
                     | &"health-batch-prepare"
                     | &"refill-prepare"
                     | &"upgrade-prepare"
@@ -355,7 +390,9 @@ where
     let service = operation.service();
     #[cfg(feature = "synthetic-health-recovery")]
     let started = match &operation {
-        Operation::TestHealth(.., started)
+        Operation::TestMetaPrepare(.., started)
+        | Operation::TestMetaWrite(.., started)
+        | Operation::TestHealth(.., started)
         | Operation::TestHealthPrepare(.., started)
         | Operation::TestHealthBatch(.., started)
         | Operation::TestHealthBatchPrepare(.., started)
@@ -377,7 +414,8 @@ where
     #[cfg(feature = "synthetic-health-recovery")]
     let is_write = matches!(
         operation,
-        Operation::TestHealth(..)
+        Operation::TestMetaWrite(..)
+            | Operation::TestHealth(..)
             | Operation::TestHealthBatch(..)
             | Operation::TestRefill(..)
             | Operation::TestUpgrades(..)

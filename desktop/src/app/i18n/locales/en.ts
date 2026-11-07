@@ -237,6 +237,14 @@ export const en = {
   "cosmetics.description": "Manage the known cosmetic catalog without guessing unavailable names.",
   "cosmetics.knownCatalog": "Known catalog",
   "cosmetics.owned": "Owned",
+  "cosmetics.syntheticUnavailable":
+    "Cosmetics editing requires the verified synthetic build and catalog. Existing transactions can still be reconciled.",
+  "cosmetics.confirmTitle": "Save synthetic Cosmetics changes?",
+  "cosmetics.confirmOwnership":
+    "Change ownership for {count} eligible cosmetics. Unsupported IDs and equipment are preserved. An exact backup is created before replacement.",
+  "cosmetics.confirmPresets":
+    "Clear both cosmetic and color preset slots, preserving their outer lengths and equipment. An exact backup is created before replacement.",
+  "cosmetics.cancel": "Cancel",
   "cosmetics.locked": "Locked",
   "cosmetics.savedPresets": "Saved presets",
   "cosmetics.actions": "Cosmetic bulk actions",
