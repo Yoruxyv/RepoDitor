@@ -1,6 +1,7 @@
 /** Narrow synthetic-only save transports; the native host owns authority. */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AdvancedSaveDto,
   PlayerDto,
   PlayerUpgradeDto,
   RunStateDto,
@@ -13,6 +14,7 @@ export interface HealthCanonical {
   players: PlayerDto[];
   upgrades?: PlayerUpgradeDto[];
   run?: RunStateDto | null;
+  advanced?: AdvancedSaveDto | null;
 }
 
 export interface HealthValueIntent {
@@ -36,11 +38,25 @@ export interface RunIntentEdit {
   before: number | string;
   value: number | string;
 }
+export interface RefillIntentEdit {
+  saveKey: string;
+  before: number;
+}
 export type HealthIntent =
   | HealthValueIntent
   | { health: HealthIntentEdit[] }
   | { upgrades: UpgradeIntentEdit[] }
-  | { run: RunIntentEdit[] };
+  | { run: RunIntentEdit[] }
+  | RefillIntent;
+export type RefillIntent = { refillToFull: RefillIntentEdit[] };
+export const REFILL_INTENT_LIMIT = 2048;
+export function refillIntentFits(refillToFull: readonly RefillIntentEdit[]): boolean {
+  return (
+    refillToFull.length > 0 &&
+    refillToFull.length <= 512 &&
+    new TextEncoder().encode(JSON.stringify({ refillToFull })).length <= REFILL_INTENT_LIMIT
+  );
+}
 export const HEALTH_INTENT_LIMIT = 2048;
 export function healthIntentFits(health: readonly HealthIntentEdit[]): boolean {
   return (
@@ -110,6 +126,13 @@ export interface RunWrite {
   session: string;
   run: RunIntentEdit[];
 }
+export interface RefillWrite {
+  saveId: string;
+  fingerprint: string;
+  operationId: string;
+  session: string;
+  refillToFull: RefillIntentEdit[];
+}
 
 function unresolved(operationId: string, status: "uncertain" | "conflict"): HealthTransaction {
   return {
@@ -123,6 +146,13 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
+  async writeRefills(request: RefillWrite): Promise<HealthTransaction> {
+    try {
+      return await invoke<HealthTransaction>("test_items_refill", { request });
+    } catch {
+      return unresolved(request.operationId, "uncertain");
+    }
+  },
   async writeHealthBatch(request: HealthBatchWrite): Promise<HealthTransaction> {
     try {
       return await invoke<HealthTransaction>("test_health_write", { request });

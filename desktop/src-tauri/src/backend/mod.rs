@@ -109,6 +109,10 @@ pub enum Operation {
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthBatchPrepare(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
+    TestRefill(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestRefillPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
     TestUpgrades(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
     TestUpgradesPrepare(String, String, String, String, Instant),
@@ -138,6 +142,8 @@ impl Operation {
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
+            | Self::TestRefill(..)
+            | Self::TestRefillPrepare(..)
             | Self::TestUpgrades(..)
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
@@ -164,6 +170,8 @@ impl Operation {
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
+            | Self::TestRefill(..)
+            | Self::TestRefillPrepare(..)
             | Self::TestUpgrades(..)
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
@@ -221,6 +229,19 @@ impl Operation {
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthBatchPrepare(id, fingerprint, payload, operation, _) => {
                 vec!["health-batch-prepare", id, fingerprint, payload, operation]
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestRefill(id, fingerprint, payload, operation, _) => vec![
+                "saves-write",
+                id,
+                fingerprint,
+                payload,
+                "--refill-operation",
+                operation,
+            ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestRefillPrepare(id, fingerprint, payload, operation, _) => {
+                vec!["refill-prepare", id, fingerprint, payload, operation]
             }
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestUpgradesPrepare(id, fingerprint, payload, operation, _) => {
@@ -294,7 +315,13 @@ fn execute(
     if request.1 == 9
         && !matches!(
             args.first(),
-            Some(&"health-prepare" | &"health-batch-prepare" | &"upgrade-prepare" | &"run-prepare")
+            Some(
+                &"health-prepare"
+                    | &"health-batch-prepare"
+                    | &"refill-prepare"
+                    | &"upgrade-prepare"
+                    | &"run-prepare"
+            )
         )
     {
         return result.map_err(|error| {
@@ -332,6 +359,8 @@ where
         | Operation::TestHealthPrepare(.., started)
         | Operation::TestHealthBatch(.., started)
         | Operation::TestHealthBatchPrepare(.., started)
+        | Operation::TestRefill(.., started)
+        | Operation::TestRefillPrepare(.., started)
         | Operation::TestUpgrades(.., started)
         | Operation::TestUpgradesPrepare(.., started)
         | Operation::TestRun(.., started)
@@ -350,6 +379,7 @@ where
         operation,
         Operation::TestHealth(..)
             | Operation::TestHealthBatch(..)
+            | Operation::TestRefill(..)
             | Operation::TestUpgrades(..)
             | Operation::TestRun(..)
     );

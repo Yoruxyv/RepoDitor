@@ -199,7 +199,7 @@ for durable Run drafts, review, Save and Revert. Canonical snapshots supersede
 older in-flight Run reads. Values outside JavaScript's exact integer range never
 cross the typed projection; the synthetic Run error explains this read-only limit.
 
-Items calls Python's unchanged `advanced-get` service. Rust validates all six unique
+Items calls Python's existing `advanced-get` service. Rust validates all six unique
 domain keys, evidence enums, nullable nonnegative counts, boolean capabilities,
 canonical item-key/name/instance relationships, unique identities, signed safe
 stored charge and charge/recharge consistency. Counts remain nonnegative; stored
@@ -209,7 +209,7 @@ existing icon/upgrade-key limits provide additional structural/metadata bounds.
 Rust does not classify items, infer game evidence or maintain a recharge evidence
 store. Private recharge evidence/raw fields are discarded; validated optional
 artwork keys are stripped and every icon token is null. The shared view preserves
-grouping, search, filter/sort, charge states, skeletons and failures. Native passes
+grouping, search, filter/sort, charge states, skeletons and failures. Ordinary native passes
 no mutation handlers: refill/revert/pending/save controls stay absent even when
 the retained backend capability reports support. Electron's editors remain the default.
 
@@ -258,15 +258,15 @@ with the `synthetic-health-recovery` Cargo feature and granted only by the separ
 `recovery.test.conf.json` configuration. A runtime check additionally requires E2E
 mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpoint`.
 The separate `synthetic-health-ui` feature includes the recovery feature and enables
-multi-player Health, bounded upgrade-batch and Run editing with the same
+multi-player Health, bounded upgrade-batch, Run editing and Items refill with the same
 test permissions and runtime fence. Protocol-only builds keep the UI read-only and
-reject Health-batch, upgrade and Run writes; default builds have no mutation
+reject Health-batch, upgrade, Run and Items writes; default builds have no mutation
 commands. No general mutation bridge or production write permission is provided.
 The typed transports retain the legacy one-player Health request and admit a
 Health-only batch, an upgrade-only batch or
-a Run-only batch. Mixed Health/Upgrades/Run drafts block Save and identify the
+a Run-only batch or an exact-instance refill-only batch. Mixed Health/Upgrades/Run/Items drafts block Save and identify the
 groups to revert; there is no partial-save or mixed-domain protocol.
-Health-batch, upgrade and Run requests bind the save ID, fingerprint and current native open-session token.
+Health-batch, upgrade, Run and refill requests bind the save ID, fingerprint and current native open-session token.
 Reopening a save rotates that token; stale/cross-session requests are rejected.
 The host rechecks session admission between reservation and writer launch. Python
 validates player/key membership against the loaded save, exact previous values,
@@ -312,7 +312,7 @@ source denies additional writers/deletion through verification and replacement;
 write-through file handles and explicit buffer flushes preserve publication ordering
 across process termination. Physical power-loss durability requires separate evidence.
 
-Windows schema-3/4/5/6 receipts include a fingerprint of the admitted ancestry's volume
+Windows schema-3/4/5/6/7 receipts include a fingerprint of the admitted ancestry's volume
 and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
 processes independently acquire the namespace and require that fingerprint to match
 before claiming or settling a receipt. Schema 4 durably stores an upgrade-only
@@ -349,9 +349,32 @@ Reconciliation must confirm every requested canonical Health value before
 acknowledgement or draft clearing. Missing or mismatched players remain conflicting.
 Schemas 1–5 retain their existing validation and recovery behavior; older readers
 must reject schema 6 rather than reinterpret it as a single-player transaction.
+Schema 7 stores `{refillToFull:[{saveKey,before}]}` with distinct full existing
+item-instance keys and exact JavaScript-safe integer stored charges. The 2,048-byte
+UTF-8 intent ceiling and existing 512-change ceiling remain fixed. A minimum record
+needs 33 compact bytes, admitting no more than 60 records; four whitespace bytes
+per record and the conservative 811-byte metadata envelope keep the complete
+receipt at most 3,103 bytes. The checked 4,096-byte receipt ceiling still fails closed
+for excessive metadata. Schemas 1–6 retain their validation and byte encoding.
+Only a validated schema-7 intent is exposed during recovery to select its Items
+canonical projection; classification, namespace binding, locks and cleanup are unchanged.
+Python independently discovers installed recharge capability during preparation
+and writing, rather than accepting renderer-supplied capability or filesystem
+evidence. It requires an existing item, positive recharge capability, an existing
+stored-charge leaf and an exact previous-value match before admitting the fixed
+refill action. The existing mutation removes only that charge leaf. Inventory,
+unlinked charges, battery upgrades and other same-name instances stay intact.
+The test-only `test_items_refill` command shares writer admission and deadlines
+with the other domains. Canonical Items reuses the existing serializer on the
+fingerprint-checked in-memory save snapshot. A requested item must be present,
+positively rechargeable, absent from stored charge and classified Full before UI
+acknowledgement. Missing or unsupported canonical state keeps the receipt pending.
+The Items view stages per-instance or all eligible refills, supports individual
+and global Revert, and rejects stale read responses after accepting canonical state.
+This adds neither production permissions nor arbitrary numeric charge editing.
 Recovery classifies authoritative bytes without replaying the intent.
 The legacy health filenames/lock are shared deliberately, so unresolved Health,
-Upgrade and Run transactions exclude each other and ordinary cooperating writers. Matching
+Upgrade, Run and refill transactions exclude each other and ordinary cooperating writers. Matching
 save bytes and leaf inode alone do
 not authorize a different parent directory. Schema-1/2 receipts remain inspectable,
 but Windows cannot automatically resume or acknowledge them without namespace

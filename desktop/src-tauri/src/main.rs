@@ -180,6 +180,15 @@ async fn test_run_write(
 
 #[cfg(feature = "synthetic-health-recovery")]
 #[tauri::command]
+async fn test_items_refill(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::write_refills(app, request).await
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[tauri::command]
 async fn test_health_recover(
     app: tauri::AppHandle,
     request: serde_json::Value,
@@ -213,6 +222,8 @@ fn main() {
             test_upgrades_write,
             #[cfg(feature = "synthetic-health-recovery")]
             test_run_write,
+            #[cfg(feature = "synthetic-health-recovery")]
+            test_items_refill,
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_recover,
             #[cfg(feature = "synthetic-health-recovery")]

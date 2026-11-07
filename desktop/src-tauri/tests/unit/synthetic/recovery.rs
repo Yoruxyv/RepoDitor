@@ -1,6 +1,64 @@
 use super::*;
 const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
 #[test]
+fn refill_intents_bind_exact_keys_and_never_accept_numeric_writes() {
+    let raw = json!({"refillToFull":[{"saveKey":"Item Tool/1","before":99},{"saveKey":"Item Tool/2","before":-2}]});
+    assert!(valid_refill_intent(
+        &serde_json::from_value(raw.clone()).unwrap()
+    ));
+    for (key, value) in [
+        ("saveKey", json!("../file")),
+        ("saveKey", json!("Item Tool/١")),
+        ("before", json!(true)),
+        ("before", json!(1.5)),
+        ("before", json!(9_007_199_254_740_992i64)),
+        ("value", json!(100)),
+    ] {
+        let mut bad = raw.clone();
+        bad["refillToFull"][1][key] = value;
+        assert!(serde_json::from_value::<RefillIntent>(bad)
+            .map(|i| !valid_refill_intent(&i))
+            .unwrap_or(true));
+    }
+    for edits in [
+        json!([]),
+        json!([raw["refillToFull"][0], raw["refillToFull"][0]]),
+        json!((0..100)
+            .map(|n| json!({"saveKey":format!("Item Tool/{n}"),"before":1}))
+            .collect::<Vec<_>>()),
+    ] {
+        assert!(!valid_refill_intent(
+            &serde_json::from_value(json!({"refillToFull":edits})).unwrap()
+        ));
+    }
+    let state = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":raw}});
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_ok());
+}
+#[test]
+fn refill_unicode_byte_boundary_matches_the_durable_contract() {
+    for delta in [-1i32, 0, 1] {
+        let mut intent = RefillIntent {
+            refill_to_full: (0..35)
+                .map(|n| RefillEdit {
+                    save_key: format!("Item 🧪/{n}"),
+                    before: 1,
+                })
+                .collect(),
+        };
+        let target = (2048 + delta) as usize;
+        for index in 0..intent.refill_to_full.len() {
+            let size = serde_json::to_vec(&intent).unwrap().len();
+            let padding = (target - size).min(50);
+            let edit = &mut intent.refill_to_full[index];
+            edit.save_key = edit
+                .save_key
+                .replace('/', &format!("{}/", "x".repeat(padding)));
+        }
+        assert_eq!(serde_json::to_vec(&intent).unwrap().len(), target);
+        assert_eq!(valid_refill_intent(&intent), delta <= 0);
+    }
+}
+#[test]
 fn health_batches_reject_forged_duplicate_oversized_and_partial_intents() {
     let raw = json!({"health":[{"playerId":"111","before":80,"value":17},{"playerId":"222","before":0,"value":42}]});
     assert!(valid_health_batch_intent(

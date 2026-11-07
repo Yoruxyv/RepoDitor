@@ -15,6 +15,40 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 }
 
 describe("injected Items reads", () => {
+  it.each(["success", "failure", "rejection"])(
+    "keeps canonical Full state when an older read ends in %s",
+    async (mode) => {
+      let complete!: (value: DesktopOperationResult<AdvancedSaveDto>) => void;
+      let reject!: (error: Error) => void;
+      const get = vi.fn().mockReturnValue(
+        new Promise<DesktopOperationResult<AdvancedSaveDto>>((resolve, fail) => {
+          complete = resolve;
+          reject = fail;
+        }),
+      );
+      const { result } = renderHook(() => useItems(saveId, null, get), { wrapper });
+      await waitFor(() => expect(get).toHaveBeenCalledOnce());
+      const full = structuredClone(advanced);
+      Object.assign(full.items[0]!, {
+        storedCharge: null,
+        chargeState: "default_full",
+        canRefillToFull: false,
+      });
+      act(() => result.current.acceptSnapshot(full));
+      await act(async () => {
+        if (mode === "rejection") reject(new Error("private"));
+        else
+          complete(
+            mode === "success"
+              ? { ok: true, data: advanced }
+              : { ok: false, error: { code: "save_missing", message: "private" } },
+          );
+      });
+      expect(result.current.advanced).toEqual(full);
+      expect(result.current.error).toBeNull();
+      expect(result.current.loading).toBe(false);
+    },
+  );
   it("loads once under StrictMode, coalesces retries and recovers from a translated failure", async () => {
     let complete!: (value: DesktopOperationResult<AdvancedSaveDto>) => void;
     const get = vi

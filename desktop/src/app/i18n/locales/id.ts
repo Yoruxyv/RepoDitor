@@ -3,7 +3,7 @@ import type { en } from "./en";
 
 export const id: Record<keyof typeof en, string> = {
   "run.mixedDrafts":
-    "Simpan satu kelompok setiap kali. Batalkan draf Health, Upgrades, atau Run hingga hanya satu kelompok tersisa.",
+    "Simpan satu kelompok setiap kali. Batalkan draf Health, Upgrades, Run, atau Items hingga hanya satu kelompok tersisa.",
   "run.saveUnavailable":
     "Sesi save ini tidak mengizinkan penulisan Run. Buka ulang save sebelum mencoba lagi.",
   "run.unsupportedValues":
@@ -371,7 +371,9 @@ export const id: Record<keyof typeof en, string> = {
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",
   "error.copyPath": "Path tidak dapat disalin",
   "health.testOnly":
-    "Pengujian sintetis: save health, upgrade, dan Run. Build produksi tetap hanya baca.",
+    "Pengujian sintetis: Health, Upgrades, Run, dan isi ulang item. Build produksi tetap hanya baca.",
+  "items.saveUnavailable":
+    "Kelompok isi ulang ini belum dapat disimpan dengan aman. Periksa kembali simpanan atau batalkan sebagian isi ulang yang tertunda.",
   "health.saveUnavailable":
     "Perubahan Health ini belum dapat disimpan dengan aman. Periksa kembali simpanan atau batalkan sebagian perubahan Health yang tertunda.",
   "health.checking": "Memeriksa operasi penyimpanan yang belum selesai…",

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { healthIntentFits, tauriHealthApi } from "./tauriHealthApi";
+import { healthIntentFits, refillIntentFits, tauriHealthApi } from "./tauriHealthApi";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const call = vi.mocked(invoke);
@@ -8,6 +8,34 @@ beforeEach(() => {
   call.mockReset();
 });
 describe("synthetic native health transport", () => {
+  it("sends only a fixed refill intent and preserves identity after response loss", async () => {
+    const request = {
+      saveId: "save",
+      fingerprint: "a".repeat(64),
+      operationId: "b".repeat(32),
+      session: "test-session",
+      refillToFull: [{ saveKey: "Item Tool/1", before: 99 }],
+    };
+    call.mockRejectedValue(new Error("private path"));
+    expect(await tauriHealthApi.writeRefills(request)).toMatchObject({
+      operationId: request.operationId,
+      status: "uncertain",
+      canonical: null,
+    });
+    expect(call).toHaveBeenCalledExactlyOnceWith("test_items_refill", { request });
+  });
+  it.each([-1, 0, 1])("uses the same UTF-8 refill boundary at offset %s", (delta) => {
+    const refillToFull = Array.from({ length: 35 }, (_entry, n) => ({
+      saveKey: `Item 🧪/${n}`,
+      before: 1,
+    }));
+    const size = () => new TextEncoder().encode(JSON.stringify({ refillToFull })).length;
+    const target = 2048 + delta;
+    for (const edit of refillToFull)
+      edit.saveKey = edit.saveKey.replace("/", "x".repeat(Math.min(target - size(), 50)) + "/");
+    expect(size()).toBe(target);
+    expect(refillIntentFits(refillToFull)).toBe(delta <= 0);
+  });
   it("sends one typed Health batch on the existing synthetic-only channel and retains uncertain identity", async () => {
     const request = {
       saveId: "save",

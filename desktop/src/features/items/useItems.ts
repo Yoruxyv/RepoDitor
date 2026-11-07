@@ -30,8 +30,14 @@ function initialState(result: DesktopOperationResult<AdvancedSaveDto> | null): S
     : { advanced: null, error: operationErrorKey(result.error.code), loading: false };
 }
 
-function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
-  if (!item.canRefillToFull || item.chargeState !== "stored" || item.storedCharge === null)
+export function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
+  if (
+    !item.canRefillToFull ||
+    item.rechargeCapability !== "rechargeable" ||
+    item.chargeState !== "stored" ||
+    item.storedCharge === null ||
+    !Number.isSafeInteger(item.storedCharge)
+  )
     return null;
   return {
     feature: "advanced",
@@ -55,14 +61,16 @@ export function useItems(
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});
   const mounted = useRef(false);
   const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
       if (requestInFlight.current) return false;
       requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
         const result = await get(saveId);
-        if (!mounted.current) return result.ok;
+        if (!mounted.current || version !== snapshotVersion.current) return result.ok;
         if (result.ok) {
           setState({ advanced: result.data, error: null, loading: false });
           return true;
@@ -74,7 +82,7 @@ export function useItems(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             advanced: preserveExisting ? current.advanced : null,
             error: "error.service",
@@ -181,6 +189,10 @@ export function useItems(
     revertRefill,
     revertAll,
     applyAfterSave,
+    acceptSnapshot: (advanced: AdvancedSaveDto) => {
+      snapshotVersion.current += 1;
+      setState({ advanced, error: null, loading: false });
+    },
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };

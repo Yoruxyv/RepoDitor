@@ -2,7 +2,7 @@
 import type { en } from "./en";
 
 export const zhCN: Record<keyof typeof en, string> = {
-  "run.mixedDrafts": "每次只能保存一组。请撤销 Health、Upgrades 或 Run 草稿，直到仅剩一组。",
+  "run.mixedDrafts": "每次只能保存一组。请撤销 Health、Upgrades、Run 或 Items 草稿，直到仅剩一组。",
   "run.saveUnavailable": "此存档会话不允许写入 Run。请重新打开存档后重试。",
   "run.unsupportedValues": "数值无法精确表示或结构不受支持时，Run 保持只读。",
   "app.discoveryPreview": "只读预览。暂不支持编辑和保存。",
@@ -345,7 +345,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "error.saveStale": "磁盘上的存档已更改。请重新打开后再保存。",
   "error.write": "RepoDitor 无法安全写入存档。未替换任何文件。",
   "error.copyPath": "无法复制路径",
-  "health.testOnly": "合成测试：生命值、升级和 Run 保存。生产版本保持只读。",
+  "health.testOnly": "合成测试：生命值、升级、Run 和物品充电。生产版本保持只读。",
+  "items.saveUnavailable": "无法安全保存这组充电更改。请重新检查存档，或撤销部分待保存的充电更改。",
   "health.saveUnavailable":
     "无法安全保存这组生命值更改。请重新检查存档状态，或撤销部分待保存的生命值更改。",
   "health.checking": "正在检查未完成的保存操作…",

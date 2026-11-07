@@ -143,6 +143,7 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
         return _invalid_request("The pending changes payload is invalid.")
     if (
         args.health_operation is not None
+        or args.refill_operation is not None
         or args.health_batch_operation is not None
         or args.upgrade_operation is not None
         or args.run_operation is not None
@@ -154,12 +155,14 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
             args.save_id,
             args.fingerprint,
             changes,
-            args.health_batch_operation
+            args.refill_operation
+            or args.health_batch_operation
             or args.run_operation
             or args.upgrade_operation
             or args.health_operation,
             root,
             reserved=True,
+            refill_batch=args.refill_operation is not None,
             health_batch=args.health_batch_operation is not None,
             upgrade_batch=args.upgrade_operation is not None,
             run_batch=args.run_operation is not None,
@@ -216,6 +219,7 @@ def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
         args.operation,
         root,
         remember_intent=args.intent,
+        refill_batch=getattr(args, "refill_batch", False),
         health_batch=getattr(args, "health_batch", False),
         upgrade_batch=getattr(args, "upgrade_batch", False),
         run_batch=getattr(args, "run_batch", False),
@@ -263,6 +267,7 @@ def _parser() -> argparse.ArgumentParser:
     transaction = saves_write.add_mutually_exclusive_group()
     transaction.add_argument("--health-operation")
     transaction.add_argument("--health-batch-operation")
+    transaction.add_argument("--refill-operation")
     transaction.add_argument("--upgrade-operation")
     transaction.add_argument("--run-operation")
     saves_write.set_defaults(handler=_save_changes)
@@ -281,6 +286,13 @@ def _parser() -> argparse.ArgumentParser:
     health_prepare.add_argument("operation")
     health_prepare.add_argument("--intent", action="store_true")
     health_prepare.set_defaults(handler=_prepare_health)
+
+    refill_prepare = commands.add_parser("refill-prepare")
+    refill_prepare.add_argument("save_id")
+    refill_prepare.add_argument("fingerprint")
+    refill_prepare.add_argument("payload")
+    refill_prepare.add_argument("operation")
+    refill_prepare.set_defaults(handler=_prepare_health, refill_batch=True, intent=True)
 
     health_batch_prepare = commands.add_parser("health-batch-prepare")
     health_batch_prepare.add_argument("save_id")

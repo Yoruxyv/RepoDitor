@@ -139,12 +139,12 @@ launching a writer, including when the writer dies before executing Python code.
 Reservation and writing share the existing 30-second request deadline.
 
 The additional `synthetic-health-ui` feature enables multi-player Health editing and durable
-upgrade-batch and Run Save only with that test permission configuration and runtime root
+upgrade-batch, Run Save and exact-instance Items refill only with that test permission configuration and runtime root
 restriction. It reuses Players/Upgrades, numeric validation, pending review and the
 Save/Revert bar. Health drafts across existing players form one atomic operation,
 as do upgrade drafts. Each Health draft can be reverted individually or all together;
 player selection and section changes preserve drafts. Mixed
-Health/Upgrades/Run pending sets block Save; revert other groups before saving.
+Health/Upgrades/Run/Items pending sets block Save; revert other groups before saving.
 Health and upgrade intents each fit 2 KiB inside the existing 4 KiB receipt; excessive batches are
 rejected intact. Run admits up to five distinct fields (Level, Currency, optional
 Lives/Total Haul, and resume location) in a 512-byte intent. Numeric writes use
@@ -157,9 +157,20 @@ domains and ordinary artifacts stay read-only.
 Python persists the operation ID and exact previous/requested values in the reservation,
 so reload/restart discovers unresolved intent before another save is admitted.
 Uncertain outcomes require explicit reconciliation. An applied result refreshes
-the canonical session, players, upgrade and Run values before acknowledgement; an unchanged result
+the canonical session, players, upgrade, Run and affected Items state before acknowledgement; an unchanged result
 retains the edit until an explicit new Save or Revert. Conflicting evidence blocks
 writes. No production write authority is provided.
+
+Synthetic Items uses the existing grouping, search, filters, individual Recharge
+and Recharge All Tools controls. A refill-only intent binds each full save key and
+its exact prior stored charge; it fits 2 KiB and retains the 4 KiB receipt ceiling.
+Python rechecks installed metadata at reservation and writing. Only existing,
+positively rechargeable instances with stored charge are admitted. Refill removes
+that exact `itemStatBattery` leaf; it never writes a guessed numeric charge or
+changes inventory, battery upgrades or another instance sharing the same name.
+Schema-7 receipts restore the full intent after restart. Canonical Items from the
+same save snapshot must confirm Full before drafts are acknowledged, and older
+pending reads cannot overwrite that snapshot. Missing icons do not block this flow.
 
 To validate this internal boundary, build the host with
 `tauri build --features synthetic-health-recovery --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.

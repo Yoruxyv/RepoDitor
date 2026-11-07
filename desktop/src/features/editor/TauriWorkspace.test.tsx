@@ -24,6 +24,7 @@ vi.mock("@/app/tauriHealthApi", async (importOriginal) => ({
     recover: vi.fn(),
     writeUpgrades: vi.fn(),
     writeRun: vi.fn(),
+    writeRefills: vi.fn(),
   },
 }));
 vi.mock("@/app/tauriReadApi", () => ({
@@ -66,6 +67,108 @@ describe("native upgrade drafts", () => {
       reason: "save_stale",
       canonical: null,
     }));
+  });
+
+  it("reviews and reverts an exact refill, then refreshes Full only after durable canonical confirmation", async () => {
+    const user = userEvent.setup();
+    const updated = structuredClone(advanced);
+    Object.assign(updated.items[0]!, {
+      storedCharge: null,
+      chargeState: "default_full",
+      canRefillToFull: false,
+    });
+    const canonical = {
+      opened: openResult({ ...session, fingerprint: "b".repeat(64) }).data,
+      players,
+      upgrades,
+      run: runState,
+      advanced: updated,
+    };
+    vi.mocked(tauriHealthApi.writeRefills).mockImplementation(async (request) => ({
+      operationId: request.operationId,
+      status: "applied",
+      fingerprint: "b".repeat(64),
+      backupAvailable: true,
+      reason: null,
+      canonical,
+    }));
+    vi.mocked(tauriHealthApi.recover).mockImplementation(async (_save, operationId) => ({
+      operationId,
+      status: "applied",
+      fingerprint: "b".repeat(64),
+      backupAvailable: true,
+      reason: null,
+      canonical,
+    }));
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }),
+    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByTestId("workspace-review").textContent).toContain(
+      "Melee Inflatable Hammer · Charge",
+    );
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(screen.getByRole("button", { name: "Revert recharge" }));
+    expect(tauriHealthApi.writeRefills).not.toHaveBeenCalled();
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    await user.click(screen.getByRole("button", { name: "Recharge All Tools" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
+    );
+    expect(tauriHealthApi.writeRefills).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        saveId: session.id,
+        fingerprint: session.fingerprint,
+        refillToFull: [{ saveKey: advanced.items[0]!.saveKey, before: 99 }],
+      }),
+    );
+    expect(screen.getByTestId(`item-instance-${advanced.items[0]!.saveKey}`).textContent).toContain(
+      "Full",
+    );
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    expect(vi.mocked(tauriHealthApi.recover).mock.calls.map((call) => call[2])).toEqual([
+      false,
+      true,
+    ]);
+  });
+  it("keeps ordinary Items read-only and blocks a mixed refill/Run Save", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderWithPreferences(
+      <TauriWorkspace session={session} onClose={vi.fn()} />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await user.click(await screen.findByRole("button", { name: "Recharge All Tools" }));
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Currency" }), {
+      target: { value: "4" },
+    });
+    expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(true);
+    expect(screen.getByText(/Revert Health, Upgrades, Run or Items drafts/)).toBeTruthy();
+    expect(tauriHealthApi.writeRefills).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+    unmount();
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: false,
+      state: "disabled",
+      pending: null,
+      canonical: null,
+    });
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    await screen.findByTestId(`item-instance-${advanced.items[0]!.saveKey}`);
+    expect(screen.queryByRole("button", { name: /Recharge|Revert|Save Changes/ })).toBeNull();
   });
 
   it("explains why unsupported precision stays unavailable without exposing an editor", async () => {

@@ -1,6 +1,11 @@
 /** Shared synthetic domain drafts; durable identity and reconciliation remain Python-owned. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PlayerDto, PlayerUpgradeDto, SaveSession } from "@electron/contracts";
+import type {
+  AdvancedItemDto,
+  PlayerDto,
+  PlayerUpgradeDto,
+  SaveSession,
+} from "@electron/contracts";
 import {
   tauriHealthApi,
   type HealthCanonical,
@@ -9,12 +14,15 @@ import {
   upgradeIntentFits,
   runIntentFits,
   healthIntentFits,
+  refillIntentFits,
 } from "@/app/tauriHealthApi";
 import type {
   PlayerHealthEdit,
+  AdvancedRefillEdit,
   RunStatEdit,
   UpgradeValueEdit,
 } from "@/features/pending-changes/pendingEdits";
+import { refillEdit } from "@/features/items/useItems";
 
 export type HealthPhase =
   | "checking"
@@ -31,6 +39,7 @@ interface State {
   enabled: boolean;
   phase: HealthPhase;
   healthEdits: PlayerHealthEdit[];
+  refillEdits: AdvancedRefillEdit[];
   operationId: string | null;
   pendingOperationId: string | null;
   restoredPlayerId: string | null;
@@ -46,6 +55,7 @@ const INITIAL: State = {
   enabled: false,
   phase: "checking",
   healthEdits: [],
+  refillEdits: [],
   operationId: null,
   pendingOperationId: null,
   restoredPlayerId: null,
@@ -70,14 +80,26 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
   const { intent, operationId } = operation;
   const hasDraft =
     current.healthEdits.length > 0 ||
+    current.refillEdits.length > 0 ||
     current.upgradeEdits.length > 0 ||
     current.runEdits.length > 0;
   let healthEdits = current.healthEdits;
+  let refillEdits = current.refillEdits;
   let upgradeEdits = current.upgradeEdits;
   let runEdits = current.runEdits;
   let restoredPlayerId: string | null = null;
   if (!hasDraft && intent) {
-    if ("upgrades" in intent) {
+    if ("refillToFull" in intent) {
+      refillEdits = intent.refillToFull.map((edit) => ({
+        feature: "advanced",
+        entity: edit.saveKey,
+        field: "refillToFull",
+        after: true,
+        before: edit.before,
+        label: "Stored charge",
+        subject: edit.saveKey,
+      }));
+    } else if ("upgrades" in intent) {
       upgradeEdits = intent.upgrades.map((edit) => ({
         feature: "upgrades",
         entity: edit.playerId,
@@ -124,6 +146,7 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
     phase: "recovery",
     backupVerified: false,
     healthEdits,
+    refillEdits,
     operationId,
     upgradeEdits,
     runEdits,
@@ -133,16 +156,32 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
   };
 }
 
-function validDraft(state: State, players: PlayerDto[]): boolean {
+function validDraft(
+  state: State,
+  players: PlayerDto[],
+  api: Partial<typeof tauriHealthApi>,
+): boolean {
   if (
     Number(state.healthEdits.length > 0) +
+      Number(state.refillEdits.length > 0) +
       Number(state.upgradeEdits.length > 0) +
       Number(state.runEdits.length > 0) !==
     1
   )
     return false;
+  if (state.refillEdits.length > 0)
+    return (
+      !!api.writeRefills &&
+      !!state.upgradeSession &&
+      refillIntentFits(refillIntent(state.refillEdits)) &&
+      (!state.canonical?.advanced ||
+        state.refillEdits.every((edit) => {
+          const item = refillValue(state.canonical!, edit);
+          return item?.canRefillToFull && item.storedCharge === edit.before;
+        }))
+    );
   if (state.runEdits.length > 0)
-    return !!state.upgradeSession && runIntentFits(runIntent(state.runEdits));
+    return !!api.writeRun && !!state.upgradeSession && runIntentFits(runIntent(state.runEdits));
   if (state.healthEdits.length > 0) {
     return (
       !!state.upgradeSession &&
@@ -154,6 +193,7 @@ function validDraft(state: State, players: PlayerDto[]): boolean {
     );
   }
   return (
+    !!api.writeUpgrades &&
     !!state.upgradeSession &&
     upgradeIntentFits(
       state.upgradeEdits.map((edit) => ({
@@ -168,6 +208,34 @@ function validDraft(state: State, players: PlayerDto[]): boolean {
 
 function runIntent(edits: RunStatEdit[]) {
   return edits.map((edit) => ({ field: edit.field, before: edit.before, value: edit.after }));
+}
+function refillIntent(edits: AdvancedRefillEdit[]) {
+  return edits.map((edit) => ({ saveKey: edit.entity, before: edit.before }));
+}
+function refillValue(projection: HealthCanonical, edit: AdvancedRefillEdit) {
+  return projection.advanced?.items.find((item) => item.saveKey === edit.entity);
+}
+function refillApplied(projection: HealthCanonical, edit: AdvancedRefillEdit) {
+  const item = refillValue(projection, edit);
+  return (
+    !!item &&
+    item.storedCharge === null &&
+    item.chargeState === "default_full" &&
+    item.rechargeCapability === "rechargeable" &&
+    !item.canRefillToFull
+  );
+}
+function rebaseRefills(
+  edits: AdvancedRefillEdit[],
+  projection: HealthCanonical,
+): AdvancedRefillEdit[] | null {
+  if (!projection.advanced) return edits;
+  if (edits.some((edit) => !refillValue(projection, edit))) return null;
+  return edits.map((edit) => ({
+    ...edit,
+    before: refillValue(projection, edit)!.storedCharge ?? edit.before,
+    subject: refillValue(projection, edit)!.name,
+  }));
 }
 function healthIntent(edits: PlayerHealthEdit[]) {
   return edits.map((edit) => ({ playerId: edit.entity, before: edit.before, value: edit.after }));
@@ -226,7 +294,9 @@ export function useTauriHealth(
   players: PlayerDto[],
   onCanonical: (projection: HealthCanonical) => void,
   api: Pick<typeof tauriHealthApi, "state" | "writeHealthBatch" | "recover"> &
-    Partial<Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun">> = tauriHealthApi,
+    Partial<
+      Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun" | "writeRefills">
+    > = tauriHealthApi,
 ) {
   const [state, setState] = useState<State>(INITIAL);
   const [invalid, setInvalid] = useState(false);
@@ -267,9 +337,10 @@ export function useTauriHealth(
         if (result.state !== "idle" || !result.canonical)
           return { ...current, enabled: true, phase: "conflict", backupVerified: false };
         const healthEdits = rebaseHealth(current.healthEdits, result.canonical);
+        const refillEdits = rebaseRefills(current.refillEdits, result.canonical);
         const upgradeEdits = rebaseUpgrades(current.upgradeEdits, result.canonical);
         const runEdits = rebaseRun(current.runEdits, result.canonical);
-        if (!healthEdits || !upgradeEdits || !runEdits)
+        if (!healthEdits || !refillEdits || !upgradeEdits || !runEdits)
           return { ...current, phase: "conflict", backupVerified: false };
         return {
           ...current,
@@ -282,6 +353,7 @@ export function useTauriHealth(
           upgradeEdits,
           runEdits,
           healthEdits,
+          refillEdits,
           reason: null,
           resetVersion: current.resetVersion + 1,
         };
@@ -327,6 +399,7 @@ export function useTauriHealth(
     )
       return;
     if (
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       health === player.health &&
       state.healthEdits.length === 1 &&
@@ -376,6 +449,7 @@ export function useTauriHealth(
     if (before === undefined) return;
     if (
       value === before &&
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 0 &&
@@ -414,6 +488,7 @@ export function useTauriHealth(
   function revertUpgrade(playerId: string, key: string) {
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 0 &&
@@ -439,6 +514,7 @@ export function useTauriHealth(
   function revertUpgrades() {
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 0 &&
@@ -465,6 +541,7 @@ export function useTauriHealth(
   function revertHealth(playerId: string) {
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 1 &&
@@ -488,6 +565,7 @@ export function useTauriHealth(
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
       edit.before === edit.after &&
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 0 &&
@@ -512,6 +590,7 @@ export function useTauriHealth(
   function revertRun(field: string) {
     if (inFlight.current || LOCKED.includes(state.phase)) return;
     if (
+      state.refillEdits.length === 0 &&
       state.phase === "unchanged" &&
       state.operationId &&
       state.healthEdits.length === 0 &&
@@ -535,6 +614,41 @@ export function useTauriHealth(
     );
   }, []);
 
+  function stageRefills(items: readonly AdvancedItemDto[]) {
+    if (inFlight.current || LOCKED.includes(state.phase)) return;
+    const edits = items.map(refillEdit).filter((edit): edit is AdvancedRefillEdit => edit !== null);
+    if (edits.length === 0) return;
+    const targets = new Set(edits.map((edit) => edit.entity));
+    setState((current) => ({
+      ...current,
+      refillEdits: [...current.refillEdits.filter((edit) => !targets.has(edit.entity)), ...edits],
+      phase: current.phase === "unchanged" ? "unchanged" : "editing",
+      pendingOperationId: null,
+      backupVerified: false,
+      reason: null,
+    }));
+  }
+  function revertRefill(saveKey: string) {
+    if (inFlight.current || LOCKED.includes(state.phase)) return;
+    if (
+      state.phase === "unchanged" &&
+      state.operationId &&
+      state.refillEdits.length === 1 &&
+      state.refillEdits[0]?.entity === saveKey &&
+      state.healthEdits.length === 0 &&
+      state.upgradeEdits.length === 0 &&
+      state.runEdits.length === 0
+    ) {
+      void revert();
+      return;
+    }
+    setState((current) => ({
+      ...current,
+      refillEdits: current.refillEdits.filter((edit) => edit.entity !== saveKey),
+      pendingOperationId: null,
+    }));
+  }
+
   async function reconcile(
     operationId: string,
     acknowledge: boolean,
@@ -556,16 +670,19 @@ export function useTauriHealth(
       return null;
     }
     const healthEdits = rebaseHealth(state.healthEdits, result.canonical);
+    const refillEdits = rebaseRefills(state.refillEdits, result.canonical);
     const upgraded = rebaseUpgrades(state.upgradeEdits, result.canonical);
     const runEdits = rebaseRun(state.runEdits, result.canonical);
     const own = ownRequest;
     if (
       !healthEdits ||
+      !refillEdits ||
       !upgraded ||
       !runEdits ||
       (result.status === "applied" &&
         own &&
-        (state.healthEdits.some((edit) => healthValue(result.canonical!, edit) !== edit.after) ||
+        (state.refillEdits.some((edit) => !refillApplied(result.canonical!, edit)) ||
+          state.healthEdits.some((edit) => healthValue(result.canonical!, edit) !== edit.after) ||
           state.upgradeEdits.some((edit) => upgradeValue(result.canonical!, edit) !== edit.after) ||
           state.runEdits.some((edit) => runValue(result.canonical!, edit) !== edit.after)))
     ) {
@@ -580,6 +697,7 @@ export function useTauriHealth(
       upgradeEdits: result.status !== "applied" || !own ? upgraded : current.upgradeEdits,
       runEdits: result.status !== "applied" || !own ? runEdits : current.runEdits,
       healthEdits: result.status !== "applied" || !own ? healthEdits : current.healthEdits,
+      refillEdits: result.status !== "applied" || !own ? refillEdits : current.refillEdits,
       resetVersion: current.resetVersion + 1,
     }));
     return result;
@@ -594,6 +712,7 @@ export function useTauriHealth(
       setState((current) => {
         const own =
           (current.healthEdits.length === 0 &&
+            current.refillEdits.length === 0 &&
             current.upgradeEdits.length === 0 &&
             current.runEdits.length === 0) ||
           current.pendingOperationId === operationId;
@@ -601,6 +720,7 @@ export function useTauriHealth(
           ...current,
           phase: own ? "saved" : "unchanged",
           healthEdits: own ? [] : current.healthEdits,
+          refillEdits: own ? [] : current.refillEdits,
           upgradeEdits: own ? [] : current.upgradeEdits,
           runEdits: own ? [] : current.runEdits,
           operationId: null,
@@ -638,7 +758,7 @@ export function useTauriHealth(
       Object.values(invalidUpgrades).some(Boolean) ||
       Object.values(invalidRun).some(Boolean) ||
       LOCKED.includes(state.phase) ||
-      !validDraft(state, players)
+      !validDraft(state, players, api)
     )
       return;
     const health = healthIntent(state.healthEdits);
@@ -649,7 +769,7 @@ export function useTauriHealth(
       value: edit.after,
     }));
     const run = runIntent(state.runEdits);
-    if (health.length === 0 && (run.length > 0 ? !api.writeRun : !api.writeUpgrades)) return;
+    const refillToFull = refillIntent(state.refillEdits);
     inFlight.current = true;
     try {
       if (state.phase === "unchanged" && state.operationId) {
@@ -670,7 +790,15 @@ export function useTauriHealth(
         backupVerified: false,
       }));
       let result: HealthTransaction;
-      if (health.length > 0) {
+      if (refillToFull.length > 0) {
+        result = await api.writeRefills!({
+          saveId: session.id,
+          fingerprint: base.current.fingerprint,
+          operationId,
+          session: state.upgradeSession!,
+          refillToFull,
+        });
+      } else if (health.length > 0) {
         result = await api.writeHealthBatch({
           saveId: session.id,
           fingerprint: base.current.fingerprint,
@@ -742,6 +870,7 @@ export function useTauriHealth(
         ...current,
         phase: "editing",
         healthEdits: [],
+        refillEdits: [],
         upgradeEdits: [],
         runEdits: [],
         operationId: null,
@@ -788,6 +917,9 @@ export function useTauriHealth(
     revertUpgrade,
     revertUpgrades,
     revertHealth,
+    stageRefills,
+    revertRefill,
+    refillSaveAvailable: state.refillEdits.length === 0 || validDraft(state, players, api),
     setUpgradeInvalid,
     editRun,
     revertRun,

@@ -6,7 +6,7 @@ import {
   type HealthState,
   type HealthTransaction,
 } from "@/app/tauriHealthApi";
-import { players, runState, session, upgrades } from "@/test/repoditorApiFixture";
+import { advanced, players, runState, session, upgrades } from "@/test/repoditorApiFixture";
 import { useTauriHealth } from "./useTauriHealth";
 
 function canonical(health = 80, fingerprint = session.fingerprint): HealthCanonical {
@@ -46,6 +46,9 @@ function transaction(
 }
 function setup() {
   const api = {
+    writeRefills: vi
+      .fn<typeof tauriHealthApi.writeRefills>()
+      .mockImplementation(async (request) => transaction(request.operationId, "applied")),
     writeRun: vi
       .fn<typeof tauriHealthApi.writeRun>()
       .mockImplementation(async (request) => transaction(request.operationId, "applied")),
@@ -74,6 +77,120 @@ function stage(subject: ReturnType<typeof setup>, health = 17) {
 }
 
 describe("synthetic health ownership", () => {
+  function refillProjection(): HealthCanonical {
+    const value = structuredClone(advanced);
+    Object.assign(value.items[0]!, {
+      storedCharge: null,
+      chargeState: "default_full",
+      canRefillToFull: false,
+    });
+    return { ...canonical(80, "b".repeat(64)), advanced: value };
+  }
+  it("acknowledges a refill only after its exact canonical leaf is absent and Full is verified", async () => {
+    const subject = setup();
+    await ready(subject);
+    subject.api.recover.mockImplementation(async (_save, id) =>
+      transaction(id, "applied", refillProjection()),
+    );
+    act(() => subject.result.current.stageRefills(advanced.items));
+    expect(subject.result.current.refillEdits).toHaveLength(1);
+    await act(() => subject.result.current.save());
+    expect(subject.api.writeRefills).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refillToFull: [{ saveKey: advanced.items[0]!.saveKey, before: 99 }],
+        session: "synthetic-session",
+      }),
+    );
+    expect(subject.api.recover.mock.calls.map((call) => call[2])).toEqual([false, true]);
+    expect(subject.result.current.refillEdits).toEqual([]);
+    expect(subject.result.current.phase).toBe("saved");
+  });
+  it.each(["missing", "unknown", "stored"])(
+    "keeps a refill pending when canonical items are %s",
+    async (mode) => {
+      const subject = setup();
+      await ready(subject);
+      const projection = refillProjection();
+      if (mode === "missing") projection.advanced = null;
+      else if (mode === "unknown") projection.advanced!.items[0]!.rechargeCapability = "unknown";
+      else {
+        projection.advanced!.items[0]!.storedCharge = 99;
+        projection.advanced!.items[0]!.chargeState = "stored";
+      }
+      subject.api.recover.mockImplementation(async (_save, id) =>
+        transaction(id, "applied", projection),
+      );
+      act(() => subject.result.current.stageRefills(advanced.items));
+      await act(() => subject.result.current.save());
+      expect(subject.result.current.phase).toBe("conflict");
+      expect(subject.result.current.refillEdits).toHaveLength(1);
+      expect(subject.api.recover).toHaveBeenCalledExactlyOnceWith(
+        session.id,
+        expect.any(String),
+        false,
+      );
+    },
+  );
+  it("restores refill identity after remount and never replays it on discovery or unchanged reconciliation", async () => {
+    const subject = setup();
+    await ready(subject);
+    subject.api.state.mockResolvedValue({
+      ...idle(),
+      state: "pending",
+      canonical: null,
+      pending: {
+        operationId: "a".repeat(32),
+        fingerprint: session.fingerprint,
+        intent: { refillToFull: [{ saveKey: advanced.items[0]!.saveKey, before: 99 }] },
+      },
+    });
+    subject.unmount();
+    const restored = renderHook(() =>
+      useTauriHealth(session, players, subject.accept, subject.api),
+    );
+    await waitFor(() => expect(restored.result.current.phase).toBe("recovery"));
+    expect(restored.result.current.refillEdits[0]?.entity).toBe(advanced.items[0]!.saveKey);
+    expect(restored.result.current.locked).toBe(true);
+    subject.api.recover.mockImplementation(async (_save, id) =>
+      transaction(id, "unchanged", { ...canonical(), advanced }),
+    );
+    await act(() => restored.result.current.recover());
+    expect(restored.result.current.phase).toBe("unchanged");
+    expect(restored.result.current.refillEdits).toHaveLength(1);
+    await act(() => restored.result.current.revertRefill(advanced.items[0]!.saveKey));
+    expect(restored.result.current.refillEdits).toEqual([]);
+    expect(subject.api.writeRefills).not.toHaveBeenCalled();
+    expect(subject.api.recover).toHaveBeenLastCalledWith(session.id, "a".repeat(32), true);
+  });
+  it.each(["health", "upgrades", "run"] as const)(
+    "blocks refill/%s mixed Save and retains refills when the other group is reverted",
+    async (domain) => {
+      const subject = setup();
+      await ready(subject);
+      act(() => {
+        subject.result.current.stageRefills(advanced.items);
+        if (domain === "health") subject.result.current.edit(players[0]!, 17);
+        else if (domain === "upgrades")
+          subject.result.current.editUpgrade(
+            upgrades.find((u) => u.key === "playerUpgradeStrength")!,
+            players[0]!,
+            3,
+          );
+        else subject.result.current.editRun(runEdit);
+      });
+      await act(() => subject.result.current.save());
+      expect(subject.api.writeRefills).not.toHaveBeenCalled();
+      expect(subject.api.writeHealthBatch).not.toHaveBeenCalled();
+      expect(subject.api.writeUpgrades).not.toHaveBeenCalled();
+      expect(subject.api.writeRun).not.toHaveBeenCalled();
+      act(() => {
+        if (domain === "health") subject.result.current.revertHealth("111");
+        else if (domain === "upgrades") subject.result.current.revertUpgrades();
+        else subject.result.current.revertRun("currency");
+      });
+      expect(subject.result.current.refillEdits).toHaveLength(1);
+    },
+  );
   const runEdit = {
     feature: "run",
     entity: "run",

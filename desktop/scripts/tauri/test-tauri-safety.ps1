@@ -91,7 +91,7 @@ try {
         '--basetemp', (Join-Path $output 'python-fixtures'), '-o', "cache_dir=$output/pytest-cache", '--junitxml', (Join-Path $output 'python.xml'))
     [xml]$python = Get-Content -LiteralPath (Join-Path $output 'python.xml') -Raw
     if ($python.SelectNodes('//testcase/skipped').Count -ne 0) { throw 'Mandatory Windows save-integrity tests were skipped.' }
-    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions', 'test_health_batches')) {
+    foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions', 'test_health_batches', 'test_refill_transactions')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
@@ -120,7 +120,7 @@ try {
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'matrix'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'native.json'
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', 'e2e/tauri/tauri-items-refill.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)
@@ -164,7 +164,16 @@ try {
         'final running game check preserves the entire Health batch and recovery evidence',
         'final unknown game check preserves the entire Health batch and recovery evidence',
         'final query_error game check preserves the entire Health batch and recovery evidence',
-        'ordinary packaged hosts deny Health batches and retain read-only Players'
+        'ordinary packaged hosts deny Health batches and retain read-only Players',
+        'synthetic refill Save removes only the selected charge leaf and preserves same-name instances',
+        'refill writer termination at before_replace restores one durable exact-instance intent',
+        'refill writer termination at after_replace restores one durable exact-instance intent',
+        'refill survives response loss and interrupted reconciliation across three hosts',
+        'native refills reject ineligible unknown duplicate stale oversized and forged requests',
+        'refill backup_error keeps original bytes and recoverable intent',
+        'refill staging_error keeps original bytes and recoverable intent',
+        'final unknown game state blocks refill replacement with an exact backup',
+        'ordinary packaged hosts deny item refill authority'
     )) {
         if ($case -notin $titles) { throw "Required native case was not collected: $case" }
     }

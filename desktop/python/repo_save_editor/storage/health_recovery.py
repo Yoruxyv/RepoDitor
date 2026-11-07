@@ -29,8 +29,10 @@ else:
 
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+_ITEM_KEY = re.compile(r"Item .+/[0-9]+\Z")
 _RECEIPT_LIMIT = 4096
 HEALTH_INTENT_LIMIT = 2048
+REFILL_INTENT_LIMIT = 2048
 UPGRADE_INTENT_LIMIT = 2048
 RUN_INTENT_LIMIT = 512
 
@@ -302,6 +304,7 @@ class HealthTransaction:
             raise RecoveryError("invalid_request")
         if intent is not None and not (
             valid_intent(intent)
+            or valid_refill_intent(intent)
             or valid_health_batch_intent(intent)
             or valid_upgrade_intent(intent)
             or valid_run_intent(intent)
@@ -342,10 +345,10 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3, 4, 5, 6}
+                or value.version not in {1, 2, 3, 4, 5, 6, 7}
                 or (value.version == 2 and not valid_intent(value.intent))
                 or (
-                    value.version in {4, 5, 6}
+                    value.version in {4, 5, 6, 7}
                     and (
                         not (
                             valid_upgrade_intent(value.intent)
@@ -353,6 +356,8 @@ class HealthTransaction:
                             else valid_run_intent(value.intent)
                             if value.version == 5
                             else valid_health_batch_intent(value.intent)
+                            if value.version == 6
+                            else valid_refill_intent(value.intent)
                         )
                         or (
                             value.namespace is not None and _HASH.fullmatch(value.namespace) is None
@@ -450,7 +455,9 @@ class HealthTransaction:
                 os.getpid(),
                 self.process_started,
                 version=(
-                    6
+                    7
+                    if valid_refill_intent(self.intent)
+                    else 6
                     if valid_health_batch_intent(self.intent)
                     else 5
                     if valid_run_intent(self.intent)
@@ -615,6 +622,8 @@ class HealthTransaction:
             return self._result("rejected", _hash(self.path, directory=self.directory), False)
         receipt = self._read(self.pending if active else self.archive)
         self._require_namespace(receipt)
+        if receipt.version == 7:
+            self.intent = receipt.intent
         if (
             active
             and not (
@@ -657,6 +666,33 @@ class HealthTransaction:
             "fingerprint": fingerprint,
             "backupAvailable": backup,
         }
+
+
+def valid_refill_intent(value: object) -> bool:
+    """Bound fixed refill actions; actual membership and eligibility remain domain checks."""
+    if not isinstance(value, dict) or set(value) != {"refillToFull"}:
+        return False
+    edits = value["refillToFull"]
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 512:
+        return False
+    seen = set()
+    for edit in edits:
+        if not isinstance(edit, dict) or set(edit) != {"saveKey", "before"}:
+            return False
+        key = edit["saveKey"]
+        if not isinstance(key, str) or "\0" in key or key in seen:
+            return False
+        if (
+            _ITEM_KEY.fullmatch(key) is None
+            or type(edit["before"]) is not int
+            or not -9_007_199_254_740_991 <= edit["before"] <= 9_007_199_254_740_991
+        ):
+            return False
+        seen.add(key)
+    return (
+        len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+        <= REFILL_INTENT_LIMIT
+    )
 
 
 def valid_health_batch_intent(value: object) -> bool:

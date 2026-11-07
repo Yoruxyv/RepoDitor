@@ -2,7 +2,7 @@
 use crate::{
     backend::{self, Operation},
     error::{BackendError, Outcome},
-    projections::{players, run, saves, upgrades},
+    projections::{items, players, run, saves, upgrades},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -28,6 +28,7 @@ pub struct Canonical {
     players: Vec<players::Player>,
     upgrades: Vec<upgrades::Upgrade>,
     run: Option<run::RunState>,
+    advanced: Option<items::Advanced>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -80,6 +81,35 @@ pub enum Intent {
     HealthBatch(HealthBatchIntent),
     Upgrades(UpgradeIntent),
     Run(RunIntent),
+    Refill(RefillIntent),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RefillEdit {
+    save_key: String,
+    before: i64,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RefillIntent {
+    refill_to_full: Vec<RefillEdit>,
+}
+fn valid_refill_intent(intent: &RefillIntent) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    !intent.refill_to_full.is_empty()
+        && intent.refill_to_full.len() <= 512
+        && intent.refill_to_full.iter().all(|edit| {
+            edit.save_key.rsplit_once('/').is_some_and(|(name, id)| {
+                name.starts_with("Item ")
+                    && name.len() > 5
+                    && !name.contains(['\n', '\0'])
+                    && !id.is_empty()
+                    && id.bytes().all(|b| b.is_ascii_digit())
+            }) && (-9_007_199_254_740_991..=9_007_199_254_740_991).contains(&edit.before)
+                && seen.insert(&edit.save_key)
+        })
+        && serde_json::to_vec(intent).is_ok_and(|bytes| bytes.len() <= 2048)
 }
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -204,6 +234,11 @@ fn canonical(
                 .map_err(|_| BackendError::Invalid)?,
         )
         .ok(),
+        advanced: items::parse(
+            &serde_json::to_vec(&json!({"ok":true,"advanced":raw["advanced"]}))
+                .map_err(|_| BackendError::Invalid)?,
+        )
+        .ok(),
     })
 }
 
@@ -230,6 +265,7 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
                     Intent::HealthBatch(i) => !valid_health_batch_intent(i),
                     Intent::Upgrades(i) => !valid_upgrade_intent(i),
                     Intent::Run(i) => !valid_run_intent(i),
+                    Intent::Refill(i) => !valid_refill_intent(i),
                 })
             {
                 return Err(BackendError::Invalid);
@@ -452,11 +488,16 @@ pub async fn write_run(app: tauri::AppHandle, raw: Value) -> Transaction {
     write_batch(app, raw, Batch::Run).await
 }
 
+pub async fn write_refills(app: tauri::AppHandle, raw: Value) -> Transaction {
+    write_batch(app, raw, Batch::Refill).await
+}
+
 #[derive(Clone, Copy)]
 enum Batch {
     Health,
     Upgrades,
     Run,
+    Refill,
 }
 
 async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transaction {
@@ -467,8 +508,11 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
         Batch::Health => "health",
         Batch::Upgrades => "upgrades",
         Batch::Run => "run",
+        Batch::Refill => "refillToFull",
     };
     let valid_intent = match batch {
+        Batch::Refill => serde_json::from_value::<RefillIntent>(json!({"refillToFull":raw[field]}))
+            .is_ok_and(|i| valid_refill_intent(&i)),
         Batch::Health => serde_json::from_value::<HealthBatchIntent>(json!({"health":raw[field]}))
             .is_ok_and(|i| valid_health_batch_intent(&i)),
         Batch::Run => serde_json::from_value::<RunIntent>(json!({"run":raw[field]}))
@@ -496,6 +540,13 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
     let prepared = dispatch(
         app.clone(),
         match batch {
+            Batch::Refill => Operation::TestRefillPrepare(
+                save.into(),
+                fingerprint.into(),
+                payload.clone(),
+                operation.into(),
+                started,
+            ),
             Batch::Health => Operation::TestHealthBatchPrepare(
                 save.into(),
                 fingerprint.into(),
@@ -532,6 +583,13 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
     dispatch(
         app,
         match batch {
+            Batch::Refill => Operation::TestRefill(
+                save.into(),
+                fingerprint.into(),
+                payload,
+                operation.into(),
+                started,
+            ),
             Batch::Health => Operation::TestHealthBatch(
                 save.into(),
                 fingerprint.into(),

@@ -15,6 +15,7 @@ export default defineConfig({
     "tauri-upgrade-drafts.spec.ts",
     "tauri-run-editing.spec.ts",
     "tauri-health-batches.spec.ts",
+    "tauri-items-refill.spec.ts",
   ],
   outputDir: process.env.REPODITOR_NATIVE_OUTPUT,
   timeout: 75_000,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
 from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
@@ -53,6 +54,29 @@ def get_advanced_save(
     """Return evidence-backed advanced data without exposing the decrypted save."""
     try:
         _, data, _ = load_discovered_save(save_id, root)
+    except DesktopSaveError as exc:
+        return _failure(exc.code, exc.message)
+    return serialize_advanced_save(
+        data,
+        capability_loader=capability_loader,
+        metadata_loader=metadata_loader,
+        metadata_evidence_loader=metadata_evidence_loader,
+        icon_availability_loader=icon_availability_loader,
+    )
+
+
+def serialize_advanced_save(
+    data: SaveData,
+    *,
+    capability_loader: RechargeCapabilityLoader | None = None,
+    metadata_loader: ItemMetadataLoader | None = None,
+    metadata_evidence_loader: ItemMetadataEvidenceLoader = (
+        discover_installed_item_metadata_with_evidence
+    ),
+    icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
+) -> dict[str, object]:
+    """Project one already loaded snapshot with authoritative installed metadata."""
+    try:
         item_type_names = discover_item_type_names(data)
         upgrade_keys = tuple(upgrade.key for upgrade in discover_player_upgrades(data))
         upgrade_visual_keys = match_upgrade_items(upgrade_keys, item_type_names)

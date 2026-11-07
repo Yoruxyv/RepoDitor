@@ -1,7 +1,7 @@
 /** Canonical RepoDitor-owned translation key catalog and English fallback text. */
 export const en = {
   "run.mixedDrafts":
-    "Save one group at a time. Revert Health, Upgrades or Run drafts until only one group remains.",
+    "Save one group at a time. Revert Health, Upgrades, Run or Items drafts until only one group remains.",
   "run.saveUnavailable":
     "This save session cannot admit Run writes. Reopen the save before retrying.",
   "run.unsupportedValues":
@@ -368,7 +368,9 @@ export const en = {
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
   "health.testOnly":
-    "Synthetic test: health, upgrade and Run saves. Production builds remain read-only.",
+    "Synthetic test: Health, Upgrades, Run and item refills. Production builds remain read-only.",
+  "items.saveUnavailable":
+    "This refill batch cannot be saved safely. Recheck the save or revert some pending refills.",
   "health.saveUnavailable":
     "This Health batch cannot be saved safely. Recheck the save or revert some pending Health changes.",
   "health.checking": "Checking unfinished save operations…",

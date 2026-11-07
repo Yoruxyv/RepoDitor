@@ -10,7 +10,7 @@ import { TauriHealthControls } from "@/features/players/TauriHealthControls";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import { TauriUpgradesView } from "@/features/upgrades/TauriUpgradesView";
 import { useUpgrades } from "@/features/upgrades/useUpgrades";
-import { ItemsView } from "@/features/items/ItemsView";
+import { TauriItemsView } from "@/features/items/TauriItemsView";
 import { useItems } from "@/features/items/useItems";
 import { TauriRunView } from "@/features/run/TauriRunView";
 import { useRunState } from "@/features/run/useRunState";
@@ -25,8 +25,10 @@ type Section = (typeof SECTIONS)[number];
 function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
   const upgrades = health.upgradeEdits.length > 0;
   const run = health.runEdits.length > 0;
-  if (Number(health.healthEdits.length > 0) + Number(upgrades) + Number(run) > 1)
+  const refills = health.refillEdits.length > 0;
+  if (Number(health.healthEdits.length > 0) + Number(upgrades) + Number(run) + Number(refills) > 1)
     return "run.mixedDrafts";
+  if (refills && !health.refillSaveAvailable) return "items.saveUnavailable";
   if (health.healthEdits.length > 0 && (!health.upgradeSession || !health.healthBatchFits))
     return "health.saveUnavailable";
   if (upgrades && (!health.upgradeSession || !health.upgradeBatchFits))
@@ -51,10 +53,12 @@ export function TauriWorkspace({
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
   const run = useRunState(session.id, null, tauriReadApi.run.get);
+  const items = useItems(session.id, null, tauriReadApi.advanced.get);
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
     if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
     if (projection.run) run.acceptSnapshot(projection.run);
+    if (projection.advanced) items.acceptSnapshot(projection.advanced);
     onCanonical(projection.opened);
   });
   const restoredSelection = useRef<string | null>(null);
@@ -82,13 +86,13 @@ export function TauriWorkspace({
     players: health.healthEdits.length,
     upgrades: health.upgradeEdits.length,
     run: health.runEdits.length,
+    items: health.refillEdits.length,
   };
   const reason = saveUnavailable(health);
   const saveUnavailableReason = reason ? t(reason) : null;
   function revertUpgrades() {
     health.revertUpgrades();
   }
-  const items = useItems(session.id, null, tauriReadApi.advanced.get);
   const maps = useMaps(null, tauriReadApi.maps.list);
   const avatarUrls = Object.fromEntries(players.players.map((player) => [player.id, null]));
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -182,18 +186,7 @@ export function TauriWorkspace({
               transaction={health}
             />
           ) : null}
-          {section === "items" ? (
-            <ItemsView
-              advanced={items.advanced}
-              loading={items.loading}
-              error={items.error}
-              pendingByItem={{}}
-              onRefillAllToFull={null}
-              onRefillToFull={null}
-              onRevertRefill={null}
-              onRetry={() => void items.reload()}
-            />
-          ) : null}
+          {section === "items" ? <TauriItemsView items={items} transaction={health} /> : null}
           {section === "run" ? <TauriRunView run={run} transaction={health} /> : null}
           {section === "maps" ? (
             <MapsView
@@ -208,7 +201,12 @@ export function TauriWorkspace({
       </div>
       {health.enabled ? (
         <PendingChangesBar
-          edits={[...health.healthEdits, ...health.upgradeEdits, ...health.runEdits]}
+          edits={[
+            ...health.healthEdits,
+            ...health.upgradeEdits,
+            ...health.runEdits,
+            ...health.refillEdits,
+          ]}
           saving={health.phase === "saving" || health.phase === "reconciling"}
           error={null}
           backupPath={null}

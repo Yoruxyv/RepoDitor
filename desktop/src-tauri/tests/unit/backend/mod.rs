@@ -69,6 +69,25 @@ fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admis
         ]
     );
     assert_eq!(batch_prepare.arguments()[0], "health-batch-prepare");
+    let refill = Operation::TestRefill(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "f".repeat(32),
+        Instant::now(),
+    );
+    let refill_prepare = Operation::TestRefillPrepare(
+        save.into(),
+        "b".repeat(64),
+        "[]".into(),
+        "f".repeat(32),
+        Instant::now(),
+    );
+    assert_eq!(refill.slot(), health.slot());
+    assert_eq!(refill_prepare.slot(), health.slot());
+    assert!(Request::reserve(host.clone(), refill.slot()).is_err());
+    assert_eq!(refill.arguments()[4], "--refill-operation");
+    assert_eq!(refill_prepare.arguments()[0], "refill-prepare");
     assert_eq!(
         run.arguments(),
         [

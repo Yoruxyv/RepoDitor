@@ -3,7 +3,7 @@ import type { en } from "./en";
 
 export const ko: Record<keyof typeof en, string> = {
   "run.mixedDrafts":
-    "한 번에 한 그룹만 저장할 수 있습니다. Health, Upgrades 또는 Run 초안을 되돌려 한 그룹만 남겨 주세요.",
+    "한 번에 한 그룹만 저장할 수 있습니다. Health, Upgrades, Run 또는 Items 초안을 되돌려 한 그룹만 남겨 주세요.",
   "run.saveUnavailable": "이 세션에서는 Run 저장이 허용되지 않습니다. 세이브를 다시 여세요.",
   "run.unsupportedValues":
     "값을 정확하게 표현할 수 없거나 구조가 지원되지 않으면 Run은 읽기 전용입니다.",
@@ -367,7 +367,10 @@ export const ko: Record<keyof typeof en, string> = {
   "error.saveStale": "디스크의 세이브가 변경되었습니다. 다시 연 뒤 저장하세요.",
   "error.write": "RepoDitor가 세이브를 안전하게 기록하지 못했습니다. 파일은 교체되지 않았습니다.",
   "error.copyPath": "경로를 복사하지 못했습니다",
-  "health.testOnly": "합성 테스트: Health, Upgrade 및 Run 저장. 프로덕션 빌드는 읽기 전용입니다.",
+  "health.testOnly":
+    "합성 테스트: Health, Upgrades, Run 및 아이템 충전. 프로덕션 빌드는 읽기 전용입니다.",
+  "items.saveUnavailable":
+    "이 충전 변경 묶음을 안전하게 저장할 수 없습니다. 세이브를 다시 확인하거나 대기 중인 충전 변경 일부를 되돌리세요.",
   "health.saveUnavailable":
     "이 체력 변경 묶음을 안전하게 저장할 수 없습니다. 저장 상태를 다시 확인하거나 대기 중인 체력 변경 일부를 되돌리세요.",
   "health.checking": "완료되지 않은 저장 작업을 확인하는 중…",

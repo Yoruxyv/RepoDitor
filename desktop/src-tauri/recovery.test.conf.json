@@ -19,6 +19,7 @@
             "allow-test-health-write",
             "allow-test-upgrades-write",
             "allow-test-run-write",
+            "allow-test-items-refill",
             "allow-test-health-recover",
             "allow-test-health-state"
           ]
