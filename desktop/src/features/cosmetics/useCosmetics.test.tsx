@@ -34,6 +34,7 @@ function view(eligibleOwned = false, approvedId = 547): CosmeticsViewDto {
       canUnlockCosmetic: true,
       canUnlockAll: true,
       canRemoveOwnership: true,
+      canClearPresets: true,
     },
     cosmetics: [
       entry(0, eligibleOwned, true),
@@ -48,6 +49,28 @@ describe("cosmetic pending projection", () => {
   beforeEach(() => {
     window.repoditor = createRepoDitorApi(vi.fn());
   });
+  it.each([false, true])(
+    "stages presets only with independent authorization: %s",
+    async (allowed) => {
+      const catalog = view();
+      catalog.savedPresetCount = 2;
+      catalog.capabilities = {
+        canReadCosmetics: true,
+        canUnlockCosmetic: false,
+        canUnlockAll: false,
+        canRemoveOwnership: false,
+        canClearPresets: allowed,
+      };
+      catalog.cosmetics = catalog.cosmetics.map((c) => ({ ...c, mutationEligible: false }));
+      vi.mocked(window.repoditor.cosmetics.get).mockResolvedValue({ ok: true, data: catalog });
+      const { result } = renderHook(() => useCosmetics(true, 0), { wrapper: PreferencesProvider });
+      await waitFor(() => expect(result.current.savedPresetCount).toBe(2));
+      act(() => result.current.clearAllPresets());
+      expect(result.current.pendingEdits).toHaveLength(allowed ? 1 : 0);
+      expect(result.current.savedPresetCount).toBe(allowed ? 0 : 2);
+      expect(window.repoditor.cosmetics.write).not.toHaveBeenCalled();
+    },
+  );
   it("projects only eligible rows during Unlock All and preserves the future locked tail", async () => {
     vi.mocked(window.repoditor.cosmetics.get).mockResolvedValue({ ok: true, data: view() });
     const { result } = renderHook(() => useCosmetics(true, 0), { wrapper: PreferencesProvider });

@@ -25,6 +25,7 @@ class CosmeticCapabilities:
     can_unlock_cosmetic: bool = True
     can_unlock_all: bool = True
     can_remove_ownership: bool = True
+    can_clear_presets: bool = True
 
 
 @dataclass(frozen=True, slots=True)

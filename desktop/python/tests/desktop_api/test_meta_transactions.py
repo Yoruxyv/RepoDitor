@@ -168,6 +168,7 @@ def test_catalog_unavailable_recovery_does_not_grant_fresh_admission(fixture):
     assert state["state"] == "pending"
     assert state["admission"] is None
     assert state["view"]["capabilities"]["canUnlockAll"] is False
+    assert state["view"]["capabilities"]["canClearPresets"] is False
     assert tx.pending.read_bytes() == pending
     assert api.meta_recover(root, OP, state["pending"]["proof"])["status"] == "unchanged"
     assert path.read_bytes() == before

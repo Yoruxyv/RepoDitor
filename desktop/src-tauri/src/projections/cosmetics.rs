@@ -31,6 +31,7 @@ struct Capabilities {
     can_unlock_cosmetic: bool,
     can_unlock_all: bool,
     can_remove_ownership: bool,
+    can_clear_presets: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -163,7 +164,7 @@ pub fn parse(bytes: &[u8]) -> Result<Cosmetics, BackendError> {
                 || cosmetic.rarity.is_none()
                 || cosmetic.status.is_none()
                 || cosmetic.state != if cosmetic.owned { "owned" } else { "locked" }
-                || cosmetic.mutation_eligible != proven.contains(&cosmetic.id)
+                || (cosmetic.mutation_eligible && !proven.contains(&cosmetic.id))
                 || (!cosmetic.mutation_eligible && cosmetic.removal_blocked_reason.is_none())
             {
                 return Err(BackendError::Invalid);

@@ -282,6 +282,7 @@ export interface CosmeticCapabilitiesDto {
   canUnlockCosmetic: boolean;
   canUnlockAll: boolean;
   canRemoveOwnership: boolean;
+  canClearPresets: boolean;
 }
 
 export type CosmeticState = "owned" | "locked" | "unknown";

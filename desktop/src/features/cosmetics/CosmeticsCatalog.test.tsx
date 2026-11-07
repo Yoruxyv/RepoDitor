@@ -72,6 +72,7 @@ function catalogView(cosmetics: CosmeticDto[], catalogAvailable = true): Cosmeti
       canUnlockCosmetic: mutationAvailable,
       canUnlockAll: mutationAvailable,
       canRemoveOwnership: mutationAvailable,
+      canClearPresets: true,
     },
     cosmetics,
   };

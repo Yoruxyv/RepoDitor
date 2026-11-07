@@ -183,6 +183,7 @@ export const cosmetics: CosmeticsViewDto = {
     canUnlockCosmetic: true,
     canUnlockAll: true,
     canRemoveOwnership: true,
+    canClearPresets: true,
   },
   cosmetics: [
     {

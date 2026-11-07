@@ -1,7 +1,8 @@
-import { copyFile, mkdir, readFile, readdir, rename } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
+import type { CosmeticsViewDto, DesktopOperationResult } from "../../electron/contracts.cjs";
 import {
   createMetaSaveFixture,
   DESKTOP_ROOT,
@@ -411,9 +412,29 @@ test("ordinary packaged hosts deny every MetaSave mutation and recovery capabili
 }, info) => {
   expect(browserName).toBe("chromium");
   const f = await fixture(info, true);
+  const manifest = path.resolve(f.game, "../../appmanifest_3241660.acf");
+  await writeFile(manifest, (await readFile(manifest, "utf8")).replace("26294889", "26407089"));
   const app = await launch(f.executable, f.home);
   try {
     await app.page.getByRole("button", { name: "Cosmetics", exact: true }).click();
+    await expect(app.page.getByText("E2E Cosmetic 00", { exact: true })).toBeVisible();
+    const view = await native<DesktopOperationResult<CosmeticsViewDto>>(
+      app.page,
+      "cosmetics_get",
+      {},
+    );
+    expect(view).toMatchObject({
+      ok: true,
+      data: {
+        knownCatalogCount: 28,
+        capabilities: { canUnlockAll: false, canRemoveOwnership: false, canClearPresets: false },
+      },
+    });
+    if (!view.ok) throw new Error("Read-only current-build catalog was not available");
+    expect(view.data.savedPresetCount).toBeGreaterThan(0);
+    expect(view.data.cosmetics.every((c) => !c.mutationEligible && c.iconToken === null)).toBe(
+      true,
+    );
     await expect(
       app.page.getByRole("button", {
         name: /Unlock All|Lock All|Clear All Presets|Save Changes|Revert all/,

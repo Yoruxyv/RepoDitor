@@ -102,6 +102,7 @@ export async function stageSyntheticBackend(home: string) {
       canUnlockCosmetic: true,
       canUnlockAll: true,
       canRemoveOwnership: true,
+      canClearPresets: true,
     },
     cosmetics: [
       ...Array.from({ length: 3 }, (_, id) => ({

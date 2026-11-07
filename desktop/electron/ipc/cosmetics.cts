@@ -91,6 +91,7 @@ function readCapabilities(value: unknown): CosmeticCapabilitiesDto {
     canUnlockCosmetic: readBoolean(value.canUnlockCosmetic, "cosmetic unlock capability"),
     canUnlockAll: readBoolean(value.canUnlockAll, "cosmetics unlock-all capability"),
     canRemoveOwnership: readBoolean(value.canRemoveOwnership, "cosmetic removal capability"),
+    canClearPresets: readBoolean(value.canClearPresets, "cosmetic preset clearing capability"),
   };
 }
 
@@ -132,7 +133,7 @@ function readCosmetic(value: unknown): ParsedCosmetic {
       rarity === null ||
       status === null ||
       state !== (owned ? "owned" : "locked") ||
-      mutationEligible !== PROVEN_COSMETIC_IDS.has(id) ||
+      (mutationEligible && !PROVEN_COSMETIC_IDS.has(id)) ||
       (!mutationEligible && removalBlockedReason === null)
     ) {
       throw new CosmeticsProtocolError("Invalid installed cosmetic projection.");

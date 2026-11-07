@@ -154,7 +154,16 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
       (c) => c.known && c.mutationEligible && c.owned && c.removalBlockedReason,
     )?.removalBlockedReason ?? null;
   function stage(action: MetaAction["action"], id?: number) {
-    if (locked || inFlight.current || !state.session || !state.admission || !state.view) return;
+    const presetsDenied = action === "clearPresets" && !state.view?.capabilities.canClearPresets;
+    if (
+      locked ||
+      inFlight.current ||
+      !state.session ||
+      !state.admission ||
+      !state.view ||
+      presetsDenied
+    )
+      return;
     let next: MetaAction;
     if (action === "unlockIds") {
       const item = state.view.cosmetics.find((c) => c.id === id);

@@ -12,6 +12,7 @@ const { version } = JSON.parse(
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./",
+  build: { rolldownOptions: { input: fileURLToPath(new URL("./index.html", import.meta.url)) } },
   define: { __APP_VERSION__: JSON.stringify(version) },
   server: { watch: { ignored: ["**/src-tauri/**", "**/build/**", "**/test-results/**"] } },
   resolve: {

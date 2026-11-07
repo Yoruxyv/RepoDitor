@@ -4,12 +4,44 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { compile } from "@tailwindcss/node";
+import { Scanner } from "@tailwindcss/oxide";
+
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const rendererRoot = path.join(desktopRoot, "src");
+const rendererCss = readFileSync(path.join(rendererRoot, "index.css"), "utf8");
 const themeCss = readFileSync(path.join(desktopRoot, "src", "styles", "theme.css"), "utf8");
 const mainSource = readFileSync(path.join(desktopRoot, "electron", "main.cts"), "utf8");
 const indexHtml = readFileSync(path.join(desktopRoot, "index.html"), "utf8");
 const textTokens = ["ink", "secondary", "muted", "accent", "success", "warning", "danger"];
 const surfaceTokens = ["app", "surface", "surface-raised"];
+
+test("Tailwind dependency globs stay within both renderers' source tree", async () => {
+  const compiler = await compile(rendererCss, { base: rendererRoot, onDependency() {} });
+  assert.ok(compiler.root && compiler.root !== "none", "An explicit renderer source is required.");
+  assert.equal(path.resolve(compiler.root.base, compiler.root.pattern), rendererRoot);
+  assert.deepEqual(compiler.sources, []);
+
+  const scanner = new Scanner({ sources: [{ ...compiler.root, negated: false }] });
+  scanner.scan();
+  for (const entry of ["main.tsx", "tauri.tsx"]) {
+    assert.ok(scanner.files.includes(path.join(rendererRoot, entry)));
+  }
+  for (const file of [...scanner.files, ...scanner.globs.map((glob) => glob.base)]) {
+    const relative = path.relative(rendererRoot, file);
+    assert.ok(!relative.startsWith("..") && !path.isAbsolute(relative), file);
+  }
+});
+
+test("explicit Tailwind source preserves CSS for all renderer candidates", async () => {
+  const options = { base: rendererRoot, onDependency() {} };
+  const scoped = await compile(rendererCss, options);
+  const unscoped = await compile(rendererCss.replace(' source("./")', ""), options);
+  const candidates = new Scanner({
+    sources: [{ base: rendererRoot, pattern: "**/*", negated: false }],
+  }).scan();
+  assert.equal(scoped.build(candidates), unscoped.build(candidates));
+});
 
 function themeBlock(selector) {
   const escaped = selector.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");

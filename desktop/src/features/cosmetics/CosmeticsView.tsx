@@ -207,7 +207,9 @@ export function CosmeticsView({
             </button>
             <button
               className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={view.savedPresetCount === 0 || hasPendingEdits}
+              disabled={
+                !view.capabilities.canClearPresets || view.savedPresetCount === 0 || hasPendingEdits
+              }
               type="button"
               onClick={onClearAllPresets}
             >

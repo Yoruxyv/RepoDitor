@@ -88,6 +88,7 @@ function view(count = 3): CosmeticsViewDto {
       canUnlockCosmetic: true,
       canUnlockAll: true,
       canRemoveOwnership: true,
+      canClearPresets: true,
     },
     cosmetics,
   };
@@ -115,6 +116,7 @@ function degradedView(): CosmeticsViewDto {
       canUnlockCosmetic: false,
       canUnlockAll: false,
       canRemoveOwnership: false,
+      canClearPresets: true,
     },
     cosmetics: [unknownCosmetic(27), unknownCosmetic(999)],
   };
@@ -172,6 +174,26 @@ describe("cosmetics IPC", () => {
     expect(result.data.cosmetics[0].iconToken).toMatch(/^[\da-f-]{36}$/);
   });
 
+  it("accepts recognized metadata with explicitly denied mutation capabilities", async () => {
+    const readonlyView = view();
+    readonlyView.capabilities.canUnlockCosmetic = false;
+    readonlyView.capabilities.canUnlockAll = false;
+    readonlyView.capabilities.canRemoveOwnership = false;
+    readonlyView.capabilities.canClearPresets = false;
+    for (const cosmetic of readonlyView.cosmetics) {
+      cosmetic.mutationEligible = false;
+      cosmetic.removalBlockedReason = "Installed build is not approved for mutation";
+    }
+    const result = await getCosmetics(client({ ok: true, cosmetics: readonlyView }));
+    expect(result.ok).toBe(true);
+    expect(result.data.knownCatalogCount).toBe(3);
+    expect(result.data.cosmetics.every((cosmetic: CosmeticDto) => !cosmetic.mutationEligible)).toBe(
+      true,
+    );
+    expect(result.data.capabilities.canUnlockAll).toBe(false);
+    expect(result.data.capabilities.canClearPresets).toBe(false);
+  });
+
   it("accepts an explicit degraded catalog without fabricating installed metadata", async () => {
     const result = await getCosmetics(client({ ok: true, cosmetics: degradedView() }));
 
@@ -188,6 +210,22 @@ describe("cosmetics IPC", () => {
       state: "unknown",
       mutationEligible: false,
     });
+  });
+
+  it("requires independent boolean preset clearing authority without ownership eligibility", async () => {
+    const response = degradedView();
+    response.savedPresetCount = 2;
+    const result = await getCosmetics(client({ ok: true, cosmetics: response }));
+    expect(result.ok).toBe(true);
+    expect(result.data.capabilities.canUnlockAll).toBe(false);
+    expect(result.data.capabilities.canClearPresets).toBe(true);
+    for (const bad of [undefined, null, 1, "true"]) {
+      const invalid = {
+        ...response,
+        capabilities: { ...response.capabilities, canClearPresets: bad },
+      };
+      expect((await getCosmetics(client({ ok: true, cosmetics: invalid }))).ok).toBe(false);
+    }
   });
 
   it("accepts installed future IDs as read-only presentation metadata", async () => {

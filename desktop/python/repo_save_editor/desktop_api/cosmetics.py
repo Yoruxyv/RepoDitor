@@ -26,6 +26,7 @@ from repo_save_editor.services.cosmetics.mutations import (
 )
 from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_IDS
 from repo_save_editor.services.cosmetics.presentation_catalog import (
+    discover_cosmetic_mutation_catalog,
     discover_cosmetic_presentation_catalog,
 )
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
@@ -88,6 +89,9 @@ def _serialize(
     data: SaveData,
     source: bytes,
     installed_catalog: tuple[InstalledCosmeticMetadata, ...] | None,
+    *,
+    mutation_allowed: bool = True,
+    preset_clearing_allowed: bool = True,
 ) -> dict[str, object]:
     view = discover_cosmetics(data, installed_catalog)
     return {
@@ -100,9 +104,10 @@ def _serialize(
         "unknownOwnedIds": list(view.unknown_owned_ids),
         "capabilities": {
             "canReadCosmetics": view.capabilities.can_read_cosmetics,
-            "canUnlockCosmetic": view.capabilities.can_unlock_cosmetic,
-            "canUnlockAll": view.capabilities.can_unlock_all,
-            "canRemoveOwnership": view.capabilities.can_remove_ownership,
+            "canUnlockCosmetic": mutation_allowed and view.capabilities.can_unlock_cosmetic,
+            "canUnlockAll": mutation_allowed and view.capabilities.can_unlock_all,
+            "canRemoveOwnership": mutation_allowed and view.capabilities.can_remove_ownership,
+            "canClearPresets": preset_clearing_allowed and view.capabilities.can_clear_presets,
         },
         "cosmetics": [
             {
@@ -116,8 +121,10 @@ def _serialize(
                 "state": (
                     "unknown" if not cosmetic.known else "owned" if cosmetic.owned else "locked"
                 ),
-                "mutationEligible": cosmetic.mutation_eligible,
-                "removalBlockedReason": cosmetic.removal_blocked_reason,
+                "mutationEligible": mutation_allowed and cosmetic.mutation_eligible,
+                "removalBlockedReason": cosmetic.removal_blocked_reason
+                if mutation_allowed or not cosmetic.known
+                else "Installed build/catalog is not approved for cosmetic mutations.",
                 "iconKey": None,
             }
             for cosmetic in view.cosmetics
@@ -129,6 +136,7 @@ def get_cosmetics(
     root: Path | None = None,
     *,
     catalog_loader: CatalogLoader = discover_cosmetic_presentation_catalog,
+    mutation_catalog_loader: CatalogLoader = discover_cosmetic_mutation_catalog,
 ) -> dict[str, object]:
     """Return the typed Cosmetics projection for MetaSave.es3.
 
@@ -142,9 +150,22 @@ def get_cosmetics(
     try:
         _path, data, source, _repository = _load_meta_save(root)
         installed_catalog = catalog_loader()
+        try:
+            mutation_catalog = mutation_catalog_loader()
+            preset_clearing_allowed = True
+        except (OSError, ValueError):
+            mutation_catalog = None
+            preset_clearing_allowed = False
         return {
             "ok": True,
-            "cosmetics": _serialize(data, source, installed_catalog),
+            "cosmetics": _serialize(
+                data,
+                source,
+                installed_catalog,
+                mutation_allowed=mutation_catalog is not None
+                and mutation_catalog == installed_catalog,
+                preset_clearing_allowed=preset_clearing_allowed,
+            ),
         }
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
@@ -204,6 +225,16 @@ def _apply_changes(
     validate_meta_save(data)
 
 
+def _final_cosmetic_safety(
+    catalog_loader: CatalogLoader,
+    expected_catalog: tuple[InstalledCosmeticMetadata, ...] | None,
+    game_status_loader: Callable[[], GameProcessStatus],
+) -> None:
+    if catalog_loader() != expected_catalog:
+        raise SaveStaleError("Installed cosmetic catalog changed.")
+    require_game_closed(game_status_loader)
+
+
 @bounded_save_operation
 def save_cosmetics(
     expected_fingerprint: str,
@@ -211,7 +242,7 @@ def save_cosmetics(
     root: Path | None = None,
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
-    catalog_loader: CatalogLoader = discover_cosmetic_presentation_catalog,
+    catalog_loader: CatalogLoader = discover_cosmetic_mutation_catalog,
 ) -> dict[str, object]:
     """Validate and safely persist supported MetaSave changes.
 
@@ -245,12 +276,15 @@ def save_cosmetics(
             installed_catalog = catalog_loader()
             _apply_changes(data, changes, installed_catalog)
             require_game_closed(game_status_loader)
+
             backup, written = repository.overwrite(
                 path,
                 data,
                 expected_source=source,
                 directory=directory,
-                before_replace=lambda: require_game_closed(game_status_loader),
+                before_replace=lambda: _final_cosmetic_safety(
+                    catalog_loader, installed_catalog, game_status_loader
+                ),
                 encoder=lambda edited, original: encrypt_save_fields(
                     edited,
                     original,

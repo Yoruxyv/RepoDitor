@@ -330,6 +330,7 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
         canUnlockCosmetic: false,
         canUnlockAll: false,
         canRemoveOwnership: false,
+        canClearPresets: true,
       },
     });
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -470,6 +471,7 @@ test("native Cosmetics reject malformed projections, recover without writes and 
         canUnlockCosmetic: false,
         canUnlockAll: false,
         canRemoveOwnership: false,
+        canClearPresets: true,
       },
       cosmetics: [],
     };

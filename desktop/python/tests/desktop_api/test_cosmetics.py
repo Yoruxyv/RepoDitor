@@ -8,9 +8,13 @@ import pytest
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
 from repo_save_editor.desktop_api import cosmetics as cosmetics_api
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
+from repo_save_editor.services.cosmetics import presentation_catalog as presentation
+from repo_save_editor.services.cosmetics.installed_catalog import _catalog_payload
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
+from repo_save_editor.services.game.installed_build import artwork_installation
 from repo_save_editor.services.game.local_data import get_repo_local_data_roots
 from repo_save_editor.services.game.processes import GameProcessStatus
+from tests.services.test_installed_cosmetic_catalog import _build_install
 
 
 def test_default_meta_path_uses_shared_repo_local_data_root(
@@ -94,7 +98,9 @@ def test_get_cosmetics_returns_only_typed_projection(tmp_path: Path) -> None:
     save_root, meta_path = _write_fixture(tmp_path)
     original = meta_path.read_bytes()
 
-    result = get_cosmetics(save_root, catalog_loader=_catalog_loader)
+    result = get_cosmetics(
+        save_root, catalog_loader=_catalog_loader, mutation_catalog_loader=_catalog_loader
+    )
 
     assert result["ok"] is True
     view = result["cosmetics"]
@@ -136,6 +142,7 @@ def test_get_cosmetics_never_uses_game_generated_icon_keys(tmp_path: Path) -> No
     result = get_cosmetics(
         save_root,
         catalog_loader=lambda: tuple(catalog),
+        mutation_catalog_loader=lambda: tuple(catalog),
     )
 
     assert result["cosmetics"]["cosmetics"][27]["iconKey"] is None
@@ -431,6 +438,7 @@ def test_get_cosmetics_reports_explicit_degraded_catalog_without_metadata(tmp_pa
         "canUnlockCosmetic": False,
         "canUnlockAll": False,
         "canRemoveOwnership": False,
+        "canClearPresets": False,
     }
     assert view["cosmetics"][0] == {
         "id": 27,
@@ -465,6 +473,7 @@ def test_empty_catalog_serializes_as_degraded_unknown_read_only(tmp_path: Path) 
         "canUnlockCosmetic": False,
         "canUnlockAll": False,
         "canRemoveOwnership": False,
+        "canClearPresets": False,
     }
     assert view["unknownOwnedIds"] == [27, 999]
     assert [
@@ -501,6 +510,13 @@ def test_clear_presets_remains_available_when_catalog_is_unavailable(tmp_path: P
     meta_path.write_bytes(encrypt_save(data))
     original = meta_path.read_bytes()
 
+    view = get_cosmetics(
+        save_root, catalog_loader=lambda: None, mutation_catalog_loader=lambda: None
+    )["cosmetics"]
+    assert view["savedPresetCount"] > 0
+    assert view["capabilities"]["canClearPresets"] is True
+    assert view["capabilities"]["canUnlockAll"] is False
+
     result = save_cosmetics(
         sha256(original).hexdigest(),
         [{"feature": "cosmetics", "entity": "presets", "field": "clearAll", "after": True}],
@@ -515,6 +531,7 @@ def test_clear_presets_remains_available_when_catalog_is_unavailable(tmp_path: P
     assert reopened["colorPresets"]["value"] == [[], []]
     assert result["result"]["cosmetics"]["catalogAvailable"] is False
     assert result["result"]["cosmetics"]["knownCatalogCount"] == 0
+    assert result["result"]["cosmetics"]["capabilities"]["canClearPresets"] is True
 
 
 def test_noncanonical_numeric_entity_is_rejected_before_mutation(tmp_path: Path) -> None:
@@ -567,3 +584,111 @@ def test_current_cosmetic_individual_unlock_remove_and_encrypted_reopen(tmp_path
     )
     assert result["ok"] is True
     assert decrypt_save(path.read_bytes()) == before
+
+
+@pytest.fixture
+def new_build(tmp_path, monkeypatch):
+    root, _level, _target, manifest = _build_install(
+        tmp_path / "installed", unity_version="6000.3.17f1", build_id="26407089"
+    )
+    installation = artwork_installation(root)
+    assert installation is not None
+    monkeypatch.setattr(presentation, "artwork_installation", lambda *_args: installation)
+    monkeypatch.setattr(presentation, "discover_baked_artwork", lambda *_args, **_kwargs: None)
+    return manifest
+
+
+@pytest.mark.usefixtures("new_build")
+def test_new_build_displays_metadata_without_projecting_write_capabilities(tmp_path):
+    root, path = _write_fixture(tmp_path)
+    data = decrypt_save(path.read_bytes())
+    data["cosmeticPresets"]["value"] = [[27], []]
+    data["colorPresets"]["value"] = [[1], []]
+    path.write_bytes(encrypt_save(data))
+    before = path.read_bytes()
+    result = get_cosmetics(root)
+    assert result["ok"] is True
+    view = result["cosmetics"]
+    assert view["savedPresetCount"] > 0
+    assert view["knownCatalogCount"] == 3
+    assert [(c["id"], c["displayName"]) for c in view["cosmetics"][:3]] == [
+        (0, "Hat"),
+        (1, "Hat"),
+        (2, "Glasses"),
+    ]
+    assert view["capabilities"] == {
+        "canReadCosmetics": True,
+        "canUnlockCosmetic": False,
+        "canUnlockAll": False,
+        "canRemoveOwnership": False,
+        "canClearPresets": False,
+    }
+    assert all(not c["mutationEligible"] and c["removalBlockedReason"] for c in view["cosmetics"])
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"entity": "0", "field": "owned", "after": True},
+        {"entity": "27", "field": "owned", "after": False},
+        {"entity": "known", "field": "unlockAll", "after": True},
+        {"entity": "known", "field": "lockAll", "after": False},
+        {"entity": "presets", "field": "clearAll", "after": True},
+    ],
+)
+@pytest.mark.usefixtures("new_build")
+def test_default_writer_denies_every_new_build_mutation_before_backup(tmp_path, change):
+    root, path = _write_fixture(tmp_path)
+    before = path.read_bytes()
+    assert get_cosmetics(root)["cosmetics"]["catalogAvailable"] is True
+    result = save_cosmetics(
+        sha256(before).hexdigest(),
+        [{"feature": "cosmetics", **change}],
+        root,
+        game_status_loader=_game_closed,
+    )
+    assert result["ok"] is False
+    assert result["error"]["code"] == "save_validation_failed"
+    assert "not approved" in result["error"]["message"]
+    assert path.read_bytes() == before
+    assert not list(path.parent.glob("MetaSave.es3.bak-*"))
+    assert not list(path.parent.glob("*.tmp"))
+
+
+def test_legacy_writer_revalidates_build_before_final_game_query(tmp_path, new_build, monkeypatch):
+    root, path = _write_fixture(tmp_path)
+    before = path.read_bytes()
+    new_build.write_bytes(new_build.read_bytes().replace(b"26407089", b"26294889"))
+    installation = artwork_installation(new_build.parent / "common/REPO")
+    assert installation is not None
+    monkeypatch.setattr(presentation, "artwork_installation", lambda *_args: installation)
+    monkeypatch.setattr(
+        presentation,
+        "discover_baked_artwork",
+        lambda *_args, **_kwargs: {"cosmeticCatalog": _catalog_payload(_catalog_loader())},
+    )
+    original = cosmetics_api.EncryptedSaveRepository.load
+    events = []
+
+    def staged(repository, source, *, directory=None):
+        data = original(repository, source, directory=directory)
+        events.append("staged")
+        new_build.write_bytes(new_build.read_bytes().replace(b"26294889", b"26407089"))
+        return data
+
+    def stopped():
+        events.append("game")
+        return GameProcessStatus.NOT_RUNNING
+
+    monkeypatch.setattr(cosmetics_api.EncryptedSaveRepository, "load", staged)
+    result = save_cosmetics(
+        sha256(before).hexdigest(),
+        [{"feature": "cosmetics", "entity": "0", "field": "owned", "after": True}],
+        root,
+        game_status_loader=stopped,
+    )
+    assert result["ok"] is False
+    assert events == ["game", "game", "staged"]
+    assert path.read_bytes() == before
+    assert next(path.parent.glob("MetaSave.es3.bak-*")).read_bytes() == before

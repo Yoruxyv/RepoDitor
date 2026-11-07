@@ -27,6 +27,26 @@ function api(initial = state()) {
   };
 }
 describe("independent synthetic MetaSave drafts", () => {
+  it.each([false, true])(
+    "uses independent preset authority even without ownership eligibility: %s",
+    async (allowed) => {
+      const initial = state();
+      initial.view!.savedPresetCount = 2;
+      initial.view!.capabilities = {
+        canReadCosmetics: true,
+        canUnlockCosmetic: false,
+        canUnlockAll: false,
+        canRemoveOwnership: false,
+        canClearPresets: allowed,
+      };
+      const backend = api(initial);
+      const { result } = renderHook(() => useTauriCosmetics(true, 0, backend));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      act(() => result.current.stage("clearPresets"));
+      expect(result.current.pendingEdits).toHaveLength(allowed ? 1 : 0);
+      expect(backend.write).not.toHaveBeenCalled();
+    },
+  );
   it("stages only eligible exact IDs, preserves unsupported ownership and reverts without writes", async () => {
     const backend = api();
     const { result } = renderHook(() => useTauriCosmetics(true, 0, backend));

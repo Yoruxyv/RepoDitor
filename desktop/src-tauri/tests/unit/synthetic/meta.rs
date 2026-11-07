@@ -9,7 +9,7 @@ fn fixture() -> Value {
     json!({"ok":true,"state":"idle","namespace":"c".repeat(64),"pending":null,
         "admission":{"manifest":meta_anchor::PIN,"identity":"repoditor-synthetic-meta-v1","build":"26294889","digest":"b".repeat(64)},
         "view":{"fingerprint":"a".repeat(64),"catalogAvailable":true,"knownCatalogCount":28,"knownOwnedCount":1,"knownLockedCount":27,"savedPresetCount":0,"unknownOwnedIds":[],
-            "capabilities":{"canReadCosmetics":true,"canUnlockCosmetic":true,"canUnlockAll":true,"canRemoveOwnership":true},"cosmetics":cosmetics}})
+            "capabilities":{"canReadCosmetics":true,"canUnlockCosmetic":true,"canUnlockAll":true,"canRemoveOwnership":true,"canClearPresets":true},"cosmetics":cosmetics}})
 }
 fn decode(value: Value) -> std::result::Result<State, BackendError> {
     parse_state(&serde_json::to_vec(&value).unwrap())

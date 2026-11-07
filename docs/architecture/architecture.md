@@ -238,6 +238,20 @@ generated consumers. Unknown IDs, signed metadata and eligible-but-removal-block
 entries retain the existing Electron contract. Icon tokens remain null and private
 MetaSave fields are discarded.
 
+Cosmetic presentation can reuse the existing Unity 6 catalog reader even when the
+build has no artwork approval. The fallback rechecks Steam provenance and bounded
+top-level source identities before and after each uncached read; it never reuses
+the historical cache for a newly recognized build. Display metadata does not grant
+write authority. Legacy Cosmetics writes use a separate catalog loader restricted
+to the evidence-backed builds, and revalidate that catalog before the final game
+check. Read projections may explicitly deny eligibility for known IDs; both native
+and Electron boundaries still reject eligibility outside the frozen proven set.
+Build `26407089` has readable metadata but no new mutation or artwork approval.
+Cosmetic, map and upgrade artwork retain their independent build/assembly checks.
+Preset clearing has its own required boolean capability, independent of ownership
+eligibility. An approved build may clear supported presets without eligible owned
+IDs; an unapproved build or recovery-only MetaSave state cannot stage that action.
+
 The ordinary native read hook coalesces refresh clicks, ignores unmounted/superseded results
 and reloads on workspace entry or game-safety recovery. A superseding entry waits
 for the admitted read to release before starting one fresh read. Its composition reuses

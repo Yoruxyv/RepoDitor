@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Final
+
 from repo_save_editor.services.cosmetics.known_cosmetics import PROVEN_COSMETIC_IDS
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 
@@ -11,6 +13,8 @@ from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 # never grant mutation authority to an ID outside this independently proven boundary.
 PROVEN_MUTATION_IDS = PROVEN_COSMETIC_IDS
 PROVEN_MUTATION_ID_SET = frozenset(PROVEN_MUTATION_IDS)
+# cosmetics.v1/v2 prove these builds; artwork-only approval must not extend this set.
+PROVEN_MUTATION_BUILD_IDS: Final = frozenset({"23363152", "26294889"})
 
 CATALOG_UNAVAILABLE_REASON = (
     "Installed cosmetic catalog is unavailable; ownership changes are disabled."

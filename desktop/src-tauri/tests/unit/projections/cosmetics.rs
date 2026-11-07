@@ -27,7 +27,7 @@ fn response(count: usize) -> Value {
     json!({"ok":true,"cosmetics":{"fingerprint":"a".repeat(64),"catalogAvailable":count>0,
             "knownCatalogCount":count,"knownOwnedCount":usize::from(count>0),"knownLockedCount":count.saturating_sub(1),
             "savedPresetCount":2,"unknownOwnedIds":[-7,999],
-            "capabilities":{"canReadCosmetics":true,"canUnlockCosmetic":count>0,"canUnlockAll":count>0,"canRemoveOwnership":count>0},
+            "capabilities":{"canReadCosmetics":true,"canUnlockCosmetic":count>0,"canUnlockAll":count>0,"canRemoveOwnership":count>0,"canClearPresets":true},
             "cosmetics":cosmetics,"rawMetaSave":{"secret":"not public"}}})
 }
 fn decode(raw: Value) -> Result<Cosmetics, BackendError> {
@@ -55,6 +55,43 @@ fn preserves_partial_missing_future_and_unknown_catalogs_without_artwork_or_priv
     empty["cosmetics"]["cosmetics"] = json!([]);
     empty["cosmetics"]["unknownOwnedIds"] = json!([]);
     assert!(decode(empty).is_ok());
+}
+
+#[test]
+fn readable_catalog_may_deny_all_mutations_without_expanding_the_proven_set() {
+    let mut raw = response(558);
+    for row in raw["cosmetics"]["cosmetics"].as_array_mut().unwrap() {
+        row["mutationEligible"] = json!(false);
+        row["removalBlockedReason"] = json!("Installed build is not approved for mutation");
+    }
+    for field in [
+        "canUnlockCosmetic",
+        "canUnlockAll",
+        "canRemoveOwnership",
+        "canClearPresets",
+    ] {
+        raw["cosmetics"]["capabilities"][field] = json!(false);
+    }
+    assert!(decode(raw.clone()).is_ok());
+    raw["cosmetics"]["cosmetics"][557]["mutationEligible"] = json!(true);
+    assert_eq!(decode(raw).unwrap_err(), BackendError::Invalid);
+}
+
+#[test]
+fn preset_clearing_is_required_boolean_authority_independent_of_ownership() {
+    let raw = response(0);
+    assert!(decode(raw.clone()).is_ok());
+    for bad in [Value::Null, json!(1), json!("true")] {
+        let mut value = raw.clone();
+        value["cosmetics"]["capabilities"]["canClearPresets"] = bad;
+        assert!(decode(value).is_err());
+    }
+    let mut absent = raw;
+    absent["cosmetics"]["capabilities"]
+        .as_object_mut()
+        .unwrap()
+        .remove("canClearPresets");
+    assert!(decode(absent).is_err());
 }
 
 #[test]

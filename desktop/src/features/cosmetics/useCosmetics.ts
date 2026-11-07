@@ -212,7 +212,14 @@ export function useCosmetics(active: boolean, recoveryGeneration: number) {
   }
 
   function clearAllPresets(): void {
-    if (!state.view || state.view.savedPresetCount === 0 || hasPending) return;
+    if (
+      !state.view ||
+      !state.view.capabilities.canClearPresets ||
+      state.view.savedPresetCount === 0 ||
+      writeInFlight.current ||
+      hasPending
+    )
+      return;
     capturePendingSource();
     setPendingEdits([
       {

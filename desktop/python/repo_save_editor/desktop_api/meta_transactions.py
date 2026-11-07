@@ -78,7 +78,10 @@ def _canonical(root: Path, directory: SaveDirectory | None) -> dict[str, object]
         proof, catalog = admit_cosmetics(root.parents[2])
     except (OSError, ValueError, TypeError):
         proof, catalog = None, None
-    return {"view": _serialize(data, source, catalog), "admission": proof}
+    return {
+        "view": _serialize(data, source, catalog, preset_clearing_allowed=proof is not None),
+        "admission": proof,
+    }
 
 
 @bounded_save_operation
