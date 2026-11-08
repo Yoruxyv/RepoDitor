@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import stat
 from dataclasses import dataclass
@@ -34,6 +35,15 @@ _ARTWORK_BUILD_IDS: Final = frozenset({VALIDATED_BUILD_ID, *_UNITY6_ARTWORK_ASSE
 def artwork_assembly_sha256(build_id: str) -> str | None:
     """Return the reviewed Unity 6 artwork digest; this never grants save authority."""
     return _UNITY6_ARTWORK_ASSEMBLIES.get(build_id)
+
+
+def artwork_assembly_matches(build_id: str, digest: str) -> bool:
+    """Allow build-only hotfixes, never a new managed artwork contract or save write."""
+    expected = artwork_assembly_sha256(build_id)
+    if build_id in _ARTWORK_BUILD_IDS:
+        return expected is not None and digest == expected
+    # shortcut: changed assemblies need independent review before fallback admission.
+    return digest in _UNITY6_ARTWORK_ASSEMBLIES.values()
 
 
 def owned_file(root: Path, path: Path) -> Path:
@@ -122,8 +132,44 @@ def installed_build_identity(installation: GameInstallation) -> ValidatedInstall
 def validated_installed_artwork_build(
     installation: GameInstallation,
 ) -> ValidatedInstalledBuild | None:
-    """Allow explicitly reviewed artwork-only builds without authorizing Recharge."""
-    return _validated_for_build_ids(installation, _ARTWORK_BUILD_IDS)
+    """Keep known fast paths; require a reviewed assembly for build-only hotfixes.
+
+    Each reader must still validate its own structures, references and source watches.
+    This admission never authorizes save mutation.
+    """
+    known = _validated_for_build_ids(installation, _ARTWORK_BUILD_IDS)
+    if known is not None:
+        return known
+    try:
+        build = installed_build_identity(installation)
+        library = installation.steam_library_root
+        if build is None or library is None:
+            return None
+        sources = (
+            owned_file(library, build.manifest_path),
+            owned_file(library, installation.root / "REPO_Data/Managed/Assembly-CSharp.dll"),
+        )
+        before = [p.stat() for p in sources]
+        if not 0 < before[1].st_size <= 32 * 1024 * 1024:
+            return None
+        with sources[1].open("rb") as handle:
+            raw = handle.read(32 * 1024 * 1024 + 1)
+        if len(raw) > 32 * 1024 * 1024 or not artwork_assembly_matches(
+            build.build_id, hashlib.sha256(raw).hexdigest()
+        ):
+            return None
+        for path, old in zip(sources, before, strict=True):
+            now = owned_file(library, path).stat()
+            if (old.st_dev, old.st_ino, old.st_size, old.st_mtime_ns) != (
+                now.st_dev,
+                now.st_ino,
+                now.st_size,
+                now.st_mtime_ns,
+            ):
+                return None
+        return build if installed_build_identity(installation) == build else None
+    except (OSError, ValueError):
+        return None
 
 
 __all__ = [
@@ -132,6 +178,7 @@ __all__ = [
     "SUNSTONE_ARTWORK_BUILD_ID",
     "VALIDATED_BUILD_ID",
     "ValidatedInstalledBuild",
+    "artwork_assembly_matches",
     "artwork_assembly_sha256",
     "installed_build_identity",
     "steam_manifest_path",

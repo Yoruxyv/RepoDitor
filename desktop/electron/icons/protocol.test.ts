@@ -446,7 +446,7 @@ describe("local icon protocol", () => {
     const manifest = JSON.parse(
       await readFile(path.join(persistentRoot, "manifest.json"), "utf8"),
     ) as Record<string, unknown>;
-    expect(manifest.formatVersion).toBe(2);
+    expect(manifest.formatVersion).toBe(3);
     const artifactPath = path.join(persistentRoot, `${sourceIdentity}.png`);
     const manifestPath = path.join(persistentRoot, "manifest.json");
     const fixedTime = new Date("2024-01-02T03:04:05.000Z");
@@ -470,49 +470,62 @@ describe("local icon protocol", () => {
     expect(diagnostics.map((event) => event.reason)).not.toContain("persisted");
   });
 
-  it("keeps a persistent hit across appmanifest, BuildID, and assembly-only changes", async () => {
-    const { base } = await fixture();
-    const watch = path.join(base, "resources.assets");
-    const appmanifest = path.join(base, "appmanifest_3241660.acf");
-    const assembly = path.join(base, "Assembly-CSharp.dll");
-    const persistentRoot = path.join(base, "presentation");
-    const sourceIdentity = "0".repeat(64);
-    await writeFile(watch, Buffer.from("source"));
-    await writeFile(appmanifest, Buffer.from('"buildid" "old"'));
-    await writeFile(assembly, Buffer.from("old assembly"));
-    const stat = await lstat(watch, { bigint: true });
-    const seeded = new DecodedUpgradeTextureCache(persistentRoot);
-    await seeded.storePrepared("playerUpgradeHealth", {
-      sourceIdentity,
-      pngBase64: png().toString("base64"),
-      width: 1,
-      height: 1,
-      watches: [{ path: watch, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() }],
-    });
-    const artifactPath = path.join(persistentRoot, `${sourceIdentity}.png`);
-    const manifestPath = path.join(persistentRoot, "manifest.json");
-    const artifactBefore = await lstat(artifactPath, { bigint: true });
-    const manifestBefore = await lstat(manifestPath, { bigint: true });
-    const diagnostics: Array<{ reason: string }> = [];
-    const expectPersistentHit = async () => {
-      const client = { run: vi.fn(), dispose: vi.fn() };
+  it.each(["manifest", "assembly", "legacy cache"])(
+    "revalidates upgrade admission after %s changes",
+    async (change) => {
+      const { base } = await fixture();
+      const watch = path.join(base, "resources.assets");
+      const appmanifest = path.join(base, "appmanifest_3241660.acf");
+      const assembly = path.join(base, "Assembly-CSharp.dll");
+      const persistentRoot = path.join(base, "presentation");
+      await Promise.all(
+        [watch, appmanifest, assembly].map((source) => writeFile(source, "original source")),
+      );
+      const watches = await Promise.all(
+        [watch, appmanifest, assembly].map(async (source) => {
+          const stat = await lstat(source, { bigint: true });
+          return { path: source, size: stat.size.toString(), mtimeNs: stat.mtimeNs.toString() };
+        }),
+      );
+      const seeded = new DecodedUpgradeTextureCache(persistentRoot);
+      await expect(
+        seeded.storePrepared("playerUpgradeHealth", {
+          sourceIdentity: "0".repeat(64),
+          pngBase64: png().toString("base64"),
+          width: 1,
+          height: 1,
+          watches,
+        }),
+      ).resolves.toBe(true);
+      const warmClient = { run: vi.fn(), dispose: vi.fn() };
+      const warm = new DecodedUpgradeTextureCache(persistentRoot);
+      await expect(warm.get("playerUpgradeHealth", warmClient)).resolves.toEqual(png());
+      expect(warmClient.run).not.toHaveBeenCalled();
+      const manifestPath = path.join(persistentRoot, "manifest.json");
+      if (change === "legacy cache") {
+        const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+        manifest.formatVersion = 2;
+        await writeFile(manifestPath, JSON.stringify(manifest));
+      } else {
+        await writeFile(change === "manifest" ? appmanifest : assembly, "changed admission source");
+      }
+      const client = {
+        run: vi.fn().mockResolvedValue({ ok: true, texture: null }),
+        dispose: vi.fn(),
+      };
+      const diagnostics: Array<{ reason: string }> = [];
       const cache = new DecodedUpgradeTextureCache(persistentRoot, (event: { reason: string }) =>
         diagnostics.push(event),
       );
-      await expect(cache.get("playerUpgradeHealth", client)).resolves.toEqual(png());
-      expect(client.run).not.toHaveBeenCalled();
-    };
-
-    await utimes(appmanifest, new Date("2025-01-01T00:00:00Z"), new Date("2025-01-01T00:00:00Z"));
-    await expectPersistentHit();
-    await writeFile(appmanifest, Buffer.from('"AppState" { "buildid" "new" }'));
-    await writeFile(assembly, Buffer.from("new assembly"));
-    await expectPersistentHit();
-
-    expect((await lstat(artifactPath, { bigint: true })).mtimeNs).toBe(artifactBefore.mtimeNs);
-    expect((await lstat(manifestPath, { bigint: true })).mtimeNs).toBe(manifestBefore.mtimeNs);
-    expect(diagnostics.map((event) => event.reason)).toEqual(["persistent-hit", "persistent-hit"]);
-  });
+      await expect(cache.get("playerUpgradeHealth", client)).resolves.toBeNull();
+      expect(client.run).toHaveBeenCalledExactlyOnceWith("upgrade-texture", [
+        "playerUpgradeHealth",
+      ]);
+      expect(diagnostics.map((event) => event.reason)).toContain(
+        change === "legacy cache" ? "manifest-invalid" : "source-changed",
+      );
+    },
+  );
 
   it("prunes unreferenced derived PNGs while reusing the valid persistent entry", async () => {
     const { base } = await fixture();

@@ -15,6 +15,7 @@ import pytest
 from repo_save_editor.services import baked_artwork as baked
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
+from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
@@ -162,8 +163,10 @@ def _installation(
     (root / "REPO_Data/StreamingAssets/aa").mkdir(parents=True)
     (root / "REPO_Data/StreamingAssets/aa/catalog.json").write_text("{}", encoding="utf-8")
     expected = hashlib.sha256(b"synthetic source").hexdigest()
-    monkeypatch.setattr(
-        baked, "artwork_assembly_sha256", lambda build: expected if build == build_id else None
+    monkeypatch.setitem(
+        installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+        "26407089" if build_id == "99999999" else build_id,
+        expected,
     )
     monkeypatch.setattr(
         baked,
@@ -197,7 +200,7 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     assert not (root / "REPO_Data/StreamingAssets/BakedIcons").exists()
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
@@ -217,7 +220,7 @@ def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     assert {p.suffix for p in cache.iterdir()} == {".json"}
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 @pytest.mark.parametrize(
     "source", ["REPO_Data/level0", "REPO_Data/resources.assets", "REPO_Data/sharedassets0.assets"]
 )
@@ -233,7 +236,7 @@ def test_changed_source_invalidates_identity_cache(
     assert seen == [root]
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 @pytest.mark.parametrize("change", ["timestamp", "identity"])
 def test_same_content_source_change_rebuilds_cached_mappings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str, change: str
@@ -287,7 +290,7 @@ def test_catalog_cache_migration_and_invalid_projection_rebuild(
     assert scans == [root]
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 def test_bad_assembly_unsupported_build_and_missing_installation_fail_soft(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:

@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game import installed_maps as native
 from repo_save_editor.services.game.discovery import GameInstallation
-from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
 from repo_save_editor.services.game.maps import MapDiscoveryError, discover_installed_maps
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import UnityMetadataError
@@ -62,20 +62,14 @@ def installation(
     assembly.parent.mkdir(parents=True)
     assembly.write_bytes(b"synthetic assembly identity")
     manifest = tmp_path / "steamapps/appmanifest_3241660.acf"
-    manifest.write_text("synthetic manifest", encoding="utf-8")
-    monkeypatch.setattr(
-        native,
-        "artwork_assembly_sha256",
-        lambda build: (
-            hashlib.sha256(b"synthetic assembly identity").hexdigest()
-            if build == build_id
-            else None
-        ),
+    manifest.write_text(
+        f'"AppState" {{"appid" "3241660" "installdir" "REPO" "buildid" "{build_id}"}}',
+        encoding="utf-8",
     )
-    monkeypatch.setattr(
-        native,
-        "validated_installed_artwork_build",
-        lambda _: ValidatedInstalledBuild(build_id, manifest),
+    monkeypatch.setitem(
+        installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+        "26407089" if build_id == "99999999" else build_id,
+        hashlib.sha256(b"synthetic assembly identity").hexdigest(),
     )
     write_serialized_file(
         data / "globalgamemanagers.assets",
@@ -110,7 +104,7 @@ def installation(
     )
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 def test_normal_level_roster_supplies_membership_and_names_without_catalog(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
@@ -178,3 +172,25 @@ def test_unsupported_build_keeps_the_legacy_catalog_adapter(
     game = installation(tmp_path, monkeypatch)
     monkeypatch.setattr(native, "validated_installed_artwork_build", lambda _: None)
     assert native.read_installed_levels(game) is None
+
+
+def test_legacy_build_keeps_json_discovery_without_reading_unity6_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = installation(tmp_path, monkeypatch, "23363152")
+    monkeypatch.setattr(
+        native,
+        "ArtworkFileIndex",
+        lambda _: pytest.fail("Legacy build reached Unity 6 roster reader"),
+    )
+    assert native.read_installed_levels(game) is None
+
+
+def test_hotfix_with_reviewed_assembly_still_rejects_incompatible_level_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = installation(tmp_path, monkeypatch, "99999999")
+    source = game.root / "REPO_Data/level0"
+    source.write_bytes(source.read_bytes().replace(b"6000.3.17f1", b"6000.9.99f9"))
+    with pytest.raises(UnityMetadataError, match=r"version|layout"):
+        native.read_installed_levels(game)

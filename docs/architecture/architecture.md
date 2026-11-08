@@ -751,7 +751,7 @@ documented in [asset research](../research/asset-research.md#maps).
 | Canonical identities and cosmetic display metadata | Python `baked_artwork.py`, schema 8, `%LOCALAPPDATA%\RepoDitor\cache\baked-artwork.json`; reviewed build/assembly and source identities. Historical cosmetic catalogs retain their separate cache. No PNG pixels or mutation authority. |
 | Installed baked PNG validation                     | Electron `bakedArtwork.cts`, `presentation/baked/manifest.json`, format 1; installed index identity plus per-PNG validation stamps. PNGs stay in the game installation.                                                                 |
 | Decoded cosmetic Sprite PNGs                       | Electron cosmetic artwork cache, `presentation/cosmetics`, format 1; cosmetic ID, source identity, PNG hash and source watches.                                                                                                         |
-| Derived upgrade PNGs                               | Electron `upgradeTextureCache.cts`, `presentation`, format 2; upgrade key, derived source identity and artifact-producing file watches.                                                                                                 |
+| Derived upgrade PNGs                               | Electron `upgradeTextureCache.cts`, `presentation`, format 3; upgrade key, derived source identity, artifact-producing file watches, assembly and Steam manifest.                                                                       |
 
 Electron cache roots are under its `userData` directory, normally
 `%APPDATA%\repoditor-desktop`. The cache types have different keys and invalidation
@@ -783,24 +783,26 @@ To audit the derived presentation cache after restarting RepoDitor, run:
 The read-only script compares `manifest.json` with the stored hash-named PNGs
 and reports unreferenced or missing artifacts.
 
-Upgrade presentation-cache manifest format 2 maps each dynamic upgrade key to a derived
+Upgrade presentation-cache manifest format 3 maps each dynamic upgrade key to a derived
 PNG identity and the exact files used to produce it: `resources.assets`,
 `globalgamemanagers`, the texture stream (normally `resources.assets.resS`), and
 an independent mesh stream only when it supplied crop framing. Validation uses
-their size and mtime, avoiding large-file hashing during warm startup.
+their size and mtime, avoiding large-file hashing during warm startup. The admission
+assembly and Steam manifest are also watched and included in the identity.
 
 `appmanifest_3241660.acf`, Steam App ID/BuildID, the install location, and the
-validated `Assembly-CSharp.dll` are discovery or compatibility provenance, not
-artwork inputs. Python still validates them before a decode, but their metadata
-is excluded from the artwork identity and source watches. A Steam metadata-only
-rewrite therefore remains a `persistent-hit`; a watched Unity source change is
+validated `Assembly-CSharp.dll` remain compatibility provenance rather than pixels.
+Watching the manifest and assembly forces Python to revalidate that provenance
+after an update, including a build-only hotfix. A watched source change is
 reported as `source-changed`, followed by `source-decode-required` and
-`persisted`, then `persistent-hit` on the next unchanged run. Existing format-1
-caches rebuild once so they acquire the narrower source watches.
+`persisted`, then `persistent-hit` on the next unchanged run. Earlier cache formats
+rebuild once so they acquire the admission watches.
 
 These are separate safety boundaries: a persistent artwork hit neither marks the
 installed build as verified nor authorizes a new extraction or any save mutation.
-Cold artwork extraction still requires the supported BuildID and validated assembly.
+Cold extraction requires validated Steam provenance and a reviewed assembly;
+unknown build IDs additionally pass the bounded fallback described in
+[game-update capabilities](../maintenance/game-update-capabilities.md#public-steam-build-monitoring).
 Installed-build-dependent editing features revalidate their own evidence, while
 ordinary save edits retain their independent fingerprint, validation, backup, and
 atomic-write protections.

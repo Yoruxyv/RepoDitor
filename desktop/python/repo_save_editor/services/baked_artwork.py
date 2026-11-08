@@ -32,7 +32,7 @@ from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
 )
 from repo_save_editor.services.game.installed_build import (
-    artwork_assembly_sha256,
+    artwork_assembly_matches,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -257,7 +257,7 @@ def discover_baked_artwork(
         if installation is None:
             return None
         build = validated_installed_artwork_build(installation)
-        if build is None or (expected_digest := artwork_assembly_sha256(build.build_id)) is None:
+        if build is None:
             return None
         root = installation.root.resolve(strict=True)
         library = root.parents[2]
@@ -269,7 +269,9 @@ def discover_baked_artwork(
             assembly_bytes = handle.read(32 * 1024 * 1024 + 1)
         if (
             len(assembly_bytes) > 32 * 1024 * 1024
-            or hashlib.sha256(assembly_bytes).hexdigest() != expected_digest
+            or not artwork_assembly_matches(
+                build.build_id, hashlib.sha256(assembly_bytes).hexdigest()
+            )
             or _watch(library, assembly) != assembly_watch
         ):
             return None

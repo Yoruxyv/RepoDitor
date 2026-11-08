@@ -12,10 +12,11 @@ from typing import Any
 import pytest
 
 from repo_save_editor.services.cosmetics import installed_artwork as artwork
+from repo_save_editor.services.game import installed_build
 from tests.services.test_installed_build import _steam_install
 
 
-@pytest.mark.parametrize("build_id", ["26294889", "26407089"])
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 def test_sprite_admission_requires_the_build_specific_assembly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
@@ -24,8 +25,10 @@ def test_sprite_admission_requires_the_build_specific_assembly(
     assembly.parent.mkdir()
     assembly.write_bytes(b"synthetic assembly")
     expected = hashlib.sha256(b"synthetic assembly").hexdigest()
-    monkeypatch.setattr(
-        artwork, "artwork_assembly_sha256", lambda build: expected if build == build_id else None
+    monkeypatch.setitem(
+        installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+        "26407089" if build_id == "99999999" else build_id,
+        expected,
     )
     assert artwork._installed_game_root(root) == root
     assembly.write_bytes(b"changed assembly")
@@ -178,9 +181,13 @@ def test_ids_are_rejected_before_loading_the_game() -> None:
         artwork.prepare_installed_cosmetic_artwork([-1])
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
+@pytest.mark.parametrize("bad_image", [False, True])
 def test_prepare_uses_typed_sprite_and_does_not_write_any_presentation_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    build_id: str,
+    bad_image: bool,
 ) -> None:
     image_module = pytest.importorskip("PIL.Image")
     game_root = tmp_path / "steam" / "steamapps" / "common" / "REPO"
@@ -189,18 +196,33 @@ def test_prepare_uses_typed_sprite_and_does_not_write_any_presentation_cache(
     bundle = aa / "cosmetics.bundle"
     bundle.write_bytes(b"fixture only")
     (aa / "catalog.bin").write_bytes(b"fixture")
+    (aa / "catalog.json").write_text("{}", encoding="utf-8")
     (game_root / "REPO_Data" / "level0").write_bytes(b"fixture")
     managed = game_root / "REPO_Data" / "Managed" / "Assembly-CSharp.dll"
     managed.parent.mkdir(parents=True)
     managed.write_bytes(b"fixture")
-    (tmp_path / "steam" / "steamapps" / "appmanifest_3241660.acf").write_bytes(b"fixture")
+    (tmp_path / "steam" / "steamapps" / "appmanifest_3241660.acf").write_text(
+        f'"AppState" {{"appid" "3241660" "installdir" "REPO" "buildid" "{build_id}"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+        "26407089" if build_id == "99999999" else build_id,
+        hashlib.sha256(b"fixture").hexdigest(),
+    )
     asset_path = "assets/cosmetics/head/first.png"
     guid = "a" * 32
-    monkeypatch.setattr(artwork, "_installed_game_root", lambda _game_dir: game_root)
     monkeypatch.setattr(artwork, "_installed_guids", lambda _root: ({0: guid}, ()))
     monkeypatch.setattr(artwork, "_catalog_sprite_paths", lambda _root, _guids: {0: asset_path})
     monkeypatch.setattr(artwork, "_find_unique_bundle_paths", lambda _root, _paths: {0: bundle})
     sprite = SimpleNamespace(image=image_module.new("RGBA", (32, 30), (5, 8, 10, 255)))
+    if bad_image:
+        sprite.image = SimpleNamespace(
+            size=(32, 30),
+            load=lambda: None,
+            getbands=lambda: (),
+            save=lambda buffer, **_kwargs: buffer.write(b"malformed PNG"),
+        )
     reader = SimpleNamespace(type=SimpleNamespace(name="Sprite"), parse_as_object=lambda: sprite)
     pointer = SimpleNamespace(type=SimpleNamespace(name="Sprite"), deref=lambda: reader)
     closed: list[bool] = []
@@ -219,10 +241,19 @@ def test_prepare_uses_typed_sprite_and_does_not_write_any_presentation_cache(
         "repo_save_editor.services.game.discovery",
         SimpleNamespace(APP_MANIFEST_NAME="appmanifest_3241660.acf"),
     )
+    if bad_image:
+        with pytest.raises(artwork.CosmeticArtworkError, match="PNG"):
+            artwork.prepare_installed_cosmetic_artwork([0], game_dir=game_root)
+        assert closed == [True]
+        return
     result = artwork.prepare_installed_cosmetic_artwork([0], game_dir=game_root)
     assert len(result) == 1
     assert result[0].asset_guid == guid
     assert (result[0].width, result[0].height) == (32, 30)
     assert len(result[0].source_identity) == 64
     assert closed == [True]
-    assert sorted(p.name for p in aa.iterdir()) == ["catalog.bin", "cosmetics.bundle"]
+    assert sorted(p.name for p in aa.iterdir()) == [
+        "catalog.bin",
+        "catalog.json",
+        "cosmetics.bundle",
+    ]

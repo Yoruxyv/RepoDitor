@@ -36,7 +36,7 @@ from repo_save_editor.services.game.discovery import (
     validate_game_installation,
 )
 from repo_save_editor.services.game.installed_build import (
-    artwork_assembly_sha256,
+    artwork_assembly_matches,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -251,7 +251,7 @@ def _source_identity(
 
 
 def _installed_game_root(game_dir: Path | None) -> Path:
-    """Require the independently approved artwork build/digest, not a mutation gate."""
+    """Require reviewed assembly semantics and Steam provenance, not a mutation gate."""
 
     if game_dir is None:
         installation = discover_game_installation().installation
@@ -269,9 +269,8 @@ def _installed_game_root(game_dir: Path | None) -> Path:
     if installation is None:
         raise CosmeticArtworkError("A valid Steam game installation was not found.")
     build = validated_installed_artwork_build(installation)
-    expected_digest = artwork_assembly_sha256(build.build_id) if build else None
-    if expected_digest is None:
-        raise CosmeticArtworkError("Installed game is not a validated artwork build.")
+    if build is None:
+        raise CosmeticArtworkError("Installed artwork build or assembly is not validated.")
     library = installation.root.parents[2]
     assembly = owned_file(library, installation.root / "REPO_Data/Managed/Assembly-CSharp.dll")
     before = _watch(assembly, library)
@@ -281,7 +280,7 @@ def _installed_game_root(game_dir: Path | None) -> Path:
         raw = handle.read(32 * 1024 * 1024 + 1)
     if (
         len(raw) > 32 * 1024 * 1024
-        or hashlib.sha256(raw).hexdigest() != expected_digest
+        or not artwork_assembly_matches(build.build_id, hashlib.sha256(raw).hexdigest())
         or _watch(assembly, library) != before
     ):
         raise CosmeticArtworkError("Installed artwork assembly does not match the validated build.")

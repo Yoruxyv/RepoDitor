@@ -467,9 +467,10 @@ finding: locally discovered R.E.P.O. assets are research references and are not 
 
 The upgrade fallback resolves installed upgrade identity through prefab, material
 and Texture2D metadata, validates local stream ranges, and decodes supported
-DXT1/DXT5 payloads. Its source identity includes artifact-producing Unity files;
-Steam manifest/build metadata remains compatibility provenance rather than a pixel
-cache dependency. See [upgrade cache diagnostics](../architecture/architecture.md#upgrade-cache-diagnostics).
+DXT1/DXT5 payloads. Historical cache format 2 watched artifact-producing Unity files
+without Steam compatibility metadata. Format 3 also watches the assembly and Steam
+manifest so source changes force admission validation before pixel reuse. See
+[upgrade cache diagnostics](../architecture/architecture.md#upgrade-cache-diagnostics).
 
 The all-black `WalkieTalkieBox` LocalLow output was an unusable research candidate.
 Regular-item and cosmetic resolution no longer reads that cache: installed baked

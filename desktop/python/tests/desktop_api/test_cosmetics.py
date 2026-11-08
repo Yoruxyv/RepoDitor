@@ -587,9 +587,11 @@ def test_current_cosmetic_individual_unlock_remove_and_encrypted_reopen(tmp_path
 
 
 @pytest.fixture
-def new_build(tmp_path, monkeypatch):
+def new_build(tmp_path, monkeypatch, request):
     root, _level, _target, manifest = _build_install(
-        tmp_path / "installed", unity_version="6000.3.17f1", build_id="26407089"
+        tmp_path / "installed",
+        unity_version="6000.3.17f1",
+        build_id=getattr(request, "param", "26407089"),
     )
     installation = artwork_installation(root)
     assert installation is not None
@@ -598,6 +600,7 @@ def new_build(tmp_path, monkeypatch):
     return manifest
 
 
+@pytest.mark.parametrize("new_build", ["26407089", "99999999"], indirect=True)
 @pytest.mark.usefixtures("new_build")
 def test_new_build_displays_metadata_without_projecting_write_capabilities(tmp_path):
     root, path = _write_fixture(tmp_path)
@@ -637,6 +640,7 @@ def test_new_build_displays_metadata_without_projecting_write_capabilities(tmp_p
         {"entity": "presets", "field": "clearAll", "after": True},
     ],
 )
+@pytest.mark.parametrize("new_build", ["26407089", "99999999"], indirect=True)
 @pytest.mark.usefixtures("new_build")
 def test_default_writer_denies_every_new_build_mutation_before_backup(tmp_path, change):
     root, path = _write_fixture(tmp_path)

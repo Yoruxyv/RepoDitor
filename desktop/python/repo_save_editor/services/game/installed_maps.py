@@ -9,7 +9,8 @@ from pathlib import Path
 
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import (
-    artwork_assembly_sha256,
+    VALIDATED_BUILD_ID,
+    artwork_assembly_matches,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -110,9 +111,9 @@ def level_metadata(reader: _Reader, asset_name: str) -> InstalledLevel:
 def read_installed_levels(
     installation: GameInstallation,
 ) -> tuple[tuple[InstalledLevel, ...], tuple[Path, ...]] | None:
-    """Return reviewed installed membership; unsupported builds retain JSON discovery."""
+    """Validate the roster independently of other artwork; fail soft to JSON discovery."""
     build = validated_installed_artwork_build(installation)
-    if build is None or (expected_digest := artwork_assembly_sha256(build.build_id)) is None:
+    if build is None or build.build_id == VALIDATED_BUILD_ID:
         return None
     root = installation.root
     library = root.parents[2]
@@ -123,7 +124,10 @@ def read_installed_levels(
     if assembly.stat().st_size > 32 * 1024 * 1024:
         raise UnityMetadataError("Installed level assembly exceeds its bound.")
     with assembly.open("rb") as handle:
-        if hashlib.file_digest(handle, "sha256").hexdigest() != expected_digest:
+        raw = handle.read(32 * 1024 * 1024 + 1)
+        if len(raw) > 32 * 1024 * 1024 or not artwork_assembly_matches(
+            build.build_id, hashlib.sha256(raw).hexdigest()
+        ):
             raise UnityMetadataError("Unsupported installed level assembly.")
     with ExitStack() as stack:
         indexes = {

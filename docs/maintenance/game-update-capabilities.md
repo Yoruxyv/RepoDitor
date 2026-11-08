@@ -68,6 +68,26 @@ manifest provenance, exact source/assembly identities, canonical mappings and
 bounded decoding for each artwork domain. Use the installed checks below and
 synthetic regressions; mutation approval still requires its own reviewed evidence.
 
+Read-only artwork tolerates a Steam build-ID change when the installed managed
+assembly is byte-for-byte one of the independently reviewed Unity 6 assemblies.
+Known builds retain their exact build/digest pair; they cannot borrow another
+build's pin. Unknown builds require authoritative Steam provenance, an owned
+assembly bounded to 32 MiB, its reviewed digest, and unchanged source identities.
+Unity version alone never admits artwork, and changed assemblies require manual
+review even if their metadata appears compatible.
+
+Each domain still validates independently: Cosmetics resolves the installed
+canonical vector, unique GUID/Sprite/bundle relationships and bounded PNGs;
+Upgrades follows typed prefab/material/texture references and bounded streams;
+Items uses reviewed baked-icon recipes and authored prefab identities; Maps reads
+the normal-level roster and authored preview references. Malformed or ambiguous
+inputs keep the existing fallback. Caches retain their source watches; upgrade
+texture cache format 3 also binds assembly and manifest changes, invalidating
+older entries before reuse. Missing item icons remain unavailable.
+
+This fallback supplies no mutation capability or production Tauri write authority.
+Tauri artwork transport remains separate from Python artwork admission.
+
 ### Installed and committed evidence
 
 From `web/`:

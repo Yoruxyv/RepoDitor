@@ -10,7 +10,7 @@ import type { PythonClient } from "../python/client.cjs";
 import { MAX_ICON_BYTES, validPng } from "./png.cjs";
 
 const MAX_SOURCE_WATCHES = 8;
-const PRESENTATION_CACHE_FORMAT_VERSION = 2;
+const PRESENTATION_CACHE_FORMAT_VERSION = 3;
 const MAX_PRESENTATION_CACHE_ENTRIES = 256;
 const MAX_PRESENTATION_MANIFEST_BYTES = 512 * 1024;
 const MAX_UPGRADE_KEY_BYTES = 512;

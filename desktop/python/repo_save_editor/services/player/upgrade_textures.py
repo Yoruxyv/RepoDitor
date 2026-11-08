@@ -16,7 +16,8 @@ from repo_save_editor.services.game.discovery import GameInstallation, discover_
 from repo_save_editor.services.game.installed_build import (
     VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
-    artwork_assembly_sha256,
+    artwork_assembly_matches,
+    owned_file,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
@@ -58,7 +59,6 @@ MAX_UPGRADE_KEY_BYTES: Final = 512
 MAX_STREAM_BYTES: Final = 64 * 1024 * 1024
 MAX_BATCH_UPGRADES: Final = 64
 MAX_BATCH_PNG_BYTES: Final = 16 * 1024 * 1024
-HASH_CHUNK_BYTES: Final = 1024 * 1024
 
 
 class UpgradeTextureError(ValueError):
@@ -169,14 +169,16 @@ def _regular_owned_file(root: Path, relative: Path) -> Path:
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
     try:
+        if not 0 < path.stat().st_size <= 32 * 1024 * 1024:
+            raise UpgradeTextureError("Installed managed assembly exceeds its bound.")
         with path.open("rb") as handle:
-            while chunk := handle.read(HASH_CHUNK_BYTES):
-                digest.update(chunk)
+            raw = handle.read(32 * 1024 * 1024 + 1)
+        if len(raw) > 32 * 1024 * 1024:
+            raise UpgradeTextureError("Installed managed assembly exceeds its bound.")
     except OSError as error:
         raise UpgradeTextureError("Installed managed assembly is unavailable.") from error
-    return digest.hexdigest()
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _validated_paths(
@@ -197,14 +199,21 @@ def _validated_paths(
     resources = _regular_owned_file(game_root, RESOURCES_RELATIVE_PATH)
     resource_manager = _regular_owned_file(game_root, RESOURCE_MANAGER_RELATIVE_PATH)
     assembly = _regular_owned_file(game_root, ASSEMBLY_RELATIVE_PATH)
-    expected_assembly_sha256 = (
-        VALIDATED_ASSEMBLY_SHA256
+    assembly = owned_file(installation.steam_library_root or game_root, assembly)
+    before = assembly.stat()
+    digest = _sha256_file(assembly)
+    matches = (
+        digest == VALIDATED_ASSEMBLY_SHA256
         if resolved_build.build_id == VALIDATED_BUILD_ID
-        else artwork_assembly_sha256(resolved_build.build_id)
+        else artwork_assembly_matches(resolved_build.build_id, digest)
     )
-    if expected_assembly_sha256 is None:
-        raise UpgradeTextureError("Installed Steam build is not supported for artwork.")
-    if _sha256_file(assembly) != expected_assembly_sha256:
+    after = assembly.stat()
+    if not matches or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
         raise UpgradeTextureError("Installed managed assembly does not match the validated build.")
     resolved_build.manifest_path.resolve(strict=True)
     return (game_root, data_root, resources, resource_manager)
@@ -509,6 +518,7 @@ def _decode_resolved_upgrade_texture(
     data_root: Path,
     resources: Path,
     resource_manager: Path,
+    admission_watches: tuple[SourceWatch, ...] = (),
 ) -> DecodedUpgradeTexture:
     texture = visual.texture
     stream, _stream_stat = _resolve_stream(data_root, texture)
@@ -555,7 +565,9 @@ def _decode_resolved_upgrade_texture(
         and applied_framing.source_path not in watch_paths
     ):
         watch_paths.append(applied_framing.source_path)
-    watches = tuple(_watch(path) for path in watch_paths)
+    if any(_watch(watch.path) != watch for watch in admission_watches):
+        raise UpgradeTextureError("Installed artwork admission sources changed during decoding.")
+    watches = (*(_watch(path) for path in watch_paths), *admission_watches)
     source_identity = _source_identity(
         texture,
         applied_framing,
@@ -609,6 +621,7 @@ def _decode_upgrade_batch(
     resource_manager: Path,
     resolved: PreparationTextureCallback,
     on_decode_start: PreparationDecodeCallback | None,
+    admission_watches: tuple[SourceWatch, ...],
 ) -> None:
     png_bytes = 0
     budget_exhausted = False
@@ -624,6 +637,7 @@ def _decode_upgrade_batch(
                     data_root=data_root,
                     resources=resources,
                     resource_manager=resource_manager,
+                    admission_watches=admission_watches,
                 )
                 if png_bytes + len(candidate.png) > MAX_BATCH_PNG_BYTES:
                     budget_exhausted = True
@@ -674,12 +688,20 @@ def prepare_installed_upgrade_textures(
 
     stage(UpgradePreparationStage.INDEXING)
     try:
+        admission_watches = tuple(
+            _watch(path)
+            for path in (installation.root / ASSEMBLY_RELATIVE_PATH, build.manifest_path)
+        )
         (
             _game_root,
             data_root,
             resources_path,
             resource_manager_path,
         ) = _validated_paths(installation, build)
+        if any(_watch(w.path) != w for w in admission_watches):
+            raise UpgradeTextureError(
+                "Installed artwork admission sources changed during validation."
+            )
         if not upgrade_keys:
             return UpgradeTextureBatchResult(True, True, True, ())
 
@@ -701,6 +723,7 @@ def prepare_installed_upgrade_textures(
                 resource_manager=resource_manager_path,
                 resolved=resolved,
                 on_decode_start=on_decode_start,
+                admission_watches=admission_watches,
             )
     except (OSError, OverflowError, UnityMetadataError, UpgradeTextureError, ValueError):
         return UpgradeTextureBatchResult(

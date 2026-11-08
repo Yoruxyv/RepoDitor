@@ -24,6 +24,9 @@ def _installation(tmp_path: Path) -> tuple[GameInstallation, ValidatedInstalledB
     catalog = root / "REPO_Data/StreamingAssets/aa/catalog.json"
     catalog.parent.mkdir(parents=True)
     catalog.write_text("{}", encoding="utf-8")
+    assembly = root / "REPO_Data/Managed/Assembly-CSharp.dll"
+    assembly.parent.mkdir()
+    assembly.write_bytes(b"synthetic assembly")
     manifest = tmp_path / "appmanifest_3241660.acf"
     manifest.write_text('"buildid" "23363152"', encoding="utf-8")
     return (
