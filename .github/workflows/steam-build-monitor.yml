@@ -1,0 +1,102 @@
+name: Steam public build monitoring
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: steam-public-build-monitor
+  cancel-in-progress: false
+
+env:
+  UV_HTTP_TIMEOUT: "30"
+  UV_HTTP_RETRIES: "0"
+
+jobs:
+  observe:
+    name: Observe public Steam metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      state: ${{ steps.detect.outputs.state }}
+      build: ${{ steps.detect.outputs.build }}
+      checked-at: ${{ steps.detect.outputs.checkedAt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Prepare Valve metadata client
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --kill-after=10s 90s sudo apt-get update -qq
+          timeout --kill-after=10s 90s sudo apt-get install -y --no-install-recommends lib32gcc-s1
+          mkdir "$RUNNER_TEMP/steam-public-metadata"
+          curl --proto '=https' --proto-redir '=https' --max-redirs 0 \
+            --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            --max-filesize 5242880 \
+            https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+            --output "$RUNNER_TEMP/steam-public-metadata/client.tar.gz"
+          tar --no-same-owner -xzf "$RUNNER_TEMP/steam-public-metadata/client.tar.gz" \
+            -C "$RUNNER_TEMP/steam-public-metadata"
+      - name: Read public metadata without downloading the game
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fresh client/cache every run. No app_update, credentials, or game download.
+          client="$RUNNER_TEMP/steam-public-metadata"
+          if ! timeout --kill-after=10s 180s "$client/steamcmd.sh" \
+            +login anonymous +app_info_update 1 +app_info_print 3241660 +quit \
+            2> >(head -c 1048576 > "$client/client-errors.log") \
+            | head -c 1048577 > "$client/metadata.log"; then
+            echo 'Steam public build: UNKNOWN (metadata client failed).' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          uv run --locked --no-dev python -m tools.capabilities.steam_monitor detect \
+            "$client/metadata.log" | tee "$RUNNER_TEMP/steam-observation.json"
+          OBSERVATION="$RUNNER_TEMP/steam-observation.json" uv run --locked --no-dev python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path(os.environ["OBSERVATION"]).read_text())
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key in ("state", "build", "checkedAt"):
+                  output.write(f"{key}={data[key]}\n")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
+              summary.write(f"Steam public build: {data['state']}\n\nObserved: {data['build']}\n\nReviewed artwork: {data['reviewedBuild']}\n\nNo compatibility approval is implied.\n")
+          PY
+      - name: Report unavailable observation
+        if: failure()
+        run: |
+          echo 'Steam public build monitoring: UNKNOWN. No build or compatibility decision was made.' >> "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: Maintain compatibility review issue
+    needs: observe
+    if: needs.observe.outputs.state == 'CHANGED'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Notify once per observed build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DETECTED_BUILD: ${{ needs.observe.outputs.build }}
+          CHECKED_AT: ${{ needs.observe.outputs.checked-at }}
+        run: uv run --locked --no-dev python -m tools.capabilities.steam_monitor notify "$DETECTED_BUILD" "$CHECKED_AT"

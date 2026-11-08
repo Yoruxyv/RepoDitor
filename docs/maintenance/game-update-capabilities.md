@@ -20,6 +20,64 @@ never inferred to be an owned or mutable ID.
 
 ## Routine checks
 
+### Public Steam build monitoring
+
+The independent `Steam public build monitoring` workflow checks app `3241660`
+daily and on `workflow_dispatch`. The workflow must first exist on GitHub's
+default branch before schedules or manual dispatch become available. After that,
+feature branch refs can also be tested by manual dispatch. This monitor does not
+participate in application PR gates. Synthetic monitor and artwork regressions
+remain in Quality and do not depend on Steam availability.
+
+The source is Valve SteamCMD's anonymous `app_info_print 3241660` metadata, using
+only the exact `depots.branches.public.buildid` field. The official
+[`UpToDateCheck` interface](https://partner.steamgames.com/doc/webapi/ISteamApps#UpToDateCheck)
+does not document `required_version` as this public branch identity; the bounded
+R.E.P.O. probe returned `success:false`. It is not used as a substitute. Valve
+documents `app_info_print` in its [SteamCMD tooling guide](https://partner.steamgames.com/doc/sdk/uploading).
+
+Each observation uses a fresh SteamCMD directory/cache and anonymous login, with
+no `app_update`, Steam credentials or game download. The client is downloaded
+from Valve's HTTPS CDN, can update itself, and runs under a 180-second deadline.
+Console output, metadata bytes, token counts and nesting are bounded. Malformed,
+ambiguous, wrong-app, non-public, truncated or unavailable metadata is UNKNOWN:
+the monitor job fails visibly and cannot notify a new build. No third-party
+metadata service is used. Steam availability and future client output changes
+remain external limitations.
+
+The monitoring baseline is the independently reviewed artwork build `26407089`,
+preserved from migration checkpoint
+[`1815b70`](https://github.com/Yoruxyv/RepoDitor/commit/1815b70fd1bfa38bdafd041f4c9beac7bbf5c514).
+This monitoring-only baseline is independent of `main`'s older runtime artwork
+admission and mutation evidence. An UNCHANGED observation means only that the
+public build matches the reviewed monitoring baseline; it does not mean this
+branch's application supports that build. Regression tests keep the baseline
+pinned and prove that runtime artwork admission still rejects `26407089` while
+retaining historical `26294889` behavior. Updating the monitoring baseline
+requires a separate independent review. A changed public build creates or
+updates one bot-owned compatibility review issue; it does not approve artwork or
+save operations. Repeated observations of the same build do not comment, reopen
+or rewrite the issue. A later build updates its generated block, preserves human
+notes outside that block and reopens the review. Ambiguous issue ownership or an
+incomplete bounded history scan fails closed. Notification has no automatic
+retry and at most three issue-list requests plus one write; HTTPS response sizes
+and socket waits are bounded, and the whole notification job has a three-minute
+deadline. Only that job receives `issues: write`.
+
+To inspect captured metadata without notification:
+
+```powershell
+uv run --locked python -m tools.capabilities.steam_monitor detect <steamcmd-output.log>
+```
+
+An observation cannot verify the installed game, assembly hashes, artwork pixels,
+capability relationships or saves. On a new build, independently verify local
+manifest provenance, exact source/assembly identities, canonical mappings and
+bounded decoding for each artwork domain. Use the installed checks below and
+synthetic regressions; mutation approval still requires its own reviewed evidence.
+
+### Installed and committed evidence
+
 From `web/`:
 
 ```powershell
