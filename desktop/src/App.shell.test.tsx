@@ -92,13 +92,13 @@ describe("app shell integration", () => {
       screen
         .getByRole("progressbar", { name: "Editor preparation progress" })
         .getAttribute("aria-valuetext"),
-    ).toBe("5 of 6 editor tasks completed");
+    ).toBe("4 of 5 editor tasks completed");
     expect(screen.queryByTestId("workspace")).toBeNull();
     expect(window.repoditor.players.list).toHaveBeenCalledTimes(1);
     expect(window.repoditor.run.get).toHaveBeenCalledTimes(1);
     expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(1);
     expect(window.repoditor.maps.list).toHaveBeenCalledTimes(1);
-    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(players.length);
+    expect(window.repoditor.players.avatar).not.toHaveBeenCalled();
 
     act(() =>
       assetListener?.({
@@ -194,7 +194,7 @@ describe("app shell integration", () => {
     expect(await screen.findByTestId("workspace")).toBeTruthy();
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
     expect(window.repoditor.players.list).toHaveBeenCalledTimes(playerCalls);
-    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(avatarCalls);
+    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(avatarCalls + 1);
     expect(window.repoditor.run.get).toHaveBeenCalledTimes(runCalls);
     expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(itemCalls);
     expect(window.repoditor.maps.list).toHaveBeenCalledTimes(mapCalls);
@@ -288,7 +288,7 @@ describe("app shell integration", () => {
       screen
         .getByRole("progressbar", { name: "Editor preparation progress" })
         .getAttribute("aria-valuetext"),
-    ).toBe("5 of 6 editor tasks completed");
+    ).toBe("4 of 5 editor tasks completed");
     expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
     expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();
 
@@ -318,7 +318,7 @@ describe("app shell integration", () => {
       screen
         .getByRole("progressbar", { name: "Editor preparation progress" })
         .getAttribute("aria-valuetext"),
-    ).toBe("5 of 6 editor tasks completed");
+    ).toBe("4 of 5 editor tasks completed");
     expect(screen.queryByRole("heading", { name: "Preparing game artwork" })).toBeNull();
     expect(screen.queryByTestId("workspace")).toBeNull();
     expect(window.repoditor.upgrades.prepareEntry).not.toHaveBeenCalled();

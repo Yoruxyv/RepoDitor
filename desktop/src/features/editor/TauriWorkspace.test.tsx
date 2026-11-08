@@ -29,7 +29,7 @@ vi.mock("@/app/tauriHealthApi", async (importOriginal) => ({
 }));
 vi.mock("@/app/tauriReadApi", () => ({
   tauriReadApi: {
-    players: { list: vi.fn() },
+    players: { list: vi.fn(), avatar: vi.fn() },
     upgrades: { list: vi.fn() },
     run: { get: vi.fn() },
     advanced: { get: vi.fn() },
@@ -47,6 +47,10 @@ async function openUpgrades() {
 describe("native upgrade drafts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(tauriReadApi.players.avatar).mockImplementation(async (_save, playerId) => ({
+      ok: true,
+      data: { playerId, avatarUrl: null, status: "unavailable", retryAfterMs: null },
+    }));
     vi.mocked(tauriReadApi.players.list).mockResolvedValue({ ok: true, data: players });
     vi.mocked(tauriReadApi.upgrades.list).mockResolvedValue({ ok: true, data: upgrades });
     vi.mocked(tauriReadApi.run.get).mockResolvedValue({ ok: true, data: runState });
@@ -67,6 +71,27 @@ describe("native upgrade drafts", () => {
       reason: "save_stale",
       canonical: null,
     }));
+  });
+
+  it("uses the native selected-player avatar and keeps image failure at initials", async () => {
+    vi.mocked(tauriReadApi.players.avatar).mockImplementation(async (_save, playerId) => ({
+      ok: true,
+      data: {
+        playerId,
+        avatarUrl: "https://avatars.fastly.steamstatic.com/synthetic.jpg",
+        status: "available",
+        retryAfterMs: null,
+      },
+    }));
+    const user = userEvent.setup();
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    const picture = await screen.findByRole("img", { name: "Alpha avatar" });
+    expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(session.id, "111");
+    fireEvent.error(picture);
+    expect(screen.getByTestId("avatar-fallback").textContent).toBe("A");
+    expect(tauriReadApi.players.avatar).toHaveBeenCalledTimes(1);
+    expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
   });
 
   it("reviews and reverts an exact refill, then refreshes Full only after durable canonical confirmation", async () => {

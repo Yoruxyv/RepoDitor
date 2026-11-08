@@ -1,100 +1,154 @@
-/** Session-scoped avatar loading keyed only by stable player identity. */
+/** Selected-player-only optional lookups, with one finite transient retry per session. */
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RepoDitorApi } from "@electron/contracts";
 
+type AvatarLoader = RepoDitorApi["players"]["avatar"];
 interface AvatarAttempt {
-  readonly requests: number;
-  readonly failedAt: number | null;
+  requests: number;
+  retryAt: number | null;
 }
-
-const AVATAR_RETRY_COOLDOWN_MS = 30_000;
-const MAX_AVATAR_REQUESTS = 2;
+interface AvatarSession {
+  saveId: string;
+  urls: Record<string, string | null>;
+  attempts: Map<string, AvatarAttempt>;
+  busy: boolean;
+  active: boolean;
+  notBefore: number;
+  blocked: boolean;
+}
 
 export function usePlayerAvatars(
   saveId: string,
   selectedPlayerId: string | null,
-  initialAvatarUrls: Readonly<Record<string, string | null>> = {},
+  fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
 ) {
-  const [avatarUrls, setAvatarUrls] = useState<Record<string, string | null>>(() => ({
-    ...initialAvatarUrls,
-  }));
-  const avatarUrlsRef = useRef(avatarUrls);
-  const mounted = useRef(false);
-  const requests = useRef(new Set<string>());
-  const attempts = useRef(new Map<string, AvatarAttempt>());
-
-  const updateAvatar = useCallback((playerId: string, avatarUrl: string | null) => {
-    avatarUrlsRef.current = { ...avatarUrlsRef.current, [playerId]: avatarUrl };
-    if (mounted.current) setAvatarUrls(avatarUrlsRef.current);
-  }, []);
-
-  const markFailure = useCallback(
-    (playerId: string) => {
-      const attempt = attempts.current.get(playerId);
-      attempts.current.set(playerId, {
-        requests: Math.max(attempt?.requests ?? 0, 1),
-        failedAt: Date.now(),
-      });
-      updateAvatar(playerId, null);
-    },
-    [updateAvatar],
+  const session = useRef<AvatarSession | null>(null);
+  const [snapshot, setSnapshot] = useState<{ saveId: string; urls: Record<string, string | null> }>(
+    { saveId, urls: {} },
   );
+  const publish = useCallback((state: AvatarSession) => {
+    if (state.active) setSnapshot({ saveId: state.saveId, urls: { ...state.urls } });
+  }, []);
+  useEffect(() => {
+    const state: AvatarSession =
+      session.current?.saveId === saveId
+        ? session.current
+        : {
+            saveId,
+            urls: {},
+            attempts: new Map(),
+            busy: false,
+            active: true,
+            notBefore: 0,
+            blocked: false,
+          };
+    state.active = true;
+    session.current = state;
+    publish(state);
+    return () => {
+      state.active = false;
+    };
+  }, [publish, saveId]);
 
   const loadAvatar = useCallback(
     async (playerId: string) => {
-      const previous = attempts.current.get(playerId);
+      const state = session.current;
+      if (state?.saveId !== saveId) return;
+      const attempt = state.attempts.get(playerId);
       if (
-        typeof avatarUrlsRef.current[playerId] === "string" ||
-        requests.current.has(playerId) ||
-        (previous?.requests ?? 0) >= MAX_AVATAR_REQUESTS ||
-        previous?.failedAt === null ||
-        (previous?.failedAt !== undefined &&
-          Date.now() - previous.failedAt < AVATAR_RETRY_COOLDOWN_MS)
-      ) {
+        !state.active ||
+        state.busy ||
+        state.blocked ||
+        playerId !== selectedPlayerId ||
+        typeof state.urls[playerId] === "string" ||
+        (attempt && (attempt.requests >= 2 || attempt.retryAt === null)) ||
+        Date.now() < Math.max(state.notBefore, attempt?.retryAt ?? 0)
+      )
         return;
-      }
-      requests.current.add(playerId);
-      attempts.current.set(playerId, {
-        requests: (previous?.requests ?? 0) + 1,
-        failedAt: null,
-      });
-      if (mounted.current && previous?.failedAt !== undefined) {
-        const next = { ...avatarUrlsRef.current };
-        delete next[playerId];
-        avatarUrlsRef.current = next;
-        setAvatarUrls(next);
-      }
+      const current: AvatarAttempt = { requests: (attempt?.requests ?? 0) + 1, retryAt: null };
+      state.attempts.set(playerId, current);
+      state.busy = true;
+      publish(state);
+      let delay: number | null = null;
+      let url: string | null = null;
       try {
-        const result = await window.repoditor.players.avatar(saveId, playerId);
-        if (!result.ok || result.data.avatarUrl === null) {
-          markFailure(playerId);
-        } else {
-          updateAvatar(playerId, result.data.avatarUrl);
+        const result = await fetchAvatar(saveId, playerId);
+        if (result.ok && result.data.playerId === playerId) {
+          url = result.data.avatarUrl;
+          if (result.data.status === "transient") {
+            delay = result.data.retryAfterMs ?? null;
+            if (delay === null) state.blocked = true;
+          }
+        } else if (
+          !result.ok &&
+          ["process_timeout", "process_failed", "backend_unavailable"].includes(result.error.code)
+        ) {
+          delay = 60_000;
         }
       } catch {
-        markFailure(playerId);
+        delay = 60_000;
       } finally {
-        requests.current.delete(playerId);
+        state.busy = false;
+        state.urls[playerId] = url;
+        // Both native and Electron projections validate the bounded retry delay.
+        if (delay !== null) {
+          current.retryAt = Date.now() + delay;
+          // A rate-limited lookup must not be followed by a burst for other players.
+          state.notBefore = Math.max(state.notBefore, current.retryAt);
+        }
+        publish(state);
       }
     },
-    [markFailure, saveId, updateAvatar],
+    [fetchAvatar, publish, saveId, selectedPlayerId],
   );
 
   useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (selectedPlayerId !== null && avatarUrls[selectedPlayerId] === undefined) {
-      void loadAvatar(selectedPlayerId);
+    const state = session.current;
+    if (state?.saveId !== saveId) return;
+    if (selectedPlayerId === null) return;
+    if (state.blocked) {
+      if (state.urls[selectedPlayerId] === undefined) {
+        state.urls[selectedPlayerId] = null;
+        publish(state);
+      }
+      return;
     }
-  }, [avatarUrls, loadAvatar, selectedPlayerId]);
+    const attempt = state.attempts.get(selectedPlayerId);
+    if (
+      typeof state.urls[selectedPlayerId] === "string" ||
+      (attempt && (attempt.requests >= 2 || attempt.retryAt === null))
+    )
+      return;
+    const delay = Math.max(state.notBefore, attempt?.retryAt ?? 0) - Date.now();
+    if (delay > 0) {
+      if (state.urls[selectedPlayerId] === undefined) {
+        state.urls[selectedPlayerId] = null;
+        publish(state);
+      }
+      const timer = setTimeout(() => {
+        void loadAvatar(selectedPlayerId);
+      }, delay);
+      return () => clearTimeout(timer);
+    }
+    void loadAvatar(selectedPlayerId);
+  }, [loadAvatar, publish, saveId, selectedPlayerId, snapshot]);
+
+  const rejectAvatar = useCallback(
+    (playerId: string) => {
+      const state = session.current;
+      if (state?.saveId !== saveId) return;
+      const attempt = state.attempts.get(playerId);
+      if (!state.active || !attempt || state.urls[playerId] === null) return;
+      state.urls[playerId] = null;
+      attempt.retryAt = Date.now() + 60_000;
+      publish(state);
+    },
+    [publish, saveId],
+  );
 
   return {
-    avatarUrls,
+    avatarUrls: snapshot.saveId === saveId ? snapshot.urls : {},
     loadAvatar,
-    rejectAvatar: markFailure,
+    rejectAvatar,
   };
 }

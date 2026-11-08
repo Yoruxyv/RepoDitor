@@ -141,6 +141,7 @@ try {
         'upgrade drafts block partial health Save until explicitly reverted',
         'ordinary artifact retains read-only upgrades with no draft controls',
         'ordinary frozen reads reject oversized Run and MetaSave inputs',
+        'ordinary packaged avatars validate save membership and retain read-only fallback',
         'frozen recovery preserves oversized backup and pending evidence',
         'synthetic upgrade batch Save reopens persisted values and Revert keeps them',
         'upgrade writer termination at before_replace reconciles without partial edits',

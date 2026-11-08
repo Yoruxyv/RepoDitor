@@ -86,6 +86,34 @@ async fn players_list(
 }
 
 #[tauri::command]
+async fn players_avatar(
+    app: tauri::AppHandle,
+    save_id: Option<serde_json::Value>,
+    player_id: Option<serde_json::Value>,
+) -> Outcome<players::Avatar> {
+    let ids = save_id
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| saves::valid_id(id))
+        .zip(
+            player_id
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+                .filter(|id| players::valid_id(id)),
+        );
+    let Some((save, player)) = ids else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Player);
+    };
+    let player = player.to_owned();
+    backend::request(
+        app,
+        Operation::Avatar(save.to_owned(), player.clone()),
+        move |bytes| players::parse_avatar(bytes, &player),
+    )
+    .await
+}
+
+#[tauri::command]
 async fn upgrades_list(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
@@ -237,6 +265,7 @@ fn main() {
             saves_open,
             game_status,
             players_list,
+            players_avatar,
             upgrades_list,
             run_get,
             advanced_get,

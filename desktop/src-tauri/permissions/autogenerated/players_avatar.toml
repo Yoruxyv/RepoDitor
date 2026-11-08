@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-players-avatar"
+description = "Enables the players_avatar command without any pre-configured scope."
+commands.allow = ["players_avatar"]
+
+[[permission]]
+identifier = "deny-players-avatar"
+description = "Denies the players_avatar command without any pre-configured scope."
+commands.deny = ["players_avatar"]

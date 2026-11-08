@@ -106,8 +106,18 @@ def test_catalog_preserves_sprite_type_and_rejects_duplicate_sprite_locations() 
 
 
 @pytest.mark.parametrize("kind", ["shared_sprite_path", "missing", "invalid_path"])
-def test_ambiguous_or_invalid_sprite_mappings_fail_closed(tmp_path: Path, kind: str) -> None:
+def test_ambiguous_or_invalid_sprite_mappings_fail_closed(
+    tmp_path: Path, kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if kind == "shared_sprite_path":
+        # This rejection precedes bundle loading; any decoder access is a test failure.
+        monkeypatch.setitem(
+            sys.modules,
+            "UnityPy",
+            SimpleNamespace(
+                load=lambda *_: pytest.fail("Ambiguous identities reached the decoder")
+            ),
+        )
         with pytest.raises(artwork.CosmeticArtworkError, match="Multiple"):
             artwork._find_unique_bundle_paths(
                 tmp_path, {0: "assets/icons/same.png", 1: "assets/icons/same.png"}

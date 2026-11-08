@@ -110,6 +110,9 @@ export interface PlayerDto {
 export interface PlayerAvatar {
   playerId: string;
   avatarUrl: string | null;
+  status?: "available" | "unavailable" | "transient";
+  /** Null means the server delay exceeds the bounded automatic-retry budget. */
+  retryAfterMs?: number | null;
 }
 
 export interface PlayerHealthChange {

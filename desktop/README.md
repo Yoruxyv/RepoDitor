@@ -54,7 +54,7 @@ normal user profile.
 Electron remains the default application and release package. A Windows-only
 Tauri host supports discovery, save opening, read-only Overview/Players/Upgrades/Run/Items/Maps/Cosmetics and Python-backed
 game-status checks using the existing React components and desktop contracts.
-Editing/saving, other workspace features, artwork/Steam avatars and production installation
+Editing/saving, other workspace features, artwork and production installation
 are not implemented in this host.
 The existing C# WebView2 installer and React UI remain the required installer;
 native payload integration has not been implemented or lifecycle-validated.
@@ -90,7 +90,9 @@ after external fixture changes, and exercises malformed responses, failed
 operations, unknown/running game states and close during an active read.
 Players shares Electron's list, selection, health display, responsive layout and
 translated loading/error/empty states. Health is read-only, edit actions are absent,
-and avatars use the existing fallback. Packaged checks compare both hosts, verify
+and optional avatars share the selected-player loader with bounded transient retry.
+The native avatar command remains read-only and permits only the two approved
+Steam CDN image hosts. Packaged checks compare both hosts, verify
 unchanged save bytes and exercise player-read timeout, retry and descendant cleanup.
 Upgrades reuses Python's dynamic membership and presentation metadata, including
 valid stored values above gameplay caps. Its text fields are read-only and support

@@ -128,11 +128,27 @@ function parseAvatar(value: unknown): DesktopOperationResult<PlayerAvatar> {
   if (!isRecord(value.avatar)) {
     throw new PlayerProtocolError("Invalid avatar.");
   }
+  const avatarUrl = parseAvatarUrl(value.avatar.avatarUrl);
+  const status = value.avatar.status ?? (avatarUrl === null ? "unavailable" : "available");
+  const retryAfterMs = value.avatar.retryAfterMs ?? null;
+  if (
+    !["available", "unavailable", "transient"].includes(status as string) ||
+    (status === "available") !== (avatarUrl !== null) ||
+    (retryAfterMs !== null &&
+      (status !== "transient" ||
+        typeof retryAfterMs !== "number" ||
+        !Number.isInteger(retryAfterMs) ||
+        retryAfterMs < 30_000 ||
+        retryAfterMs > 300_000))
+  )
+    throw new PlayerProtocolError("Invalid avatar retry policy.");
   return {
     ok: true,
     data: {
       playerId: readString(value.avatar.playerId, "player ID"),
-      avatarUrl: parseAvatarUrl(value.avatar.avatarUrl),
+      avatarUrl,
+      status: status as NonNullable<PlayerAvatar["status"]>,
+      retryAfterMs,
     },
   };
 }

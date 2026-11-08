@@ -15,11 +15,12 @@ use std::{
 use tauri::Manager;
 
 const DEADLINE: Duration = Duration::from_secs(30);
-const OPERATIONS: usize = if cfg!(feature = "synthetic-health-recovery") {
+const AVATAR_SLOT: usize = if cfg!(feature = "synthetic-health-recovery") {
     12
 } else {
     9
 };
+const OPERATIONS: usize = AVATAR_SLOT + 1;
 
 #[derive(Default)]
 pub struct HostState {
@@ -97,6 +98,7 @@ pub enum Operation {
     Open(String),
     Game,
     Players(String),
+    Avatar(String, String),
     Upgrades(String),
     Run(String),
     Items(String),
@@ -142,6 +144,7 @@ impl Operation {
             Self::Open(_) => 1,
             Self::Game => 2,
             Self::Players(_) => 3,
+            Self::Avatar(..) => AVATAR_SLOT,
             Self::Upgrades(_) => 4,
             Self::Run(_) => 5,
             Self::Items(_) => 6,
@@ -171,7 +174,7 @@ impl Operation {
             Self::Discovery => Service::Discovery,
             Self::Open(_) => Service::Save,
             Self::Game => Service::Game,
-            Self::Players(_) => Service::Player,
+            Self::Players(_) | Self::Avatar(..) => Service::Player,
             Self::Upgrades(_) => Service::Upgrade,
             Self::Run(_) => Service::Run,
             Self::Items(_) => Service::Items,
@@ -202,6 +205,7 @@ impl Operation {
             Self::Open(id) => vec!["saves-open", id],
             Self::Game => vec!["game-status"],
             Self::Players(id) => vec!["players-list", id],
+            Self::Avatar(id, player) => vec!["players-avatar", id, player],
             Self::Upgrades(id) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
@@ -319,8 +323,8 @@ fn execute(
     deadline: Duration,
 ) -> Result<Vec<u8>, BackendError> {
     let state = &request.0;
-    // The status admission permit already bounds its lane to one request.
-    let _domain_worker = if request.1 == Operation::Game.slot() {
+    // Each optional/status lane has one permit; network lookup cannot delay save work.
+    let _domain_worker = if request.1 == Operation::Game.slot() || request.1 == AVATAR_SLOT {
         None
     } else {
         Some(loop {

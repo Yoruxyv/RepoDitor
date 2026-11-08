@@ -835,7 +835,7 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
   });
 
-  it("waits for avatar warmup before entry and falls back if the image fails", async () => {
+  it("enters without waiting for the selected avatar and falls back if the image fails", async () => {
     let finishAvatar:
       | ((value: { ok: true; data: { playerId: string; avatarUrl: string | null } }) => void)
       | undefined;
@@ -855,20 +855,17 @@ describe("run-save workspace integration", () => {
     await waitFor(() => {
       expect(avatar).toHaveBeenCalledWith(saveId, "111");
     });
-    await waitFor(() => {
-      expect(screen.getByTestId("entry-loading-detail").textContent).toBe(
-        "Loading player avatars…",
-      );
-    });
-    expect(screen.queryByTestId("workspace")).toBeNull();
+    expect(await screen.findByTestId("workspace")).toBeTruthy();
+    expect(screen.queryByTestId("entry-loading-detail")).toBeNull();
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    expect(screen.getByTestId("avatar-fallback-loading")).toBeTruthy();
 
     const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
     await act(async () => {
       finishAvatar?.({ ok: true, data: { playerId: "111", avatarUrl } });
     });
 
-    expect(await screen.findByTestId("workspace")).toBeTruthy();
-    await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await user.clear(health);
     await user.type(health, "95");

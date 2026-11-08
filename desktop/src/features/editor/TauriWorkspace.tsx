@@ -5,6 +5,7 @@ import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { TauriPlayersView } from "@/features/players/TauriPlayersView";
 import { usePlayers } from "@/features/players/usePlayers";
+import { usePlayerAvatars } from "@/features/players/usePlayerAvatars";
 import { useTauriHealth } from "@/features/players/useTauriHealth";
 import { TauriHealthControls } from "@/features/players/TauriHealthControls";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
@@ -94,7 +95,12 @@ export function TauriWorkspace({
     health.revertUpgrades();
   }
   const maps = useMaps(null, tauriReadApi.maps.list);
-  const avatarUrls = Object.fromEntries(players.players.map((player) => [player.id, null]));
+  const avatars = usePlayerAvatars(
+    session.id,
+    players.selectedPlayerId,
+    tauriReadApi.players.avatar,
+  );
+  const avatarUrls = avatars.avatarUrls;
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next: number;
     if (event.key === "ArrowRight") next = (index + 1) % SECTIONS.length;
@@ -172,11 +178,17 @@ export function TauriWorkspace({
             />
           ) : null}
           {section === "players" ? (
-            <TauriPlayersView players={players} health={health} avatarUrls={avatarUrls} />
+            <TauriPlayersView
+              players={players}
+              health={health}
+              avatarUrls={avatarUrls}
+              onRejectAvatar={avatars.rejectAvatar}
+            />
           ) : null}
           {section === "upgrades" ? (
             <TauriUpgradesView
               avatarUrls={avatarUrls}
+              onRejectAvatar={avatars.rejectAvatar}
               players={players}
               upgrades={upgrades}
               enabled={health.enabled}

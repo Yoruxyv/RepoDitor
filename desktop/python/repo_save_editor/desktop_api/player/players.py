@@ -8,7 +8,7 @@ from pathlib import Path
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
-from repo_save_editor.services.player.profiles import get_steam_avatar_url
+from repo_save_editor.services.player.profiles import SteamAvatar, get_steam_avatar
 from repo_save_editor.services.player.state import (
     get_player_health,
     get_player_max_health,
@@ -44,7 +44,7 @@ def get_player_avatar(
     player_id: str,
     root: Path | None = None,
     *,
-    resolver: Callable[[str], str | None] = get_steam_avatar_url,
+    resolver: Callable[[str], SteamAvatar | str | None] = get_steam_avatar,
 ) -> dict[str, object]:
     """Resolve one optional avatar only for a player present in the selected save."""
     try:
@@ -55,10 +55,18 @@ def get_player_avatar(
     if player_id not in {player.player_id for player in get_players(data)}:
         return _failure("invalid_request", "The selected player is not present in this save.")
 
+    resolved = resolver(player_id)
+    avatar = (
+        resolved
+        if isinstance(resolved, SteamAvatar)
+        else SteamAvatar(resolved, "available" if resolved is not None else "unavailable")
+    )
     return {
         "ok": True,
         "avatar": {
             "playerId": player_id,
-            "avatarUrl": resolver(player_id),
+            "avatarUrl": avatar.url,
+            "status": avatar.status,
+            "retryAfterMs": avatar.retry_after_ms,
         },
     }

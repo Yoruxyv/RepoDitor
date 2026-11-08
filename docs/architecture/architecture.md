@@ -149,8 +149,21 @@ unique IDs. Health may exceed maximum health in an existing save, as in Electron
 the shared progress display clamps it without altering the saved value.
 The existing Players hook accepts an injected list method, loads once per open
 workspace and retains selection across tabs. Retry and reopening read current
-bytes. Health is read-only, editing controls are absent, and the existing avatar
-fallback renders immediately without a network/artwork command.
+bytes. Ordinary production Health remains read-only. Optional Steam avatars use
+the dedicated `players_avatar` read command and Python's selected-save membership
+and SteamID64 validation. Native and Electron boundaries validate the same two
+HTTPS Steam CDN hosts; Tauri permits those hosts for images only, with no generic
+network command or broader connection policy.
+
+The shared avatar hook loads only the selected player and keeps optional network
+work outside Run-entry readiness. It serializes lookups, caches by player within
+the open save session, and permits at most one automatic retry for a classified
+transient result. A valid Retry-After is bounded to 30–300 seconds; an absent or
+invalid value uses 60 seconds, while an explicit larger delay stops automatic
+lookups for that workspace. Private/unavailable profiles remain at initials.
+Selection changes remove old retry timers, session changes discard late results,
+and closing cancels scheduled retries. An already-started lookup remains bounded
+by the existing backend process deadline. No profile data or URL is needed in logs.
 
 Upgrades calls Python's unchanged `upgrades-list` service. Save dictionaries define
 membership; Rust validates the existing bounded prefix keys, labels, presentation
@@ -261,7 +274,8 @@ are omitted. The editable hook, artwork preparation and pending-write workspace 
 not mounted by this host. Electron's default composition remains editable. The shared
 game-safety boundary also covers global Cosmetics, including when no Run save is open.
 
-The local main-window capability grants only those ten commands. CSP and
+The local main-window capability grants those read commands plus `players_avatar`.
+CSP and
 navigation constrain the bundled page; new windows are denied. The preview has
 its own application identifier/profile and does not migrate Electron data.
 

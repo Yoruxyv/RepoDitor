@@ -92,3 +92,70 @@ fn only_accepts_read_failures_and_sanitizes_backend_messages() {
         );
     }
 }
+
+#[test]
+fn avatar_urls_and_retry_policy_are_narrow_and_bound_to_the_requested_player() {
+    let decode_avatar = |avatar: Value| {
+        parse_avatar(
+            &serde_json::to_vec(&json!({"ok":true,"avatar":avatar})).unwrap(),
+            "111",
+        )
+    };
+    let valid = json!({"playerId":"111","avatarUrl":"https://avatars.fastly.steamstatic.com/example.jpg","status":"available","retryAfterMs":null});
+    assert!(decode_avatar(valid.clone()).is_ok());
+    for url in [
+        "http://avatars.fastly.steamstatic.com/a",
+        "https://example.com/a",
+        "https://avatars.fastly.steamstatic.com.example.com/a",
+        "https://user:pass@avatars.fastly.steamstatic.com/a",
+        "https://avatars.fastly.steamstatic.com:444/a",
+        "file:///image.jpg",
+    ] {
+        let mut raw = valid.clone();
+        raw["avatarUrl"] = json!(url);
+        assert!(decode_avatar(raw).is_err());
+    }
+    for (field, bad) in [
+        ("playerId", json!("222")),
+        ("status", json!("unknown")),
+        ("status", json!("unavailable")),
+        ("retryAfterMs", json!(30_000)),
+    ] {
+        let mut raw = valid.clone();
+        raw[field] = bad;
+        assert!(decode_avatar(raw).is_err());
+    }
+    for delay in [Value::Null, json!(30_000), json!(300_000)] {
+        assert!(decode_avatar(
+            json!({"playerId":"111","avatarUrl":null,"status":"transient","retryAfterMs":delay})
+        )
+        .is_ok());
+    }
+    for delay in [
+        json!(-1),
+        json!(true),
+        json!(29_999),
+        json!(300_001),
+        json!(30_000.5),
+    ] {
+        assert!(decode_avatar(
+            json!({"playerId":"111","avatarUrl":null,"status":"transient","retryAfterMs":delay})
+        )
+        .is_err());
+    }
+    assert!(decode_avatar(
+        json!({"playerId":"111","avatarUrl":null,"status":"unavailable","retryAfterMs":null})
+    )
+    .is_ok());
+    assert!(matches!(
+        parse_avatar(
+            br#"{"ok":false,"error":{"code":"invalid_request","message":"private"}}"#,
+            "111"
+        )
+        .unwrap_err(),
+        BackendError::Domain {
+            code: "invalid_request",
+            ..
+        }
+    ));
+}

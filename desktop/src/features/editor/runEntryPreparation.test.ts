@@ -32,7 +32,7 @@ describe("prepareRunEntryData progress", () => {
     window.repoditor = createRepoDitorApi(vi.fn(), players);
   });
 
-  it("tracks waiting, running, and settled tasks without counting avatars early", async () => {
+  it("settles domain reads without starting or waiting for optional avatars", async () => {
     const playerLoad = deferred<Awaited<ReturnType<RepoDitorApi["players"]["list"]>>>();
     const avatarLoad = deferred<Awaited<ReturnType<RepoDitorApi["players"]["avatar"]>>>();
     const upgradeLoad = deferred<Awaited<ReturnType<RepoDitorApi["upgrades"]["list"]>>>();
@@ -54,15 +54,14 @@ describe("prepareRunEntryData progress", () => {
       onProgressChange: (progress) => snapshots.push(progress),
     });
 
-    expect(snapshots[0]).toMatchObject({ completed: 0, total: 6, currentTask: "items" });
+    expect(snapshots[0]).toMatchObject({ completed: 0, total: 5, currentTask: "items" });
     expect(snapshots.at(-1)).toMatchObject({
       completed: 0,
-      total: 6,
+      total: 5,
       tasks: {
         items: "running",
         upgrades: "running",
         players: "running",
-        avatars: "waiting",
         run: "running",
         maps: "running",
       },
@@ -70,11 +69,11 @@ describe("prepareRunEntryData progress", () => {
     expect(window.repoditor.players.avatar).not.toHaveBeenCalled();
 
     playerLoad.resolve({ ok: true, data: players });
-    await vi.waitFor(() => expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(snapshots.at(-1)?.tasks.players).toBe("completed"));
     expect(snapshots.at(-1)).toMatchObject({
       completed: 1,
-      total: 6,
-      tasks: { players: "completed", avatars: "running" },
+      total: 5,
+      tasks: { players: "completed" },
     });
 
     avatarLoad.resolve({ ok: true, data: { playerId: players[0]!.id, avatarUrl: null } });
@@ -85,19 +84,19 @@ describe("prepareRunEntryData progress", () => {
     await preparation;
 
     expect(snapshots.at(-1)).toEqual({
-      completed: 6,
-      total: 6,
+      completed: 5,
+      total: 5,
       currentTask: null,
       tasks: {
         items: "completed",
         upgrades: "completed",
         players: "completed",
-        avatars: "completed",
         run: "completed",
         maps: "completed",
       },
     });
     expect(snapshots.filter((progress) => progress.completed === progress.total)).toHaveLength(1);
+    expect(window.repoditor.players.avatar).not.toHaveBeenCalled();
   });
 
   it("uses one real task for a cached entry that only refreshes upgrade artwork", async () => {

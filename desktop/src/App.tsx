@@ -67,7 +67,6 @@ const RUN_ENTRY_TASK_KEYS: Record<RunEntryTask, TranslationKey> = {
   items: "entry.detail.items",
   upgrades: "entry.detail.upgrades",
   players: "entry.detail.players",
-  avatars: "entry.detail.avatars",
   run: "entry.detail.run",
   maps: "entry.detail.maps",
 };

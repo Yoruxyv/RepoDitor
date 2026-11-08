@@ -75,7 +75,10 @@ describe("player IPC", () => {
     const avatarUrl = "https://avatars.fastly.steamstatic.com/avatar.jpg";
     await expect(
       getPlayerAvatar(client({ ok: true, avatar: { playerId: "111", avatarUrl } }), saveId, "111"),
-    ).resolves.toEqual({ ok: true, data: { playerId: "111", avatarUrl } });
+    ).resolves.toEqual({
+      ok: true,
+      data: { playerId: "111", avatarUrl, status: "available", retryAfterMs: null },
+    });
 
     await expect(
       getPlayerAvatar(
@@ -107,6 +110,26 @@ describe("player IPC", () => {
         "111",
       ),
     ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+  });
+
+  it("validates retry metadata without making permanent failures retryable", async () => {
+    const avatar = { playerId: "111", avatarUrl: null, status: "transient", retryAfterMs: 45_000 };
+    await expect(getPlayerAvatar(client({ ok: true, avatar }), saveId, "111")).resolves.toEqual({
+      ok: true,
+      data: avatar,
+    });
+    for (const bad of [
+      { ...avatar, retryAfterMs: 1 },
+      { ...avatar, retryAfterMs: 300_001 },
+      { ...avatar, retryAfterMs: true },
+      { ...avatar, status: "unknown" },
+      { ...avatar, status: "unavailable" },
+      { ...avatar, status: "available" },
+    ]) {
+      await expect(
+        getPlayerAvatar(client({ ok: true, avatar: bad }), saveId, "111"),
+      ).resolves.toMatchObject({ ok: false, error: { code: "invalid_response" } });
+    }
   });
 
   it("normalizes process failures", async () => {

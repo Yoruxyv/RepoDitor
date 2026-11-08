@@ -7,6 +7,7 @@ import type {
   GameProcessState,
   InstalledMapsDto,
   PlayerDto,
+  PlayerAvatar,
   PlayerUpgradeDto,
   RepoDitorApi,
   RunStateDto,
@@ -20,7 +21,7 @@ export const tauriReadApi: {
   environment: RepoDitorApi["environment"];
   saves: Pick<RepoDitorApi["saves"], "open">;
   game: RepoDitorApi["game"];
-  players: Pick<RepoDitorApi["players"], "list">;
+  players: RepoDitorApi["players"];
   upgrades: Pick<RepoDitorApi["upgrades"], "list">;
   run: RepoDitorApi["run"];
   advanced: RepoDitorApi["advanced"];
@@ -103,6 +104,22 @@ export const tauriReadApi: {
     },
   },
   players: {
+    async avatar(saveId, playerId) {
+      try {
+        return await invoke<DesktopOperationResult<PlayerAvatar>>("players_avatar", {
+          saveId,
+          playerId,
+        });
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop avatar bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
     async list(saveId) {
       try {
         return await invoke<DesktopOperationResult<PlayerDto[]>>("players_list", { saveId });

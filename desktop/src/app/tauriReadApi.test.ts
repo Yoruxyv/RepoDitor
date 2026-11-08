@@ -107,7 +107,25 @@ describe("typed native read capabilities", () => {
     const rejected = await tauriReadApi.players.list(saveId);
     expect(rejected).toMatchObject({ ok: false, error: { code: "internal_error" } });
     expect(JSON.stringify(rejected)).not.toContain("private");
-    expect(Object.keys(tauriReadApi.players)).toEqual(["list"]);
+    expect(Object.keys(tauriReadApi.players).sort((a, b) => a.localeCompare(b))).toEqual([
+      "avatar",
+      "list",
+    ]);
+  });
+  it("uses only the scoped avatar command and sanitizes transport failures", async () => {
+    const data = { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null };
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ ok: true, data })
+      .mockRejectedValueOnce(new Error("private"));
+    expect(await tauriReadApi.players.avatar(saveId, "111")).toEqual({ ok: true, data });
+    expect(invoke).toHaveBeenNthCalledWith(1, "players_avatar", { saveId, playerId: "111" });
+    expect(await tauriReadApi.players.avatar(saveId, "111")).toEqual({
+      ok: false,
+      error: {
+        code: "internal_error",
+        message: "The desktop avatar bridge failed unexpectedly.",
+      },
+    });
   });
   it("only forwards the opaque save ID to the named open command", async () => {
     vi.mocked(invoke).mockResolvedValueOnce(openResult());

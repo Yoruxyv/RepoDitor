@@ -44,3 +44,33 @@ fn navigation_is_limited_to_the_preview_page_and_origin() {
         cfg!(debug_assertions)
     );
 }
+
+#[test]
+fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
+    let config: serde_json::Value =
+        serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+    let security = &config["app"]["security"];
+    for key in ["csp", "devCsp"] {
+        let csp = security[key].as_str().unwrap();
+        let img = csp
+            .split(';')
+            .find(|p| p.trim().starts_with("img-src "))
+            .unwrap();
+        assert_eq!(img.trim(), "img-src 'self' data: https://avatars.akamai.steamstatic.com https://avatars.fastly.steamstatic.com");
+        let connect = csp
+            .split(';')
+            .find(|p| p.trim().starts_with("connect-src "))
+            .unwrap();
+        assert!(!connect.contains("https:") && !connect.contains('*'));
+    }
+    let capabilities = security["capabilities"].as_array().unwrap();
+    assert_eq!(capabilities.len(), 1);
+    assert_eq!(capabilities[0]["windows"], serde_json::json!(["main"]));
+    let permissions = capabilities[0]["permissions"].as_array().unwrap();
+    assert!(permissions.contains(&serde_json::json!("allow-players-avatar")));
+    assert_eq!(permissions.len(), 11);
+    assert!(!permissions.iter().any(|p| {
+        let s = p.as_str().unwrap();
+        s.contains("write") || s.contains("http") || s.contains("shell") || s.contains("fs:")
+    }));
+}

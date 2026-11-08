@@ -19,7 +19,7 @@ vi.mock("@/app/tauriReadApi", () => ({
     environment: { detect: vi.fn() },
     saves: { open: vi.fn() },
     game: { status: vi.fn() },
-    players: { list: vi.fn() },
+    players: { list: vi.fn(), avatar: vi.fn() },
     upgrades: { list: vi.fn() },
     run: { get: vi.fn() },
     advanced: { get: vi.fn() },
@@ -49,6 +49,12 @@ describe("read-only native discovery", () => {
       .mockResolvedValue({ ok: true, data: { status: "not_running", running: false } });
     vi.mocked(closeTauriPreview).mockReset();
     vi.mocked(tauriReadApi.players.list).mockReset().mockResolvedValue({ ok: true, data: players });
+    vi.mocked(tauriReadApi.players.avatar)
+      .mockReset()
+      .mockImplementation(async (_saveId, playerId) => ({
+        ok: true,
+        data: { playerId, avatarUrl: null, status: "unavailable", retryAfterMs: null },
+      }));
     vi.mocked(tauriReadApi.upgrades.list)
       .mockReset()
       .mockResolvedValue({ ok: true, data: upgrades });

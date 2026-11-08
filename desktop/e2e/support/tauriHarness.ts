@@ -89,6 +89,13 @@ export async function stageSyntheticBackend(home: string) {
     }),
   );
   await writeFile(path.join(home, "saves-open.json"), JSON.stringify(opened));
+  await writeFile(
+    path.join(home, "players-avatar.json"),
+    JSON.stringify({
+      ok: true,
+      avatar: { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null },
+    }),
+  );
   const cosmetics = {
     fingerprint: "c".repeat(64),
     catalogAvailable: true,

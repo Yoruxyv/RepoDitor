@@ -32,6 +32,7 @@ fn main() {
                 "saves_open",
                 "game_status",
                 "players_list",
+                "players_avatar",
                 "upgrades_list",
                 "run_get",
                 "advanced_get",

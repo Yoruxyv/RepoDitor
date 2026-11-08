@@ -11,6 +11,7 @@ export function TauriUpgradesView({
   enabled,
   locked,
   avatarUrls,
+  onRejectAvatar,
   resetVersion,
   onRevertAll,
   transaction,
@@ -20,6 +21,7 @@ export function TauriUpgradesView({
   readonly enabled: boolean;
   readonly locked: boolean;
   readonly avatarUrls: Record<string, string | null>;
+  readonly onRejectAvatar: (playerId: string) => void;
   readonly resetVersion: number;
   readonly onRevertAll: () => void;
   readonly transaction: ReturnType<typeof useTauriHealth>;
@@ -60,7 +62,7 @@ export function TauriUpgradesView({
           onChange={enabled ? transaction.editUpgrade : null}
           onRevert={enabled ? transaction.revertUpgrade : null}
           onValidityChange={enabled ? transaction.setUpgradeInvalid : undefined}
-          onRejectAvatar={() => undefined}
+          onRejectAvatar={onRejectAvatar}
           onRetry={() => {
             if (players.error) players.reload();
             else void upgrades.reload();

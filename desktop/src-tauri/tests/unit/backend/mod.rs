@@ -249,6 +249,50 @@ fn admission_is_bounded_and_released_on_failure() {
         .all(|slot| !slot.load(Ordering::SeqCst)));
     assert!(Request::reserve(state, 0).is_ok());
 }
+
+#[test]
+fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
+    let operation = Operation::Avatar("save".into(), "111".into());
+    assert_eq!(operation.arguments(), ["players-avatar", "save", "111"]);
+    let state = Arc::new(HostState::default());
+    let _held = state.domain_worker.lock().unwrap();
+    let request = Request::reserve(state.clone(), operation.slot()).unwrap();
+    assert!(Request::reserve(state.clone(), operation.slot()).is_err());
+    assert!(Request::reserve(state.clone(), Operation::Players("save".into()).slot()).is_ok());
+    assert!(execute(
+        &request,
+        process::tests::fixture(),
+        &["success"],
+        Instant::now(),
+        Duration::from_secs(5)
+    )
+    .is_ok());
+    assert_eq!(
+        execute(
+            &request,
+            process::tests::fixture(),
+            &["hang"],
+            Instant::now(),
+            Duration::from_millis(80)
+        )
+        .unwrap_err(),
+        BackendError::Timeout
+    );
+    state.closing.store(true, Ordering::SeqCst);
+    assert_eq!(
+        execute(
+            &request,
+            Path::new("must-not-spawn.exe"),
+            &[],
+            Instant::now(),
+            DEADLINE
+        )
+        .unwrap_err(),
+        BackendError::Failed
+    );
+    drop(request);
+    assert!(state.idle());
+}
 #[test]
 fn queued_requests_observe_cancellation_and_original_deadline() {
     let state = Arc::new(HostState::default());

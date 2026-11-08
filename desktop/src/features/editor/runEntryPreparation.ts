@@ -16,7 +16,7 @@ import type {
 
 const UPGRADE_BRIDGE_FAILURE_MESSAGE = "The upgrade bridge failed unexpectedly.";
 
-export type RunEntryTask = "items" | "upgrades" | "players" | "avatars" | "run" | "maps";
+export type RunEntryTask = "items" | "upgrades" | "players" | "run" | "maps";
 export type RunEntryTaskStatus = "waiting" | "running" | "completed";
 
 export interface RunEntryProgress {
@@ -30,7 +30,6 @@ export const RUN_ENTRY_TASK_PRIORITY: readonly RunEntryTask[] = [
   "items",
   "upgrades",
   "players",
-  "avatars",
   "run",
   "maps",
 ];
@@ -92,25 +91,6 @@ async function currentArtworkDegraded(): Promise<boolean> {
   } catch {
     return true;
   }
-}
-
-async function loadAvatarUrls(
-  saveId: string,
-  players: DesktopOperationResult<PlayerDto[]>,
-): Promise<Record<string, string | null>> {
-  if (!players.ok || players.data.length === 0) return {};
-
-  const entries = await Promise.all(
-    players.data.map(async (player) => {
-      try {
-        const result = await window.repoditor.players.avatar(saveId, player.id);
-        return [player.id, result.ok ? result.data.avatarUrl : null] as const;
-      } catch {
-        return [player.id, null] as const;
-      }
-    }),
-  );
-  return Object.fromEntries(entries);
 }
 
 /** Return whether every authoritative feature projection may be reused this session. */
@@ -194,18 +174,14 @@ export async function prepareRunEntryData({
   const mapsPromise = tracked("maps", () =>
     safeResult(maps, "The map bridge failed unexpectedly."),
   );
-  const avatarUrlsPromise = playersPromise.then((players) =>
-    tracked("avatars", () => loadAvatarUrls(saveId, players)),
-  );
   const artworkDegradedPromise =
     presentationReadiness === "ready"
       ? Promise.resolve(false)
       : upgradesPromise.then(currentArtworkDegraded);
 
-  const [artworkDegraded, players, avatarUrls, upgrades, run, items, mapData] = await Promise.all([
+  const [artworkDegraded, players, upgrades, run, items, mapData] = await Promise.all([
     artworkDegradedPromise,
     playersPromise,
-    avatarUrlsPromise,
     upgradesPromise,
     runPromise,
     itemsPromise,
@@ -215,7 +191,7 @@ export async function prepareRunEntryData({
   return {
     artworkDegraded,
     players,
-    avatarUrls,
+    avatarUrls: {},
     upgrades,
     run,
     items,

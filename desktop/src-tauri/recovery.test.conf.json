@@ -10,6 +10,7 @@
             "allow-saves-open",
             "allow-game-status",
             "allow-players-list",
+            "allow-players-avatar",
             "allow-upgrades-list",
             "allow-run-get",
             "allow-advanced-get",

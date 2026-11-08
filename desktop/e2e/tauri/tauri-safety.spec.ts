@@ -75,6 +75,88 @@ async function exactBackup(source: string, before: Buffer) {
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
 
+test("ordinary packaged avatars validate save membership and retain read-only fallback", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    expect(await native(page, "players_avatar", { saveId: E2E_SAVE_ID, playerId: "111" })).toEqual({
+      ok: true,
+      data: { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null },
+    });
+    expect(
+      await native(page, "players_avatar", { saveId: E2E_SAVE_ID, playerId: "999" }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "invalid_request" },
+    });
+    for (const args of [
+      { saveId: "../save", playerId: "111" },
+      { saveId: E2E_SAVE_ID, playerId: "https://example.com" },
+      { saveId: E2E_SAVE_ID, playerId: 111 },
+      {},
+    ]) {
+      expect(await native(page, "players_avatar", args)).toMatchObject({
+        ok: false,
+        error: { code: "invalid_request" },
+      });
+    }
+    // Synthetic pixels exercise the real packaged CSP without any external service.
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    let forbiddenRequests = 0;
+    await page.route("https://example.com/blocked.png", async (route) => {
+      forbiddenRequests++;
+      await route.fulfill({ contentType: "image/png", body: png });
+    });
+    for (const host of ["avatars.akamai.steamstatic.com", "avatars.fastly.steamstatic.com"]) {
+      await page.route(`https://${host}/synthetic.png`, (route) =>
+        route.fulfill({ contentType: "image/png", body: png }),
+      );
+    }
+    const imageLoads = await page.evaluate(async () => {
+      async function loaded(url: string) {
+        return new Promise<boolean>((resolve) => {
+          const image = new Image();
+          const done = (ok: boolean) => {
+            clearTimeout(timer);
+            resolve(ok);
+          };
+          const timer = setTimeout(() => done(false), 2000);
+          image.onload = () => done(image.naturalWidth > 0);
+          image.onerror = () => done(false);
+          image.src = url;
+        });
+      }
+      return Promise.all([
+        loaded("https://avatars.akamai.steamstatic.com/synthetic.png"),
+        loaded("https://avatars.fastly.steamstatic.com/synthetic.png"),
+        loaded("https://example.com/blocked.png"),
+      ]);
+    });
+    expect(imageLoads).toEqual([true, true, false]);
+    expect(forbiddenRequests).toBe(0);
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("A");
+    await expect(
+      page.getByRole("spinbutton", { name: "Current health", exact: true }),
+    ).toHaveAttribute("readonly", "");
+    await expect(page.getByRole("button", { name: "Save Changes", exact: true })).toHaveCount(0);
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect((await readdir(path.dirname(f.source))).some((name) => name.includes(".bak-"))).toBe(
+      false,
+    );
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary frozen reads reject oversized Run and MetaSave inputs", async ({
   browserName,
 }, info) => {
