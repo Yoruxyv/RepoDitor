@@ -98,7 +98,10 @@ describe("app shell integration", () => {
     expect(window.repoditor.run.get).toHaveBeenCalledTimes(1);
     expect(window.repoditor.advanced.get).toHaveBeenCalledTimes(1);
     expect(window.repoditor.maps.list).toHaveBeenCalledTimes(1);
-    expect(window.repoditor.players.avatar).not.toHaveBeenCalled();
+    expect(window.repoditor.players.avatar).toHaveBeenCalledExactlyOnceWith(
+      session.id,
+      players[0]!.id,
+    );
 
     act(() =>
       assetListener?.({

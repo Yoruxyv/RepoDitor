@@ -94,6 +94,49 @@ describe("native upgrade drafts", () => {
     expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
   });
 
+  it("loads the first selected avatar alongside pending Maps without delaying the native editor", async () => {
+    let finishMaps!: (value: Awaited<ReturnType<typeof tauriReadApi.maps.list>>) => void;
+    let finishAvatar!: (value: Awaited<ReturnType<typeof tauriReadApi.players.avatar>>) => void;
+    vi.mocked(tauriReadApi.maps.list).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishMaps = resolve;
+        }),
+    );
+    vi.mocked(tauriReadApi.players.avatar).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishAvatar = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await waitFor(() => expect(tauriReadApi.maps.list).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(
+        session.id,
+        players[0]!.id,
+      ),
+    );
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(await screen.findByRole("spinbutton", { name: "Current health" })).toBeTruthy();
+    expect(screen.getByTestId("avatar-fallback-loading")).toBeTruthy();
+    await act(async () => {
+      finishAvatar({
+        ok: true,
+        data: {
+          playerId: players[0]!.id,
+          avatarUrl: null,
+          status: "unavailable",
+          retryAfterMs: null,
+        },
+      });
+      finishMaps({ ok: true, data: maps });
+    });
+    expect(screen.getByTestId("avatar-fallback").textContent).toBe("A");
+    expect(tauriReadApi.players.avatar).toHaveBeenCalledTimes(1);
+  });
+
   it("reviews and reverts an exact refill, then refreshes Full only after durable canonical confirmation", async () => {
     const user = userEvent.setup();
     const updated = structuredClone(advanced);

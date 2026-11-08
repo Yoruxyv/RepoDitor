@@ -155,8 +155,15 @@ and SteamID64 validation. Native and Electron boundaries validate the same two
 HTTPS Steam CDN hosts; Tauri permits those hosts for images only, with no generic
 network command or broader connection policy.
 
-The shared avatar hook loads only the selected player and keeps optional network
-work outside Run-entry readiness. It serializes lookups, caches by player within
+Electron preparation starts one optional lookup for the first player returned by
+the Players projection, concurrently with Maps and other unfinished domains. Its
+promise passes to the shared avatar hook without a duplicate request or a sixth
+preparation task. Cached editor entry starts a fresh session lookup; pending
+promises are not retained in the projection cache. Tauri already starts its
+selected-player lookup as soon as Players resolves alongside its other initial
+reads. Neither host waits for Steam before opening the editor.
+
+The shared avatar hook loads only the selected player. It serializes lookups, caches by player within
 the open save session, and permits at most one automatic retry for a classified
 transient result. A valid Retry-After is bounded to 30–300 seconds; an absent or
 invalid value uses 60 seconds, while an explicit larger delay stops automatic

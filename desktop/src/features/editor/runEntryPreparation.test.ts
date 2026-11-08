@@ -32,7 +32,7 @@ describe("prepareRunEntryData progress", () => {
     window.repoditor = createRepoDitorApi(vi.fn(), players);
   });
 
-  it("settles domain reads without starting or waiting for optional avatars", async () => {
+  it("prefetches only the initial player while maps load without counting or awaiting Steam", async () => {
     const playerLoad = deferred<Awaited<ReturnType<RepoDitorApi["players"]["list"]>>>();
     const avatarLoad = deferred<Awaited<ReturnType<RepoDitorApi["players"]["avatar"]>>>();
     const upgradeLoad = deferred<Awaited<ReturnType<RepoDitorApi["upgrades"]["list"]>>>();
@@ -75,13 +75,14 @@ describe("prepareRunEntryData progress", () => {
       total: 5,
       tasks: { players: "completed" },
     });
+    expect(window.repoditor.players.avatar).toHaveBeenCalledExactlyOnceWith(saveId, players[0]!.id);
 
-    avatarLoad.resolve({ ok: true, data: { playerId: players[0]!.id, avatarUrl: null } });
     upgradeLoad.resolve({ ok: true, data: upgrades });
     runLoad.reject(new Error("fail-soft run bridge failure"));
     itemLoad.resolve({ ok: true, data: advanced });
     mapLoad.resolve({ ok: true, data: maps });
-    await preparation;
+    const prepared = await preparation;
+    expect(prepared.avatarPrefetch).toMatchObject({ saveId, playerId: players[0]!.id });
 
     expect(snapshots.at(-1)).toEqual({
       completed: 5,
@@ -96,6 +97,26 @@ describe("prepareRunEntryData progress", () => {
       },
     });
     expect(snapshots.filter((progress) => progress.completed === progress.total)).toHaveLength(1);
+    expect(window.repoditor.players.avatar).toHaveBeenCalledTimes(1);
+    avatarLoad.resolve({ ok: true, data: { playerId: players[0]!.id, avatarUrl: null } });
+  });
+
+  it.each([[], null])("does not prefetch when no initial player is available: %s", async (data) => {
+    window.repoditor.players.list = vi
+      .fn()
+      .mockResolvedValue(
+        data === null
+          ? { ok: false, error: { code: "save_missing", message: "Missing" } }
+          : { ok: true, data },
+      );
+    const prepared = await prepareRunEntryData({
+      saveId,
+      requiredUpgradeVisualKeys: [],
+      presentationReadiness: "ready",
+      maps: () => Promise.resolve({ ok: true, data: maps }),
+      onProgressChange: vi.fn(),
+    });
+    expect(prepared.avatarPrefetch).toBeUndefined();
     expect(window.repoditor.players.avatar).not.toHaveBeenCalled();
   });
 

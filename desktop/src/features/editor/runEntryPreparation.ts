@@ -13,6 +13,7 @@ import type {
   PlayerUpgradeDto,
   RunStateDto,
 } from "@electron/contracts";
+import { prefetchInitialAvatar, type AvatarPrefetch } from "@/features/players/usePlayerAvatars";
 
 const UPGRADE_BRIDGE_FAILURE_MESSAGE = "The upgrade bridge failed unexpectedly.";
 
@@ -38,6 +39,7 @@ export interface RunEntryData {
   readonly artworkDegraded: boolean;
   readonly players: DesktopOperationResult<PlayerDto[]>;
   readonly avatarUrls: Readonly<Record<string, string | null>>;
+  readonly avatarPrefetch?: AvatarPrefetch | undefined;
   readonly upgrades: DesktopOperationResult<PlayerUpgradeDto[]>;
   readonly run: DesktopOperationResult<RunStateDto>;
   readonly items: DesktopOperationResult<AdvancedSaveDto>;
@@ -138,8 +140,9 @@ export async function prepareRunEntryData({
   };
 
   if (existingData !== null) {
+    const avatarPrefetch = prefetchInitialAvatar(saveId, existingData.players);
     if (presentationReadiness === "ready") {
-      return { ...existingData, artworkDegraded: false };
+      return { ...existingData, avatarPrefetch, artworkDegraded: false };
     }
     const upgrades = await tracked("upgrades", () =>
       safeResult(
@@ -147,15 +150,24 @@ export async function prepareRunEntryData({
         UPGRADE_BRIDGE_FAILURE_MESSAGE,
       ),
     );
-    return { ...existingData, artworkDegraded: await currentArtworkDegraded(), upgrades };
+    return {
+      ...existingData,
+      avatarPrefetch,
+      artworkDegraded: await currentArtworkDegraded(),
+      upgrades,
+    };
   }
 
+  let avatarPrefetch: AvatarPrefetch | undefined;
   const playersPromise = tracked("players", () =>
     safeResult(
       () => window.repoditor.players.list(saveId),
       "The player bridge failed unexpectedly.",
     ),
-  );
+  ).then((players) => {
+    avatarPrefetch = prefetchInitialAvatar(saveId, players);
+    return players;
+  });
   const upgradesPromise = tracked("upgrades", () =>
     safeResult(
       () =>
@@ -192,6 +204,7 @@ export async function prepareRunEntryData({
     artworkDegraded,
     players,
     avatarUrls: {},
+    avatarPrefetch,
     upgrades,
     run,
     items,

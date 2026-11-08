@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RepoDitorApi } from "@electron/contracts";
-import { usePlayerAvatars } from "./usePlayerAvatars";
+import { prefetchInitialAvatar, usePlayerAvatars } from "./usePlayerAvatars";
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const alpha = "76561197960287930";
@@ -21,6 +21,144 @@ describe("usePlayerAvatars", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("reuses a successful result that completed before the workspace mounted", async () => {
+    const avatar = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        playerId: alpha,
+        avatarUrl: "https://avatars.fastly.steamstatic.com/ready.jpg",
+        status: "available",
+      },
+    });
+    const prefetched = prefetchInitialAvatar(
+      saveId,
+      { ok: true, data: [{ id: alpha, name: "Alpha", health: 100, maxHealth: 100 }] },
+      avatar,
+    )!;
+    await prefetched.result;
+    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha, avatar, prefetched));
+    await waitFor(() => expect(result.current.avatarUrls[alpha]).toContain("ready.jpg"));
+    expect(avatar).toHaveBeenCalledTimes(1);
+  });
+
+  it("sanitizes an early rejected prefetch and permits only one delayed recovery lookup", async () => {
+    vi.useFakeTimers();
+    const avatar = vi.fn().mockRejectedValue(new Error("private transport detail"));
+    const prefetched = prefetchInitialAvatar(
+      saveId,
+      { ok: true, data: [{ id: alpha, name: "Alpha", health: 100, maxHealth: 100 }] },
+      avatar,
+    )!;
+    expect(await prefetched.result).toEqual({
+      ok: false,
+      error: { code: "backend_unavailable", message: "The avatar service is unavailable." },
+    });
+    const { result, unmount } = renderHook(() =>
+      usePlayerAvatars(saveId, alpha, avatar, prefetched),
+    );
+    await act(async () => {});
+    expect(result.current.avatarUrls[alpha]).toBeNull();
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(avatar).toHaveBeenCalledTimes(2);
+    unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(600_000));
+    expect(avatar).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("adopts an in-flight initial lookup once and never shows it under a newly selected identity", async () => {
+    let resolve!: (value: Awaited<ReturnType<RepoDitorApi["players"]["avatar"]>>) => void;
+    const avatar = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      )
+      .mockResolvedValue({
+        ok: true,
+        data: { playerId: beta, avatarUrl: null, status: "unavailable" },
+      });
+    const prefetched = prefetchInitialAvatar(
+      saveId,
+      { ok: true, data: [{ id: alpha, name: "Alpha", health: 100, maxHealth: 100 }] },
+      avatar,
+    )!;
+    await act(async () => {});
+    const { result, rerender } = renderHook(
+      ({ id }) => usePlayerAvatars(saveId, id, avatar, prefetched),
+      { initialProps: { id: alpha }, wrapper: StrictMode },
+    );
+    expect(avatar).toHaveBeenCalledTimes(1);
+    rerender({ id: beta });
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      resolve({
+        ok: true,
+        data: {
+          playerId: alpha,
+          avatarUrl: "https://avatars.fastly.steamstatic.com/alpha.jpg",
+          status: "available",
+        },
+      }),
+    );
+    await waitFor(() => expect(avatar).toHaveBeenCalledTimes(2));
+    expect(avatar).toHaveBeenLastCalledWith(saveId, beta);
+    expect(result.current.avatarUrls[beta]).toBeNull();
+    expect(result.current.avatarUrls[alpha]).toContain("alpha.jpg");
+  });
+
+  it("keeps a prefetched transient failure within the existing one-retry budget", async () => {
+    vi.useFakeTimers();
+    const avatar = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { playerId: alpha, avatarUrl: null, status: "transient", retryAfterMs: 45_000 },
+    });
+    const prefetched = prefetchInitialAvatar(
+      saveId,
+      { ok: true, data: [{ id: alpha, name: "Alpha", health: 100, maxHealth: 100 }] },
+      avatar,
+    );
+    await act(async () => {});
+    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha, avatar, prefetched));
+    await act(async () => {});
+    expect(result.current.avatarUrls[alpha]).toBeNull();
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(44_999));
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(avatar).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(600_000));
+    expect(avatar).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores another save's prefetched result and treats permanent failures as final", async () => {
+    const avatar = vi.fn((_save: string, playerId: string) =>
+      Promise.resolve({
+        ok: true as const,
+        data: { playerId, avatarUrl: null, status: "unavailable" as const },
+      }),
+    );
+    const prefetched = prefetchInitialAvatar(
+      saveId,
+      { ok: true, data: [{ id: alpha, name: "Alpha", health: 100, maxHealth: 100 }] },
+      avatar,
+    );
+    await act(async () => {});
+    const { result } = renderHook(() =>
+      usePlayerAvatars(saveId + "-new", alpha, avatar, prefetched),
+    );
+    await waitFor(() => expect(result.current.avatarUrls[alpha]).toBeNull());
+    expect(avatar).toHaveBeenCalledTimes(2);
+    expect(avatar).toHaveBeenLastCalledWith(saveId + "-new", alpha);
+    await act(async () => result.current.loadAvatar(alpha));
+    expect(avatar).toHaveBeenCalledTimes(2);
   });
 
   it("does not duplicate a pending lookup under StrictMode effect replay", async () => {

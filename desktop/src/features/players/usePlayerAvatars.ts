@@ -3,6 +3,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RepoDitorApi } from "@electron/contracts";
 
 type AvatarLoader = RepoDitorApi["players"]["avatar"];
+export interface AvatarPrefetch {
+  readonly saveId: string;
+  readonly playerId: string;
+  readonly result: ReturnType<AvatarLoader>;
+}
+
+/** Start only the first selected player's optional lookup, without owning retry state. */
+export function prefetchInitialAvatar(
+  saveId: string,
+  players: Awaited<ReturnType<RepoDitorApi["players"]["list"]>>,
+  fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
+): AvatarPrefetch | undefined {
+  const playerId = players.ok ? players.data[0]?.id : undefined;
+  if (!playerId) return undefined;
+  return {
+    saveId,
+    playerId,
+    result: Promise.resolve()
+      .then(() => fetchAvatar(saveId, playerId))
+      .catch(() => ({
+        ok: false as const,
+        error: { code: "backend_unavailable", message: "The avatar service is unavailable." },
+      })),
+  };
+}
+
 interface AvatarAttempt {
   requests: number;
   retryAt: number | null;
@@ -15,12 +41,14 @@ interface AvatarSession {
   active: boolean;
   notBefore: number;
   blocked: boolean;
+  prefetch: AvatarPrefetch | undefined;
 }
 
 export function usePlayerAvatars(
   saveId: string,
   selectedPlayerId: string | null,
   fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
+  prefetch?: AvatarPrefetch,
 ) {
   const session = useRef<AvatarSession | null>(null);
   const [snapshot, setSnapshot] = useState<{ saveId: string; urls: Record<string, string | null> }>(
@@ -41,6 +69,7 @@ export function usePlayerAvatars(
             active: true,
             notBefore: 0,
             blocked: false,
+            prefetch: prefetch?.saveId === saveId ? prefetch : undefined,
           };
     state.active = true;
     session.current = state;
@@ -48,7 +77,7 @@ export function usePlayerAvatars(
     return () => {
       state.active = false;
     };
-  }, [publish, saveId]);
+  }, [prefetch, publish, saveId]);
 
   const loadAvatar = useCallback(
     async (playerId: string) => {
@@ -72,7 +101,11 @@ export function usePlayerAvatars(
       let delay: number | null = null;
       let url: string | null = null;
       try {
-        const result = await fetchAvatar(saveId, playerId);
+        const prefetched = state.prefetch;
+        state.prefetch = undefined;
+        const result = await (prefetched?.playerId === playerId
+          ? prefetched.result
+          : fetchAvatar(saveId, playerId));
         if (result.ok && result.data.playerId === playerId) {
           url = result.data.avatarUrl;
           if (result.data.status === "transient") {

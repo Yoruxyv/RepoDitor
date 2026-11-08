@@ -29,6 +29,7 @@ import {
   type RunEntryTask,
 } from "@/features/editor/runEntryPreparation";
 import { useSaveSession } from "@/features/editor/useSaveSession";
+import { prefetchInitialAvatar } from "@/features/players/usePlayerAvatars";
 import { GameSafetyDialog } from "@/features/safety/GameSafetyDialog";
 import { useGameSafety } from "@/features/safety/useGameSafety";
 
@@ -301,7 +302,10 @@ function AppContent() {
       cachedCandidate?.fingerprint === opened.session.fingerprint ? cachedCandidate : null;
     if (cached !== null && opened.presentationReadiness === "ready") {
       setPendingRunEntry(null);
-      setInitialEntryData(cached.data);
+      setInitialEntryData({
+        ...cached.data,
+        avatarPrefetch: prefetchInitialAvatar(saveId, cached.data.players),
+      });
       save.enter(opened);
       return;
     }
@@ -326,7 +330,7 @@ function AppContent() {
     if (runEntryDataReusable(data)) {
       runEntryCache.current.set(opened.session.id, {
         fingerprint: opened.session.fingerprint,
-        data,
+        data: { ...data, avatarPrefetch: undefined },
       });
     } else {
       runEntryCache.current.delete(opened.session.id);

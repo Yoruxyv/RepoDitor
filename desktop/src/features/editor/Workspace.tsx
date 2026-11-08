@@ -90,7 +90,12 @@ export function Workspace({
   const { t } = usePreferences();
   const [editVersion, setEditVersion] = useState(0);
   const players = usePlayers(session.id, initialEntryData?.players ?? null);
-  const avatars = usePlayerAvatars(session.id, players.selectedPlayerId);
+  const avatars = usePlayerAvatars(
+    session.id,
+    players.selectedPlayerId,
+    undefined,
+    initialEntryData?.avatarPrefetch,
+  );
   const upgrades = useUpgrades(session.id, initialEntryData?.upgrades ?? null);
   const run = useRunState(session.id, initialEntryData?.run ?? null);
   const items = useItems(session.id, initialEntryData?.items ?? null);
