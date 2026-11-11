@@ -1,4 +1,5 @@
 //! Fixed backend operations, bounded request admission, and lifetime ownership.
+pub(crate) mod artwork;
 pub(crate) mod process;
 
 use crate::error::{BackendError, Outcome, Service};
@@ -20,13 +21,15 @@ const AVATAR_SLOT: usize = if cfg!(feature = "synthetic-health-recovery") {
 } else {
     9
 };
-const OPERATIONS: usize = AVATAR_SLOT + 1;
+const ARTWORK_SLOT: usize = AVATAR_SLOT + 1;
+const OPERATIONS: usize = ARTWORK_SLOT + 1;
 
 #[derive(Default)]
 pub struct HostState {
     requests: [AtomicBool; OPERATIONS],
     domain_worker: Mutex<()>,
     pub closing: Arc<AtomicBool>,
+    pub artwork: Mutex<artwork::Registry>,
     #[cfg(feature = "synthetic-health-recovery")]
     editor_session: Mutex<(u64, Option<(String, String)>)>,
     #[cfg(feature = "synthetic-health-recovery")]
@@ -75,7 +78,7 @@ impl HostState {
             .all(|slot| !slot.load(Ordering::SeqCst))
     }
 }
-struct Request(Arc<HostState>, usize);
+struct Request(Arc<HostState>, usize, Arc<AtomicBool>);
 impl Request {
     fn reserve(state: Arc<HostState>, slot: usize) -> Result<Self, BackendError> {
         if state.closing.load(Ordering::SeqCst) {
@@ -84,7 +87,8 @@ impl Request {
         state.requests[slot]
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .map_err(|_| BackendError::Failed)?;
-        Ok(Self(state, slot))
+        let cancelled = state.closing.clone();
+        Ok(Self(state, slot, cancelled))
     }
 }
 impl Drop for Request {
@@ -99,6 +103,7 @@ pub enum Operation {
     Game,
     Players(String),
     Avatar(String, String),
+    Artwork(String, String, String, Arc<AtomicBool>),
     Upgrades(String),
     Run(String),
     Items(String),
@@ -145,6 +150,7 @@ impl Operation {
             Self::Game => 2,
             Self::Players(_) => 3,
             Self::Avatar(..) => AVATAR_SLOT,
+            Self::Artwork(..) => ARTWORK_SLOT,
             Self::Upgrades(_) => 4,
             Self::Run(_) => 5,
             Self::Items(_) => 6,
@@ -175,7 +181,7 @@ impl Operation {
             Self::Open(_) => Service::Save,
             Self::Game => Service::Game,
             Self::Players(_) | Self::Avatar(..) => Service::Player,
-            Self::Upgrades(_) => Service::Upgrade,
+            Self::Upgrades(_) | Self::Artwork(..) => Service::Upgrade,
             Self::Run(_) => Service::Run,
             Self::Items(_) => Service::Items,
             Self::Maps => Service::Maps,
@@ -206,6 +212,7 @@ impl Operation {
             Self::Game => vec!["game-status"],
             Self::Players(id) => vec!["players-list", id],
             Self::Avatar(id, player) => vec!["players-avatar", id, player],
+            Self::Artwork(id, fingerprint, key, _) => vec!["upgrade-artwork", id, fingerprint, key],
             Self::Upgrades(id) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
@@ -324,7 +331,10 @@ fn execute(
 ) -> Result<Vec<u8>, BackendError> {
     let state = &request.0;
     // Each optional/status lane has one permit; network lookup cannot delay save work.
-    let _domain_worker = if request.1 == Operation::Game.slot() || request.1 == AVATAR_SLOT {
+    let _domain_worker = if request.1 == Operation::Game.slot()
+        || request.1 == AVATAR_SLOT
+        || request.1 == ARTWORK_SLOT
+    {
         None
     } else {
         Some(loop {
@@ -348,7 +358,7 @@ fn execute(
         .checked_sub(started.elapsed())
         .filter(|remaining| !remaining.is_zero())
         .ok_or(BackendError::Timeout)?;
-    let result = process::run(executable, args, remaining, state.closing.clone());
+    let result = process::run(executable, args, remaining, request.2.clone());
     #[cfg(feature = "synthetic-health-recovery")]
     if request.1 == 9
         && !matches!(
@@ -411,10 +421,13 @@ where
     #[cfg(not(feature = "synthetic-health-recovery"))]
     let started = Instant::now();
     let state = app.state::<Arc<HostState>>().inner().clone();
-    let request = match Request::reserve(state, operation.slot()) {
+    let mut request = match Request::reserve(state, operation.slot()) {
         Ok(request) => request,
         Err(error) => return Outcome::for_service(Err(error), service),
     };
+    if let Operation::Artwork(.., cancelled) = &operation {
+        request.2 = cancelled.clone();
+    }
     #[cfg(feature = "synthetic-health-recovery")]
     let is_write = matches!(
         operation,

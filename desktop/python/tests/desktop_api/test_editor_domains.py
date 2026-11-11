@@ -1,6 +1,7 @@
 import base64
 import json
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,7 @@ def test_upgrades_are_dynamic_friendly_and_read_only(tmp_path: Path, sample_save
 
     assert result == {
         "ok": True,
+        "fingerprint": sha256(before).hexdigest(),
         "upgrades": [
             {
                 "key": "playerUpgradeStrength",
@@ -128,6 +130,7 @@ def test_upgrade_membership_ignores_non_dictionaries_and_empty_prefix(
     before = save_path.read_bytes()
     assert list_upgrades(save_path.parent.name, tmp_path, presentation_loader=lambda _keys: {}) == {
         "ok": True,
+        "fingerprint": sha256(before).hexdigest(),
         "upgrades": [],
     }
     assert save_path.read_bytes() == before

@@ -17,6 +17,7 @@ export default defineConfig({
     "tauri-health-batches.spec.ts",
     "tauri-items-refill.spec.ts",
     "tauri-meta-cosmetics.spec.ts",
+    "tauri-artwork.spec.ts",
   ],
   outputDir: process.env.REPODITOR_NATIVE_OUTPUT,
   timeout: 75_000,

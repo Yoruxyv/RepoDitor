@@ -30,7 +30,12 @@ fn main() {
         }
         "stdout" => overflow(io::stdout()),
         "stderr" => overflow(io::stderr()),
-        "hang" => std::thread::sleep(Duration::from_secs(60)),
+        "hang" => {
+            if let Some(marker) = args.get(2) {
+                std::fs::write(marker, "started").unwrap();
+            }
+            std::thread::sleep(Duration::from_secs(60));
+        }
         "descendant" => {
             let mut child = Command::new(std::env::current_exe().unwrap())
                 .arg("hang")
@@ -41,7 +46,7 @@ fn main() {
             child.wait().unwrap();
         }
         "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list"
-        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" => {
+        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" | "upgrade-artwork" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

@@ -1,10 +1,11 @@
 /**
  * Renderer-safe game-content thumbnail with deterministic semantic fallback.
  *
- * The component consumes only opaque Electron icon URLs. Loading affects the thumbnail
+ * The component consumes only opaque Electron or native tokens. Loading affects the thumbnail
  * box alone; missing or rejected local artwork immediately falls back to Phosphor.
  */
 import { useState } from "react";
+import { useNativeArtwork } from "@/app/tauriArtwork";
 import type { Icon } from "@phosphor-icons/react";
 
 import { FeatureIcon } from "./FeatureIcon";
@@ -35,6 +36,7 @@ export function GameIcon({
   token,
   variant,
 }: GameIconProps) {
+  const { native, image, unavailable } = useNativeArtwork(token, variant === "upgrade");
   const [failedToken, setFailedToken] = useState<string | null>(null);
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,
@@ -43,7 +45,7 @@ export function GameIcon({
   const failed = token !== null && failedToken === token;
   const loaded = token !== null && (loadedToken === token || loadedIconTokens.has(token));
 
-  if (token === null || failed) {
+  if (token === null || failed || unavailable) {
     return (
       <FeatureIcon
         icon={fallback}
@@ -62,6 +64,7 @@ export function GameIcon({
         loaded || variant === "upgrade" ? "border-transparent bg-transparent" : "border-line bg-app"
       }`}
       data-icon-source="local"
+      data-artwork-revision={image?.revision}
       data-testid={testId}
     >
       {!loaded ? (
@@ -74,17 +77,19 @@ export function GameIcon({
           testId={`${testId}-loading`}
         />
       ) : null}
-      <img
-        alt=""
-        className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
-        loading={loading}
-        src={`repoditor-icon://local/${encodeURIComponent(token)}`}
-        onError={() => setFailedToken(token)}
-        onLoad={() => {
-          loadedIconTokens.add(token);
-          setLoadedToken(token);
-        }}
-      />
+      {!native || image ? (
+        <img
+          alt=""
+          className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
+          loading={loading}
+          src={native ? image!.dataUrl : `repoditor-icon://local/${encodeURIComponent(token)}`}
+          onError={() => setFailedToken(token)}
+          onLoad={() => {
+            if (!native) loadedIconTokens.add(token);
+            setLoadedToken(token);
+          }}
+        />
+      ) : null}
     </span>
   );
 }

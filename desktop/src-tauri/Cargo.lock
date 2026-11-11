@@ -2435,7 +2435,9 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "repoditor-preview"
 version = "0.2.1"
 dependencies = [
+ "base64 0.23.1",
  "chrono",
+ "png",
  "serde",
  "serde_json",
  "sha2",

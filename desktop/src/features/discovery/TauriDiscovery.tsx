@@ -6,6 +6,7 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { ThemeMenu } from "@/app/ThemeMenu";
 import { usePreferences } from "@/app/preferences";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
+import { closeNativeArtwork } from "@/app/tauriArtwork";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { INITIAL_STATE as idleAssets } from "@/features/assets/useAssetPreparation";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
@@ -48,6 +49,7 @@ function DiscoveryPreview() {
   }
   function close() {
     generation.current += 1;
+    if (save.session !== null) void closeNativeArtwork(save.session.id);
     save.close();
   }
   const { t } = usePreferences();

@@ -54,10 +54,11 @@ export function useItems(
   saveId: string,
   initialResult: DesktopOperationResult<AdvancedSaveDto> | null = null,
   get: RepoDitorApi["advanced"]["get"] = getDesktopItems,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});
   const mounted = useRef(false);
   const requestInFlight = useRef(false);
@@ -66,6 +67,7 @@ export function useItems(
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
       if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
       requestInFlight.current = true;
       const version = snapshotVersion.current;
       try {
@@ -99,13 +101,18 @@ export function useItems(
 
   useEffect(() => {
     mounted.current = true;
-    const request =
-      initialResultRef.current === null ? window.setTimeout(() => void load(false)) : undefined;
     return () => {
       mounted.current = false;
-      if (request !== undefined) window.clearTimeout(request);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false);
+    });
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially]);
 
   function refillToFull(item: AdvancedItemDto): void {
     const edit = refillEdit(item);
@@ -190,6 +197,7 @@ export function useItems(
     revertAll,
     applyAfterSave,
     acceptSnapshot: (advanced: AdvancedSaveDto) => {
+      needsInitialLoad.current = false;
       snapshotVersion.current += 1;
       setState({ advanced, error: null, loading: false });
     },

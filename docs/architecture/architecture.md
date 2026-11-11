@@ -184,9 +184,9 @@ Players and Upgrades share the selected-player state. The injected Upgrades hook
 coalesces overlapping reads and ignores late results after unmount. The shared
 view retains editable Electron controls by default; the ordinary native variant renders
 read-only text fields with keyboard focus/copying and no mutation handlers,
-pending edits or revert actions. Validated `iconKey` metadata is discarded and
-`iconToken` is always null; the existing Phosphor fallback needs no native artwork
-URL, protocol or cache authorization. In an admitted `synthetic-health-ui` fixture,
+pending edits or revert actions. Validated `iconKey` metadata is discarded;
+the native host registers its own opaque upgrade artwork tokens. Missing artwork
+retains the Phosphor fallback. In an admitted `synthetic-health-ui` fixture,
 the native binding reuses the existing numeric inputs for per-player drafts,
 pending review, field Revert and global Revert. Drafts survive section/player
 navigation. An explicit Save persists one coherent upgrade batch through Python's
@@ -199,11 +199,30 @@ recovery disables editing. Read-loading, sanitized error/retry and empty states
 remain available. The canonical upgrade snapshot supersedes older pending reads
 and refreshes values while retaining optional presentation metadata. The separate
 test-only `test_upgrades_write` command adds no production mutation permission.
-Visual readiness is unresolved when upgrade keys exist because artwork is not
-migrated; Overview does not wait for that optional work. Game status retains the
+Overview does not wait for optional artwork. Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
 unchecked, as in Electron. Native close cancels outstanding backend work.
+
+Native upgrade artwork uses `upgrade_artwork_get` and `upgrade_artwork_cancel`,
+never a file protocol or renderer path. A successful save-open scopes the registry;
+each upgrade-list refresh binds at most 16 random tokens to its exact save
+fingerprint and keys. Workspace close, new opens and list revisions cancel old work and revoke
+old tokens. Python independently validates save membership/fingerprint and
+installed-game admission, then reuses the existing upgrade decoder. Its path-free
+response contains a bounded PNG and a revision incorporating source identity and
+PNG bytes. Rust validates the key, revision, base64, PNG structure/CRC and pixels
+using the already locked PNG library before returning a PNG data URL.
+
+One independent, cancellable backend lane has the existing 30-second deadline
+and 2 MiB stdout bound. Each PNG is at most 1 MiB, each dimension at most 2048,
+and total pixels at most 1,048,576. The renderer deduplicates in-flight tokens,
+queues at most 16 requests and cancels abandoned work without delaying save/status
+lanes. There is no persistent pixel cache: every acquisition revalidates sources,
+and completed native tokens do not populate the Electron loaded-image cache.
+After save reconciliation is acknowledged, the workspace refreshes only tokens,
+preserving canonical values and selection. Installed artwork availability grants no save-write capability;
+Items, Cosmetics and Maps retain their separate transport restrictions.
 
 Run invokes the unchanged Python `run-get` service through the same opaque save
 ID resolution. Rust validates the DTO's known stat keys, uniqueness, nonempty
@@ -243,7 +262,7 @@ available-empty catalogs remain distinct. Unknown valid map families are retaine
 Artwork metadata is discarded and icon tokens are always null. The existing Maps
 view and injected hook preserve cards, layout, skeletons, refresh data, translated
 errors and superseded/unmounted response handling. Electron keeps its default API.
-The native host grants no artwork decoding, streaming, cache or map-control authority.
+Map projections grant no map-artwork streaming, cache or map-control authority.
 
 Cosmetics is a separate global workspace, available without selecting or opening a
 Run save. Its fixed `cosmetics_get` command accepts no renderer path or save ID and
@@ -266,7 +285,8 @@ write authority. Legacy Cosmetics writes use a separate catalog loader restricte
 to the evidence-backed builds, and revalidate that catalog before the final game
 check. Read projections may explicitly deny eligibility for known IDs; both native
 and Electron boundaries still reject eligibility outside the frozen proven set.
-Build `26407089` has readable metadata but no new mutation or artwork approval.
+Build `26407089` has readable metadata and independently reviewed artwork, but no
+Cosmetics mutation approval.
 Cosmetic, map and upgrade artwork retain their independent build/assembly checks.
 Preset clearing has its own required boolean capability, independent of ownership
 eligibility. An approved build may clear supported presets without eligible owned

@@ -47,10 +47,13 @@ export async function stageFrozenBackend(home: string, backend: string) {
   await symlink(source, path.join(home, "backend"), "junction");
 }
 
-export async function stageSyntheticBackend(home: string) {
+export async function stageSyntheticBackend(
+  home: string,
+  host = process.env["REPODITOR_E2E_EXECUTABLE"]!,
+) {
   await mkdir(path.join(home, "backend"), { recursive: true });
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(path.resolve(DESKTOP_ROOT, process.env["REPODITOR_E2E_EXECUTABLE"]!), executable);
+  await copyFile(path.resolve(DESKTOP_ROOT, host), executable);
   await copyFile(
     path.join(DESKTOP_ROOT, "src-tauri/target/test-fixtures/sidecar.exe"),
     path.join(home, "backend/repoditor-backend.exe"),

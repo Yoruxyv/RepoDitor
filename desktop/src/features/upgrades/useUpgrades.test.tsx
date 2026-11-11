@@ -15,6 +15,25 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 }
 
 describe("injected upgrade reads", () => {
+  it("refreshes optional tokens without replacing canonical values with an older read", async () => {
+    const initial = upgrades.map((upgrade) => ({ ...upgrade, iconToken: null }));
+    const list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: initial.map((upgrade) => ({ ...upgrade, iconToken: "upgrade-artwork:new" })),
+    });
+    const { result } = renderHook(() => useUpgrades(saveId, { ok: true, data: initial }, list), {
+      wrapper,
+    });
+    const canonical = initial.map((upgrade) => ({
+      ...upgrade,
+      values: upgrade.values.map((entry) => ({ ...entry, value: 9 })),
+    }));
+    act(() => result.current.acceptSnapshot(canonical));
+    await act(async () => result.current.refreshArtwork());
+    expect(result.current.upgrades).toEqual(
+      canonical.map((upgrade) => ({ ...upgrade, iconToken: "upgrade-artwork:new" })),
+    );
+  });
   it("keeps a canonical transaction snapshot when an older read completes later", async () => {
     let complete!: (value: DesktopOperationResult<PlayerUpgradeDto[]>) => void;
     const list = vi.fn().mockReturnValue(

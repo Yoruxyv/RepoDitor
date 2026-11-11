@@ -12,6 +12,8 @@
             "allow-players-list",
             "allow-players-avatar",
             "allow-upgrades-list",
+            "allow-upgrade-artwork-get",
+            "allow-upgrade-artwork-cancel",
             "allow-run-get",
             "allow-advanced-get",
             "allow-maps-list",

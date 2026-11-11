@@ -33,10 +33,11 @@ export function useRunState(
   saveId: string,
   initialResult: DesktopOperationResult<RunStateDto> | null = null,
   get: RepoDitorApi["run"]["get"] = getDesktopRunState,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
   const requestInFlight = useRef(false);
@@ -45,6 +46,7 @@ export function useRunState(
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
       if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
       requestInFlight.current = true;
       const version = snapshotVersion.current;
       try {
@@ -78,13 +80,18 @@ export function useRunState(
 
   useEffect(() => {
     mounted.current = true;
-    const request =
-      initialResultRef.current === null ? window.setTimeout(() => void load(false)) : undefined;
     return () => {
       mounted.current = false;
-      if (request !== undefined) window.clearTimeout(request);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false);
+    });
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially]);
 
   function updateStat(stat: RunStatDto, value: number): void {
     update({
@@ -165,6 +172,7 @@ export function useRunState(
   }
 
   function acceptSnapshot(run: RunStateDto): void {
+    needsInitialLoad.current = false;
     snapshotVersion.current += 1;
     setState({ run, error: null, loading: false });
   }

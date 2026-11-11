@@ -68,7 +68,12 @@ async function compareValues(page: Page, reference: Page, name: string) {
   expect(result.ok).toBe(true);
   expect(expected.ok).toBe(true);
   if (!result.ok || !expected.ok) throw new Error("Synthetic upgrades could not be read");
-  expect(result.data).toEqual(expected.data.map((item) => ({ ...item, iconToken: null })));
+  expect(result.data.map((item) => ({ ...item, iconToken: null }))).toEqual(
+    expected.data.map((item) => ({ ...item, iconToken: null })),
+  );
+  for (const item of result.data) {
+    if (item.iconToken !== null) expect(item.iconToken).toMatch(/^upgrade-artwork:[0-9a-f]{32}$/);
+  }
   for (const upgrade of result.data) {
     const label = `${upgrade.label} for ${name}`;
     await expect(page.getByRole("textbox", { name: label })).toHaveValue(

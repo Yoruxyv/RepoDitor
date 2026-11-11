@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-upgrade-artwork-get"
+description = "Enables the upgrade_artwork_get command without any pre-configured scope."
+commands.allow = ["upgrade_artwork_get"]
+
+[[permission]]
+identifier = "deny-upgrade-artwork-get"
+description = "Denies the upgrade_artwork_get command without any pre-configured scope."
+commands.deny = ["upgrade_artwork_get"]

@@ -53,8 +53,9 @@ export function TauriWorkspace({
   const [section, setSection] = useState<Section>("overview");
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
-  const run = useRunState(session.id, null, tauriReadApi.run.get);
-  const items = useItems(session.id, null, tauriReadApi.advanced.get);
+  // Cold projections share the native worker with Save and its acknowledgement.
+  const run = useRunState(session.id, null, tauriReadApi.run.get, section === "run");
+  const items = useItems(session.id, null, tauriReadApi.advanced.get, section === "items");
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
     if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
@@ -62,6 +63,8 @@ export function TauriWorkspace({
     if (projection.advanced) items.acceptSnapshot(projection.advanced);
     onCanonical(projection.opened);
   });
+  const canLoadMaps = health.phase !== "saving" && health.phase !== "reconciling";
+  const maps = useMaps(null, tauriReadApi.maps.list, canLoadMaps && section === "maps");
   const restoredSelection = useRef<string | null>(null);
   const visiblePlayers = players.players;
   const selectPlayer = players.setSelectedPlayerId;
@@ -81,6 +84,15 @@ export function TauriWorkspace({
     return () => onHealthAvailability?.(false);
   }, [health.enabled, onHealthAvailability]);
   const currentSession = health.canonical?.opened.session ?? session;
+  const artworkFingerprint = useRef(session.fingerprint);
+  const refreshUpgrades = upgrades.refreshArtwork;
+  useEffect(() => {
+    // The list read shares a worker with the final transaction acknowledgement.
+    if (!health.locked && artworkFingerprint.current !== currentSession.fingerprint) {
+      artworkFingerprint.current = currentSession.fingerprint;
+      void refreshUpgrades();
+    }
+  }, [currentSession.fingerprint, health.locked, refreshUpgrades]);
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const pendingSections: Partial<Record<Section, number>> = {
@@ -94,7 +106,6 @@ export function TauriWorkspace({
   function revertUpgrades() {
     health.revertUpgrades();
   }
-  const maps = useMaps(null, tauriReadApi.maps.list);
   const avatars = usePlayerAvatars(
     session.id,
     players.selectedPlayerId,

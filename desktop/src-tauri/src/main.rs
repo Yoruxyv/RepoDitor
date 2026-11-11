@@ -53,10 +53,11 @@ async fn saves_open(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Save);
     };
-    #[cfg(feature = "synthetic-health-recovery")]
     let state = app.state::<Arc<HostState>>().inner().clone();
+    state.artwork.lock().unwrap().clear();
     backend::request(app, Operation::Open(id.clone()), move |bytes| {
         let opened = saves::parse(bytes, &id)?;
+        state.artwork.lock().unwrap().open(&id);
         #[cfg(feature = "synthetic-health-recovery")]
         state.open_editor(&id, opened.fingerprint());
         Ok(opened)
@@ -126,7 +127,71 @@ async fn upgrades_list(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
     };
-    backend::request(app, Operation::Upgrades(id), upgrades::parse).await
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    let generation = state.artwork.lock().unwrap().generation(&id);
+    backend::request(app, Operation::Upgrades(id.clone()), move |bytes| {
+        let mut values = upgrades::parse(bytes)?;
+        let raw = error::json(bytes)?;
+        state.artwork.lock().unwrap().register(
+            &id,
+            generation,
+            raw["fingerprint"].as_str(),
+            &mut values,
+        );
+        Ok(values)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn upgrade_artwork_get(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+) -> Outcome<Option<backend::artwork::Image>> {
+    let Some(token) = token
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| backend::artwork::valid_token(token))
+        .map(str::to_owned)
+    else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
+    };
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    let request = state.artwork.lock().unwrap().begin(&token);
+    let (save, fingerprint, key, cancelled) = match request {
+        Ok(request) => request,
+        Err(error) => return Outcome::for_service(Err(error), Service::Upgrade),
+    };
+    let token_check = token.clone();
+    let response = backend::request(
+        app,
+        Operation::Artwork(save, fingerprint, key.clone(), cancelled.clone()),
+        move |bytes| backend::artwork::parse(bytes, &key, &token_check),
+    )
+    .await;
+    if state.artwork.lock().unwrap().finish(&token, &cancelled) {
+        response
+    } else {
+        Outcome::for_service(Err(BackendError::Failed), Service::Upgrade)
+    }
+}
+
+#[tauri::command]
+fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id: Option<String>) {
+    let state = app.state::<Arc<HostState>>();
+    let mut registry = state.artwork.lock().unwrap();
+    if let Some(token) = token
+        .as_deref()
+        .filter(|token| backend::artwork::valid_token(token))
+    {
+        registry.cancel(token);
+    } else if token.is_none()
+        && save_id
+            .as_deref()
+            .is_some_and(|id| saves::valid_id(id) && registry.generation(id).is_some())
+    {
+        registry.clear();
+    }
 }
 
 #[tauri::command]
@@ -267,6 +332,8 @@ fn main() {
             players_list,
             players_avatar,
             upgrades_list,
+            upgrade_artwork_get,
+            upgrade_artwork_cancel,
             run_get,
             advanced_get,
             maps_list,
@@ -336,6 +403,7 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<Arc<HostState>>().inner().clone();
                 let already_closing = state.closing.swap(true, Ordering::SeqCst);
+                state.artwork.lock().unwrap().clear();
                 if !state.idle() {
                     api.prevent_close();
                     if !already_closing {

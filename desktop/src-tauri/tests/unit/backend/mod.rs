@@ -1,4 +1,57 @@
 use super::*;
+
+#[test]
+fn artwork_has_one_independent_cancellable_lane() {
+    let state = Arc::new(HostState::default());
+    let operation = Operation::Artwork(
+        "save".into(),
+        "a".repeat(64),
+        "playerUpgradeHealth".into(),
+        Arc::new(AtomicBool::new(false)),
+    );
+    assert_eq!(
+        operation.arguments(),
+        [
+            "upgrade-artwork",
+            "save",
+            &"a".repeat(64),
+            "playerUpgradeHealth"
+        ]
+    );
+    let held = state.domain_worker.lock().unwrap();
+    let mut request = Request::reserve(state.clone(), operation.slot()).unwrap();
+    assert!(Request::reserve(state.clone(), operation.slot()).is_err());
+    request.2 = Arc::new(AtomicBool::new(false));
+    let executable = process::tests::fixture();
+    let marker =
+        std::env::temp_dir().join(format!("repoditor-artwork-{}.ready", uuid::Uuid::new_v4()));
+    let observed = marker.clone();
+    let cancelled = request.2.clone();
+    let cancellation = std::thread::spawn(move || {
+        let started = Instant::now();
+        while !observed.exists() && started.elapsed() < Duration::from_secs(4) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let ready = observed.exists();
+        cancelled.store(true, Ordering::SeqCst);
+        ready
+    });
+    assert_eq!(
+        execute(
+            &request,
+            executable,
+            &["hang", marker.to_str().unwrap()],
+            Instant::now(),
+            Duration::from_secs(5)
+        )
+        .unwrap_err(),
+        BackendError::Failed
+    );
+    assert!(cancellation.join().unwrap());
+    drop(request);
+    drop(held);
+    assert!(state.idle());
+}
 #[cfg(feature = "synthetic-health-recovery")]
 #[test]
 fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admission() {

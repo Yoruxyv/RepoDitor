@@ -23,7 +23,7 @@ struct PlayerValue {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Upgrade {
-    key: String,
+    pub(crate) key: String,
     label: String,
     presentation_source: PresentationSource,
     #[serde(deserialize_with = "nullable_integer")]
@@ -31,7 +31,7 @@ pub struct Upgrade {
     #[serde(skip_serializing)]
     icon_key: Value,
     #[serde(skip_deserializing)]
-    icon_token: Option<String>,
+    pub(crate) icon_token: Option<String>,
     values: Vec<PlayerValue>,
 }
 

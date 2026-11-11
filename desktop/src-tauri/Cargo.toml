@@ -6,7 +6,7 @@ publish = false
 
 [features]
 native-ui-test = []
-synthetic-health-recovery = ["dep:uuid"]
+synthetic-health-recovery = []
 synthetic-health-ui = ["synthetic-health-recovery"]
 
 [build-dependencies]
@@ -14,7 +14,9 @@ sha2 = "=0.10.9"
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-uuid = { version = "=1.29.0", features = ["v4"], optional = true }
+uuid = { version = "=1.29.0", features = ["v4"] }
+base64 = "=0.23.1"
+png = "=0.18.1"
 tauri = { version = "2.12.5", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

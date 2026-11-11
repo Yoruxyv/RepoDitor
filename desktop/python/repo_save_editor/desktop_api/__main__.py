@@ -31,6 +31,7 @@ from repo_save_editor.desktop_api.health_recovery import (
 from repo_save_editor.desktop_api.icons import (
     get_baked_artwork,
     get_icon_roots,
+    get_native_upgrade_artwork,
     get_upgrade_texture,
 )
 from repo_save_editor.desktop_api.items import get_advanced_save
@@ -74,6 +75,10 @@ def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
     if args.upgrade_key is None:
         return _invalid_request("The required upgrade identity is missing.")
     return get_upgrade_texture(args.upgrade_key)
+
+
+def _native_upgrade_artwork(args: argparse.Namespace) -> dict[str, object]:
+    return get_native_upgrade_artwork(args.save_id, args.fingerprint, args.upgrade_key)
 
 
 def _cosmetic_artwork(args: argparse.Namespace) -> dict[str, object]:
@@ -370,6 +375,12 @@ def _parser() -> argparse.ArgumentParser:
     upgrade_texture = commands.add_parser("upgrade-texture")
     upgrade_texture.add_argument("upgrade_key", nargs="?")
     upgrade_texture.set_defaults(handler=_upgrade_texture)
+
+    native_artwork = commands.add_parser("upgrade-artwork")
+    native_artwork.add_argument("save_id")
+    native_artwork.add_argument("fingerprint")
+    native_artwork.add_argument("upgrade_key")
+    native_artwork.set_defaults(handler=_native_upgrade_artwork)
 
     assets_prepare = commands.add_parser("assets-prepare")
     assets_prepare.set_defaults(handler=_prepare_assets, streaming=True)

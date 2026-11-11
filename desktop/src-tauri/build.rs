@@ -34,6 +34,8 @@ fn main() {
                 "players_list",
                 "players_avatar",
                 "upgrades_list",
+                "upgrade_artwork_get",
+                "upgrade_artwork_cancel",
                 "run_get",
                 "advanced_get",
                 "maps_list",

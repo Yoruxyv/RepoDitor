@@ -155,17 +155,10 @@ def _inside(root: Path, candidate: Path) -> bool:
 
 
 def _regular_owned_file(root: Path, relative: Path) -> Path:
-    candidate = root / relative
     try:
-        if candidate.is_symlink():
-            raise UpgradeTextureError("Installed source file may not be a symbolic link.")
-        resolved = candidate.resolve(strict=True)
-        root_resolved = root.resolve(strict=True)
-        if not _inside(root_resolved, resolved) or not resolved.is_file():
-            raise UpgradeTextureError("Installed source file is outside the validated game root.")
-    except OSError as error:
+        return owned_file(root, root / relative)
+    except (OSError, ValueError) as error:
         raise UpgradeTextureError("Installed source file is unavailable.") from error
-    return resolved
 
 
 def _sha256_file(path: Path) -> str:
@@ -190,7 +183,7 @@ def _validated_paths(
         raise UpgradeTextureError("Installed Steam build is not the validated build.")
     try:
         game_root = installation.root.resolve(strict=True)
-        data_root = (game_root / "REPO_Data").resolve(strict=True)
+        data_root = game_root / "REPO_Data"
     except OSError as error:
         raise UpgradeTextureError("Validated game root is unavailable.") from error
     if not data_root.is_dir() or not _inside(game_root, data_root):
@@ -429,15 +422,10 @@ def _resolve_stream_range(
         or any(part in ("", ".") for part in posix.parts)
     ):
         raise UpgradeTextureError("Installed stream path is unsafe.")
-    candidate = data_root.joinpath(*posix.parts)
     try:
-        if candidate.is_symlink():
-            raise UpgradeTextureError("Installed stream may not be a symbolic link.")
-        resolved = candidate.resolve(strict=True)
-        if not _inside(data_root, resolved) or not resolved.is_file():
-            raise UpgradeTextureError("Installed stream is outside REPO_Data.")
+        resolved = owned_file(data_root, data_root.joinpath(*posix.parts))
         stat = resolved.stat()
-    except OSError as error:
+    except (OSError, ValueError) as error:
         raise UpgradeTextureError("Installed stream is unavailable.") from error
     if (
         stream_offset < 0
@@ -522,6 +510,7 @@ def _decode_resolved_upgrade_texture(
 ) -> DecodedUpgradeTexture:
     texture = visual.texture
     stream, _stream_stat = _resolve_stream(data_root, texture)
+    stream_watch = _watch(stream)
     with stream.open("rb") as handle:
         handle.seek(texture.stream_offset)
         compressed = handle.read(texture.top_mip_size)
@@ -565,9 +554,13 @@ def _decode_resolved_upgrade_texture(
         and applied_framing.source_path not in watch_paths
     ):
         watch_paths.append(applied_framing.source_path)
-    if any(_watch(watch.path) != watch for watch in admission_watches):
+    if any(_watch(watch.path) != watch for watch in (*admission_watches, stream_watch)):
         raise UpgradeTextureError("Installed artwork admission sources changed during decoding.")
-    watches = (*(_watch(path) for path in watch_paths), *admission_watches)
+    checked = {watch.path: watch for watch in (*admission_watches, stream_watch)}
+    watches = tuple(
+        checked[path] if path in checked else _watch(path)
+        for path in dict.fromkeys((*watch_paths, *(watch.path for watch in admission_watches)))
+    )
     source_identity = _source_identity(
         texture,
         applied_framing,
@@ -704,6 +697,7 @@ def prepare_installed_upgrade_textures(
             )
         if not upgrade_keys:
             return UpgradeTextureBatchResult(True, True, True, ())
+        admission_watches += (_watch(resources_path), _watch(resource_manager_path))
 
         with (
             ArtworkFileIndex(resource_manager_path) as managers,

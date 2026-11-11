@@ -120,11 +120,13 @@ try {
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'matrix'
     $env:REPODITOR_NATIVE_REPORT = Join-Path $output 'native.json'
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
-    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', 'e2e/tauri/tauri-items-refill.spec.ts', 'e2e/tauri/tauri-meta-cosmetics.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
+    Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', 'e2e/tauri/tauri-items-refill.spec.ts', 'e2e/tauri/tauri-meta-cosmetics.spec.ts', 'e2e/tauri/tauri-artwork.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)
     foreach ($case in @(
+        'ordinary native upgrade artwork is scoped, validated, refreshed and read-only',
+        'ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads',
         'final running: frozen Python blocks unsafe replacement',
         'final unknown: frozen Python blocks unsafe replacement',
         'REPODITOR_RECOVERY_DEFAULT_EXECUTABLE: full synthetic environment cannot grant missing authority',

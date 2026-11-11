@@ -94,7 +94,7 @@ describe("native upgrade drafts", () => {
     expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
   });
 
-  it("loads the first selected avatar alongside pending Maps without delaying the native editor", async () => {
+  it("defers hidden reads and keeps player controls usable alongside a pending Maps read", async () => {
     let finishMaps!: (value: Awaited<ReturnType<typeof tauriReadApi.maps.list>>) => void;
     let finishAvatar!: (value: Awaited<ReturnType<typeof tauriReadApi.players.avatar>>) => void;
     vi.mocked(tauriReadApi.maps.list).mockImplementationOnce(
@@ -111,7 +111,6 @@ describe("native upgrade drafts", () => {
     );
     const user = userEvent.setup();
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
-    await waitFor(() => expect(tauriReadApi.maps.list).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(
         session.id,
@@ -121,6 +120,14 @@ describe("native upgrade drafts", () => {
     await user.click(screen.getByRole("tab", { name: "Players" }));
     expect(await screen.findByRole("spinbutton", { name: "Current health" })).toBeTruthy();
     expect(screen.getByTestId("avatar-fallback-loading")).toBeTruthy();
+    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+    expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    expect(tauriReadApi.run.get).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    await waitFor(() => expect(tauriReadApi.maps.list).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.getByRole("spinbutton", { name: "Current health" })).toBeTruthy();
     await act(async () => {
       finishAvatar({
         ok: true,
@@ -135,6 +142,9 @@ describe("native upgrade drafts", () => {
     });
     expect(screen.getByTestId("avatar-fallback").textContent).toBe("A");
     expect(tauriReadApi.players.avatar).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    expect(await screen.findByText("McJannek Station")).toBeTruthy();
+    expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
   });
 
   it("reviews and reverts an exact refill, then refreshes Full only after durable canonical confirmation", async () => {
@@ -405,18 +415,27 @@ describe("native upgrade drafts", () => {
       reason: null,
       canonical: null,
     }));
-    vi.mocked(tauriHealthApi.recover).mockImplementation(async (_save, operationId) => ({
-      operationId,
-      status: "applied",
-      fingerprint: "b".repeat(64),
-      backupAvailable: true,
-      reason: null,
-      canonical: {
-        opened: { ...openResult().data, session: { ...session, fingerprint: "b".repeat(64) } },
-        players,
-        upgrades: projected,
+    let finishAcknowledgement!: () => void;
+    const acknowledgement = new Promise<void>((resolve) => {
+      finishAcknowledgement = resolve;
+    });
+    vi.mocked(tauriHealthApi.recover).mockImplementation(
+      async (_save, operationId, acknowledge) => {
+        if (acknowledge) await acknowledgement;
+        return {
+          operationId,
+          status: "applied",
+          fingerprint: "b".repeat(64),
+          backupAvailable: true,
+          reason: null,
+          canonical: {
+            opened: { ...openResult().data, session: { ...session, fingerprint: "b".repeat(64) } },
+            players,
+            upgrades: projected,
+          },
+        };
       },
-    }));
+    );
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
     const user = await openUpgrades();
     fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
@@ -429,8 +448,21 @@ describe("native upgrade drafts", () => {
     });
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() =>
+      expect(screen.getByTestId("workspace").getAttribute("data-session-fingerprint")).toBe(
+        "b".repeat(64),
+      ),
+    );
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("tab", { name: "Maps" }));
+    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+    await act(async () => finishAcknowledgement());
+    await waitFor(() =>
       expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
     );
+    expect(await screen.findByText("McJannek Station")).toBeTruthy();
+    expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2));
     expect(tauriHealthApi.writeUpgrades).toHaveBeenCalledWith(
       expect.objectContaining({
         saveId: session.id,

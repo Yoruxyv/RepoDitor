@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.types import SaveData
@@ -29,13 +30,17 @@ def list_upgrades(
 ) -> dict[str, object]:
     """Return dynamically discovered upgrades and their per-player values."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
     discovered = discover_player_upgrades(data)
     presentations = presentation_loader(upgrade.key for upgrade in discovered)
-    return {"ok": True, "upgrades": serialize_upgrades(data, presentations)}
+    return {
+        "ok": True,
+        "fingerprint": sha256(source).hexdigest(),
+        "upgrades": serialize_upgrades(data, presentations),
+    }
 
 
 def serialize_upgrades(

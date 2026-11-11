@@ -177,6 +177,20 @@ export function useUpgrades(
     });
   }
 
+  async function refreshArtwork(): Promise<void> {
+    const version = snapshotVersion.current;
+    const result = await list(saveId);
+    if (!mounted.current || version !== snapshotVersion.current || !result.ok) return;
+    const tokens = new Map(result.data.map((upgrade) => [upgrade.key, upgrade.iconToken]));
+    setState((current) => ({
+      ...current,
+      upgrades: current.upgrades.map((upgrade) => ({
+        ...upgrade,
+        iconToken: tokens.get(upgrade.key) ?? null,
+      })),
+    }));
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -187,6 +201,7 @@ export function useUpgrades(
     revertAll,
     applyAfterSave,
     acceptSnapshot,
+    refreshArtwork,
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };
