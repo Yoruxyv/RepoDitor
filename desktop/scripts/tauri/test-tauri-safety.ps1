@@ -127,6 +127,7 @@ try {
     foreach ($case in @(
         'ordinary native upgrade artwork is scoped, validated, refreshed and read-only',
         'ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads',
+        'ordinary native Item artwork displays beyond the upgrade budget and stays read-only',
         'final running: frozen Python blocks unsafe replacement',
         'final unknown: frozen Python blocks unsafe replacement',
         'REPODITOR_RECOVERY_DEFAULT_EXECUTABLE: full synthetic environment cannot grant missing authority',

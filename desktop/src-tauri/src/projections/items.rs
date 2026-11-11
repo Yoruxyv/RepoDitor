@@ -1,4 +1,4 @@
-//! Validate the Python Items projection; recharge evidence and artwork stay private.
+//! Validate the Python Items projection and keep raw artwork metadata private.
 use super::{artwork, saves};
 use crate::{
     backend::process::STDOUT_LIMIT,
@@ -87,6 +87,23 @@ pub struct Advanced {
     domains: Vec<Domain>,
     items: Vec<Item>,
     unlinked_charge_entry_count: i64,
+}
+
+impl Advanced {
+    pub(crate) fn item_icons(&mut self) -> impl Iterator<Item = (String, &mut Option<String>)> {
+        self.items.iter_mut().filter_map(|item| {
+            // Unity's verified baked hash needs the name, delimiter and prefab within 191 bytes.
+            if item.is_upgrade
+                || item.name.starts_with("Upgrade ")
+                || item.name.len() + 7 >= 192
+                || item.name.contains(['/', '\\'])
+                || item.name.chars().any(char::is_control)
+            {
+                return None;
+            }
+            Some((format!("Item {}", item.name), &mut item.icon_token))
+        })
+    }
 }
 
 fn nullable_integer<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<i64>, D::Error> {

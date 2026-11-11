@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.types import SaveData
@@ -53,16 +54,19 @@ def get_advanced_save(
 ) -> dict[str, object]:
     """Return evidence-backed advanced data without exposing the decrypted save."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
-    return serialize_advanced_save(
+    result = serialize_advanced_save(
         data,
         capability_loader=capability_loader,
         metadata_loader=metadata_loader,
         metadata_evidence_loader=metadata_evidence_loader,
         icon_availability_loader=icon_availability_loader,
     )
+    if result.get("ok") is True:
+        result["fingerprint"] = sha256(source).hexdigest()
+    return result
 
 
 def serialize_advanced_save(

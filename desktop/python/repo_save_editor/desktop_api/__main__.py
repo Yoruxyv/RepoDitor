@@ -31,6 +31,7 @@ from repo_save_editor.desktop_api.health_recovery import (
 from repo_save_editor.desktop_api.icons import (
     get_baked_artwork,
     get_icon_roots,
+    get_native_item_artwork,
     get_native_upgrade_artwork,
     get_upgrade_texture,
 )
@@ -381,6 +382,14 @@ def _parser() -> argparse.ArgumentParser:
     native_artwork.add_argument("fingerprint")
     native_artwork.add_argument("upgrade_key")
     native_artwork.set_defaults(handler=_native_upgrade_artwork)
+
+    item_artwork = commands.add_parser("item-artwork")
+    item_artwork.add_argument("save_id")
+    item_artwork.add_argument("fingerprint")
+    item_artwork.add_argument("item_name")
+    item_artwork.set_defaults(
+        handler=lambda args: get_native_item_artwork(args.save_id, args.fingerprint, args.item_name)
+    )
 
     assets_prepare = commands.add_parser("assets-prepare")
     assets_prepare.set_defaults(handler=_prepare_assets, streaming=True)

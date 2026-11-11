@@ -12,9 +12,13 @@ from pathlib import Path
 import pytest
 
 from repo_save_editor.desktop_api import icons
+from repo_save_editor.services import baked_artwork
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import discover_game_installation
+from repo_save_editor.services.texture_codec import encode_rgba_png
+from repo_save_editor.services.unity_hash import unity_hash128
 from tests.desktop_api.test_editor_domains import _write_save
+from tests.services.test_baked_artwork import _installation
 from tests.services.test_installed_build import _steam_install
 from tests.services.test_upgrade_textures import _write_resource_manager, _write_upgrade_assets
 
@@ -150,3 +154,47 @@ def test_native_artwork_revision_includes_pixels_even_when_source_metadata_is_pr
     assert after is not None
     assert before["pngBase64"] != after["pngBase64"]
     assert before["sourceIdentity"] != after["sourceIdentity"]
+
+
+def test_native_item_artwork_revalidates_exact_type_save_and_baked_sources(
+    tmp_path, monkeypatch, sample_save
+):
+    game, cache = _installation(tmp_path, monkeypatch)
+    original_discovery = baked_artwork.discover_baked_artwork
+    monkeypatch.setattr(
+        baked_artwork, "discover_baked_artwork", lambda: original_discovery(game, cache_dir=cache)
+    )
+    root = tmp_path / "saves"
+    sample_save["dictionaryOfDictionaries"]["value"]["item"] = {"Item Tool/1": 1}
+    save = _write_save(root, sample_save)
+    source = save.read_bytes()
+    fingerprint = hashlib.sha256(source).hexdigest()
+    png_path = (
+        game
+        / "REPO_Data/StreamingAssets/BakedIcons/Items"
+        / (unity_hash128("Item Tool|Prefab") + ".png")
+    )
+    png_path.parent.mkdir(parents=True)
+
+    def read(name="Item Tool", stamp=fingerprint):
+        return icons.get_native_item_artwork(save.parent.name, stamp, name, root)["artwork"]
+
+    assert read() is None
+    png = encode_rgba_png(bytes([255, 0, 0, 255]), 1, 1)
+    png_path.write_bytes(png)
+    first = read()
+    assert first is not None
+    assert set(first) == {"itemName", "sourceIdentity", "width", "height", "pngBase64"}
+    assert first["itemName"] == "Item Tool"
+    assert base64.b64decode(first["pngBase64"], validate=True) == png
+    assert read("Item Other") is None
+    assert read("Item Tool/1") is None
+    assert read(stamp="f" * 64) is None
+    png_path.write_bytes(encode_rgba_png(bytes([0, 0, 255, 255]), 1, 1))
+    assert read()["sourceIdentity"] != first["sourceIdentity"]
+    png_path.write_bytes(b"malformed")
+    assert read() is None
+    png_path.write_bytes(png)
+    (game / "REPO_Data/Managed/Assembly-CSharp.dll").write_bytes(b"changed")
+    assert read() is None
+    assert save.read_bytes() == source

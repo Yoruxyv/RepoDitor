@@ -72,6 +72,60 @@ describe("native GameIcon", () => {
     expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
     expect(invoke).not.toHaveBeenCalled();
   });
+  it("requests Item artwork on intersection and cancels when the card leaves view", async () => {
+    let observe!: IntersectionObserverCallback;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          observe = callback;
+        }
+        observe = vi.fn();
+        disconnect = disconnect;
+      },
+    );
+    const value = "item-artwork:" + "d".repeat(32);
+    let finish!: (result: unknown) => void;
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementation((command) =>
+        command === "item_artwork_cancel"
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+              finish = resolve;
+            }),
+      );
+    try {
+      const { unmount } = render(icon(value, "item"));
+      expect(invoke).not.toHaveBeenCalled();
+      const intersection = (isIntersecting: boolean) =>
+        observe([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
+      act(() => intersection(true));
+      expect(invoke).toHaveBeenCalledExactlyOnceWith("item_artwork_get", { token: value });
+      act(() => intersection(false));
+      expect(invoke).toHaveBeenLastCalledWith("item_artwork_cancel", { token: value });
+      await act(async () => finish({ ok: true, data: null }));
+      expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
+      act(() => intersection(true));
+      await act(async () =>
+        finish({
+          ok: true,
+          data: { token: value, revision: "a".repeat(64), dataUrl: "data:image/png;base64,AAAA" },
+        }),
+      );
+      expect(screen.getByTestId("native-icon").querySelector("img")).toBeTruthy();
+      act(() => intersection(false));
+      expect(screen.getByTestId("native-icon").querySelector("img")).toBeNull();
+      unmount();
+      expect(disconnect).toHaveBeenCalled();
+      render(icon(value));
+      expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
+      expect(invoke).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("falls back for a rejected, malformed or unsafe response", async () => {
     vi.mocked(invoke)
       .mockReset()

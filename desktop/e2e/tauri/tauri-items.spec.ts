@@ -60,7 +60,10 @@ async function compareDto(page: Page, reference: Page) {
   expect(actual.ok).toBe(true);
   expect(expected.ok).toBe(true);
   if (!actual.ok || !expected.ok) throw new Error("Synthetic Items could not be read");
-  expect(actual.data).toEqual({
+  expect({
+    ...actual.data,
+    items: actual.data.items.map((item) => ({ ...item, iconToken: null })),
+  }).toEqual({
     ...expected.data,
     items: expected.data.items.map((item) => ({ ...item, iconToken: null })),
   });
@@ -68,7 +71,7 @@ async function compareDto(page: Page, reference: Page) {
   expect(JSON.stringify(actual)).not.toContain("rechargeEvidence");
   for (const item of actual.data.items) {
     expect(item.saveKey).toBe(`Item ${item.name}/${item.instanceId}`);
-    expect(item.iconToken).toBeNull();
+    if (item.iconToken !== null) expect(item.iconToken).toMatch(/^item-artwork:[0-9a-f]{32}$/);
   }
   return actual.data;
 }

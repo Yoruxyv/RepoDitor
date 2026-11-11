@@ -315,3 +315,52 @@ def discover_baked_artwork(
         }
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
         return None
+
+
+def _png_stamp(info: os.stat_result) -> tuple[int, ...]:
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+
+def read_baked_item_png(name: str) -> tuple[bytes, str] | None:
+    """Read one bounded PNG from the verified Item mapping and recheck its sources."""
+    index = discover_baked_artwork()
+    if index is None:
+        return None
+    root, entries, sources = index["root"], index["item"], index["sources"]
+    if not isinstance(root, str) or not isinstance(entries, dict) or not isinstance(sources, list):
+        return None
+    filename = entries.get(name)
+    if not (
+        isinstance(filename, str)
+        and len(filename) == 36
+        and filename.endswith(".png")
+        and all(c in "0123456789abcdef" for c in filename[:32])
+    ):
+        return None
+    try:
+        game = Path(root)
+        library = game.parents[2]
+        path = game / "REPO_Data/StreamingAssets/BakedIcons/Items" / filename
+        before = owned_file(library, path).stat()
+        stamp = _png_stamp(before)
+        if not 57 <= before.st_size <= 1024 * 1024:
+            return None
+        with path.open("rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if _png_stamp(opened) != stamp or not stat.S_ISREG(opened.st_mode):
+                return None
+            png = handle.read(before.st_size + 1)
+            after = os.fstat(handle.fileno())
+        if (
+            len(png) != before.st_size
+            or _png_stamp(after) != stamp
+            or _png_stamp(owned_file(library, path).stat()) != stamp
+            or any(_watch(library, Path(watch["path"])) != watch for watch in sources)
+        ):
+            return None
+        identity = hashlib.sha256()
+        identity.update(json.dumps([sources, name, filename, stamp]).encode())
+        identity.update(png)
+        return png, identity.hexdigest()
+    except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+        return None

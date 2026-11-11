@@ -1,6 +1,6 @@
 /** One cancellable native decoder lane; completed pixels are never cached here. */
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { DesktopOperationResult } from "@electron/contracts";
 
 export interface NativeArtwork {
@@ -17,25 +17,60 @@ interface Request {
 const pending = new Map<string, Request>();
 const queue: Request[] = [];
 let active: Request | null = null;
+// A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
+const MAX_ITEM_REQUESTS = 16_384;
 
 export function closeNativeArtwork(saveId: string): Promise<void> {
   return invoke<void>("upgrade_artwork_cancel", { saveId }).catch(() => undefined);
 }
 
-export function isNativeArtworkToken(token: string): boolean {
-  return /^upgrade-artwork:[0-9a-f]{32}$/.test(token);
+function artworkScope(token: string | null): "item" | "upgrade" | null {
+  if (token?.startsWith("item-artwork:")) return "item";
+  if (token?.startsWith("upgrade-artwork:")) return "upgrade";
+  return null;
 }
 
-export function useNativeArtwork(token: string | null, enabled: boolean) {
-  const native = token?.startsWith("upgrade-artwork:") ?? false;
-  const allowed = enabled && token !== null && isNativeArtworkToken(token);
+function isNativeArtworkToken(token: string): boolean {
+  return /^(item|upgrade)-artwork:[0-9a-f]{32}$/.test(token);
+}
+
+export function useNativeArtwork(
+  token: string | null,
+  variant: "item" | "upgrade" | "cosmetic" | "map",
+  element: RefObject<HTMLSpanElement | null>,
+) {
+  const scope = artworkScope(token);
+  const native = scope !== null;
+  const allowed = scope === variant && token !== null && isNativeArtworkToken(token);
   const [resolved, setResolved] = useState<{ token: string; image: NativeArtwork | null } | null>(
     null,
   );
   useEffect(() => {
-    if (token && allowed)
-      return acquireNativeArtwork(token, (image) => setResolved({ token, image }));
-  }, [allowed, token]);
+    if (!token || !allowed) return;
+    const receive = (image: NativeArtwork | null) => setResolved({ token, image });
+    if (scope !== "item" || typeof IntersectionObserver === "undefined")
+      return acquireNativeArtwork(token, receive);
+    const node = element.current;
+    if (!node) return;
+    let release: (() => void) | undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) {
+        release ??= acquireNativeArtwork(token, (image) => {
+          if (!image) observer.disconnect();
+          receive(image);
+        });
+      } else if (release) {
+        release();
+        release = undefined;
+        setResolved(null);
+      }
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      release?.();
+    };
+  }, [allowed, element, scope, token]);
   const current = resolved && token && resolved.token === token ? resolved : null;
   return {
     native,
@@ -57,7 +92,9 @@ function pump(): void {
   const request = queue.shift();
   if (!request) return;
   active = request;
-  void invoke<DesktopOperationResult<NativeArtwork | null>>("upgrade_artwork_get", {
+  const command =
+    artworkScope(request.token) === "item" ? "item_artwork_get" : "upgrade_artwork_get";
+  void invoke<DesktopOperationResult<NativeArtwork | null>>(command, {
     token: request.token,
   })
     .then((result) => {
@@ -80,7 +117,8 @@ export function acquireNativeArtwork(
   token: string,
   listener: (image: NativeArtwork | null) => void,
 ): () => void {
-  if (!isNativeArtworkToken(token) || (!pending.has(token) && pending.size >= 16)) {
+  const limit = artworkScope(token) === "item" ? MAX_ITEM_REQUESTS : 16;
+  if (!isNativeArtworkToken(token) || (!pending.has(token) && pending.size >= limit)) {
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) listener(null);
@@ -102,7 +140,9 @@ export function acquireNativeArtwork(
     owned.listeners.delete(listener);
     if (owned.listeners.size > 0) return;
     if (active === owned && !owned.settled) {
-      owned.cancellation ??= invoke("upgrade_artwork_cancel", { token }).catch(() => undefined);
+      const command =
+        artworkScope(token) === "item" ? "item_artwork_cancel" : "upgrade_artwork_cancel";
+      owned.cancellation ??= invoke(command, { token }).catch(() => undefined);
     } else {
       const index = queue.indexOf(owned);
       if (index >= 0) queue.splice(index, 1);

@@ -217,12 +217,11 @@ using the already locked PNG library before returning a PNG data URL.
 One independent, cancellable backend lane has the existing 30-second deadline
 and 2 MiB stdout bound. Each PNG is at most 1 MiB, each dimension at most 2048,
 and total pixels at most 1,048,576. The renderer deduplicates in-flight tokens,
-queues at most 16 requests and cancels abandoned work without delaying save/status
+bounds the queue and cancels abandoned work without delaying save/status
 lanes. There is no persistent pixel cache: every acquisition revalidates sources,
 and completed native tokens do not populate the Electron loaded-image cache.
 After save reconciliation is acknowledged, the workspace refreshes only tokens,
-preserving canonical values and selection. Installed artwork availability grants no save-write capability;
-Items, Cosmetics and Maps retain their separate transport restrictions.
+preserving canonical values and selection. Installed artwork availability grants no save-write capability.
 
 Run invokes the unchanged Python `run-get` service through the same opaque save
 ID resolution. Rust validates the DTO's known stat keys, uniqueness, nonempty
@@ -246,11 +245,20 @@ charge follows Electron's signed read contract without applying write bounds.
 The 2 MiB frame bounds every item array and string; the six-domain membership and
 existing icon/upgrade-key limits provide additional structural/metadata bounds.
 Rust does not classify items, infer game evidence or maintain a recharge evidence
-store. Private recharge evidence/raw fields are discarded; validated optional
-artwork keys are stripped and every icon token is null. The shared view preserves
+store. Private recharge evidence, raw fields and internal artwork keys are discarded. The shared view preserves
 grouping, search, filter/sort, charge states, skeletons and failures. Ordinary native passes
 no mutation handlers: refill/revert/pending/save controls stay absent even when
 the retained backend capability reports support. Electron's editors remain the default.
+
+The host issues opaque Item tokens per distinct regular Item type in the bounded
+Items projection. Tokens are scoped to the opened save and the projection's
+fingerprint. A refresh replaces only the Item registry and opening or closing a
+workspace revokes both artwork scopes. Visible Item cards request images through
+the shared artwork lane. Python checks exact save membership and resolves the
+image through the reviewed installed baked-artwork mapping and source watches.
+Rust checks PNG dimensions and pixels and encodes the Item image again before
+returning a data URL. Missing images use the existing fallback. The projection
+size bounds the Item registry independently of the 16-token Upgrade budget.
 
 Maps calls Python's existing `maps-list` service without renderer arguments or
 Rust discovery logic. Rust validates success/error framing, boolean availability,

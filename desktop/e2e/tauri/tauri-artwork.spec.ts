@@ -170,3 +170,95 @@ test("ordinary frozen upgrade artwork rejects unreviewed sources without affecti
     await close(app.child, app.browser);
   }
 });
+
+test("ordinary native Item artwork displays beyond the upgrade budget and stays read-only", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("item-art");
+  await mkdir(home, { recursive: true });
+  const fixture = await stageSyntheticBackend(
+    home,
+    prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const items = Array.from({ length: 24 }, (_, index) => {
+    const name = "Tool " + String(index).padStart(2, "0");
+    return { ...fixture.advanced.items[0], name, saveKey: "Item " + name + "/1", instanceId: "1" };
+  });
+  await writeFile(
+    path.join(home, "advanced-get.json"),
+    JSON.stringify({
+      ok: true,
+      fingerprint: fixture.opened.session.fingerprint,
+      advanced: { ...fixture.advanced, items },
+    }),
+  );
+  const png = execFileSync(
+    getPythonExecutable(),
+    [
+      "-c",
+      "import base64; from repo_save_editor.services.texture_codec import encode_rgba_png; print(base64.b64encode(encode_rgba_png(bytes([20,80,255,255]),1,1)).decode())",
+    ],
+    {
+      cwd: PYTHON_ROOT,
+      env: { ...process.env, PYTHONPATH: PYTHON_ROOT },
+      windowsHide: true,
+      encoding: "utf8",
+    },
+  ).trim();
+  const response = path.join(home, "item-artwork.json");
+  const image = {
+    itemName: "Item Tool 23",
+    sourceIdentity: "c".repeat(64),
+    width: 1,
+    height: 1,
+    pngBase64: png,
+  };
+  await writeFile(response, JSON.stringify({ ok: true, artwork: image }));
+  const app = await launch(fixture.executable, home, fixture.environment);
+  try {
+    const page = app.page;
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await page.getByRole("tab", { name: "Items", exact: true }).click();
+    const icon = page.getByTestId("item-icon-Item Tool 23/1");
+    await icon.scrollIntoViewIfNeeded();
+    await expect(icon).toHaveAttribute("data-artwork-revision", image.sourceIdentity);
+    await expect
+      .poll(() => icon.locator("img").evaluate((node) => (node as HTMLImageElement).naturalWidth))
+      .toBe(1);
+    const missing = page.getByTestId("item-icon-Item Tool 00/1");
+    await missing.scrollIntoViewIfNeeded();
+    await expect(missing).not.toHaveAttribute("data-icon-source", "local");
+    const current = await native<{
+      ok: boolean;
+      data: { items: Array<{ name: string; iconToken: string }> };
+    }>(page, "advanced_get", { saveId: E2E_SAVE_ID });
+    expect(current.ok).toBe(true);
+    expect(current.data.items).toHaveLength(items.length);
+    for (const item of current.data.items)
+      expect(item.iconToken).toMatch(/^item-artwork:[0-9a-f]{32}$/);
+    const token = current.data.items.find((item) => item.name === "Tool 23")!.iconToken;
+    const wrong = current.data.items.find((item) => item.name === "Tool 22")!.iconToken;
+    for (const [command, supplied] of [
+      ["upgrade_artwork_get", token],
+      ["item_artwork_get", token.replace("item-", "upgrade-")],
+      ["item_artwork_get", "item-artwork:" + "0".repeat(32)],
+      ["item_artwork_get", wrong],
+    ])
+      expect((await native<{ ok: boolean }>(page, command, { token: supplied })).ok).toBe(false);
+    await writeFile(response, JSON.stringify({ ok: true, artwork: null }));
+    expect(await native(page, "item_artwork_get", { token })).toEqual({ ok: true, data: null });
+    await writeFile(
+      response,
+      JSON.stringify({ ok: true, artwork: { ...image, pngBase64: "AAAA" } }),
+    );
+    expect((await native<{ ok: boolean }>(page, "item_artwork_get", { token })).ok).toBe(false);
+    await writeFile(response, JSON.stringify({ ok: true, artwork: image }));
+    expect((await native<{ ok: boolean }>(page, "item_artwork_get", { token })).ok).toBe(true);
+    await native(page, "saves_open", { saveId: E2E_SAVE_ID });
+    expect((await native<{ ok: boolean }>(page, "item_artwork_get", { token })).ok).toBe(false);
+    await expect(native(page, "test_items_refill", { request: {} })).rejects.toBeDefined();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});

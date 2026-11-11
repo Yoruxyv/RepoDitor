@@ -46,7 +46,8 @@ fn main() {
             child.wait().unwrap();
         }
         "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list"
-        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" | "upgrade-artwork" => {
+        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" | "upgrade-artwork"
+        | "item-artwork" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

@@ -4,6 +4,7 @@ use super::*;
 fn artwork_has_one_independent_cancellable_lane() {
     let state = Arc::new(HostState::default());
     let operation = Operation::Artwork(
+        artwork::Scope::Upgrade,
         "save".into(),
         "a".repeat(64),
         "playerUpgradeHealth".into(),
@@ -21,6 +22,15 @@ fn artwork_has_one_independent_cancellable_lane() {
     let held = state.domain_worker.lock().unwrap();
     let mut request = Request::reserve(state.clone(), operation.slot()).unwrap();
     assert!(Request::reserve(state.clone(), operation.slot()).is_err());
+    let item = Operation::Artwork(
+        artwork::Scope::Item,
+        "save".into(),
+        "a".repeat(64),
+        "Item Cart Small".into(),
+        Arc::new(AtomicBool::new(false)),
+    );
+    assert_eq!(item.arguments()[0], "item-artwork");
+    assert!(Request::reserve(state.clone(), item.slot()).is_err());
     request.2 = Arc::new(AtomicBool::new(false));
     let executable = process::tests::fixture();
     let marker =

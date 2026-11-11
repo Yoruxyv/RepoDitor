@@ -36,6 +36,8 @@ fn main() {
                 "upgrades_list",
                 "upgrade_artwork_get",
                 "upgrade_artwork_cancel",
+                "item_artwork_get",
+                "item_artwork_cancel",
                 "run_get",
                 "advanced_get",
                 "maps_list",

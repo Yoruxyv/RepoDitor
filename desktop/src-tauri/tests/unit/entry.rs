@@ -70,7 +70,9 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
     assert!(permissions.contains(&serde_json::json!("allow-players-avatar")));
     assert!(permissions.contains(&serde_json::json!("allow-upgrade-artwork-get")));
     assert!(permissions.contains(&serde_json::json!("allow-upgrade-artwork-cancel")));
-    assert_eq!(permissions.len(), 13);
+    assert!(permissions.contains(&serde_json::json!("allow-item-artwork-get")));
+    assert!(permissions.contains(&serde_json::json!("allow-item-artwork-cancel")));
+    assert_eq!(permissions.len(), 15);
     assert!(!permissions.iter().any(|p| {
         let s = p.as_str().unwrap();
         s.contains("write") || s.contains("http") || s.contains("shell") || s.contains("fs:")

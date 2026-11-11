@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import base64
+import struct
 from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
 from repo_save_editor.desktop_api.saves import load_discovered_save
-from repo_save_editor.services.baked_artwork import discover_baked_artwork
+from repo_save_editor.services.baked_artwork import discover_baked_artwork, read_baked_item_png
 from repo_save_editor.services.game.installed_build import (
     artwork_installation,
     owned_file,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.icon_cache import get_icon_cache_roots
+from repo_save_editor.services.items.discovery import discover_item_type_names
+from repo_save_editor.services.items.models import AdvancedSaveError
 from repo_save_editor.services.player.upgrade_textures import (
     DecodedUpgradeTexture,
     decode_installed_upgrade_texture,
@@ -132,9 +135,53 @@ def get_native_upgrade_artwork(
         return unavailable
 
 
+def get_native_item_artwork(
+    save_id: str, fingerprint: str, name: str, root: Path | None = None
+) -> dict[str, object]:
+    """Return one installed Item PNG for the selected save. Rust verifies the full image."""
+    unavailable: dict[str, object] = {"ok": True, "artwork": None}
+    try:
+        if (
+            len(fingerprint) != 64
+            or any(c not in "0123456789abcdef" for c in fingerprint)
+            or not name.startswith("Item ")
+            or name.startswith("Item Upgrade ")
+            or not 5 < len(name.encode()) < 192
+            or any(c in "/\\" or ord(c) < 32 or 127 <= ord(c) <= 159 for c in name)
+        ):
+            return unavailable
+        _, data, source = load_discovered_save(save_id, root)
+        if sha256(source).hexdigest() != fingerprint or name not in discover_item_type_names(data):
+            return unavailable
+        artwork = read_baked_item_png(name)
+        if artwork is None:
+            return unavailable
+        png, identity = artwork
+        if not png.startswith(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR") or len(png) < 57:
+            return unavailable
+        width, height = struct.unpack_from(">II", png, 16)
+        if not (0 < width <= 2048 and 0 < height <= 2048 and width * height <= 1024 * 1024):
+            return unavailable
+        if load_discovered_save(save_id, root)[2] != source:
+            return unavailable
+        return {
+            "ok": True,
+            "artwork": {
+                "itemName": name,
+                "sourceIdentity": identity,
+                "width": width,
+                "height": height,
+                "pngBase64": base64.b64encode(png).decode("ascii"),
+            },
+        }
+    except (AdvancedSaveError, DesktopSaveError, OSError, ValueError, OverflowError):
+        return unavailable
+
+
 __all__ = [
     "get_baked_artwork",
     "get_icon_roots",
+    "get_native_item_artwork",
     "get_native_upgrade_artwork",
     "get_upgrade_texture",
     "serialize_upgrade_texture",

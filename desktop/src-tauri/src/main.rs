@@ -5,7 +5,7 @@ mod projections;
 #[cfg(feature = "synthetic-health-recovery")]
 mod synthetic;
 
-use backend::{HostState, Operation};
+use backend::{artwork, HostState, Operation};
 use error::{BackendError, Outcome, Service};
 use projections::{cosmetics, discovery, game, items, maps, players, run, saves, upgrades};
 use std::sync::{atomic::Ordering, Arc};
@@ -147,32 +147,49 @@ async fn upgrades_list(
 async fn upgrade_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
-) -> Outcome<Option<backend::artwork::Image>> {
+) -> Outcome<Option<artwork::Image>> {
+    get_artwork(app, token, artwork::Scope::Upgrade, Service::Upgrade).await
+}
+
+#[tauri::command]
+async fn item_artwork_get(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+) -> Outcome<Option<artwork::Image>> {
+    get_artwork(app, token, artwork::Scope::Item, Service::Items).await
+}
+
+async fn get_artwork(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+    scope: artwork::Scope,
+    service: Service,
+) -> Outcome<Option<artwork::Image>> {
     let Some(token) = token
         .as_ref()
         .and_then(serde_json::Value::as_str)
-        .filter(|token| backend::artwork::valid_token(token))
+        .filter(|token| scope.accepts(token))
         .map(str::to_owned)
     else {
-        return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
+        return Outcome::for_service(Err(BackendError::Request), service);
     };
     let state = app.state::<Arc<HostState>>().inner().clone();
     let request = state.artwork.lock().unwrap().begin(&token);
     let (save, fingerprint, key, cancelled) = match request {
         Ok(request) => request,
-        Err(error) => return Outcome::for_service(Err(error), Service::Upgrade),
+        Err(error) => return Outcome::for_service(Err(error), service),
     };
     let token_check = token.clone();
     let response = backend::request(
         app,
-        Operation::Artwork(save, fingerprint, key.clone(), cancelled.clone()),
-        move |bytes| backend::artwork::parse(bytes, &key, &token_check),
+        Operation::Artwork(scope, save, fingerprint, key.clone(), cancelled.clone()),
+        move |bytes| artwork::parse(bytes, &key, &token_check),
     )
     .await;
     if state.artwork.lock().unwrap().finish(&token, &cancelled) {
         response
     } else {
-        Outcome::for_service(Err(BackendError::Failed), Service::Upgrade)
+        Outcome::for_service(Err(BackendError::Failed), service)
     }
 }
 
@@ -182,7 +199,7 @@ fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id:
     let mut registry = state.artwork.lock().unwrap();
     if let Some(token) = token
         .as_deref()
-        .filter(|token| backend::artwork::valid_token(token))
+        .filter(|token| artwork::Scope::Upgrade.accepts(token))
     {
         registry.cancel(token);
     } else if token.is_none()
@@ -191,6 +208,17 @@ fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id:
             .is_some_and(|id| saves::valid_id(id) && registry.generation(id).is_some())
     {
         registry.clear();
+    }
+}
+
+#[tauri::command]
+fn item_artwork_cancel(app: tauri::AppHandle, token: String) {
+    if artwork::Scope::Item.accepts(&token) {
+        app.state::<Arc<HostState>>()
+            .artwork
+            .lock()
+            .unwrap()
+            .cancel(&token);
     }
 }
 
@@ -233,7 +261,20 @@ async fn advanced_get(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Items);
     };
-    backend::request(app, Operation::Items(id), items::parse).await
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    let generation = state.artwork.lock().unwrap().generation(&id);
+    backend::request(app, Operation::Items(id.clone()), move |bytes| {
+        let mut values = items::parse(bytes)?;
+        let raw = error::json(bytes)?;
+        state.artwork.lock().unwrap().register_items(
+            &id,
+            generation,
+            raw["fingerprint"].as_str(),
+            &mut values,
+        );
+        Ok(values)
+    })
+    .await
 }
 
 #[cfg(feature = "synthetic-health-recovery")]
@@ -334,6 +375,8 @@ fn main() {
             upgrades_list,
             upgrade_artwork_get,
             upgrade_artwork_cancel,
+            item_artwork_get,
+            item_artwork_cancel,
             run_get,
             advanced_get,
             maps_list,

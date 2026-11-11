@@ -4,7 +4,7 @@
  * The component consumes only opaque Electron or native tokens. Loading affects the thumbnail
  * box alone; missing or rejected local artwork immediately falls back to Phosphor.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNativeArtwork } from "@/app/tauriArtwork";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -36,14 +36,18 @@ export function GameIcon({
   token,
   variant,
 }: GameIconProps) {
-  const { native, image, unavailable } = useNativeArtwork(token, variant === "upgrade");
+  const element = useRef<HTMLSpanElement>(null);
+  const { native, image, unavailable } = useNativeArtwork(token, variant, element);
   const [failedToken, setFailedToken] = useState<string | null>(null);
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,
   );
   const fallbackVariant = variant === "cosmetic" ? "item" : variant;
   const failed = token !== null && failedToken === token;
-  const loaded = token !== null && (loadedToken === token || loadedIconTokens.has(token));
+  const loaded =
+    token !== null &&
+    (!native || image !== null) &&
+    (loadedToken === token || loadedIconTokens.has(token));
 
   if (token === null || failed || unavailable) {
     return (
@@ -58,6 +62,7 @@ export function GameIcon({
 
   return (
     <span
+      ref={element}
       aria-hidden="true"
       aria-busy={!loaded}
       className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border ${
