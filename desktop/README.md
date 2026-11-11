@@ -218,6 +218,9 @@ WebView2 if absent; no installed game or personal saves are required.
 Before the synthetic matrix, an ordinary packaged-host control must expose the
 Tauri bridge and reject write authority. Startup failures retain bounded, redacted
 process output, the final CDP error, runtime/version and desktop-session diagnostics.
+Each Playwright worker compiles the test-only Win32 interop before launching a
+host or fixture. Probes verify and load the prepared bytes within the five-second
+deadline. The temporary assembly is removed during preparation.
 Startup and matrix outputs are separate so Playwright preserves both captures.
 The opt-in packaged startup workflow tests one read-only host with the
 `native-ui-test` feature and `startup.test.conf.json`. It passes the configuration's

@@ -24,6 +24,34 @@ export function windowsProbeShell(): string {
   );
 }
 
+let preparedInterop: string | undefined;
+
+export function prepareWindowsProbe(): string {
+  // Compile from the checkout before starting the host, once per test worker.
+  try {
+    preparedInterop ??= execFileSync(
+      windowsProbeShell(),
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        path.join(DESKTOP_ROOT, "e2e/support/compile-tauri-probe-interop.ps1"),
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        timeout: 30_000,
+        killSignal: "SIGKILL",
+        maxBuffer: 16_384,
+      },
+    ).trim();
+  } catch (error) {
+    throw new Error(startupText(String(error), DESKTOP_ROOT));
+  }
+  return preparedInterop;
+}
+
 export async function waitForPreviewPage(
   browser: Pick<Browser, "contexts">,
   deadline: number,
@@ -122,7 +150,11 @@ export function startupEnvironment(environment: Record<string, string>, home: st
   );
 }
 
-export function windowsStartup(hostProcessId: number | undefined, home: string): unknown {
+export function windowsStartup(
+  hostProcessId: number | undefined,
+  home: string,
+  interop: string,
+): unknown {
   const started = performance.now();
   const startedUtc = Date.now();
   let result: SpawnSyncReturns<string> | undefined;
@@ -139,6 +171,8 @@ export function windowsStartup(hostProcessId: number | undefined, home: string):
         String(hostProcessId ?? 0),
         "-FixtureRoot",
         home,
+        "-Interop",
+        interop,
       ],
       {
         encoding: "utf8",

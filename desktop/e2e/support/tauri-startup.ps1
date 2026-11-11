@@ -1,4 +1,4 @@
-param([int]$HostProcessId = 0, [string]$FixtureRoot = '')
+param([int]$HostProcessId = 0, [string]$FixtureRoot = '', [string]$Interop)
 $ErrorActionPreference = 'Stop'
 $watch = [Diagnostics.Stopwatch]::StartNew()
 function Write-ProbeTiming([string]$Stage) {
@@ -35,55 +35,8 @@ $available = @($runtimeFiles | ForEach-Object {
     }
 })
 Write-ProbeTiming 'runtime_files_done'
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class TauriStartupDesktop {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
-    [DllImport("user32.dll")]
-    public static extern bool CloseDesktop(IntPtr desktop);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern uint WaitForSingleObject(IntPtr handle, uint timeout);
-    [DllImport("kernel32.dll")]
-    private static extern bool CloseHandle(IntPtr handle);
-    public static bool IsRunning(uint processId) {
-        // Framework process inspection enables SeDebugPrivilege on elevated runners, bypassing ACLs.
-        try { System.Diagnostics.Process.LeaveDebugMode(); }
-        catch (System.ComponentModel.Win32Exception error) {
-            if (error.NativeErrorCode != 1300) throw; // No debug privilege in an ordinary user's token.
-        }
-        IntPtr handle = OpenProcess(0x00100000, false, processId);
-        if (handle == IntPtr.Zero) {
-            int error = Marshal.GetLastWin32Error();
-            if (error == 87) return false;
-            Console.Error.WriteLine("REPODITOR_PROBE_WIN32_ERROR " + error);
-            throw new System.ComponentModel.Win32Exception(error);
-        }
-        try {
-            uint status = WaitForSingleObject(handle, 0);
-            if (status == 0) return false;
-            if (status == 258) return true;
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        } finally { CloseHandle(handle); }
-    }
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
-    [DllImport("kernel32.dll")]
-    private static extern void SetLastError(uint error);
-    // Process.Responding can wait 5000 ms, exhausting the entire subprocess deadline.
-    public static bool Responds(IntPtr window, out int error) {
-        UIntPtr result;
-        SetLastError(0);
-        bool responds = SendMessageTimeout(window, 0, UIntPtr.Zero, IntPtr.Zero, 0x22, 1000, out result) != IntPtr.Zero;
-        error = responds ? 0 : Marshal.GetLastWin32Error();
-        return responds;
-    }
-}
-'@
-Write-ProbeTiming 'add_type_done'
+. (Join-Path $PSScriptRoot 'load-tauri-probe-interop.ps1') $Interop
+Write-ProbeTiming 'interop_loaded'
 $inputDesktop = [TauriStartupDesktop]::OpenInputDesktop(0, $false, 1)
 $desktopError = if ($inputDesktop -eq [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::GetLastWin32Error() } else { 0 }
 if ($inputDesktop -ne [IntPtr]::Zero) { [void][TauriStartupDesktop]::CloseDesktop($inputDesktop) }

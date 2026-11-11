@@ -6,6 +6,7 @@ import { createRunSaveFixture, DESKTOP_ROOT } from "../support/fixtureEnvironmen
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
 import {
+  prepareWindowsProbe,
   startupEnvironment,
   startupText,
   windowsProbeShell,
@@ -35,7 +36,7 @@ interface ProbeResult {
   };
 }
 
-async function probeFixture(home: string, mode: string) {
+async function probeFixture(home: string, mode: string, interop: string) {
   const marker = path.join(home, `${mode}-ready.txt`);
   const child = spawn(
     windowsProbeShell(),
@@ -48,6 +49,8 @@ async function probeFixture(home: string, mode: string) {
       marker,
       "-Mode",
       mode,
+      "-Interop",
+      interop,
     ],
     { windowsHide: true, stdio: "ignore" },
   );
@@ -128,6 +131,9 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
     expect(diagnostics.windows.hostResponseError).toBe(0);
     expect(diagnostics.windows.hostResponseTimeoutMs).toBe(1000);
     expect(diagnostics.windows.timings.totalMs).toBeLessThan(5000);
+    expect(diagnostics.windows.timings.checkpoints).toContainEqual(
+      expect.objectContaining({ stage: "interop_loaded" }),
+    );
     expect(diagnostics.windows.timings.checkpoints.at(-1).stage).toBe("emitted");
     if (process.env["REPODITOR_NATIVE_BROWSER_ARGS"] === "1") {
       expect(diagnostics.environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.value).toBe("");
@@ -194,13 +200,20 @@ test("startup diagnostics bound and redact output without dumping the environmen
   expect(environment["PATH"].value).toBe("<fixture>/bin");
   const fixtureHome = info.outputPath("probe-fixtures");
   await mkdir(fixtureHome, { recursive: true });
+  const interop = prepareWindowsProbe();
+  const invalidInterop = (interop[0] === "A" ? "B" : "A") + interop.slice(1);
+  const rejected = windowsStartup(undefined, fixtureHome, invalidInterop) as ProbeResult;
+  expect(rejected.probeError).toContain("assembly digest mismatch");
+  expect(rejected.hostAlive).toBeUndefined();
+  expect(rejected.timings.checkpoints.at(-1)?.stage).toBe("runtime_files_done");
+  expect(() => process.kill(rejected.timings.probeProcessId, 0)).toThrow();
   const measurements: { mode: string; sample: number; result: ProbeResult }[] = [];
   for (const mode of ["responsive", "hung", "exited", "inaccessible"]) {
     await test.step(`bounded ${mode} process inspection`, async () => {
-      const fixture = await probeFixture(fixtureHome, mode);
+      const fixture = await probeFixture(fixtureHome, mode, interop);
       try {
         for (let sample = 1; sample <= 2; sample++) {
-          const result = windowsStartup(fixture.child.pid, fixtureHome) as ProbeResult;
+          const result = windowsStartup(fixture.child.pid, fixtureHome, interop) as ProbeResult;
           measurements.push({ mode, sample, result });
           await writeFile(
             info.outputPath("startup-probe-state-timings.json"),
@@ -208,6 +221,9 @@ test("startup diagnostics bound and redact output without dumping the environmen
           );
           expect(result.timings.totalMs).toBeLessThan(5000);
           expect(result.timings.checkpoints[0].stage).toBe("entry");
+          expect(result.timings.checkpoints).toContainEqual(
+            expect.objectContaining({ stage: "interop_loaded" }),
+          );
           expect(() => process.kill(result.timings.probeProcessId, 0)).toThrow();
           if (mode === "inaccessible") {
             expect(result.probeError).toBeTruthy();

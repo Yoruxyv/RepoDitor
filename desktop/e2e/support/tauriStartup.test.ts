@@ -76,7 +76,7 @@ describe("bounded Windows diagnostic transport", () => {
       stdout: JSON.stringify({ hostAlive: true }),
       stderr: `REPODITOR_PROBE_TIMING entry|1|${Date.now()}\nREPODITOR_PROBE_TIMING emitted|20|${Date.now()}\nSECRET_SENTINEL=private\nREPODITOR_PROBE_TIMING C:/Users/Private/data|1|2`,
     });
-    const result = windowsStartup(123, "synthetic") as {
+    const result = windowsStartup(123, "synthetic", "fixture-interop") as {
       hostAlive: boolean;
       timings: { checkpoints: unknown[] };
     };
@@ -85,7 +85,7 @@ describe("bounded Windows diagnostic transport", () => {
     expect(JSON.stringify(result)).not.toMatch(/SECRET_SENTINEL|private|Users/);
     expect(spawnSync).toHaveBeenCalledWith(
       executable,
-      expect.arrayContaining(["-HostProcessId", "123"]),
+      expect.arrayContaining(["-HostProcessId", "123", "-Interop", "fixture-interop"]),
       expect.objectContaining({
         timeout: 5000,
         killSignal: "SIGKILL",
@@ -97,7 +97,7 @@ describe("bounded Windows diagnostic transport", () => {
 
   it("rejects a relative diagnostic shell without spawning a child", () => {
     vi.stubEnv("REPODITOR_WINDOWS_PROBE_SHELL", "pwsh.exe");
-    expect(windowsStartup(123, "synthetic")).toMatchObject({
+    expect(windowsStartup(123, "synthetic", "fixture-interop")).toMatchObject({
       probeError: expect.stringContaining("absolute path"),
     });
     expect(spawnSync).not.toHaveBeenCalled();
@@ -112,14 +112,16 @@ describe("bounded Windows diagnostic transport", () => {
       stdout,
       stderr: "",
     });
-    expect(windowsStartup(123, "synthetic")).toMatchObject({ probeError: expect.any(String) });
+    expect(windowsStartup(123, "synthetic", "fixture-interop")).toMatchObject({
+      probeError: expect.any(String),
+    });
   });
 
   it("reports a transport exception as a failed probe", () => {
     vi.mocked(spawnSync).mockImplementation(() => {
       throw new Error("authorization=private-error");
     });
-    const result = windowsStartup(123, "synthetic");
+    const result = windowsStartup(123, "synthetic", "fixture-interop");
     expect(result).toMatchObject({
       probeError: expect.stringContaining("authorization=<redacted>"),
     });
@@ -138,7 +140,7 @@ describe("bounded Windows diagnostic transport", () => {
         stderr: `REPODITOR_PROBE_TIMING entry|1|${Date.now()}\nREPODITOR_PROBE_WIN32_ERROR 5\nauthorization=private-error`,
         ...(kind === "exit failure" ? {} : { error: new Error(kind) }),
       });
-      const result = windowsStartup(123, "synthetic") as {
+      const result = windowsStartup(123, "synthetic", "fixture-interop") as {
         probeError: string;
         hostAlive?: boolean;
         probeErrorCode: number;
@@ -166,7 +168,7 @@ describe("bounded Windows diagnostic transport", () => {
         expect(result.signal).toBe("SIGKILL");
         return result;
       });
-      const result = windowsStartup(123, directory) as {
+      const result = windowsStartup(123, directory, "fixture-interop") as {
         probeError: string;
         timings: { probeProcessId: number; checkpoints: { stage: string }[] };
       };

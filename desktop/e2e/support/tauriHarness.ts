@@ -15,6 +15,7 @@ import {
 } from "./fixtureEnvironment";
 import {
   cdpEndpoint,
+  prepareWindowsProbe,
   reapFailedStartup,
   startupDirectories,
   startupEnvironment,
@@ -269,6 +270,7 @@ export async function launch(
   home: string,
   extraEnvironment: Record<string, string> = {},
 ) {
+  const interop = prepareWindowsProbe();
   const port = await freePort();
   const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData", "LocalLow"));
   // WebView2 needs the real Windows profile identity; actual data paths remain isolated.
@@ -325,7 +327,7 @@ export async function launch(
       endpoint: endpoint ?? (await cdpEndpoint(port)),
       directories: startupDirectories(home),
       environment: startupEnvironment(environment, home),
-      windows: windows ?? windowsStartup(child.pid, home),
+      windows: windows ?? windowsStartup(child.pid, home, interop),
     };
     await writeFile(startupPath, JSON.stringify(report, null, 2));
     if (state === "failed")
@@ -358,7 +360,7 @@ export async function launch(
   } catch (error) {
     beforeCleanup = { exitCode: child.exitCode, signal: child.signalCode };
     endpoint = await cdpEndpoint(port);
-    windows = windowsStartup(child.pid, home);
+    windows = windowsStartup(child.pid, home, interop);
     const cleanupError = await reapFailedStartup(child, exited, home);
     await browser?.close();
     await record("failed", cleanupError);
