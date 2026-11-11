@@ -19,6 +19,7 @@ import {
   startupDirectories,
   startupEnvironment,
   startupText,
+  waitForPreviewPage,
   windowsStartup,
 } from "./tauriStartup";
 
@@ -345,8 +346,7 @@ export async function launch(
       }
     }
     if (!browser) throw new Error("Preview WebView2 did not become available");
-    const page = browser.contexts().flatMap((context) => context.pages())[0];
-    if (!page) throw new Error("Preview page missing");
+    const page = await waitForPreviewPage(browser, deadline);
     await page.waitForFunction(
       () =>
         typeof (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })

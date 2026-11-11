@@ -10,7 +10,33 @@ import http from "node:http";
 import { statSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
+import type { Browser, Page } from "@playwright/test";
 import { DESKTOP_ROOT } from "./fixtureEnvironment";
+
+export function windowsProbeShell(): string {
+  const executable = process.env["REPODITOR_WINDOWS_PROBE_SHELL"];
+  if (executable && !path.win32.isAbsolute(executable)) {
+    throw new Error("Windows diagnostic shell must have an absolute path");
+  }
+  return (
+    executable ||
+    path.win32.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "PowerShell/7/pwsh.exe")
+  );
+}
+
+export async function waitForPreviewPage(
+  browser: Pick<Browser, "contexts">,
+  deadline: number,
+): Promise<Page> {
+  const contexts = browser.contexts();
+  const page = contexts.flatMap((context) => context.pages())[0];
+  if (page) return page;
+  // The WebView2 browser endpoint can be ready before its first page target.
+  const remaining = Math.floor(deadline - performance.now());
+  const context = contexts[0];
+  if (!context || remaining <= 0) throw new Error("Preview page missing");
+  return context.waitForEvent("page", { timeout: remaining });
+}
 
 export function startupText(value: string, home: string): string {
   let text = value.replaceAll("\\", "/");
@@ -103,13 +129,7 @@ export function windowsStartup(hostProcessId: number | undefined, home: string):
   let diagnostics: object;
   try {
     result = spawnSync(
-      path.join(
-        process.env["SYSTEMROOT"] ?? "C:\\Windows",
-        "System32",
-        "WindowsPowerShell",
-        "v1.0",
-        "powershell.exe",
-      ),
+      windowsProbeShell(),
       [
         "-NoProfile",
         "-NonInteractive",

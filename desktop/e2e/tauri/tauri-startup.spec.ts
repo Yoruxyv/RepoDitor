@@ -5,7 +5,12 @@ import { expect, test } from "@playwright/test";
 import { createRunSaveFixture, DESKTOP_ROOT } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
-import { startupEnvironment, startupText, windowsStartup } from "../support/tauriStartup";
+import {
+  startupEnvironment,
+  startupText,
+  windowsProbeShell,
+  windowsStartup,
+} from "../support/tauriStartup";
 
 interface ProbeResult {
   probeError?: string;
@@ -33,10 +38,7 @@ interface ProbeResult {
 async function probeFixture(home: string, mode: string) {
   const marker = path.join(home, `${mode}-ready.txt`);
   const child = spawn(
-    path.join(
-      process.env["SYSTEMROOT"] ?? "C:\\Windows",
-      "System32/WindowsPowerShell/v1.0/powershell.exe",
-    ),
+    windowsProbeShell(),
     [
       "-NoProfile",
       "-NonInteractive",

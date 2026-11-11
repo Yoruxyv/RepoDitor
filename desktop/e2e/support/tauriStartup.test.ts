@@ -4,16 +4,70 @@ import { mkdtempSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { windowsStartup } from "./tauriStartup";
+import type { BrowserContext, Page } from "@playwright/test";
+import { waitForPreviewPage, windowsStartup } from "./tauriStartup";
 
 vi.mock("node:child_process", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:child_process")>();
   return { ...original, spawnSync: vi.fn(original.spawnSync) };
 });
-afterEach(() => vi.mocked(spawnSync).mockReset());
+afterEach(() => {
+  vi.mocked(spawnSync).mockReset();
+  vi.unstubAllEnvs();
+});
+
+describe("bounded preview page readiness", () => {
+  const page = {} as Page;
+
+  function browser(pages: Page[]) {
+    const waitForEvent = vi.fn<(event: string, options: { timeout: number }) => Promise<Page>>();
+    const context = { pages: () => pages, waitForEvent } as unknown as BrowserContext;
+    return { browser: { contexts: () => [context] }, waitForEvent };
+  }
+
+  it("uses the attached page when CDP already exposes it", async () => {
+    const fixture = browser([page]);
+    await expect(waitForPreviewPage(fixture.browser, performance.now() + 1000)).resolves.toBe(page);
+    expect(fixture.waitForEvent).not.toHaveBeenCalled();
+  });
+
+  it("waits for a late page target within the remaining launch deadline", async () => {
+    const fixture = browser([]);
+    let attach!: (page: Page) => void;
+    fixture.waitForEvent.mockReturnValue(
+      new Promise<Page>((resolve) => {
+        attach = resolve;
+      }),
+    );
+    const ready = waitForPreviewPage(fixture.browser, performance.now() + 2000);
+    expect(fixture.waitForEvent).toHaveBeenCalledExactlyOnceWith("page", {
+      timeout: expect.any(Number),
+    });
+    const timeout = fixture.waitForEvent.mock.calls[0]?.[1].timeout;
+    expect(timeout).toBeGreaterThan(0);
+    expect(timeout).toBeLessThanOrEqual(2000);
+    attach(page);
+    await expect(ready).resolves.toBe(page);
+  });
+
+  it("fails when no page arrives or the launch deadline has elapsed", async () => {
+    const fixture = browser([]);
+    fixture.waitForEvent.mockRejectedValue(new Error("Page event timed out"));
+    await expect(waitForPreviewPage(fixture.browser, performance.now() + 1000)).rejects.toThrow(
+      "Page event timed out",
+    );
+    fixture.waitForEvent.mockClear();
+    await expect(waitForPreviewPage(fixture.browser, performance.now())).rejects.toThrow(
+      "Preview page missing",
+    );
+    expect(fixture.waitForEvent).not.toHaveBeenCalled();
+  });
+});
 
 describe("bounded Windows diagnostic transport", () => {
-  it("preserves the deadline, output cap and numeric timings without exposing stderr", () => {
+  it("uses the configured shell and preserves the deadline, output cap and numeric timings", () => {
+    const executable = "C:\\PowerShell\\pwsh.exe";
+    vi.stubEnv("REPODITOR_WINDOWS_PROBE_SHELL", executable);
     vi.mocked(spawnSync).mockReturnValue({
       pid: 42,
       status: 0,
@@ -30,7 +84,7 @@ describe("bounded Windows diagnostic transport", () => {
     expect(result.timings.checkpoints).toHaveLength(2);
     expect(JSON.stringify(result)).not.toMatch(/SECRET_SENTINEL|private|Users/);
     expect(spawnSync).toHaveBeenCalledWith(
-      expect.stringContaining("powershell.exe"),
+      executable,
       expect.arrayContaining(["-HostProcessId", "123"]),
       expect.objectContaining({
         timeout: 5000,
@@ -39,6 +93,14 @@ describe("bounded Windows diagnostic transport", () => {
         windowsHide: true,
       }),
     );
+  });
+
+  it("rejects a relative diagnostic shell without spawning a child", () => {
+    vi.stubEnv("REPODITOR_WINDOWS_PROBE_SHELL", "pwsh.exe");
+    expect(windowsStartup(123, "synthetic")).toMatchObject({
+      probeError: expect.stringContaining("absolute path"),
+    });
+    expect(spawnSync).not.toHaveBeenCalled();
   });
 
   it.each(["[]", "true", "{broken"])("rejects malformed diagnostic output %s", (stdout) => {

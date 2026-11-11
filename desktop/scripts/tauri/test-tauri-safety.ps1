@@ -44,15 +44,17 @@ function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions, [b
 
 $previousConfig = $env:TAURI_CONFIG
 $previousBrowserArgs = $env:REPODITOR_NATIVE_BROWSER_ARGS
+$previousProbeShell = $env:REPODITOR_WINDOWS_PROBE_SHELL
 Push-Location $desktop
 Start-Transcript -Path (Join-Path $output 'validation.log') | Out-Null
 try {
+    $env:REPODITOR_WINDOWS_PROBE_SHELL = Join-Path $PSHOME 'pwsh.exe'
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:TAURI_CONFIG = $null
     $env:REPODITOR_NATIVE_BROWSER_ARGS = $null
     Run-Checked 'npx' @('--no-install', 'vitest', 'run', 'e2e/support/tauriStartup.test.ts', '--reporter=default', '--reporter=json', "--outputFile=$output/probe-transport.json")
     $probe = Get-Content -LiteralPath (Join-Path $output 'probe-transport.json') -Raw | ConvertFrom-Json
-    if ($probe.numPassedTests -ne 10 -or $probe.numPendingTests -ne 0 -or $probe.numFailedTests -ne 0) { throw 'Required probe transport regressions did not all pass.' }
+    if ($probe.numPassedTests -ne 14 -or $probe.numPendingTests -ne 0 -or $probe.numFailedTests -ne 0) { throw 'Required probe transport regressions did not all pass.' }
     # Even cargo test validates the configured resource; rebuild it before any Rust compile.
     Run-Checked 'npm' @('run', 'build:sidecar')
     if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
@@ -194,6 +196,7 @@ try {
 } finally {
     $env:TAURI_CONFIG = $previousConfig
     $env:REPODITOR_NATIVE_BROWSER_ARGS = $previousBrowserArgs
+    $env:REPODITOR_WINDOWS_PROBE_SHELL = $previousProbeShell
     Stop-Transcript | Out-Null
     Pop-Location
 }
