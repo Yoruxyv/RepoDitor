@@ -150,6 +150,7 @@ export const id: Record<keyof typeof en, string> = {
   "overview.resumeAt": "Lanjutkan di",
   "overview.runSnapshot": "Ringkasan run",
   "overview.editSave": "Edit save ini",
+  "overview.browseSave": "Lihat save ini",
   "overview.playersDescription": "Kesehatan dan status khusus pemain",
   "overview.upgradesDescription": "Nilai upgrade per pemain",
   "overview.runDescription": "Level, mata uang, nyawa, hasil, dan lokasi lanjutan",
@@ -227,6 +228,7 @@ export const id: Record<keyof typeof en, string> = {
   "items.refillLabel": "Isi ulang {item}, alat {instance}",
   "maps.loading": "Mencari map yang terpasang…",
   "maps.unavailable": "Map tidak tersedia",
+  "maps.empty": "Tidak ada map yang ditemukan dalam katalog terpasang.",
   "maps.noGame":
     "Instalasi R.E.P.O. tervalidasi tidak ditemukan. Penemuan map tidak memengaruhi pengeditan save.",
   "maps.installed": "Konten terpasang",
@@ -367,6 +369,7 @@ export const id: Record<keyof typeof en, string> = {
   "safety.unknownDescription":
     "RepoDitor tidak dapat mengaktifkan pengeditan save dengan aman hingga dapat memastikan instalasi R.E.P.O. tervalidasi sudah ditutup.",
   "safety.checking": "Memeriksa…",
+  "safety.initialCheck": "Memeriksa apakah R.E.P.O. sudah ditutup…",
   "safety.checkAgain": "Periksa Lagi",
   "safety.exit": "Keluar dari RepoDitor",
   "error.service": "Layanan desktop tidak tersedia.",
@@ -374,6 +377,7 @@ export const id: Record<keyof typeof en, string> = {
   "error.gameRunning": "Tutup R.E.P.O. sebelum mengedit save.",
   "error.gameUnknown": "RepoDitor tidak dapat memastikan bahwa R.E.P.O. sudah ditutup.",
   "error.saveMissing": "Save terpilih tidak ditemukan.",
+  "error.metaMissing": "File MetaSave.es3 tidak ditemukan.",
   "error.saveInvalid": "Save terpilih tidak dapat dibaca atau divalidasi dengan aman.",
   "error.saveStale": "Save berubah di disk. Buka ulang sebelum menyimpan perubahan.",
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",

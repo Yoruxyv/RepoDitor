@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isLocale,
   MAX_SUPPORTED_LOCALES,
+  operationErrorKey,
   SUPPORTED_LOCALES,
   TRANSLATIONS,
   type TranslationKey,
@@ -87,6 +88,13 @@ describe("i18n translation values", () => {
 });
 
 describe("i18n facade", () => {
+  it.each(SUPPORTED_LOCALES)("%s distinguishes missing MetaSave and Run saves", (locale) => {
+    const messages = TRANSLATIONS[locale];
+    const metaMissing = messages[operationErrorKey("meta_missing")];
+    expect(metaMissing).toContain("MetaSave.es3");
+    expect(messages[operationErrorKey("save_missing")]).not.toBe(metaMissing);
+  });
+
   it("recognizes only canonical supported locale preferences", () => {
     for (const locale of SUPPORTED_LOCALES) {
       expect(isLocale(locale)).toBe(true);

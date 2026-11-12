@@ -56,7 +56,7 @@ const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   game_running: "error.gameRunning",
   game_status_unknown: "error.gameUnknown",
   save_missing: ERROR_TRANSLATION_KEY.saveMissing,
-  meta_missing: ERROR_TRANSLATION_KEY.saveMissing,
+  meta_missing: "error.metaMissing",
   save_corrupt: ERROR_TRANSLATION_KEY.saveInvalid,
   save_decrypt_failed: ERROR_TRANSLATION_KEY.saveInvalid,
   save_unsupported: ERROR_TRANSLATION_KEY.saveInvalid,

@@ -128,6 +128,7 @@ try {
     $titles = @($native.suites.specs.title)
     foreach ($case in @(
         'ordinary packaged workspace preserves keyboard focus across navigation',
+        'ordinary packaged read-only states explain pending safety and recover Maps in place',
         'ordinary native upgrade artwork is scoped, validated, refreshed and read-only',
         'ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads',
         'ordinary native Item artwork displays beyond the upgrade budget and stays read-only',

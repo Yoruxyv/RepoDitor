@@ -66,21 +66,16 @@ export function MapsView({
         </button>
       </section>
     );
-  if (!discovery?.available)
-    return (
-      <section aria-labelledby="maps-title">
-        <h2 className="text-2xl font-semibold text-ink" id="maps-title">
-          {t("nav.maps")}
-        </h2>
-        <p className="mt-3 max-w-[58ch] text-sm/6 text-secondary">{t("maps.noGame")}</p>
-      </section>
-    );
+  const available = discovery?.available === true;
+  const maps = available ? discovery.maps : [];
 
   return (
     <section aria-busy={loading} aria-labelledby="maps-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
-        {t("maps.installed")}
-      </p>
+      {available ? (
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
+          {t("maps.installed")}
+        </p>
+      ) : null}
       <div className="mt-1 flex items-end justify-between gap-4">
         <h2 className="text-2xl font-semibold text-ink" id="maps-title">
           {t("nav.maps")}
@@ -95,33 +90,40 @@ export function MapsView({
           {t(loading ? "action.refreshing" : "action.refresh")}
         </button>
       </div>
-      <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">{t("maps.description")}</p>
+      <p className="mt-2 max-w-[58ch] text-sm/6 text-secondary">
+        {t(available ? "maps.description" : "maps.noGame")}
+      </p>
       {error ? (
         <p className="mt-3 text-sm text-secondary" role="alert">
           {error}
         </p>
       ) : null}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {discovery.maps.map((gameMap) => (
-          <div
-            className="min-w-0 rounded-sm border border-line bg-surface p-4"
-            key={gameMap.internalName}
-          >
-            <GameIcon
-              key={artworkAttempt}
-              fallback={MapTrifoldIcon}
-              fallbackSource="fallback"
-              testId={`map-artwork-${gameMap.internalName}`}
-              token={gameMap.iconToken}
-              variant="map"
-              loading="eager"
-            />
-            <h3 className="mt-4 min-w-0 wrap-break-word text-base font-semibold text-ink">
-              {gameMap.displayName}
-            </h3>
-          </div>
-        ))}
-      </div>
+      {available && maps.length === 0 ? (
+        <p className="mt-6 text-sm text-secondary">{t("maps.empty")}</p>
+      ) : null}
+      {maps.length > 0 ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {maps.map((gameMap) => (
+            <div
+              className="min-w-0 rounded-sm border border-line bg-surface p-4"
+              key={gameMap.internalName}
+            >
+              <GameIcon
+                key={artworkAttempt}
+                fallback={MapTrifoldIcon}
+                fallbackSource="fallback"
+                testId={`map-artwork-${gameMap.internalName}`}
+                token={gameMap.iconToken}
+                variant="map"
+                loading="eager"
+              />
+              <h3 className="mt-4 min-w-0 wrap-break-word text-base font-semibold text-ink">
+                {gameMap.displayName}
+              </h3>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -148,6 +148,7 @@ export const en = {
   "overview.resumeAt": "Resume at",
   "overview.runSnapshot": "Run snapshot",
   "overview.editSave": "Edit this save",
+  "overview.browseSave": "Browse this save",
   "overview.playersDescription": "Health and player-specific state",
   "overview.upgradesDescription": "Per-player upgrade values",
   "overview.runDescription": "Level, currency, lives, haul, and resume state",
@@ -226,6 +227,7 @@ export const en = {
   "items.refillLabel": "Recharge {item}, tool {instance}",
   "maps.loading": "Discovering installed maps…",
   "maps.unavailable": "Maps unavailable",
+  "maps.empty": "No maps were found in the installed catalog.",
   "maps.noGame":
     "No validated R.E.P.O. installation was found. Map discovery does not affect save editing.",
   "maps.installed": "Installed content",
@@ -364,6 +366,7 @@ export const en = {
   "safety.unknownDescription":
     "RepoDitor cannot safely enable save editing until it can confirm the validated R.E.P.O. installation is closed.",
   "safety.checking": "Checking…",
+  "safety.initialCheck": "Checking whether R.E.P.O. is closed…",
   "safety.checkAgain": "Check Again",
   "safety.exit": "Exit RepoDitor",
   "error.service": "The desktop service is unavailable.",
@@ -371,6 +374,7 @@ export const en = {
   "error.gameRunning": "Close R.E.P.O. before editing saves.",
   "error.gameUnknown": "RepoDitor could not verify that R.E.P.O. is closed.",
   "error.saveMissing": "The selected save could not be found.",
+  "error.metaMissing": "MetaSave.es3 could not be found.",
   "error.saveInvalid": "The selected save could not be safely read or validated.",
   "error.saveStale": "The save changed on disk. Reopen it before saving edits.",
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",

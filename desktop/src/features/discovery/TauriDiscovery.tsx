@@ -141,6 +141,15 @@ function DiscoveryPreview() {
   }
   return (
     <AppShell>
+      <output
+        className={
+          initialCheck
+            ? "mb-4 block rounded-sm border border-line bg-surface px-4 py-3 text-sm text-secondary"
+            : undefined
+        }
+      >
+        {initialCheck ? t("safety.initialCheck") : null}
+      </output>
       <div
         ref={content}
         aria-busy={initialCheck || (safetyRequired && safety.checking)}

@@ -147,6 +147,7 @@ export const ko: Record<keyof typeof en, string> = {
   "overview.resumeAt": "재개 위치",
   "overview.runSnapshot": "런 요약",
   "overview.editSave": "이 세이브 편집",
+  "overview.browseSave": "이 세이브 살펴보기",
   "overview.playersDescription": "체력 및 플레이어별 상태",
   "overview.upgradesDescription": "플레이어별 업그레이드 값",
   "overview.runDescription": "레벨, 화폐, 목숨, 수익 및 재개 상태",
@@ -225,6 +226,7 @@ export const ko: Record<keyof typeof en, string> = {
   "items.refillLabel": "{item} 도구 {instance} 충전",
   "maps.loading": "설치된 맵 탐색 중…",
   "maps.unavailable": "맵을 사용할 수 없음",
+  "maps.empty": "설치된 카탈로그에서 맵을 찾지 못했습니다.",
   "maps.noGame":
     "검증된 R.E.P.O. 설치를 찾지 못했습니다. 맵 탐색은 세이브 편집에 영향을 주지 않습니다.",
   "maps.installed": "설치된 콘텐츠",
@@ -364,6 +366,7 @@ export const ko: Record<keyof typeof en, string> = {
   "safety.unknownDescription":
     "검증된 R.E.P.O. 설치가 종료되었음을 확인할 때까지 세이브 편집을 안전하게 활성화할 수 없습니다.",
   "safety.checking": "확인 중…",
+  "safety.initialCheck": "R.E.P.O.가 종료되었는지 확인 중…",
   "safety.checkAgain": "다시 확인",
   "safety.exit": "RepoDitor 종료",
   "error.service": "데스크톱 서비스를 사용할 수 없습니다.",
@@ -371,6 +374,7 @@ export const ko: Record<keyof typeof en, string> = {
   "error.gameRunning": "세이브를 편집하기 전에 R.E.P.O.를 종료하세요.",
   "error.gameUnknown": "RepoDitor가 R.E.P.O. 종료 여부를 확인할 수 없습니다.",
   "error.saveMissing": "선택한 세이브를 찾을 수 없습니다.",
+  "error.metaMissing": "MetaSave.es3 파일을 찾을 수 없습니다.",
   "error.saveInvalid": "선택한 세이브를 안전하게 읽거나 검증할 수 없습니다.",
   "error.saveStale": "디스크의 세이브가 변경되었습니다. 다시 연 뒤 저장하세요.",
   "error.write": "RepoDitor가 세이브를 안전하게 기록하지 못했습니다. 파일은 교체되지 않았습니다.",

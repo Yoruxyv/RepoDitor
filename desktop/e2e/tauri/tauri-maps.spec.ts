@@ -116,7 +116,9 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       await expect(target.locator('[data-testid^="map-artwork-"] img')).toHaveCount(0);
       await expect(target.getByRole("button", { name: /Force map|Select map/ })).toHaveCount(0);
     }
-    await page.getByRole("tab", { name: "Run", exact: true }).focus();
+    const runTab = page.getByRole("tab", { name: "Run", exact: true });
+    await runTab.click();
+    await expect(runTab).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("End");
     await expect(page.getByRole("tab", { name: "Maps", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
@@ -174,6 +176,7 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
     for (const target of [page, referencePage]) {
       await target.getByRole("button", { name: "Refresh", exact: true }).click();
       await expect(target.locator('[data-testid^="map-artwork-"]')).toHaveCount(0);
+      await expect(target.getByText("No maps were found in the installed catalog.")).toBeVisible();
       await expect(target.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
     }
     const empty = await compare();
@@ -185,7 +188,7 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       await expect(
         target.getByText(/No validated R\.E\.P\.O\. installation was found/),
       ).toBeVisible();
-      await expect(target.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
+      await expect(target.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
       await expect(target.getByRole("heading", { name: "Maps", exact: true })).toBeVisible();
     }
     expect(await compare()).toEqual({ available: false, catalogPath: null, maps: [] });

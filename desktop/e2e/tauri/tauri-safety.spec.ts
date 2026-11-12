@@ -14,6 +14,7 @@ import {
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
 import {
+  createMetaSaveFixture,
   createRunSaveFixture,
   DESKTOP_ROOT,
   E2E_SAVE_ID,
@@ -22,7 +23,13 @@ import {
   PYTHON_ROOT,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
-import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
+import {
+  close,
+  launch,
+  native,
+  stageFrozenBackend,
+  stageSyntheticBackend,
+} from "../support/tauriHarness";
 
 interface Transaction {
   status: string;
@@ -124,6 +131,101 @@ test("ordinary packaged workspace preserves keyboard focus across navigation", a
       await rename(`${f.source}.hidden`, f.source);
     }
     expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged read-only states explain pending safety and recover Maps in place", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("isolated");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const run = await createRunSaveFixture(home);
+  const meta = createMetaSaveFixture(home);
+  const runBefore = await readFile(run);
+  const metaBefore = await readFile(meta);
+  const mapsResponse = path.join(home, "maps-list.json");
+  await writeFile(
+    mapsResponse,
+    JSON.stringify({ ok: true, available: false, catalogPath: null, maps: [] }),
+  );
+  await writeFile(
+    path.join(home, "cosmetics-get.json"),
+    JSON.stringify({
+      ok: false,
+      error: { code: "meta_missing", message: "C:/private/MetaSave.es3" },
+    }),
+  );
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window);
+      const firstStatus = new Promise<void>((resolve) => {
+        window.addEventListener("repoditor-test-release-status", () => resolve(), { once: true });
+      });
+      // Delay the first status at the renderer IPC boundary while retaining the packaged bridge.
+      window.fetch = async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (url.hostname === "ipc.localhost" && url.pathname === "/game_status") {
+          await firstStatus;
+        }
+        return originalFetch(input, init);
+      };
+    });
+    await page.reload();
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    const content = page.getByTestId("editor-content");
+    const check = page
+      .getByRole("status")
+      .filter({ hasText: "Checking whether R.E.P.O. is closed…" });
+    await expect(check).toBeVisible();
+    await expect(content).toHaveAttribute("inert", "");
+    await expect(content).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-status")));
+    await expect(check).toHaveCount(0);
+    await expect(content).not.toHaveAttribute("inert");
+    await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Browse this save" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Edit this save" })).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "Maps", exact: true }).click();
+    const unavailable = page.getByText(/No validated R\.E\.P\.O\. installation was found/);
+    const empty = page.getByText("No maps were found in the installed catalog.");
+    const refresh = page.getByRole("button", { name: "Refresh", exact: true });
+    const alert = page.getByRole("alert");
+    await expect(unavailable).toBeVisible();
+    await expect(refresh).toBeEnabled();
+    await expect(empty).toHaveCount(0);
+    await writeFile(
+      mapsResponse,
+      JSON.stringify({
+        ok: false,
+        error: { code: "process_failed", message: "C:/private/catalog.json" },
+      }),
+    );
+    await refresh.click();
+    await expect(alert).toBeVisible();
+    await expect(alert).not.toContainText("C:/private");
+    await expect(unavailable).toBeVisible();
+    await writeFile(mapsResponse, JSON.stringify({ ok: true, ...f.maps, maps: [] }));
+    await refresh.click();
+    await expect(empty).toBeVisible();
+    await expect(unavailable).toHaveCount(0);
+    await expect(alert).toHaveCount(0);
+    await writeFile(mapsResponse, JSON.stringify({ ok: true, ...f.maps }));
+    await refresh.click();
+    await expect(page.getByRole("heading", { name: "McJannek Station" })).toBeVisible();
+    await expect(empty).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Maps", selected: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Cosmetics", exact: true }).click();
+    await expect(alert).toHaveText("MetaSave.es3 could not be found.");
+    expect(await readFile(run)).toEqual(runBefore);
+    expect(await readFile(meta)).toEqual(metaBefore);
   } finally {
     await close(app.child, app.browser);
   }

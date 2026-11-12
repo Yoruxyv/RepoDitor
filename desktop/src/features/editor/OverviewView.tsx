@@ -17,9 +17,15 @@ interface OverviewViewProps {
   readonly session: SaveSession;
   readonly onNavigate: ((destination: OverviewDestination) => void) | null;
   readonly availableDestinations?: readonly OverviewDestination[];
+  readonly readOnly?: boolean;
 }
 
-export function OverviewView({ session, onNavigate, availableDestinations }: OverviewViewProps) {
+export function OverviewView({
+  session,
+  onNavigate,
+  availableDestinations,
+  readOnly = false,
+}: OverviewViewProps) {
   const { locale, t } = usePreferences();
   const metrics = [
     { icon: ArrowUpIcon, label: t("overview.level"), value: session.level },
@@ -71,7 +77,7 @@ export function OverviewView({ session, onNavigate, availableDestinations }: Ove
 
       <section aria-labelledby="edit-save-title" className="mt-8">
         <h3 className="text-lg font-semibold text-ink" id="edit-save-title">
-          {t("overview.editSave")}
+          {t(readOnly ? "overview.browseSave" : "overview.editSave")}
         </h3>
         <ul className="mt-2 divide-y divide-line border-y border-line">
           {destinations.map(({ destination, descriptionKey, icon: DestinationIcon }) => {

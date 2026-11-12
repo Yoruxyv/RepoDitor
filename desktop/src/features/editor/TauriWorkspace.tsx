@@ -191,6 +191,7 @@ export function TauriWorkspace({
         >
           {section === "overview" ? (
             <OverviewView
+              readOnly={!health.enabled}
               session={currentSession}
               availableDestinations={["players", "upgrades", "run", "items"]}
               onNavigate={selectTabWithFocus}

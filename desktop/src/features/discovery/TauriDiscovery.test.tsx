@@ -118,6 +118,8 @@ describe("read-only native discovery", () => {
     const snapshot = await screen.findByRole("heading", { name: "Run snapshot" });
     expect(snapshot).toBeTruthy();
     const workspace = screen.getByTestId("workspace");
+    expect(within(workspace).getByRole("heading", { name: "Browse this save" })).toBeTruthy();
+    expect(within(workspace).queryByRole("heading", { name: "Edit this save" })).toBeNull();
     expect(
       within(workspace)
         .getAllByRole("button", { name: /^Open Items$/ })
@@ -294,6 +296,48 @@ describe("read-only native discovery", () => {
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(2));
   });
+  it("recovers unavailable Maps after a failed refresh and distinguishes an empty catalog", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    type MapsResult = Awaited<ReturnType<typeof tauriReadApi.maps.list>>;
+    let complete!: (result: MapsResult) => void;
+    const refresh = new Promise<MapsResult>((resolve) => {
+      complete = resolve;
+    });
+    vi.mocked(tauriReadApi.maps.list)
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { available: false, catalogPath: null, maps: [] },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "process_failed", message: "C:/private/catalog.json" },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { ...maps, maps: [] } })
+      .mockReturnValueOnce(refresh);
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await user.click(await screen.findByRole("tab", { name: "Maps" }));
+    const unavailable = /No validated R\.E\.P\.O\. installation was found/;
+    const empty = "No maps were found in the installed catalog.";
+    expect(await screen.findByText(unavailable)).toBeTruthy();
+    expect(screen.queryByText(empty)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect((await screen.findByRole("alert")).textContent).not.toContain("C:/private");
+    expect(screen.getByText(unavailable)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText(empty)).toBeTruthy();
+    expect(screen.queryByText(unavailable)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(screen.getByRole("button", { name: "Refreshing" }).matches(":disabled")).toBe(true);
+    expect(screen.getByText(empty)).toBeTruthy();
+    await act(() => complete({ ok: true, data: maps }));
+    expect(await screen.findByRole("heading", { name: "Modded Moon" })).toBeTruthy();
+    expect(screen.queryByText(empty)).toBeNull();
+    expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(4);
+    expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(1);
+  });
   it("uses the existing Players loading, empty and retry states", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     let complete!: (value: Awaited<ReturnType<typeof tauriReadApi.players.list>>) => void;
@@ -353,9 +397,61 @@ describe("read-only native discovery", () => {
       });
       render(<TauriDiscovery />);
       await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
-      expect(await screen.findByRole("alert")).toBeTruthy();
-      expect(screen.getByRole("alert").textContent).not.toContain("private");
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).not.toContain("private");
+      if (code === "save_missing") {
+        expect(alert.textContent).toBe(
+          "The selected save could not be found. No save files were changed.",
+        );
+      }
       expect(screen.queryByTestId("workspace")).toBeNull();
+    },
+  );
+  it("identifies a missing MetaSave without exposing backend diagnostics", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.cosmetics.get).mockResolvedValue({
+      ok: false,
+      error: { code: "meta_missing", message: "C:/private/MetaSave.es3" },
+    });
+    render(<TauriDiscovery />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Cosmetics" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("MetaSave.es3 could not be found.");
+  });
+  it.each(["not_running", "running", "unknown"] as const)(
+    "explains the pending first safety check until it resolves as %s",
+    async (status) => {
+      type StatusResult = Awaited<ReturnType<typeof tauriReadApi.game.status>>;
+      let complete!: (result: StatusResult) => void;
+      const check = new Promise<StatusResult>((resolve) => {
+        complete = resolve;
+      });
+      vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+      vi.mocked(tauriReadApi.game.status).mockReturnValue(check);
+      render(<TauriDiscovery />);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+      const message = "Checking whether R.E.P.O. is closed…";
+      const pending = screen.getByText(message);
+      expect(screen.getAllByRole("status")).toContain(pending);
+      expect(pending.closest("[inert]")).toBeNull();
+      const content = screen.getByTestId("editor-content");
+      expect(content.hasAttribute("inert")).toBe(true);
+      expect(content.getAttribute("aria-busy")).toBe("true");
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      await act(() => complete({ ok: true, data: { status, running: status === "running" } }));
+      expect(screen.queryByText(message)).toBeNull();
+      expect(content.getAttribute("aria-busy")).toBe("false");
+      if (status === "not_running") {
+        expect(content.hasAttribute("inert")).toBe(false);
+        expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Overview" }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+      } else {
+        expect(content.hasAttribute("inert")).toBe(true);
+        expect(document.activeElement).toBe(
+          within(screen.getByRole("dialog")).getByRole("button", { name: "Check Again" }),
+        );
+      }
     },
   );
   it("preserves unknown/running safety states, retry, focus checks and native exit", async () => {
