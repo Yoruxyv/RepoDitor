@@ -20,12 +20,12 @@ export function TauriCosmeticsWorkspace({
   useEffect(() => (active ? closeNativeCosmeticArtwork : undefined), [active]);
   const meta = useTauriCosmetics(active, recoveryGeneration);
   const cosmetics = useCosmeticsRead(
-    active && !meta.loading && !meta.enabled,
+    meta.readOnlyReady,
     recoveryGeneration,
     tauriReadApi.cosmetics.get,
   );
   const view = meta.enabled ? meta.view : cosmetics.view;
-  const loading = meta.loading || (meta.enabled ? meta.saving : cosmetics.loading);
+  const loading = meta.enabled ? meta.loading || meta.saving : cosmetics.loading;
   const action = meta.intent?.metaCosmetics.action;
   let nativeError = meta.state.state === "blocked" ? t("health.conflict") : null;
   if (meta.state.state === "busy") nativeError = t("health.checking");
@@ -39,7 +39,7 @@ export function TauriCosmeticsWorkspace({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
         <span className="font-mono text-ink">MetaSave.es3</span>
         <div className="flex items-center gap-4">
-          {view ? (
+          {view && (meta.enabled || !loading) ? (
             <span className="inline-flex items-center gap-1.5 text-success">
               <ShieldCheckIcon aria-hidden="true" size={15} />
               {t("cosmetics.validatedShort")}
@@ -67,6 +67,7 @@ export function TauriCosmeticsWorkspace({
         <CosmeticsView
           view={view}
           artworkActive={active}
+          artworkPending={!meta.enabled && loading}
           knownOwnedCount={view?.knownOwnedCount ?? 0}
           knownLockedCount={view?.knownLockedCount ?? 0}
           savedPresetCount={view?.savedPresetCount ?? 0}

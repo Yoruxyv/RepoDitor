@@ -1,5 +1,5 @@
 /** Independent synthetic MetaSave drafts and durable, operation-bound reconciliation. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CosmeticsViewDto } from "@electron/contracts";
 import {
   disabledMeta,
@@ -105,6 +105,11 @@ function canonicalResult(result: MetaResult): boolean {
 }
 
 export function useTauriCosmetics(active: boolean, recoveryGeneration: number, api = tauriMetaApi) {
+  const visit = useMemo(
+    () => (active ? { recoveryGeneration } : null),
+    [active, recoveryGeneration],
+  );
+  const [checkedVisit, setCheckedVisit] = useState<typeof visit>(null);
   const [state, setState] = useState<MetaState>(disabledMeta);
   const [loading, setLoading] = useState(true);
   const [intent, setIntent] = useState<MetaIntent | null>(null);
@@ -114,6 +119,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
   const [recovering, setRecovering] = useState(false);
   const operation = useRef<string | null>(null);
   const inFlight = useRef(false);
+  const inspection = useRef<Promise<void> | null>(null);
   const mounted = useRef(false);
   const revision = useRef(0);
   useEffect(() => {
@@ -123,16 +129,15 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
       revision.current += 1;
     };
   }, []);
-  const reload = useCallback(async () => {
-    if (inFlight.current) return;
+  const reload = useCallback(() => {
+    if (inFlight.current) return inspection.current ?? Promise.resolve();
     inFlight.current = true;
     setLoading(true);
     const current = ++revision.current;
-    try {
+    async function inspect() {
       const result = await api.state(operation.current ?? undefined);
       if (mounted.current && revision.current === current) {
         setState(result);
-        setLoading(false);
         if (result.pending) {
           operation.current = result.pending.operationId;
           setRecovering(true);
@@ -140,14 +145,30 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
           setIntent((current) => current ?? restored);
         }
       }
-    } finally {
+    }
+    const pending = inspect().finally(() => {
+      inspection.current = null;
       inFlight.current = false;
       if (mounted.current) setLoading(false);
-    }
+    });
+    inspection.current = pending;
+    return pending;
   }, [api]);
   useEffect(() => {
-    if (active && !intent) void reload();
-  }, [active, recoveryGeneration, intent, reload]);
+    if (!visit || intent) return;
+    let cancelled = false;
+    async function checkVisit() {
+      // An earlier visit may still be inspecting MetaSave, but cannot authorize this visit.
+      await inspection.current;
+      if (cancelled || (inFlight.current && !inspection.current)) return;
+      await reload();
+      if (!cancelled) setCheckedVisit(visit);
+    }
+    void checkVisit();
+    return () => {
+      cancelled = true;
+    };
+  }, [visit, intent, reload]);
   const locked = loading || saving || recovering || state.state !== "idle";
   const lockAllBlockedReason =
     state.view?.cosmetics.find(
@@ -296,5 +317,6 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     pendingEdits: cosmeticEdits(state.view, intent),
     recovery: recovering || state.state === "pending",
     enabled: state.state !== "disabled",
+    readOnlyReady: visit !== null && visit === checkedVisit && state.state === "disabled",
   };
 }

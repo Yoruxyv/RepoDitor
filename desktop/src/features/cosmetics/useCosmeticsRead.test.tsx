@@ -58,15 +58,9 @@ describe("read-only Cosmetics loading", () => {
     expect(get).not.toHaveBeenCalled();
     rerender({ active: true });
     await waitFor(() => expect(get).toHaveBeenCalledExactlyOnceWith());
-    let overlapping: Promise<void> | undefined;
-    act(() => {
-      overlapping = result.current.reload();
-    });
+    act(() => result.current.reload());
     expect(get).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      finish({ ok: true, data: cosmetics });
-      await overlapping;
-    });
+    await act(() => finish({ ok: true, data: cosmetics }));
     expect(result.current.view).toEqual(cosmetics);
     expect(result.current.loading).toBe(false);
   });
@@ -83,9 +77,7 @@ describe("read-only Cosmetics loading", () => {
         finish = resolve;
       }),
     );
-    act(() => {
-      void result.current.reload();
-    });
+    act(() => result.current.reload());
     expect(result.current.loading).toBe(true);
     expect(result.current.view).toEqual(cosmetics);
     await act(async () =>
@@ -94,10 +86,8 @@ describe("read-only Cosmetics loading", () => {
     expect(result.current.error).toBeTruthy();
     expect(result.current.error).not.toContain("private");
     expect(result.current.view).toBeNull();
-    await act(async () => {
-      await result.current.reload();
-    });
-    expect(result.current.view).toEqual(cosmetics);
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.view).toEqual(cosmetics));
     rerender({ active: false, generation: 0 });
     rerender({ active: true, generation: 0 });
     await waitFor(() => expect(get).toHaveBeenCalledTimes(4));

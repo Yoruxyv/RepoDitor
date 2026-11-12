@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import {
+  createMetaSaveFixture,
   createRunSaveFixture,
   DESKTOP_ROOT,
   getPythonExecutable,
@@ -23,6 +24,120 @@ function prepared(name: string): string {
   if (!artifact) throw new Error(`${name} must name a prepared native artifact`);
   return path.resolve(DESKTOP_ROOT, artifact);
 }
+
+test("ordinary native Cosmetics revisit reads once and uses only current artwork", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("revisit");
+  const fixture = await stageSyntheticBackend(
+    home,
+    prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  await mkdir(path.join(home, "AppData", "LocalLow", "semiwork", "Repo"), { recursive: true });
+  const meta = createMetaSaveFixture(home);
+  const original = await readFile(meta);
+  async function setSource(version: string) {
+    const revision = version.repeat(64);
+    await writeFile(
+      path.join(home, "cosmetics-get.json"),
+      JSON.stringify({
+        ok: true,
+        cosmetics: {
+          ...fixture.cosmetics,
+          fingerprint: revision,
+          artworkProofs: {
+            0: [revision, "c".repeat(32), "d".repeat(64), "e".repeat(64)].join(":"),
+          },
+        },
+      }),
+    );
+    await writeFile(
+      path.join(home, "native-cosmetic-artwork.json"),
+      JSON.stringify({
+        ok: true,
+        artwork: {
+          cosmeticId: 0,
+          sourceIdentity: revision,
+          width: 1,
+          height: 1,
+          pngBase64:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+        },
+      }),
+    );
+  }
+  await setSource("a");
+  const app = await launch(fixture.executable, home, fixture.environment);
+  try {
+    const { page } = app;
+    const artworkTokens: Array<string | null> = [];
+    const catalog = await page.evaluateHandle(() => {
+      const originalFetch = window.fetch.bind(window);
+      let release!: () => void;
+      const revisit = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const observation = { reads: 0, release };
+      // WebView2 handles custom IPC URLs outside Playwright request routing.
+      window.fetch = async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (url.hostname === "ipc.localhost" && url.pathname === "/cosmetics_get") {
+          if (++observation.reads === 2) await revisit;
+        }
+        return originalFetch(input, init);
+      };
+      return observation;
+    });
+    const catalogReads = () => catalog.evaluate(({ reads }) => reads);
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/cosmetic_artwork_get") {
+        const body = request.postDataJSON() as { token?: string } | null;
+        artworkTokens.push(body?.token ?? null);
+      }
+    });
+    const open = page.getByRole("button", { name: "Cosmetics", exact: true });
+    const search = page.getByRole("searchbox", { name: "Search cosmetics" });
+    const icon = page.getByTestId("cosmetic-icon-0");
+    async function expectArtwork(version: string) {
+      await page.getByRole("listitem", { name: /Installed Cosmetic 0,/ }).scrollIntoViewIfNeeded();
+      await expect(icon).toHaveAttribute("data-artwork-revision", version.repeat(64));
+    }
+    await open.click();
+    await search.fill("Installed Cosmetic 0");
+    await expectArtwork("a");
+    expect(await catalogReads()).toBe(1);
+    expect(artworkTokens).toEqual([expect.stringMatching(/^cosmetic-artwork:[0-9a-f]{32}$/)]);
+
+    await page.getByRole("button", { name: "Run Saves", exact: true }).click();
+    await setSource("b");
+    await open.click();
+    await expect.poll(catalogReads).toBe(2);
+    await expect(search).toHaveValue("Installed Cosmetic 0");
+    await page.getByRole("listitem", { name: /Installed Cosmetic 0,/ }).scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("cosmetic-icon-0-loading")).toBeVisible();
+    await expect(icon).toHaveCount(0);
+    await expect(page.getByText("Validated MetaSave")).toHaveCount(0);
+    expect(artworkTokens).toHaveLength(1);
+    await catalog.evaluate(({ release }) => release());
+    await expectArtwork("b");
+    expect(await catalogReads()).toBe(2);
+    expect(artworkTokens).toHaveLength(2);
+    expect(artworkTokens[1]).not.toBe(artworkTokens[0]);
+
+    await setSource("c");
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expectArtwork("c");
+    expect(await catalogReads()).toBe(3);
+    expect(artworkTokens).toHaveLength(3);
+    expect(new Set(artworkTokens).size).toBe(3);
+    await expect(page.getByTestId("workspace")).toHaveCount(0);
+    await expect(native(page, "test_meta_write", { request: {} })).rejects.toBeDefined();
+    expect(await readFile(meta)).toEqual(original);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
 
 test("ordinary native Cosmetics load visible canonical icons without a Run save", async ({
   browserName,

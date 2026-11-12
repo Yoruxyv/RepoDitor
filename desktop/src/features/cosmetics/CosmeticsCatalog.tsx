@@ -11,6 +11,7 @@ import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
+import { Skeleton } from "@/components/Skeleton";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/i18n";
 
@@ -18,6 +19,7 @@ interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
   readonly actionsDisabled: boolean;
   readonly artworkActive?: boolean | undefined;
+  readonly artworkPending?: boolean | undefined;
   readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
 }
 
@@ -199,6 +201,7 @@ export function CosmeticsCatalog({
   view,
   actionsDisabled,
   artworkActive,
+  artworkPending,
   onUnlockCosmetic,
 }: CosmeticsCatalogProps) {
   const { t } = usePreferences();
@@ -353,6 +356,9 @@ export function CosmeticsCatalog({
         {sortedCosmetics.map((cosmetic) => {
           const stateLabel = cosmeticStateLabel(cosmetic, t);
           const visible = visibleCosmeticIds.has(cosmetic.id);
+          const showArtwork = artworkActive === undefined || (artworkActive && visible);
+          const iconId = `cosmetic-icon-${cosmetic.id}`;
+          const pendingArtwork = artworkPending && cosmetic.iconToken !== null;
           return (
             <li
               aria-label={t("cosmetics.itemLabel", {
@@ -366,13 +372,19 @@ export function CosmeticsCatalog({
               key={cosmetic.id}
             >
               <div className="flex min-w-0 items-start gap-3">
-                {artworkActive === undefined || (artworkActive && visible) ? (
+                {showArtwork && pendingArtwork ? (
+                  <Skeleton
+                    className="size-12 shrink-0 border border-line"
+                    testId={`${iconId}-loading`}
+                  />
+                ) : null}
+                {showArtwork && !pendingArtwork ? (
                   <GameIcon
                     key={artworkActive === undefined ? undefined : cosmetic.iconToken}
                     fallback={TShirtIcon}
                     fallbackSource="fallback"
                     loading="lazy"
-                    testId={`cosmetic-icon-${cosmetic.id}`}
+                    testId={iconId}
                     token={cosmetic.iconToken}
                     variant="cosmetic"
                   />

@@ -1,5 +1,5 @@
 /** Read-only MetaSave loading without pending changes, artwork preparation or writes. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CosmeticsViewDto, RepoDitorApi } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
@@ -10,60 +10,62 @@ export function useCosmeticsRead(
   get: RepoDitorApi["cosmetics"]["get"],
 ) {
   const { t } = usePreferences();
+  const [refresh, setRefresh] = useState(0);
+  // Hide retained tokens in the commit that precedes the read which revokes them.
+  const request = useMemo(
+    () => ({ active, recoveryGeneration, refresh, get }),
+    [active, recoveryGeneration, refresh, get],
+  );
   const [state, setState] = useState<{
+    request: typeof request;
     view: CosmeticsViewDto | null;
     error: TranslationKey | null;
-    loading: boolean;
-  }>({ view: null, error: null, loading: true });
-  const mounted = useRef(false);
+  } | null>(null);
+  const committed = useRef<typeof request | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
-  const request = useRef(0);
-  const load = useCallback(async () => {
-    if (inFlight.current) return inFlight.current;
-    const current = ++request.current;
-    const read = async () => {
-      setState((old) => ({ ...old, error: null, loading: true }));
+  useLayoutEffect(() => {
+    committed.current = request;
+    return () => {
+      committed.current = null;
+    };
+  }, [request]);
+  useEffect(() => {
+    if (!request.active) return;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && committed.current === request;
+    async function read() {
       try {
-        const result = await get();
-        if (mounted.current && current === request.current)
+        const result = await request.get();
+        if (isCurrent())
           setState(
             result.ok
-              ? { view: result.data, error: null, loading: false }
-              : { view: null, error: operationErrorKey(result.error.code), loading: false },
+              ? { request, view: result.data, error: null }
+              : { request, view: null, error: operationErrorKey(result.error.code) },
           );
       } catch {
-        if (mounted.current && current === request.current)
-          setState({ view: null, error: "error.service", loading: false });
+        if (isCurrent()) setState({ request, view: null, error: "error.service" });
       }
-    };
-    inFlight.current = read();
-    try {
+    }
+    async function load() {
       await inFlight.current;
-    } finally {
+      if (!isCurrent()) return;
+      inFlight.current = read();
+      await inFlight.current;
       inFlight.current = null;
     }
-  }, [get]);
-  useEffect(() => {
-    mounted.current = true;
+    void load();
     return () => {
-      mounted.current = false;
-      request.current += 1;
+      cancelled = true;
     };
-  }, []);
-  useEffect(() => {
-    const generation = ++request.current;
-    if (!active) return;
-    const initial = window.setTimeout(() => {
-      const start = () => {
-        if (mounted.current && generation === request.current) void load();
-      };
-      if (inFlight.current) void inFlight.current.then(start);
-      else start();
-    });
-    return () => {
-      window.clearTimeout(initial);
-      request.current += 1;
-    };
-  }, [active, load, recoveryGeneration]);
-  return { ...state, error: state.error ? t(state.error) : null, reload: load };
+  }, [request]);
+
+  const current = active && state?.request === request;
+  return {
+    view: state?.view ?? null,
+    error: current && state.error ? t(state.error) : null,
+    loading: !current,
+    reload() {
+      if (current) setRefresh(refresh + 1);
+    },
+  };
 }

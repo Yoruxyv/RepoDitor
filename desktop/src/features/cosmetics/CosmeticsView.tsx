@@ -8,6 +8,7 @@ import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
 interface CosmeticsViewProps {
   readonly artworkActive?: boolean;
+  readonly artworkPending?: boolean | undefined;
   readonly view: CosmeticsViewDto | null;
   readonly knownOwnedCount: number;
   readonly knownLockedCount: number;
@@ -119,6 +120,7 @@ function CosmeticsSkeleton({
 export function CosmeticsView({
   view,
   artworkActive,
+  artworkPending,
   knownOwnedCount,
   knownLockedCount,
   savedPresetCount,
@@ -250,6 +252,7 @@ export function CosmeticsView({
       <CosmeticsCatalog
         actionsDisabled={hasBulkPending || saving}
         artworkActive={artworkActive}
+        artworkPending={artworkPending}
         view={view}
         onUnlockCosmetic={onUnlockCosmetic}
       />

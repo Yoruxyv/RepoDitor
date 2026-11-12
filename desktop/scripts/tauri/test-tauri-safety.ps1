@@ -133,6 +133,7 @@ try {
         'ordinary native Item artwork displays beyond the upgrade budget and stays read-only',
         'ordinary native Maps show scoped previews on demand and revoke old artwork',
         'ordinary native Cosmetics load visible canonical icons without a Run save',
+        'ordinary native Cosmetics revisit reads once and uses only current artwork',
         'final running: frozen Python blocks unsafe replacement',
         'final unknown: frozen Python blocks unsafe replacement',
         'REPODITOR_RECOVERY_DEFAULT_EXECUTABLE: full synthetic environment cannot grant missing authority',
