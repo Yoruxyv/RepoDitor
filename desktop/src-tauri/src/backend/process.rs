@@ -49,23 +49,28 @@ pub fn run(
     args: &[&str],
     timeout: Duration,
     cancelled: Arc<AtomicBool>,
+    cosmetic_key: Option<&str>,
 ) -> Result<Vec<u8>, BackendError> {
     if cancelled.load(Ordering::SeqCst) {
         return Err(BackendError::Failed);
     }
     let job = Job::new()?;
     let started = Instant::now();
-    let mut child = Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .args(args)
         .current_dir(executable.parent().ok_or(BackendError::Unavailable)?)
         .env_remove("PYTHONPATH")
         .env_remove("PYTHONHOME")
+        .env_remove("REPODITOR_NATIVE_COSMETIC_KEY")
         .creation_flags(0x08000000)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| BackendError::Unavailable)?;
+        .stderr(Stdio::piped());
+    if let Some(key) = cosmetic_key {
+        command.env("REPODITOR_NATIVE_COSMETIC_KEY", key);
+    }
+    let mut child = command.spawn().map_err(|_| BackendError::Unavailable)?;
     unsafe {
         if AssignProcessToJobObject(job.0.as_raw_handle(), child.as_raw_handle()) == 0 {
             let _ = child.kill();

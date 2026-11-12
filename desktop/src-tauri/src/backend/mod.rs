@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
     time::{Duration, Instant},
@@ -30,6 +30,7 @@ pub struct HostState {
     domain_worker: Mutex<()>,
     pub closing: Arc<AtomicBool>,
     pub artwork: Mutex<artwork::Registry>,
+    cosmetic_key: OnceLock<String>,
     #[cfg(feature = "synthetic-health-recovery")]
     editor_session: Mutex<(u64, Option<(String, String)>)>,
     #[cfg(feature = "synthetic-health-recovery")]
@@ -191,7 +192,7 @@ impl Operation {
             Self::Run(_) => Service::Run,
             Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
             Self::Maps | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
-            Self::Cosmetics => Service::Cosmetics,
+            Self::Cosmetics | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaState(..)
             | Self::TestMetaPrepare(..)
@@ -223,6 +224,7 @@ impl Operation {
                     artwork::Scope::Upgrade => "upgrade-artwork",
                     artwork::Scope::Item => "item-artwork",
                     artwork::Scope::Map => "map-artwork",
+                    artwork::Scope::Cosmetic => "native-cosmetic-artwork",
                 }];
                 args.extend(id.as_deref());
                 args.push(fingerprint);
@@ -236,7 +238,7 @@ impl Operation {
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
             Self::Maps => vec!["maps-list"],
-            Self::Cosmetics => vec!["cosmetics-get"],
+            Self::Cosmetics => vec!["cosmetics-get", "--native-artwork"],
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealth(id, fingerprint, payload, operation, _) => vec![
                 "saves-write",
@@ -377,7 +379,23 @@ fn execute(
         .checked_sub(started.elapsed())
         .filter(|remaining| !remaining.is_zero())
         .ok_or(BackendError::Timeout)?;
-    let result = process::run(executable, args, remaining, request.2.clone());
+    let cosmetic_key = matches!(
+        args.first().copied(),
+        Some("cosmetics-get" | "native-cosmetic-artwork")
+    )
+    .then(|| {
+        state
+            .cosmetic_key
+            .get_or_init(|| {
+                format!(
+                    "{}{}",
+                    uuid::Uuid::new_v4().simple(),
+                    uuid::Uuid::new_v4().simple()
+                )
+            })
+            .as_str()
+    });
+    let result = process::run(executable, args, remaining, request.2.clone(), cosmetic_key);
     #[cfg(feature = "synthetic-health-recovery")]
     if request.1 == 9
         && !matches!(

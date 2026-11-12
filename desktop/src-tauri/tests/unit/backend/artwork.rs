@@ -20,6 +20,35 @@ fn png() -> Vec<u8> {
     }
     output
 }
+
+#[test]
+fn cosmetic_png_requires_numeric_id_exact_revision_and_complete_bytes() {
+    let token = format!("cosmetic-artwork:{}", "a".repeat(32));
+    let revision = "b".repeat(64);
+    let good = json!({"ok":true,"artwork":{"cosmeticId":556,"sourceIdentity":revision,
+        "width":1,"height":1,"pngBase64":STANDARD.encode(png())}});
+    let verify = |value: &serde_json::Value| {
+        parse(
+            &serde_json::to_vec(value).unwrap(),
+            "556",
+            &token,
+            Some(&revision),
+        )
+    };
+    assert!(verify(&good).unwrap().is_some());
+    for (key, value) in [
+        ("cosmeticId", json!(557)),
+        ("cosmeticId", json!("556")),
+        ("sourceIdentity", json!("c".repeat(64))),
+        ("pngBase64", json!(STANDARD.encode(&png()[..56]))),
+        ("pngBase64", json!(STANDARD.encode(b"malformed"))),
+        ("pngBase64", json!("a".repeat(MAX_PNG * 2))),
+    ] {
+        let mut bad = good.clone();
+        bad["artwork"][key] = value;
+        assert!(verify(&bad).is_err());
+    }
+}
 #[test]
 fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
     let mut registry = Registry::default();

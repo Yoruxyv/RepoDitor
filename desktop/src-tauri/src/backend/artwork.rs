@@ -23,6 +23,7 @@ pub enum Scope {
     Upgrade,
     Item,
     Map,
+    Cosmetic,
 }
 impl Scope {
     fn prefix(self) -> &'static str {
@@ -30,6 +31,7 @@ impl Scope {
             Self::Upgrade => "upgrade-artwork:",
             Self::Item => "item-artwork:",
             Self::Map => "map-artwork:",
+            Self::Cosmetic => "cosmetic-artwork:",
         }
     }
     pub fn accepts(self, token: &str) -> bool {
@@ -54,11 +56,15 @@ pub struct Registry {
     item_fingerprint: String,
     items: HashMap<String, Entry>,
     maps: HashMap<String, Entry>,
+    cosmetics: HashMap<String, Entry>,
+    cosmetic_generation: u64,
+    meta_fingerprint: String,
 }
 impl Registry {
     pub fn clear_all(&mut self) {
         self.clear();
         revoke(&mut self.maps);
+        self.revoke_cosmetics();
     }
 
     pub fn clear(&mut self) {
@@ -138,12 +144,49 @@ impl Registry {
             *icon = Some(register(&mut self.maps, Scope::Map, family, Some(revision)));
         }
     }
+    pub fn revoke_cosmetics(&mut self) -> u64 {
+        revoke(&mut self.cosmetics);
+        self.meta_fingerprint.clear();
+        self.cosmetic_generation = self.cosmetic_generation.wrapping_add(1);
+        self.cosmetic_generation
+    }
+    pub fn register_cosmetics(
+        &mut self,
+        generation: u64,
+        projection: &mut crate::projections::cosmetics::Cosmetics,
+    ) {
+        if self.cosmetic_generation != generation {
+            return;
+        }
+        self.meta_fingerprint = projection.fingerprint().to_owned();
+        for (id, proof, icon) in projection.artwork_rows() {
+            if proof.len() == 227
+                && proof.split(':').zip([64, 32, 64, 64]).all(|(part, size)| {
+                    part.len() == size
+                        && part
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                })
+                && proof.split(':').count() == 4
+            {
+                *icon = Some(register(
+                    &mut self.cosmetics,
+                    Scope::Cosmetic,
+                    &id,
+                    Some(&proof),
+                ));
+            }
+        }
+    }
     pub fn begin(
         &mut self,
         token: &str,
     ) -> Result<(Option<String>, String, String, Arc<AtomicBool>), BackendError> {
         let map = Scope::Map.accepts(token);
-        let save = if map {
+        let cosmetic = Scope::Cosmetic.accepts(token);
+        let save = if cosmetic {
+            Some(self.meta_fingerprint.clone())
+        } else if map {
             None
         } else {
             Some(
@@ -154,7 +197,9 @@ impl Registry {
                     .clone(),
             )
         };
-        let (entries, fingerprint) = if map {
+        let (entries, fingerprint) = if cosmetic {
+            (&mut self.cosmetics, "")
+        } else if map {
             (&mut self.maps, "")
         } else if Scope::Item.accepts(token) {
             (&mut self.items, self.item_fingerprint.as_str())
@@ -186,8 +231,13 @@ impl Registry {
         cancelled.store(true, Ordering::SeqCst);
         valid
     }
+    pub fn retire_cosmetic(&mut self, token: &str) {
+        self.cosmetics.remove(token);
+    }
     fn entry(&self, token: &str) -> Option<&Entry> {
-        if Scope::Map.accepts(token) {
+        if Scope::Cosmetic.accepts(token) {
+            self.cosmetics.get(token)
+        } else if Scope::Map.accepts(token) {
             self.maps.get(token)
         } else if Scope::Item.accepts(token) {
             self.items.get(token)
@@ -257,21 +307,29 @@ pub fn parse(
     }
     let item = Scope::Item.accepts(token);
     let map = Scope::Map.accepts(token);
-    let multi_chunk = item || map;
-    let key_field = if map {
+    let cosmetic = Scope::Cosmetic.accepts(token);
+    let multi_chunk = item || map || cosmetic;
+    let key_field = if cosmetic {
+        "cosmeticId"
+    } else if map {
         "mapFamily"
     } else if item {
         "itemName"
     } else {
         "upgradeKey"
     };
-    if value
+    let response_key = value
         .as_object_mut()
         .and_then(|value| value.remove(key_field))
-        .as_ref()
-        .and_then(|key| key.as_str())
-        != Some(key)
-    {
+        .ok_or(BackendError::Invalid)?;
+    let matches_key = if cosmetic {
+        response_key
+            .as_i64()
+            .is_some_and(|id| id.to_string() == key)
+    } else {
+        response_key.as_str() == Some(key)
+    };
+    if !matches_key {
         return Err(BackendError::Invalid);
     }
     let image: PythonImage = serde_json::from_value(value).map_err(|_| BackendError::Invalid)?;
@@ -284,7 +342,7 @@ pub fn parse(
     let png = STANDARD
         .decode(&image.png_base64)
         .map_err(|_| BackendError::Invalid)?;
-    // Upgrade PNGs keep the three-chunk contract. Items and Maps can contain multiple IDAT chunks.
+    // Upgrade PNGs keep the three-chunk contract. Installed previews can use multiple IDAT chunks.
     if !(57..=MAX_PNG).contains(&png.len())
         || !png.starts_with(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR")
         || if multi_chunk {
@@ -316,7 +374,7 @@ pub fn parse(
         || u64::from(info.width) * u64::from(info.height) > 1024 * 1024
         || info.bit_depth != png::BitDepth::Eight
         || !(info.color_type == png::ColorType::Rgba
-            || item && info.color_type == png::ColorType::Rgb)
+            || (item || cosmetic) && info.color_type == png::ColorType::Rgb)
         || multi_chunk && info.interlaced
         || info.animation_control.is_some()
     {

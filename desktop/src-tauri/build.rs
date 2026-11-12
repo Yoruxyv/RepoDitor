@@ -40,6 +40,8 @@ fn main() {
                 "item_artwork_cancel",
                 "map_artwork_get",
                 "map_artwork_cancel",
+                "cosmetic_artwork_get",
+                "cosmetic_artwork_cancel",
                 "run_get",
                 "advanced_get",
                 "maps_list",

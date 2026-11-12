@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cosmetic-artwork-get"
+description = "Enables the cosmetic_artwork_get command without any pre-configured scope."
+commands.allow = ["cosmetic_artwork_get"]
+
+[[permission]]
+identifier = "deny-cosmetic-artwork-get"
+description = "Denies the cosmetic_artwork_get command without any pre-configured scope."
+commands.deny = ["cosmetic_artwork_get"]

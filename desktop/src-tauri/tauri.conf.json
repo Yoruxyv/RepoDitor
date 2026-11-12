@@ -31,6 +31,8 @@
             "allow-item-artwork-cancel",
             "allow-map-artwork-get",
             "allow-map-artwork-cancel",
+            "allow-cosmetic-artwork-get",
+            "allow-cosmetic-artwork-cancel",
             "allow-run-get",
             "allow-advanced-get",
             "allow-maps-list",

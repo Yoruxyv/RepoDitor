@@ -18,6 +18,7 @@ from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
+from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_hash import unity_hash128
 from tests.unity_serialized_fixture import (
@@ -198,6 +199,41 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     assert "itemCacheKeys" not in result
     assert result["cosmetic"]["556"] == unity_hash128("Last") + ".png"
     assert not (root / "REPO_Data/StreamingAssets/BakedIcons").exists()
+
+
+def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    monkeypatch.setattr(baked, "_cached_keys", lambda *_: pytest.fail("Native cache trust"))
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Last"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+    snapshot = baked.native_cosmetic_catalog()
+    assert snapshot is not None
+    catalog, revision, images = snapshot
+    assert len(catalog) == 557
+    assert list(images) == ["556"]
+    key, png_revision = images["556"]
+    assert key == unity_hash128("Last")
+    monkeypatch.setattr(baked, "_cosmetic_keys", lambda *_: pytest.fail("Repeated catalog scan"))
+    assert baked.read_bound_cosmetic_png(revision, key, png_revision) == png
+    replacement = path.with_suffix(".replacement")
+    replacement.write_bytes(png)
+    old = path.stat()
+    os.utime(replacement, ns=(old.st_atime_ns, old.st_mtime_ns))
+    replacement.replace(path)
+    assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
+    stamp = baked._digest(baked._png_stamp(path.stat()))
+    (root / "REPO_Data/level0").write_bytes(b"changed source")
+    assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
+    path.unlink()
+    assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
 
 
 @pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])

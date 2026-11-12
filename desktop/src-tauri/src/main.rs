@@ -167,6 +167,14 @@ async fn map_artwork_get(
     get_artwork(app, token, artwork::Scope::Map, Service::Maps).await
 }
 
+#[tauri::command]
+async fn cosmetic_artwork_get(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+) -> Outcome<Option<artwork::Image>> {
+    get_artwork(app, token, artwork::Scope::Cosmetic, Service::Cosmetics).await
+}
+
 async fn get_artwork(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
@@ -188,14 +196,26 @@ async fn get_artwork(
         Err(error) => return Outcome::for_service(Err(error), service),
     };
     let token_check = token.clone();
-    let revision = (scope == artwork::Scope::Map).then(|| fingerprint.clone());
+    let revision = match scope {
+        artwork::Scope::Map => Some(fingerprint.clone()),
+        artwork::Scope::Cosmetic => fingerprint
+            .split_once(':')
+            .map(|(revision, _)| revision.to_owned()),
+        _ => None,
+    };
     let response = backend::request(
         app,
         Operation::Artwork(scope, save, fingerprint, key.clone(), cancelled.clone()),
         move |bytes| artwork::parse(bytes, &key, &token_check, revision.as_deref()),
     )
     .await;
-    if state.artwork.lock().unwrap().finish(&token, &cancelled) {
+    let mut registry = state.artwork.lock().unwrap();
+    if registry.finish(&token, &cancelled) {
+        if scope == artwork::Scope::Cosmetic
+            && matches!(&response, Outcome::Success { data: None, .. })
+        {
+            registry.retire_cosmetic(&token);
+        }
         response
     } else {
         Outcome::for_service(Err(BackendError::Failed), service)
@@ -243,8 +263,32 @@ fn map_artwork_cancel(app: tauri::AppHandle, token: String) {
 }
 
 #[tauri::command]
+fn cosmetic_artwork_cancel(app: tauri::AppHandle, token: Option<String>) {
+    let state = app.state::<Arc<HostState>>();
+    let mut registry = state.artwork.lock().unwrap();
+    match token {
+        Some(token) if artwork::Scope::Cosmetic.accepts(&token) => registry.cancel(&token),
+        None => {
+            registry.revoke_cosmetics();
+        }
+        _ => {}
+    }
+}
+
+#[tauri::command]
 async fn cosmetics_get(app: tauri::AppHandle) -> Outcome<cosmetics::Cosmetics> {
-    backend::request(app, Operation::Cosmetics, cosmetics::parse).await
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    let generation = state.artwork.lock().unwrap().revoke_cosmetics();
+    backend::request(app, Operation::Cosmetics, move |bytes| {
+        let mut data = cosmetics::parse(bytes)?;
+        state
+            .artwork
+            .lock()
+            .unwrap()
+            .register_cosmetics(generation, &mut data);
+        Ok(data)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -405,6 +449,8 @@ fn main() {
             item_artwork_cancel,
             map_artwork_get,
             map_artwork_cancel,
+            cosmetic_artwork_get,
+            cosmetic_artwork_cancel,
             run_get,
             advanced_get,
             maps_list,

@@ -97,8 +97,8 @@ unchanged save bytes and exercise player-read timeout, retry and descendant clea
 Upgrades reuses Python's dynamic membership and presentation metadata, including
 valid stored values above gameplay caps. Its text fields are read-only and support
 keyboard selection/copying; editing/revert/save actions are unavailable. Players
-and Upgrades share selection. Icons use the existing fallback until native artwork
-transport is implemented.
+and Upgrades share selection. Eligible upgrades load installed icons through the
+native artwork lane and keep a fallback when artwork is unavailable.
 Run uses the unchanged Python `run-get` projection, including optional stats,
 signed safe integers and an observed resume location outside the predefined
 choices. The shared view retains Electron's editors; the preview shows focusable,
@@ -107,9 +107,9 @@ coalesces overlapping reads and ignores late results after workspace unmount.
 Items uses Python's unchanged `advanced-get` projection. All six evidence domains,
 capabilities, counts and exact item identities are retained without exposing private
 recharge evidence. Search, filters, sorting, grouping and charge presentation reuse
-Electron's view; native refill/revert/pending/save controls are absent. Optional icon
-metadata is validated and discarded, so item and upgrade fallbacks need no native
-artwork URL. Missing item containers remain distinct from supported empty ones.
+Electron's view. Ordinary native refill, revert and save controls are absent. Item
+icons use opaque type tokens and load when visible. Missing item containers remain
+distinct from supported empty ones.
 Maps uses Python's `maps-list` discovery and the existing read-only cards, responsive
 grid, skeletons, retry and retained-data refresh. Rust validates catalog availability,
 up to 128 unique map identities, labels and optional artwork revisions. The native
@@ -124,8 +124,11 @@ Cosmetics is an independent top-level workspace and does not require a Run save.
 Its fixed `cosmetics-get` projection retains fingerprints, catalog/ownership counts,
 unknown-owned IDs, capabilities and removal restrictions. Rust validates the public
 contract against the existing frozen capability evidence; it neither parses MetaSave
-nor discovers catalogs. The ordinary read-only composition reuses the existing summary and
-search/filter/sort catalog without mounting artwork or pending-write workflows.
+nor discovers catalogs. The ordinary read-only view loads eligible baked icons when
+their cards become visible. Python verifies the canonical installed mapping once per
+projection and binds it to the independent MetaSave fingerprint and file identities.
+Filtering and navigation cancel abandoned artwork requests. Missing or invalid files
+use the existing fallback.
 Mutation handlers are null, so bulk/individual ownership, presets, pending, revert
 and save controls are omitted. Electron retains its default editable composition.
 Native icons remain fallbacks. Packaged tests cover data/layout parity, metadata

@@ -24,6 +24,106 @@ function prepared(name: string): string {
   return path.resolve(DESKTOP_ROOT, artifact);
 }
 
+test("ordinary native Cosmetics load visible canonical icons without a Run save", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("cosmetic-artwork");
+  const fixture = await stageSyntheticBackend(
+    home,
+    prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const revision = "b".repeat(64);
+  const proof = [revision, "c".repeat(32), "d".repeat(64), "e".repeat(64)].join(":");
+  const cosmetics = {
+    ...fixture.cosmetics,
+    knownCatalogCount: 559,
+    knownLockedCount: 558,
+    cosmetics: [
+      ...Array.from({ length: 559 }, (_, id) => ({
+        ...fixture.cosmetics.cosmetics[0],
+        id,
+        displayName: `Hat ${String(id).padStart(3, "0")}`,
+        owned: id === 0,
+        state: id === 0 ? "owned" : "locked",
+        mutationEligible: id === 0,
+        removalBlockedReason: id === 0 ? null : "Read only",
+      })),
+      fixture.cosmetics.cosmetics.at(-1),
+    ],
+    artworkProofs: { 0: proof, 279: proof, 558: proof, 999: proof },
+  };
+  await writeFile(path.join(home, "cosmetics-get.json"), JSON.stringify({ ok: true, cosmetics }));
+  const artwork = path.join(home, "native-cosmetic-artwork.json");
+  function setImage(cosmeticId: number) {
+    return writeFile(
+      artwork,
+      JSON.stringify({
+        ok: true,
+        artwork: {
+          cosmeticId,
+          sourceIdentity: revision,
+          width: 1,
+          height: 1,
+          pngBase64:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+        },
+      }),
+    );
+  }
+  await setImage(0);
+  const app = await launch(fixture.executable, home, fixture.environment);
+  try {
+    const { page } = app;
+    await page.getByRole("button", { name: "Cosmetics", exact: true }).click();
+    const search = page.getByRole("searchbox", { name: "Search cosmetics" });
+    await expect(search).toBeVisible();
+    await page.getByTestId("cosmetic-icon-0").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("cosmetic-icon-0")).toHaveAttribute(
+      "data-artwork-revision",
+      revision,
+    );
+    await expect(page.getByTestId("cosmetic-icon-558").locator("img")).toHaveCount(0);
+    for (const id of [279, 558]) {
+      await setImage(id);
+      await search.fill(`Hat ${id}`);
+      const icon = page.getByTestId(`cosmetic-icon-${id}`);
+      await icon.scrollIntoViewIfNeeded();
+      await expect(icon).toHaveAttribute("data-artwork-revision", revision);
+      await expect
+        .poll(() =>
+          icon.locator("img").evaluate((image) => (image as HTMLImageElement).naturalWidth),
+        )
+        .toBe(1);
+    }
+    await search.fill("999");
+    await expect(page.getByTestId("cosmetic-icon-999")).toHaveAttribute(
+      "data-icon-source",
+      "fallback",
+    );
+    const projection = await native<{
+      ok: boolean;
+      data: { cosmetics: { id: number; iconToken: string | null }[] };
+    }>(page, "cosmetics_get");
+    expect(projection.ok).toBe(true);
+    expect(JSON.stringify(projection)).not.toContain("artworkProofs");
+    expect(projection.data.cosmetics.find((entry) => entry.id === 999)?.iconToken).toBeNull();
+    const token = projection.data.cosmetics.find((entry) => entry.id === 558)?.iconToken;
+    expect(token).toMatch(/^cosmetic-artwork:[0-9a-f]{32}$/);
+    expect(await native(page, "map_artwork_get", { token })).toMatchObject({ ok: false });
+    expect(
+      await native(page, "cosmetic_artwork_get", { token: `cosmetic-artwork:${"0".repeat(32)}` }),
+    ).toMatchObject({ ok: false });
+    await page.getByRole("button", { name: "Run Saves", exact: true }).click();
+    await expect
+      .poll(async () => native(page, "cosmetic_artwork_get", { token }))
+      .toMatchObject({ ok: false });
+    await expect(native(page, "test_meta_write", { request: {} })).rejects.toBeDefined();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary native Maps show scoped previews on demand and revoke old artwork", async ({
   browserName,
 }, info) => {

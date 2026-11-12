@@ -32,6 +32,7 @@ from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
 )
 from repo_save_editor.services.game.installed_build import (
+    ValidatedInstalledBuild,
     artwork_assembly_matches,
     owned_file,
     validated_installed_artwork_build,
@@ -51,6 +52,7 @@ __all__ = ["_installation", "discover_baked_artwork", "owned_file"]
 
 MAX_CACHE_BYTES: Final = 1024 * 1024
 MAX_IDENTITIES: Final = 2_000
+MAX_NATIVE_PNG: Final = 1024 * 1024
 SCHEMA: Final = 8
 _SOURCE_NAMES: Final = (
     "REPO_Data/Managed/Assembly-CSharp.dll",
@@ -246,6 +248,29 @@ def _persist(path: Path, payload: dict[str, object]) -> None:
                 temporary.unlink(missing_ok=True)
 
 
+def _reviewed_installation(
+    game_dir: Path | None,
+) -> tuple[Path, Path, ValidatedInstalledBuild, dict[str, str]] | None:
+    installation = _installation(game_dir)
+    if installation is None or (build := validated_installed_artwork_build(installation)) is None:
+        return None
+    root = installation.root.resolve(strict=True)
+    library = root.parents[2]
+    assembly = owned_file(library, root / _SOURCE_NAMES[0])
+    assembly_watch = _watch(library, assembly)
+    if int(assembly_watch["size"]) > 32 * 1024 * 1024:
+        return None
+    with assembly.open("rb") as handle:
+        assembly_bytes = handle.read(32 * 1024 * 1024 + 1)
+    if (
+        len(assembly_bytes) > 32 * 1024 * 1024
+        or not artwork_assembly_matches(build.build_id, hashlib.sha256(assembly_bytes).hexdigest())
+        or _watch(library, assembly) != assembly_watch
+    ):
+        return None
+    return root, library, build, assembly_watch
+
+
 def discover_baked_artwork(
     game_dir: Path | None = None,
     *,
@@ -253,28 +278,10 @@ def discover_baked_artwork(
 ) -> dict[str, object] | None:
     """Return trusted source paths and deterministic mappings; never read/write PNGs."""
     try:
-        installation = _installation(game_dir)
-        if installation is None:
+        reviewed = _reviewed_installation(game_dir)
+        if reviewed is None:
             return None
-        build = validated_installed_artwork_build(installation)
-        if build is None:
-            return None
-        root = installation.root.resolve(strict=True)
-        library = root.parents[2]
-        assembly = owned_file(library, root / _SOURCE_NAMES[0])
-        if assembly.stat().st_size > 32 * 1024 * 1024:
-            return None
-        assembly_watch = _watch(library, assembly)
-        with assembly.open("rb") as handle:
-            assembly_bytes = handle.read(32 * 1024 * 1024 + 1)
-        if (
-            len(assembly_bytes) > 32 * 1024 * 1024
-            or not artwork_assembly_matches(
-                build.build_id, hashlib.sha256(assembly_bytes).hexdigest()
-            )
-            or _watch(library, assembly) != assembly_watch
-        ):
-            return None
+        root, library, build, _assembly_watch = reviewed
         path = _cache_path(cache_dir)
         cached = _cached_keys(path, root, library)
         if cached is None:
@@ -321,6 +328,25 @@ def _png_stamp(info: os.stat_result) -> tuple[int, ...]:
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
 
 
+def _read_owned_png(library: Path, path: Path, stamp: tuple[int, ...]) -> bytes | None:
+    size = stamp[2]
+    if not 57 <= size <= MAX_NATIVE_PNG:
+        return None
+    with path.open("rb") as handle:
+        opened = os.fstat(handle.fileno())
+        if _png_stamp(opened) != stamp or not stat.S_ISREG(opened.st_mode):
+            return None
+        png = handle.read(size + 1)
+        after = os.fstat(handle.fileno())
+    if (
+        len(png) != size
+        or _png_stamp(after) != stamp
+        or _png_stamp(owned_file(library, path).stat()) != stamp
+    ):
+        return None
+    return png
+
+
 def read_baked_item_png(name: str) -> tuple[bytes, str] | None:
     """Read one bounded PNG from the verified Item mapping and recheck its sources."""
     index = discover_baked_artwork()
@@ -341,26 +367,85 @@ def read_baked_item_png(name: str) -> tuple[bytes, str] | None:
         game = Path(root)
         library = game.parents[2]
         path = game / "REPO_Data/StreamingAssets/BakedIcons/Items" / filename
-        before = owned_file(library, path).stat()
-        stamp = _png_stamp(before)
-        if not 57 <= before.st_size <= 1024 * 1024:
-            return None
-        with path.open("rb") as handle:
-            opened = os.fstat(handle.fileno())
-            if _png_stamp(opened) != stamp or not stat.S_ISREG(opened.st_mode):
-                return None
-            png = handle.read(before.st_size + 1)
-            after = os.fstat(handle.fileno())
-        if (
-            len(png) != before.st_size
-            or _png_stamp(after) != stamp
-            or _png_stamp(owned_file(library, path).stat()) != stamp
-            or any(_watch(library, Path(watch["path"])) != watch for watch in sources)
-        ):
+        stamp = _png_stamp(owned_file(library, path).stat())
+        png = _read_owned_png(library, path, stamp)
+        if png is None or any(_watch(library, Path(watch["path"])) != watch for watch in sources):
             return None
         identity = hashlib.sha256()
         identity.update(json.dumps([sources, name, filename, stamp]).encode())
         identity.update(png)
         return png, identity.hexdigest()
+    except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+        return None
+
+
+def _cosmetic_png(root: Path, key: str) -> Path:
+    return root / "REPO_Data/StreamingAssets/BakedIcons/Cosmetics" / (key + ".png")
+
+
+def _source_watches(
+    root: Path, library: Path, build: ValidatedInstalledBuild
+) -> list[dict[str, str]]:
+    return [
+        _watch(library, path)
+        for path in sorted({root / name for name in _SOURCE_NAMES} | {build.manifest_path})
+    ]
+
+
+def _digest(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def native_cosmetic_catalog() -> (
+    tuple[tuple[InstalledCosmeticMetadata, ...], str, dict[str, tuple[str, str]]] | None
+):
+    """Read the canonical vector once, ignoring the editable baked mapping cache."""
+    try:
+        reviewed = _reviewed_installation(None)
+        if reviewed is None:
+            return None
+        root, library, build, assembly = reviewed
+        before = _source_watches(root, library, build)
+        if assembly not in before:
+            return None
+        keys, paths, catalog = _cosmetic_keys(root)
+        if not paths.issubset({Path(watch["path"]) for watch in before}):
+            return None
+        mapped = {}
+        for identity, name in _supported_keys(keys).items():
+            key = unity_hash128(name)
+            try:
+                stamp = _png_stamp(owned_file(library, _cosmetic_png(root, key)).stat())
+            except (OSError, ValueError):
+                continue
+            if 57 <= stamp[2] <= MAX_NATIVE_PNG:
+                mapped[identity] = (key, _digest(stamp))
+        if _source_watches(root, library, build) != before:
+            return None
+        return catalog, _digest([build.build_id, before]), mapped
+    except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+        return None
+
+
+def read_bound_cosmetic_png(revision: str, key: str, png_revision: str) -> bytes | None:
+    """Recheck the installed sources and one previously verified baked mapping."""
+    try:
+        if len(key) != 32 or any(c not in "0123456789abcdef" for c in key):
+            return None
+        reviewed = _reviewed_installation(None)
+        if reviewed is None:
+            return None
+        root, library, build, assembly = reviewed
+        before = _source_watches(root, library, build)
+        if assembly not in before or _digest([build.build_id, before]) != revision:
+            return None
+        path = _cosmetic_png(root, key)
+        stamp = _png_stamp(owned_file(library, path).stat())
+        if _digest(stamp) != png_revision:
+            return None
+        png = _read_owned_png(library, path, stamp)
+        return png if _source_watches(root, library, build) == before else None
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
         return None

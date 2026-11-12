@@ -17,6 +17,7 @@ import type { Translate } from "@/app/i18n";
 interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
   readonly actionsDisabled: boolean;
+  readonly artworkActive?: boolean | undefined;
   readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
 }
 
@@ -197,6 +198,7 @@ function matchesCatalogFilters(
 export function CosmeticsCatalog({
   view,
   actionsDisabled,
+  artworkActive,
   onUnlockCosmetic,
 }: CosmeticsCatalogProps) {
   const { t } = usePreferences();
@@ -350,6 +352,7 @@ export function CosmeticsCatalog({
       >
         {sortedCosmetics.map((cosmetic) => {
           const stateLabel = cosmeticStateLabel(cosmetic, t);
+          const visible = visibleCosmeticIds.has(cosmetic.id);
           return (
             <li
               aria-label={t("cosmetics.itemLabel", {
@@ -359,18 +362,21 @@ export function CosmeticsCatalog({
               })}
               className="min-w-0 rounded-sm border border-line bg-surface p-3"
               data-cosmetic-id={cosmetic.id}
-              hidden={!visibleCosmeticIds.has(cosmetic.id)}
+              hidden={!visible}
               key={cosmetic.id}
             >
               <div className="flex min-w-0 items-start gap-3">
-                <GameIcon
-                  fallback={TShirtIcon}
-                  fallbackSource="fallback"
-                  loading="lazy"
-                  testId={`cosmetic-icon-${cosmetic.id}`}
-                  token={cosmetic.iconToken}
-                  variant="cosmetic"
-                />
+                {artworkActive === undefined || (artworkActive && visible) ? (
+                  <GameIcon
+                    key={artworkActive === undefined ? undefined : cosmetic.iconToken}
+                    fallback={TShirtIcon}
+                    fallbackSource="fallback"
+                    loading="lazy"
+                    testId={`cosmetic-icon-${cosmetic.id}`}
+                    token={cosmetic.iconToken}
+                    variant="cosmetic"
+                  />
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <p
                     className="truncate text-sm font-semibold text-ink"

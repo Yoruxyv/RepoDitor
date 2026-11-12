@@ -19,22 +19,27 @@ const pending = new Map<string, Request>();
 const queue: Request[] = [];
 let active: Request | null = null;
 // A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
-const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16 };
-type ArtworkScope = "item" | "upgrade" | "map";
+const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16, cosmetic: 2_000 };
+type ArtworkScope = keyof typeof REQUEST_LIMITS;
 
 export function closeNativeArtwork(saveId: string): Promise<void> {
   return invoke<void>("upgrade_artwork_cancel", { saveId }).catch(() => undefined);
+}
+
+export function closeNativeCosmeticArtwork(): void {
+  void invoke<void>("cosmetic_artwork_cancel").catch(() => undefined);
 }
 
 function artworkScope(token: string | null): ArtworkScope | null {
   if (token?.startsWith("item-artwork:")) return "item";
   if (token?.startsWith("upgrade-artwork:")) return "upgrade";
   if (token?.startsWith("map-artwork:")) return "map";
+  if (token?.startsWith("cosmetic-artwork:")) return "cosmetic";
   return null;
 }
 
 function isNativeArtworkToken(token: string): boolean {
-  return /^(item|upgrade|map)-artwork:[0-9a-f]{32}$/.test(token);
+  return /^(item|upgrade|map|cosmetic)-artwork:[0-9a-f]{32}$/.test(token);
 }
 
 export function useNativeArtwork(
@@ -44,19 +49,25 @@ export function useNativeArtwork(
 ) {
   const scope = artworkScope(token);
   const native = scope !== null;
-  const allowed = scope === variant && token !== null && isNativeArtworkToken(token);
+  const hasObserver = typeof IntersectionObserver !== "undefined";
+  const allowed =
+    scope === variant &&
+    token !== null &&
+    isNativeArtworkToken(token) &&
+    (scope !== "cosmetic" || hasObserver);
   const [resolved, setResolved] = useState<{ token: string; image: NativeArtwork | null } | null>(
     null,
   );
   useEffect(() => {
     if (!token || !allowed) return;
     const receive = (image: NativeArtwork | null) => setResolved({ token, image });
-    if (scope === "upgrade" || typeof IntersectionObserver === "undefined")
-      return acquireNativeArtwork(token, receive);
+    if (scope === "upgrade" || !hasObserver) return acquireNativeArtwork(token, receive);
     const node = element.current;
     if (!node) return;
     let release: (() => void) | undefined;
+    let observing = true;
     const observer = new IntersectionObserver(([entry]) => {
+      if (!observing) return;
       if (entry?.isIntersecting) {
         release ??= acquireNativeArtwork(token, (image) => {
           if (!image) observer.disconnect();
@@ -70,10 +81,11 @@ export function useNativeArtwork(
     });
     observer.observe(node);
     return () => {
+      observing = false;
       observer.disconnect();
       release?.();
     };
-  }, [allowed, element, scope, token]);
+  }, [allowed, element, hasObserver, scope, token]);
   const current = resolved && token && resolved.token === token ? resolved : null;
   return {
     native,
@@ -119,10 +131,18 @@ export function acquireNativeArtwork(
   listener: (image: NativeArtwork | null) => void,
 ): () => void {
   const scope = artworkScope(token);
+  // One visible catalog can subscribe to at most the verified catalog bound. Abandoned requests
+  // and other scopes cannot use up those places while the shared decoder finishes cancelling.
+  const queued =
+    scope === "cosmetic"
+      ? Array.from(pending.values()).filter(
+          (request) => request.scope === scope && request.listeners.size > 0,
+        ).length
+      : pending.size;
   if (
     !scope ||
     !isNativeArtworkToken(token) ||
-    (!pending.has(token) && pending.size >= REQUEST_LIMITS[scope])
+    (!pending.has(token) && queued >= REQUEST_LIMITS[scope])
   ) {
     let cancelled = false;
     queueMicrotask(() => {

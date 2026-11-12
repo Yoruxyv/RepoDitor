@@ -72,11 +72,16 @@ async function compare(page: Page, reference: Page) {
   expect(actual).toMatchObject({ ok: true });
   expect(expected).toMatchObject({ ok: true });
   if (!actual.ok || !expected.ok) throw new Error("Synthetic Cosmetics could not be read");
-  expect(actual.data).toEqual({
+  expect({
+    ...actual.data,
+    cosmetics: actual.data.cosmetics.map((entry) => ({ ...entry, iconToken: null })),
+  }).toEqual({
     ...expected.data,
     cosmetics: expected.data.cosmetics.map((entry) => ({ ...entry, iconToken: null })),
   });
-  expect(JSON.stringify(actual)).not.toMatch(/cosmeticTokens|rawMetaSave|iconKey|backupPath/);
+  expect(JSON.stringify(actual)).not.toMatch(
+    /artworkProofs|cosmeticTokens|rawMetaSave|iconKey|backupPath/,
+  );
   return actual.data;
 }
 

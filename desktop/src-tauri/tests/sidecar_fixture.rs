@@ -45,9 +45,19 @@ fn main() {
             std::fs::write(&args[2], child.id().to_string()).unwrap();
             child.wait().unwrap();
         }
-        "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list"
-        | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" | "upgrade-artwork"
-        | "item-artwork" | "map-artwork" => {
+        "environment"
+        | "saves-open"
+        | "game-status"
+        | "players-list"
+        | "upgrades-list"
+        | "run-get"
+        | "advanced-get"
+        | "maps-list"
+        | "cosmetics-get"
+        | "upgrade-artwork"
+        | "item-artwork"
+        | "map-artwork"
+        | "native-cosmetic-artwork" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

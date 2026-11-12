@@ -1,5 +1,7 @@
 /** Global Cosmetics presentation with independently admitted synthetic MetaSave editing. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
+import { useEffect } from "react";
+import { closeNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { CosmeticsView } from "./CosmeticsView";
@@ -15,6 +17,7 @@ export function TauriCosmeticsWorkspace({
   readonly recoveryGeneration: number;
 }) {
   const { t } = usePreferences();
+  useEffect(() => (active ? closeNativeCosmeticArtwork : undefined), [active]);
   const meta = useTauriCosmetics(active, recoveryGeneration);
   const cosmetics = useCosmeticsRead(
     active && !meta.loading && !meta.enabled,
@@ -63,6 +66,7 @@ export function TauriCosmeticsWorkspace({
       >
         <CosmeticsView
           view={view}
+          artworkActive={active}
           knownOwnedCount={view?.knownOwnedCount ?? 0}
           knownLockedCount={view?.knownLockedCount ?? 0}
           savedPresetCount={view?.savedPresetCount ?? 0}

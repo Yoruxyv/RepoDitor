@@ -101,3 +101,33 @@ it("keeps Map requests in the shared lane and drops replies after Map cancellati
   expect(next).toHaveBeenCalledWith(null);
   releaseNext();
 });
+
+it("keeps visible Cosmetics queued behind other domains without losing their slots", async () => {
+  let finishUpgrade!: (response: unknown) => void;
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementation((command) => {
+      if (command === "upgrade_artwork_get") {
+        return new Promise((resolve) => {
+          finishUpgrade = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true, data: null });
+    });
+  const releaseUpgrade = acquireNativeArtwork(token(1), vi.fn());
+  const receivers = Array.from({ length: 40 }, () => vi.fn());
+  const releases = receivers.map((receive, index) =>
+    acquireNativeArtwork(token(index + 1).replace("upgrade-", "cosmetic-"), receive),
+  );
+  await flush();
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(receivers.every((receiver) => receiver.mock.calls.length === 0)).toBe(true);
+  releases[10]!();
+  finishUpgrade({ ok: true, data: null });
+  await flush();
+  expect(invoke).toHaveBeenCalledTimes(40);
+  expect(receivers[10]).not.toHaveBeenCalled();
+  expect(receivers[39]).toHaveBeenCalledExactlyOnceWith(null);
+  releaseUpgrade();
+  releases.forEach((release) => release());
+});

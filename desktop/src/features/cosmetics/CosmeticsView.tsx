@@ -7,6 +7,7 @@ import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
 interface CosmeticsViewProps {
+  readonly artworkActive?: boolean;
   readonly view: CosmeticsViewDto | null;
   readonly knownOwnedCount: number;
   readonly knownLockedCount: number;
@@ -117,6 +118,7 @@ function CosmeticsSkeleton({
 
 export function CosmeticsView({
   view,
+  artworkActive,
   knownOwnedCount,
   knownLockedCount,
   savedPresetCount,
@@ -247,6 +249,7 @@ export function CosmeticsView({
 
       <CosmeticsCatalog
         actionsDisabled={hasBulkPending || saving}
+        artworkActive={artworkActive}
         view={view}
         onUnlockCosmetic={onUnlockCosmetic}
       />

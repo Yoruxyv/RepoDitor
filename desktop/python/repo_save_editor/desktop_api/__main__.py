@@ -9,7 +9,11 @@ import sys
 from pathlib import Path
 
 from repo_save_editor.core.save_resources import bounded_save_operation
-from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
+from repo_save_editor.desktop_api.cosmetic_artwork import (
+    get_cosmetic_artwork,
+    get_native_cosmetic_artwork,
+    get_native_cosmetics,
+)
 from repo_save_editor.desktop_api.cosmetic_preparation import (
     parse_cosmetic_ids,
     stream_cosmetic_artwork,
@@ -294,7 +298,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
     commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
-    commands.add_parser("cosmetics-get").set_defaults(handler=lambda _args: get_cosmetics())
+    cosmetics_get = commands.add_parser("cosmetics-get")
+    cosmetics_get.add_argument("--native-artwork", action="store_true")
+    cosmetics_get.set_defaults(
+        handler=lambda args: get_native_cosmetics() if args.native_artwork else get_cosmetics()
+    )
+    native_cosmetic = commands.add_parser("native-cosmetic-artwork")
+    native_cosmetic.add_argument("fingerprint")
+    native_cosmetic.add_argument("proof")
+    native_cosmetic.add_argument("identity")
+    native_cosmetic.set_defaults(
+        handler=lambda args: get_native_cosmetic_artwork(
+            args.fingerprint, args.proof, args.identity
+        )
+    )
     commands.add_parser("cosmetics-prepare").set_defaults(
         handler=_prepare_cosmetics, streaming=True
     )

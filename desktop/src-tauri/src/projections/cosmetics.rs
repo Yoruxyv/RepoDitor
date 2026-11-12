@@ -3,7 +3,7 @@ use super::{artwork::valid_icon_key, saves};
 use crate::error::{json, BackendError};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +22,29 @@ pub struct Cosmetics {
     unknown_owned_ids: Vec<i64>,
     capabilities: Capabilities,
     cosmetics: Vec<Cosmetic>,
+    #[serde(default, skip_serializing)]
+    artwork_proofs: HashMap<String, String>,
+}
+
+impl Cosmetics {
+    pub fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+
+    pub fn artwork_rows(&mut self) -> impl Iterator<Item = (String, String, &mut Option<String>)> {
+        let mut proofs = std::mem::take(&mut self.artwork_proofs);
+        if proofs.len() > 2_000 {
+            proofs.clear();
+        }
+        self.cosmetics.iter_mut().filter_map(move |cosmetic| {
+            if !cosmetic.known || !(0..2_000).contains(&cosmetic.id) {
+                return None;
+            }
+            let id = cosmetic.id.to_string();
+            let proof = proofs.remove(&id)?;
+            Some((id, proof, &mut cosmetic.icon_token))
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

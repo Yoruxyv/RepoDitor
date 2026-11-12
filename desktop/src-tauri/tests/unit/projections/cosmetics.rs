@@ -35,6 +35,52 @@ fn decode(raw: Value) -> Result<Cosmetics, BackendError> {
 }
 
 #[test]
+fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
+    use crate::backend::artwork::{Registry, Scope};
+    use std::sync::atomic::Ordering;
+
+    let proof = format!(
+        "{}:{}:{}:{}",
+        "b".repeat(64),
+        "c".repeat(32),
+        "d".repeat(64),
+        "e".repeat(64)
+    );
+    let mut raw = response(559);
+    raw["cosmetics"]["artworkProofs"] = (0..559)
+        .chain([999])
+        .map(|id| (id.to_string(), json!(&proof)))
+        .collect::<serde_json::Map<_, _>>()
+        .into();
+    let mut registry = Registry::default();
+    let generation = registry.revoke_cosmetics();
+    let mut data = decode(raw.clone()).unwrap();
+    registry.register_cosmetics(generation, &mut data);
+    let public = serde_json::to_value(data).unwrap();
+    assert!(public.get("artworkProofs").is_none());
+    assert!(public["cosmetics"][560]["iconToken"].is_null());
+    let token = public["cosmetics"][558]["iconToken"].as_str().unwrap();
+    assert!(Scope::Cosmetic.accepts(token));
+    assert!(!Scope::Map.accepts(token));
+    assert!(registry
+        .begin(&token.replace("cosmetic-", "item-"))
+        .is_err());
+    registry.open("run");
+    registry.clear();
+    let (fingerprint, binding, id, work) = registry.begin(token).unwrap();
+    assert_eq!(fingerprint.as_deref(), Some("a".repeat(64).as_str()));
+    assert_eq!(binding, proof);
+    assert_eq!(id, "558");
+    registry.revoke_cosmetics();
+    assert!(work.load(Ordering::SeqCst));
+    assert!(!registry.finish(token, &work));
+    assert!(registry.begin(token).is_err());
+    let mut late = decode(raw).unwrap();
+    registry.register_cosmetics(generation, &mut late);
+    assert!(serde_json::to_value(late).unwrap()["cosmetics"][558]["iconToken"].is_null());
+}
+
+#[test]
 fn preserves_partial_missing_future_and_unknown_catalogs_without_artwork_or_private_fields() {
     for count in [0, 1, 3, 559] {
         let value = serde_json::to_value(decode(response(count)).unwrap()).unwrap();
