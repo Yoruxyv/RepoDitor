@@ -16,7 +16,7 @@ fn decode(raw: Value) -> Result<InstalledMaps, BackendError> {
 fn preserves_dynamic_maps_without_artwork_authority() {
     let value = serde_json::to_value(decode(response()).unwrap()).unwrap();
     assert_eq!(value["available"], true);
-    assert_eq!(value["catalogPath"], "E:/synthetic/catalog.json");
+    assert!(value["catalogPath"].is_null());
     assert_eq!(value["maps"][1]["internalName"], "Modded Moon");
     assert_eq!(value["maps"][1]["knownLabel"], false);
     for map in value["maps"].as_array().unwrap() {

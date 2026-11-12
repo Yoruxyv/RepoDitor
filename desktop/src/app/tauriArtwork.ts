@@ -10,6 +10,7 @@ export interface NativeArtwork {
 }
 interface Request {
   readonly token: string;
+  readonly scope: ArtworkScope;
   readonly listeners: Set<(image: NativeArtwork | null) => void>;
   settled: boolean;
   cancellation: Promise<unknown> | null;
@@ -18,20 +19,22 @@ const pending = new Map<string, Request>();
 const queue: Request[] = [];
 let active: Request | null = null;
 // A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
-const MAX_ITEM_REQUESTS = 16_384;
+const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16 };
+type ArtworkScope = "item" | "upgrade" | "map";
 
 export function closeNativeArtwork(saveId: string): Promise<void> {
   return invoke<void>("upgrade_artwork_cancel", { saveId }).catch(() => undefined);
 }
 
-function artworkScope(token: string | null): "item" | "upgrade" | null {
+function artworkScope(token: string | null): ArtworkScope | null {
   if (token?.startsWith("item-artwork:")) return "item";
   if (token?.startsWith("upgrade-artwork:")) return "upgrade";
+  if (token?.startsWith("map-artwork:")) return "map";
   return null;
 }
 
 function isNativeArtworkToken(token: string): boolean {
-  return /^(item|upgrade)-artwork:[0-9a-f]{32}$/.test(token);
+  return /^(item|upgrade|map)-artwork:[0-9a-f]{32}$/.test(token);
 }
 
 export function useNativeArtwork(
@@ -48,7 +51,7 @@ export function useNativeArtwork(
   useEffect(() => {
     if (!token || !allowed) return;
     const receive = (image: NativeArtwork | null) => setResolved({ token, image });
-    if (scope !== "item" || typeof IntersectionObserver === "undefined")
+    if (scope === "upgrade" || typeof IntersectionObserver === "undefined")
       return acquireNativeArtwork(token, receive);
     const node = element.current;
     if (!node) return;
@@ -92,9 +95,7 @@ function pump(): void {
   const request = queue.shift();
   if (!request) return;
   active = request;
-  const command =
-    artworkScope(request.token) === "item" ? "item_artwork_get" : "upgrade_artwork_get";
-  void invoke<DesktopOperationResult<NativeArtwork | null>>(command, {
+  void invoke<DesktopOperationResult<NativeArtwork | null>>(`${request.scope}_artwork_get`, {
     token: request.token,
   })
     .then((result) => {
@@ -117,8 +118,12 @@ export function acquireNativeArtwork(
   token: string,
   listener: (image: NativeArtwork | null) => void,
 ): () => void {
-  const limit = artworkScope(token) === "item" ? MAX_ITEM_REQUESTS : 16;
-  if (!isNativeArtworkToken(token) || (!pending.has(token) && pending.size >= limit)) {
+  const scope = artworkScope(token);
+  if (
+    !scope ||
+    !isNativeArtworkToken(token) ||
+    (!pending.has(token) && pending.size >= REQUEST_LIMITS[scope])
+  ) {
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) listener(null);
@@ -129,7 +134,7 @@ export function acquireNativeArtwork(
   }
   let request = pending.get(token);
   if (!request || request.listeners.size === 0) {
-    request = { token, listeners: new Set(), settled: false, cancellation: null };
+    request = { token, scope, listeners: new Set(), settled: false, cancellation: null };
     pending.set(token, request);
     queue.push(request);
   }
@@ -140,9 +145,9 @@ export function acquireNativeArtwork(
     owned.listeners.delete(listener);
     if (owned.listeners.size > 0) return;
     if (active === owned && !owned.settled) {
-      const command =
-        artworkScope(token) === "item" ? "item_artwork_cancel" : "upgrade_artwork_cancel";
-      owned.cancellation ??= invoke(command, { token }).catch(() => undefined);
+      owned.cancellation ??= invoke(`${owned.scope}_artwork_cancel`, { token }).catch(
+        () => undefined,
+      );
     } else {
       const index = queue.indexOf(owned);
       if (index >= 0) queue.splice(index, 1);

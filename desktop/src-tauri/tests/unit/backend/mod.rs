@@ -5,7 +5,7 @@ fn artwork_has_one_independent_cancellable_lane() {
     let state = Arc::new(HostState::default());
     let operation = Operation::Artwork(
         artwork::Scope::Upgrade,
-        "save".into(),
+        Some("save".into()),
         "a".repeat(64),
         "playerUpgradeHealth".into(),
         Arc::new(AtomicBool::new(false)),
@@ -24,13 +24,25 @@ fn artwork_has_one_independent_cancellable_lane() {
     assert!(Request::reserve(state.clone(), operation.slot()).is_err());
     let item = Operation::Artwork(
         artwork::Scope::Item,
-        "save".into(),
+        Some("save".into()),
         "a".repeat(64),
         "Item Cart Small".into(),
         Arc::new(AtomicBool::new(false)),
     );
     assert_eq!(item.arguments()[0], "item-artwork");
     assert!(Request::reserve(state.clone(), item.slot()).is_err());
+    let map = Operation::Artwork(
+        artwork::Scope::Map,
+        None,
+        "b".repeat(64),
+        "--family".into(),
+        Arc::new(AtomicBool::new(false)),
+    );
+    assert_eq!(
+        map.arguments(),
+        ["map-artwork", &"b".repeat(64), "--", "--family"]
+    );
+    assert!(Request::reserve(state.clone(), map.slot()).is_err());
     request.2 = Arc::new(AtomicBool::new(false));
     let executable = process::tests::fixture();
     let marker =

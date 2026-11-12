@@ -22,12 +22,14 @@ pub const MAX_PNG: usize = 1024 * 1024;
 pub enum Scope {
     Upgrade,
     Item,
+    Map,
 }
 impl Scope {
     fn prefix(self) -> &'static str {
         match self {
             Self::Upgrade => "upgrade-artwork:",
             Self::Item => "item-artwork:",
+            Self::Map => "map-artwork:",
         }
     }
     pub fn accepts(self, token: &str) -> bool {
@@ -41,6 +43,7 @@ impl Scope {
 }
 struct Entry {
     key: String,
+    revision: Option<String>,
     cancelled: Arc<AtomicBool>,
 }
 #[derive(Default)]
@@ -50,8 +53,14 @@ pub struct Registry {
     entries: HashMap<String, Entry>,
     item_fingerprint: String,
     items: HashMap<String, Entry>,
+    maps: HashMap<String, Entry>,
 }
 impl Registry {
+    pub fn clear_all(&mut self) {
+        self.clear();
+        revoke(&mut self.maps);
+    }
+
     pub fn clear(&mut self) {
         revoke(&mut self.entries);
         revoke(&mut self.items);
@@ -91,7 +100,12 @@ impl Registry {
             })
             .take(MAX_IMAGES)
         {
-            upgrade.icon_token = Some(register(&mut self.entries, Scope::Upgrade, &upgrade.key));
+            upgrade.icon_token = Some(register(
+                &mut self.entries,
+                Scope::Upgrade,
+                &upgrade.key,
+                None,
+            ));
         }
     }
     pub fn register_items(
@@ -114,18 +128,38 @@ impl Registry {
         for (name, icon) in projection.item_icons() {
             let token = tokens
                 .entry(name)
-                .or_insert_with_key(|name| register(&mut self.items, Scope::Item, name));
+                .or_insert_with_key(|name| register(&mut self.items, Scope::Item, name, None));
             *icon = Some(token.clone());
+        }
+    }
+    pub fn register_maps(&mut self, projection: &mut crate::projections::maps::InstalledMaps) {
+        revoke(&mut self.maps);
+        for (family, revision, icon) in projection.artwork_rows() {
+            *icon = Some(register(&mut self.maps, Scope::Map, family, Some(revision)));
         }
     }
     pub fn begin(
         &mut self,
         token: &str,
-    ) -> Result<(String, String, String, Arc<AtomicBool>), BackendError> {
-        let (entries, fingerprint) = if Scope::Item.accepts(token) {
-            (&mut self.items, &self.item_fingerprint)
+    ) -> Result<(Option<String>, String, String, Arc<AtomicBool>), BackendError> {
+        let map = Scope::Map.accepts(token);
+        let save = if map {
+            None
         } else {
-            (&mut self.entries, &self.fingerprint)
+            Some(
+                self.session
+                    .as_ref()
+                    .ok_or(BackendError::Request)?
+                    .0
+                    .clone(),
+            )
+        };
+        let (entries, fingerprint) = if map {
+            (&mut self.maps, "")
+        } else if Scope::Item.accepts(token) {
+            (&mut self.items, self.item_fingerprint.as_str())
+        } else {
+            (&mut self.entries, self.fingerprint.as_str())
         };
         let entry = entries.get_mut(token).ok_or(BackendError::Request)?;
         if !entry.cancelled.load(Ordering::SeqCst) {
@@ -133,12 +167,8 @@ impl Registry {
         }
         entry.cancelled = Arc::new(AtomicBool::new(false));
         Ok((
-            self.session
-                .as_ref()
-                .ok_or(BackendError::Request)?
-                .0
-                .clone(),
-            fingerprint.clone(),
+            save,
+            entry.revision.as_deref().unwrap_or(fingerprint).to_owned(),
             entry.key.clone(),
             entry.cancelled.clone(),
         ))
@@ -157,7 +187,9 @@ impl Registry {
         valid
     }
     fn entry(&self, token: &str) -> Option<&Entry> {
-        if Scope::Item.accepts(token) {
+        if Scope::Map.accepts(token) {
+            self.maps.get(token)
+        } else if Scope::Item.accepts(token) {
             self.items.get(token)
         } else {
             self.entries.get(token)
@@ -165,12 +197,18 @@ impl Registry {
     }
 }
 
-fn register(entries: &mut HashMap<String, Entry>, scope: Scope, key: &str) -> String {
+fn register(
+    entries: &mut HashMap<String, Entry>,
+    scope: Scope,
+    key: &str,
+    revision: Option<&str>,
+) -> String {
     let token = format!("{}{}", scope.prefix(), Uuid::new_v4().simple());
     entries.insert(
         token.clone(),
         Entry {
             key: key.into(),
+            revision: revision.map(str::to_owned),
             cancelled: Arc::new(AtomicBool::new(true)),
         },
     );
@@ -203,7 +241,12 @@ pub struct Image {
     revision: String,
     data_url: String,
 }
-pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, BackendError> {
+pub fn parse(
+    bytes: &[u8],
+    key: &str,
+    token: &str,
+    expected_revision: Option<&str>,
+) -> Result<Option<Image>, BackendError> {
     let mut raw = json(bytes)?;
     if raw["ok"] != true {
         return Err(BackendError::Invalid);
@@ -213,7 +256,15 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
         return Ok(None);
     }
     let item = Scope::Item.accepts(token);
-    let key_field = if item { "itemName" } else { "upgradeKey" };
+    let map = Scope::Map.accepts(token);
+    let multi_chunk = item || map;
+    let key_field = if map {
+        "mapFamily"
+    } else if item {
+        "itemName"
+    } else {
+        "upgradeKey"
+    };
     if value
         .as_object_mut()
         .and_then(|value| value.remove(key_field))
@@ -224,17 +275,20 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
         return Err(BackendError::Invalid);
     }
     let image: PythonImage = serde_json::from_value(value).map_err(|_| BackendError::Invalid)?;
-    if !valid_revision(&image.source_identity) || image.png_base64.len() > MAX_PNG.div_ceil(3) * 4 {
+    if !valid_revision(&image.source_identity)
+        || expected_revision.is_some_and(|revision| revision != image.source_identity)
+        || image.png_base64.len() > MAX_PNG.div_ceil(3) * 4
+    {
         return Err(BackendError::Invalid);
     }
     let png = STANDARD
         .decode(&image.png_base64)
         .map_err(|_| BackendError::Invalid)?;
-    // Upgrade PNGs keep the three-chunk contract. Item PNGs can contain multiple IDAT chunks.
+    // Upgrade PNGs keep the three-chunk contract. Items and Maps can contain multiple IDAT chunks.
     if !(57..=MAX_PNG).contains(&png.len())
         || !png.starts_with(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR")
-        || if item {
-            !complete_item_png(&png)
+        || if multi_chunk {
+            !complete_png(&png)
         } else {
             &png[37..41] != b"IDAT"
                 || u32::from_be_bytes(png[33..37].try_into().unwrap()) as usize != png.len() - 57
@@ -244,7 +298,7 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
         return Err(BackendError::Invalid);
     }
     let mut decoder = png::Decoder::new(Cursor::new(&png));
-    if item {
+    if multi_chunk {
         decoder.set_ignore_text_chunk(true);
         decoder.set_ignore_iccp_chunk(true);
     }
@@ -263,7 +317,7 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
         || info.bit_depth != png::BitDepth::Eight
         || !(info.color_type == png::ColorType::Rgba
             || item && info.color_type == png::ColorType::Rgb)
-        || item && info.interlaced
+        || multi_chunk && info.interlaced
         || info.animation_control.is_some()
     {
         return Err(BackendError::Invalid);
@@ -278,7 +332,7 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
         .next_frame(&mut pixels)
         .map_err(|_| BackendError::Invalid)?;
     reader.finish().map_err(|_| BackendError::Invalid)?;
-    let encoded = if item {
+    let encoded = if multi_chunk {
         let mut output = Vec::new();
         {
             let mut encoder = png::Encoder::new(&mut output, image.width, image.height);
@@ -304,7 +358,7 @@ pub fn parse(bytes: &[u8], key: &str, token: &str) -> Result<Option<Image>, Back
     }))
 }
 
-fn complete_item_png(png: &[u8]) -> bool {
+fn complete_png(png: &[u8]) -> bool {
     let mut chunks = &png[8..];
     for _ in 0..4096 {
         if chunks.len() < 12 {

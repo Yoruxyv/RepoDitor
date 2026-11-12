@@ -165,6 +165,7 @@ export async function stageSyntheticBackend(
     ],
   };
   await writeFile(path.join(home, "maps-list.json"), JSON.stringify({ ok: true, ...maps }));
+  await writeFile(path.join(home, "map-artwork.json"), JSON.stringify({ ok: true, artwork: null }));
   const advanced = {
     domains: (
       [

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import struct
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from repo_save_editor.desktop_api.discovery.maps import get_native_map_artwork
 from repo_save_editor.services.game import map_artwork as art
 from repo_save_editor.services.game.maps import GameMap, MapCatalog
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
@@ -209,6 +211,64 @@ def test_batch_discards_output_when_any_source_changes(
         art._decode(c)
     # No mappings or stream handles survive a failed batch.
     (data / "resources.assets").replace(data / "released.assets")
+
+
+def test_native_preview_rechecks_exact_family_revision_and_limits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initial = catalog(tmp_path)
+    c = MapCatalog(
+        initial.path,
+        (*initial.maps, GameMap("Other", "Future", True, ("Level/Other/preview",))),
+        initial.source_paths,
+    )
+    for name, class_id in (("globalgamemanagers", 147), ("resources.assets", 28)):
+        write_serialized_file(
+            c.path.parent / name, [(1, class_id, b"fixture")], unity_version=SUNSTONE_UNITY_VERSION
+        )
+    revision = art.artwork_revision(c)
+    assert revision is not None
+    selected: list[tuple[str, ...]] = []
+    monkeypatch.setattr(art, "discover_installed_maps", lambda: c)
+    monkeypatch.setattr(
+        art, "import_module", lambda _: SimpleNamespace(EndianBinaryReader=lambda _: None)
+    )
+
+    def environment(_, __, paths):
+        selected.append(paths)
+        return SimpleNamespace(register_cab=lambda *_: None, file=SimpleNamespace(_cache={}))
+
+    monkeypatch.setattr(art, "_native_environment", environment)
+    monkeypatch.setattr(art, "_decode_sprite", lambda *_: (b"png", 1, 1))
+    absent = {"ok": True, "artwork": None}
+    assert get_native_map_artwork(revision, "future") == absent
+    assert get_native_map_artwork("0" * 64, "Future") == absent
+    assert selected == []
+    assert get_native_map_artwork(revision, "Future") == {
+        "ok": True,
+        "artwork": {
+            "mapFamily": "Future",
+            "sourceIdentity": revision,
+            "pngBase64": "cG5n",
+            "width": 1,
+            "height": 1,
+        },
+    }
+    assert selected == [("Level/Future/preview",)]
+    monkeypatch.setattr(
+        art, "_decode_sprite", lambda *_: (b"x" * (art.MAX_NATIVE_PNG_BYTES + 1), 1, 1)
+    )
+    assert get_native_map_artwork(revision, "Future") == absent
+    source = art.artwork_sources(c)[-1]
+    original = source.stat()
+    replacement = source.with_suffix(".replacement")
+    replacement.write_bytes(source.read_bytes())
+    os.utime(replacement, ns=(original.st_atime_ns, original.st_mtime_ns))
+    replacement.replace(source)
+    assert source.stat().st_mtime_ns == original.st_mtime_ns
+    assert art.artwork_revision(c) != revision
+    assert get_native_map_artwork(revision, "Future") == absent
+    assert len(selected) == 2
 
 
 def test_native_subset_preserves_ids_classes_and_bytes_without_unrelated_objects(

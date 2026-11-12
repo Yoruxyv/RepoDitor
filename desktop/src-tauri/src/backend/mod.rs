@@ -103,7 +103,13 @@ pub enum Operation {
     Game,
     Players(String),
     Avatar(String, String),
-    Artwork(artwork::Scope, String, String, String, Arc<AtomicBool>),
+    Artwork(
+        artwork::Scope,
+        Option<String>,
+        String,
+        String,
+        Arc<AtomicBool>,
+    ),
     Upgrades(String),
     Run(String),
     Items(String),
@@ -184,7 +190,7 @@ impl Operation {
             Self::Upgrades(_) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
             Self::Run(_) => Service::Run,
             Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
-            Self::Maps => Service::Maps,
+            Self::Maps | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
             Self::Cosmetics => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaState(..)
@@ -212,15 +218,20 @@ impl Operation {
             Self::Game => vec!["game-status"],
             Self::Players(id) => vec!["players-list", id],
             Self::Avatar(id, player) => vec!["players-avatar", id, player],
-            Self::Artwork(scope, id, fingerprint, key, _) => vec![
-                match scope {
+            Self::Artwork(scope, id, fingerprint, key, _) => {
+                let mut args = vec![match scope {
                     artwork::Scope::Upgrade => "upgrade-artwork",
                     artwork::Scope::Item => "item-artwork",
-                },
-                id,
-                fingerprint,
-                key,
-            ],
+                    artwork::Scope::Map => "map-artwork",
+                }];
+                args.extend(id.as_deref());
+                args.push(fingerprint);
+                if *scope == artwork::Scope::Map {
+                    args.push("--");
+                }
+                args.push(key);
+                args
+            }
             Self::Upgrades(id) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],

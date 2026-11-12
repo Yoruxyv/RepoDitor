@@ -74,3 +74,30 @@ describe("native upgrade artwork admission", () => {
     releaseForged();
   });
 });
+
+it("keeps Map requests in the shared lane and drops replies after Map cancellation", async () => {
+  const map = token(1).replace("upgrade-", "map-");
+  let resolveMap!: (response: unknown) => void;
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementation((command) => {
+      if (command === "map_artwork_get")
+        return new Promise((resolve) => {
+          resolveMap = resolve;
+        });
+      return Promise.resolve({ ok: true, data: null });
+    });
+  const abandoned = vi.fn();
+  const next = vi.fn();
+  const releaseMap = acquireNativeArtwork(map, abandoned);
+  const releaseNext = acquireNativeArtwork(token(2), next);
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("map_artwork_get", { token: map });
+  releaseMap();
+  expect(invoke).toHaveBeenLastCalledWith("map_artwork_cancel", { token: map });
+  resolveMap({ ok: true, data: { ...image(1), token: map } });
+  await flush();
+  expect(abandoned).not.toHaveBeenCalled();
+  expect(invoke).toHaveBeenLastCalledWith("upgrade_artwork_get", { token: token(2) });
+  expect(next).toHaveBeenCalledWith(null);
+  releaseNext();
+});

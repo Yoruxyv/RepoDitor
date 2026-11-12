@@ -153,17 +153,29 @@ fn item_png_validates_scope_and_reencodes_without_ancillary_text() {
     let raw = json!({"ok":true,"artwork":{"itemName":"Item Tool","sourceIdentity":"b".repeat(64),
         "width":1,"height":1,"pngBase64": STANDARD.encode(&original)}});
     let bytes = serde_json::to_vec(&raw).unwrap();
-    let image = parse(&bytes, "Item Tool", &token).unwrap().unwrap();
+    let image = parse(&bytes, "Item Tool", &token, None).unwrap().unwrap();
     let decoded = STANDARD
         .decode(image.data_url.split_once(',').unwrap().1)
         .unwrap();
     assert!(!decoded.windows(4).any(|bytes| bytes == b"tEXt"));
-    assert!(parse(&bytes, "Item Other", &token).is_err());
-    assert!(parse(&bytes, "Item Tool", &token.replace("item-", "upgrade-")).is_err());
+    assert!(parse(&bytes, "Item Other", &token, None).is_err());
+    assert!(parse(
+        &bytes,
+        "Item Tool",
+        &token.replace("item-", "upgrade-"),
+        None
+    )
+    .is_err());
     original.extend_from_slice(&original[original.len() - 12..].to_vec());
     let mut trailing = raw;
     trailing["artwork"]["pngBase64"] = json!(STANDARD.encode(original));
-    assert!(parse(&serde_json::to_vec(&trailing).unwrap(), "Item Tool", &token).is_err());
+    assert!(parse(
+        &serde_json::to_vec(&trailing).unwrap(),
+        "Item Tool",
+        &token,
+        None
+    )
+    .is_err());
 }
 #[test]
 fn validates_png_pixels_dimensions_revision_and_drops_untrusted_paths() {
@@ -171,7 +183,7 @@ fn validates_png_pixels_dimensions_revision_and_drops_untrusted_paths() {
     let raw = json!({"ok":true,"artwork":{"upgradeKey":"playerUpgradeHealth","sourceIdentity":"a".repeat(64),"width":1,"height":1,"pngBase64": STANDARD.encode(png())}});
     let bytes = serde_json::to_vec(&raw).unwrap();
     let result =
-        serde_json::to_value(parse(&bytes, "playerUpgradeHealth", &token).unwrap()).unwrap();
+        serde_json::to_value(parse(&bytes, "playerUpgradeHealth", &token, None).unwrap()).unwrap();
     assert!(result["dataUrl"]
         .as_str()
         .unwrap()
@@ -192,7 +204,8 @@ fn validates_png_pixels_dimensions_revision_and_drops_untrusted_paths() {
             parse(
                 &serde_json::to_vec(&changed).unwrap(),
                 "playerUpgradeHealth",
-                &token
+                &token,
+                None
             )
             .is_err(),
             "{field}"
@@ -205,7 +218,8 @@ fn validates_png_pixels_dimensions_revision_and_drops_untrusted_paths() {
     assert!(parse(
         &serde_json::to_vec(&with_trailer).unwrap(),
         "playerUpgradeHealth",
-        &token
+        &token,
+        None
     )
     .is_err());
     let mut corrupt = png();
@@ -215,14 +229,76 @@ fn validates_png_pixels_dimensions_revision_and_drops_untrusted_paths() {
     assert!(parse(
         &serde_json::to_vec(&changed).unwrap(),
         "playerUpgradeHealth",
-        &token
+        &token,
+        None
     )
     .is_err());
     assert!(parse(
         br#"{"ok":true,"artwork":null}"#,
         "playerUpgradeHealth",
-        &token
+        &token,
+        None
     )
     .unwrap()
     .is_none());
+}
+
+#[test]
+fn map_tokens_bind_to_catalog_revision_and_ignore_save_lifecycle() {
+    let revision = "a".repeat(64);
+    let raw = json!({"ok":true,"available":true,"catalogPath":"E:/private/level0","maps":[
+        {"internalName":"Arctic","displayName":"Preview","knownLabel":true,"artworkRevision":revision},
+        {"internalName":"Other","displayName":"Preview","knownLabel":false,"iconToken":"forged"}
+    ]});
+    let mut projection =
+        crate::projections::maps::parse(&serde_json::to_vec(&raw).unwrap()).unwrap();
+    let mut registry = Registry::default();
+    registry.register_maps(&mut projection);
+    let serialized = serde_json::to_value(projection).unwrap();
+    let token = serialized["maps"][0]["iconToken"].as_str().unwrap();
+    assert!(serialized["maps"][1]["iconToken"].is_null());
+    assert!(serialized["catalogPath"].is_null());
+    assert!(Scope::Map.accepts(token));
+    assert!(!Scope::Item.accepts(token));
+    assert!(registry.begin(&token.replace("map-", "item-")).is_err());
+    let (save, identity, family, work) = registry.begin(token).unwrap();
+    assert!(save.is_none());
+    assert_eq!(identity, revision);
+    assert_eq!(family, "Arctic");
+    registry.open("save");
+    registry.clear();
+    assert!(!work.load(Ordering::SeqCst));
+    let image = json!({"ok":true,"artwork":{"mapFamily":family,"sourceIdentity":identity,
+        "width":1,"height":1,"pngBase64":STANDARD.encode(png())}});
+    let bytes = serde_json::to_vec(&image).unwrap();
+    assert!(parse(&bytes, &family, token, Some(&revision))
+        .unwrap()
+        .is_some());
+    assert!(parse(&bytes, "Other", token, Some(&revision)).is_err());
+    assert!(parse(&bytes, &family, token, Some(&"b".repeat(64))).is_err());
+    let mut corrupt = image;
+    corrupt["artwork"]["pngBase64"] = json!(STANDARD.encode(b"not PNG"));
+    assert!(parse(
+        &serde_json::to_vec(&corrupt).unwrap(),
+        &family,
+        token,
+        Some(&revision)
+    )
+    .is_err());
+    let mut missing = crate::projections::maps::parse(
+        br#"{"ok":true,"available":false,"catalogPath":null,"maps":[]}"#,
+    )
+    .unwrap();
+    registry.register_maps(&mut missing);
+    assert!(work.load(Ordering::SeqCst));
+    assert!(!registry.finish(token, &work));
+    assert!(registry.begin(token).is_err());
+    let mut reopened = crate::projections::maps::parse(&serde_json::to_vec(&raw).unwrap()).unwrap();
+    registry.register_maps(&mut reopened);
+    let projection = serde_json::to_value(reopened).unwrap();
+    let token = projection["maps"][0]["iconToken"].as_str().unwrap();
+    let (_, _, _, closing) = registry.begin(token).unwrap();
+    registry.clear_all();
+    assert!(closing.load(Ordering::SeqCst));
+    assert!(registry.begin(token).is_err());
 }

@@ -98,6 +98,7 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       if (!actual.ok || !expected.ok) throw new Error("Synthetic Maps could not be read");
       expect(actual.data).toEqual({
         ...expected.data,
+        catalogPath: null,
         maps: expected.data.maps.map((map) => ({ ...map, iconToken: null })),
       });
       return actual.data;
@@ -317,6 +318,10 @@ test("slow Maps retain cards while status runs independently and domain reads qu
   try {
     await openMaps(page);
     await expect(page.getByRole("heading", { name: "Modded Moon", exact: true })).toBeVisible();
+    // Visit Run before reserving its only read slot with the deliberate queued request.
+    await page.getByRole("tab", { name: "Run", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Currency", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Maps", exact: true }).click();
     await writeFile(marker, "");
     const requested = Date.now();
     await page.getByRole("button", { name: "Refresh", exact: true }).click();

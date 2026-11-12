@@ -110,12 +110,14 @@ recharge evidence. Search, filters, sorting, grouping and charge presentation re
 Electron's view; native refill/revert/pending/save controls are absent. Optional icon
 metadata is validated and discarded, so item and upgrade fallbacks need no native
 artwork URL. Missing item containers remain distinct from supported empty ones.
-Maps uses Python's unchanged `maps-list` discovery and the existing read-only cards,
-responsive grid, skeletons, retry and retained-data refresh. Rust validates catalog
-availability, up to 128 unique map identities, labels and optional artwork revisions.
-Every native map icon token is null; decoding, streaming and caching artwork remain
-unavailable. The injected hook retains Electron's default API and ignores superseded
-or unmounted results. Packaged checks compare Maps with Electron at all three Desktop
+Maps uses Python's `maps-list` discovery and the existing read-only cards, responsive
+grid, skeletons, retry and retained-data refresh. Rust validates catalog availability,
+up to 128 unique map identities, labels and optional artwork revisions. The native
+projection keeps source paths private and registers opaque preview tokens for eligible
+maps. Visible cards request one validated PNG at a time through the shared artwork
+lane. Python rechecks the installed sources against the token's revision before and
+after decode. Leaving the view cancels outstanding work, and a catalog refresh revokes
+old tokens. Packaged checks compare Maps with Electron at all three Desktop
 sizes, preserve fixture save/catalog bytes and exercise Maps deadlines, cancellation,
 domain queueing and independent status checks during a controlled slow read.
 Cosmetics is an independent top-level workspace and does not require a Run save.

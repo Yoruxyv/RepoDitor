@@ -24,6 +24,76 @@ function prepared(name: string): string {
   return path.resolve(DESKTOP_ROOT, artifact);
 }
 
+test("ordinary native Maps show scoped previews on demand and revoke old artwork", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("maps-artwork");
+  await mkdir(home, { recursive: true });
+  const fixture = await stageSyntheticBackend(
+    home,
+    prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const map = fixture.maps.maps[0];
+  const image = {
+    mapFamily: map.internalName,
+    sourceIdentity: map.artworkRevision,
+    width: 1,
+    height: 1,
+    pngBase64:
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+  };
+  const artwork = path.join(home, "map-artwork.json");
+  await writeFile(artwork, JSON.stringify({ ok: true, artwork: image }));
+  const marker = path.join(home, "map-started.txt");
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_STARTED_FILE: marker,
+    REPODITOR_TEST_DELAY_COMMAND: "map-artwork",
+  });
+  try {
+    const { page } = app;
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    await page.getByRole("tab", { name: "Maps", exact: true }).click();
+    const icon = page.getByTestId(`map-artwork-${map.internalName}`);
+    await expect(icon).toHaveAttribute("data-artwork-revision", image.sourceIdentity!);
+    await expect
+      .poll(() => icon.locator("img").evaluate((node) => (node as HTMLImageElement).naturalWidth))
+      .toBe(1);
+    await expect(page.getByTestId("map-artwork-Modded Moon")).toHaveAttribute(
+      "data-icon-source",
+      "fallback",
+    );
+    const catalog = await native<{
+      ok: boolean;
+      data: { catalogPath: null; maps: { iconToken: string }[] };
+    }>(page, "maps_list");
+    expect(catalog).toMatchObject({ ok: true, data: { catalogPath: null } });
+    const token = catalog.data.maps[0].iconToken;
+    expect(token).toMatch(/^map-artwork:[0-9a-f]{32}$/);
+    for (const [command, forged] of [
+      ["item_artwork_get", token],
+      ["map_artwork_get", token.replace("map-", "upgrade-")],
+      ["map_artwork_get", `map-artwork:${"0".repeat(32)}`],
+      ["map_artwork_get", "../../private.png"],
+    ]) {
+      expect(await native(page, command, { token: forged })).toMatchObject({ ok: false });
+    }
+    await writeFile(
+      artwork,
+      JSON.stringify({ ok: true, artwork: { ...image, sourceIdentity: "b".repeat(64) } }),
+    );
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(icon).toHaveAttribute("data-icon-source", "fallback");
+    expect(await native(page, "map_artwork_get", { token })).toMatchObject({ ok: false });
+    await expect(page.getByRole("heading", { name: map.displayName })).toBeVisible();
+    await expect(native(page, "test_items_refill", { request: {} })).rejects.toBeDefined();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary native upgrade artwork is scoped, validated, refreshed and read-only", async ({
   browserName,
 }, info) => {

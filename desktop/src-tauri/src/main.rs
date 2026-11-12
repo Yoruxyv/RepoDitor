@@ -159,6 +159,14 @@ async fn item_artwork_get(
     get_artwork(app, token, artwork::Scope::Item, Service::Items).await
 }
 
+#[tauri::command]
+async fn map_artwork_get(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+) -> Outcome<Option<artwork::Image>> {
+    get_artwork(app, token, artwork::Scope::Map, Service::Maps).await
+}
+
 async fn get_artwork(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
@@ -180,10 +188,11 @@ async fn get_artwork(
         Err(error) => return Outcome::for_service(Err(error), service),
     };
     let token_check = token.clone();
+    let revision = (scope == artwork::Scope::Map).then(|| fingerprint.clone());
     let response = backend::request(
         app,
         Operation::Artwork(scope, save, fingerprint, key.clone(), cancelled.clone()),
-        move |bytes| artwork::parse(bytes, &key, &token_check),
+        move |bytes| artwork::parse(bytes, &key, &token_check, revision.as_deref()),
     )
     .await;
     if state.artwork.lock().unwrap().finish(&token, &cancelled) {
@@ -223,13 +232,30 @@ fn item_artwork_cancel(app: tauri::AppHandle, token: String) {
 }
 
 #[tauri::command]
+fn map_artwork_cancel(app: tauri::AppHandle, token: String) {
+    if artwork::Scope::Map.accepts(&token) {
+        app.state::<Arc<HostState>>()
+            .artwork
+            .lock()
+            .unwrap()
+            .cancel(&token);
+    }
+}
+
+#[tauri::command]
 async fn cosmetics_get(app: tauri::AppHandle) -> Outcome<cosmetics::Cosmetics> {
     backend::request(app, Operation::Cosmetics, cosmetics::parse).await
 }
 
 #[tauri::command]
 async fn maps_list(app: tauri::AppHandle) -> Outcome<maps::InstalledMaps> {
-    backend::request(app, Operation::Maps, maps::parse).await
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    backend::request(app, Operation::Maps, move |bytes| {
+        let mut data = maps::parse(bytes)?;
+        state.artwork.lock().unwrap().register_maps(&mut data);
+        Ok(data)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -377,6 +403,8 @@ fn main() {
             upgrade_artwork_cancel,
             item_artwork_get,
             item_artwork_cancel,
+            map_artwork_get,
+            map_artwork_cancel,
             run_get,
             advanced_get,
             maps_list,
@@ -446,7 +474,7 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<Arc<HostState>>().inner().clone();
                 let already_closing = state.closing.swap(true, Ordering::SeqCst);
-                state.artwork.lock().unwrap().clear();
+                state.artwork.lock().unwrap().clear_all();
                 if !state.idle() {
                     api.prevent_close();
                     if !already_closing {

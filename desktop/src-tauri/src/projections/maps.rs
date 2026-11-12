@@ -25,6 +25,18 @@ struct InstalledMap {
     icon_token: Option<String>,
 }
 
+impl InstalledMaps {
+    pub fn artwork_rows(&mut self) -> impl Iterator<Item = (&str, &str, &mut Option<String>)> {
+        self.maps.iter_mut().filter_map(|map| {
+            Some((
+                map.internal_name.as_str(),
+                map.artwork_revision.as_str()?,
+                &mut map.icon_token,
+            ))
+        })
+    }
+}
+
 fn nonblank(value: &str) -> bool {
     // Match Electron's ECMAScript trim, including BOM but excluding NEXT LINE.
     !value
@@ -40,7 +52,7 @@ pub fn parse(bytes: &[u8]) -> Result<InstalledMaps, BackendError> {
     if raw.get("ok") != Some(&Value::Bool(true)) || raw.get("catalogPath").is_none() {
         return Err(BackendError::Invalid);
     }
-    let data: InstalledMaps = serde_json::from_value(raw).map_err(|_| BackendError::Invalid)?;
+    let mut data: InstalledMaps = serde_json::from_value(raw).map_err(|_| BackendError::Invalid)?;
     if data.maps.len() > 128
         || (data.available && !data.catalog_path.as_deref().is_some_and(nonblank))
         || (!data.available && (data.catalog_path.is_some() || !data.maps.is_empty()))
@@ -68,6 +80,7 @@ pub fn parse(bytes: &[u8]) -> Result<InstalledMaps, BackendError> {
             return Err(BackendError::Invalid);
         }
     }
+    data.catalog_path = None;
     Ok(data)
 }
 

@@ -47,7 +47,7 @@ fn main() {
         }
         "environment" | "saves-open" | "game-status" | "players-list" | "upgrades-list"
         | "run-get" | "advanced-get" | "maps-list" | "cosmetics-get" | "upgrade-artwork"
-        | "item-artwork" => {
+        | "item-artwork" | "map-artwork" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

@@ -16,7 +16,7 @@ from repo_save_editor.desktop_api.cosmetic_preparation import (
 )
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
-from repo_save_editor.desktop_api.discovery.maps import list_maps
+from repo_save_editor.desktop_api.discovery.maps import get_native_map_artwork, list_maps
 from repo_save_editor.desktop_api.game_assets import (
     prepare_game_assets,
     read_upgrade_keys_stdin,
@@ -285,6 +285,12 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("maps-list").set_defaults(handler=lambda _args: list_maps())
     commands.add_parser("maps-artwork").set_defaults(
         handler=lambda _args: {"ok": True, "artworks": decode_map_artwork()}
+    )
+    map_artwork = commands.add_parser("map-artwork")
+    map_artwork.add_argument("revision")
+    map_artwork.add_argument("family")
+    map_artwork.set_defaults(
+        handler=lambda args: get_native_map_artwork(args.revision, args.family)
     )
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
     commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
