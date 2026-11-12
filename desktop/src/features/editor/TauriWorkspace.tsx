@@ -1,5 +1,5 @@
 /** Native workspace with shared synthetic Health/Upgrades/Run recovery. */
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
@@ -51,6 +51,18 @@ export function TauriWorkspace({
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
+  const tabFocus = useRef<Section | null>(null);
+  useLayoutEffect(() => {
+    if (tabFocus.current !== section) return;
+    tabFocus.current = null;
+    const tab = document.getElementById(`native-${section}-tab`);
+    if (
+      tab &&
+      !tab.closest("[hidden], [inert]") &&
+      tab.checkVisibility?.({ visibilityProperty: true }) !== false
+    )
+      tab.focus();
+  }, [section]);
   const players = usePlayers(session.id, null, tauriReadApi.players.list);
   const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
   // Cold projections share the native worker with Save and its acknowledgement.
@@ -112,6 +124,11 @@ export function TauriWorkspace({
     tauriReadApi.players.avatar,
   );
   const avatarUrls = avatars.avatarUrls;
+  function selectTabWithFocus(next: Section) {
+    if (next === section) return;
+    tabFocus.current = next;
+    setSection(next);
+  }
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next: number;
     if (event.key === "ArrowRight") next = (index + 1) % SECTIONS.length;
@@ -120,8 +137,7 @@ export function TauriWorkspace({
     else if (event.key === "End") next = SECTIONS.length - 1;
     else return;
     event.preventDefault();
-    setSection(SECTIONS[next]!);
-    document.getElementById(`native-${SECTIONS[next]}-tab`)?.focus();
+    selectTabWithFocus(SECTIONS[next]!);
   }
   return (
     <section
@@ -177,15 +193,7 @@ export function TauriWorkspace({
             <OverviewView
               session={currentSession}
               availableDestinations={["players", "upgrades", "run", "items"]}
-              onNavigate={(destination) => {
-                if (
-                  destination === "players" ||
-                  destination === "upgrades" ||
-                  destination === "run" ||
-                  destination === "items"
-                )
-                  setSection(destination);
-              }}
+              onNavigate={selectTabWithFocus}
             />
           ) : null}
           {section === "players" ? (

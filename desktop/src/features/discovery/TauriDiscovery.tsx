@@ -1,5 +1,5 @@
 /** Existing discovery presentation running against the opt-in native adapter. */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AppShell } from "@/app/AppShell";
 import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -17,6 +17,22 @@ import { useGameSafety } from "@/features/safety/useGameSafety";
 import { DiscoveryHome } from "./components/DiscoveryHome";
 import { useEnvironmentDiscovery } from "./useEnvironmentDiscovery";
 
+type NavigationFocus =
+  | { kind: "workspace" }
+  | { kind: "discovery"; saveId: string; refreshRevision: number; headingFocused: boolean };
+
+function focusNavigationTarget(target: HTMLElement | null | undefined): boolean {
+  if (
+    !target?.isConnected ||
+    target.matches(":disabled") ||
+    target.closest("[hidden], [inert]") ||
+    target.checkVisibility?.({ visibilityProperty: true }) === false
+  )
+    return false;
+  target.focus();
+  return document.activeElement === target;
+}
+
 function DiscoveryPreview() {
   const [workspace, setWorkspace] = useState<"run-saves" | "cosmetics">("run-saves");
   const [healthEnabled, setHealthEnabled] = useState(false);
@@ -30,6 +46,7 @@ function DiscoveryPreview() {
   );
   const content = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
+  const navigationFocus = useRef<NavigationFocus | null>(null);
   useEffect(
     () => () => {
       generation.current += 1;
@@ -42,14 +59,56 @@ function DiscoveryPreview() {
     safetyRequired && (safety.status === "running" || safety.status === "unknown")
       ? safety.status
       : null;
+  const { isRefreshing, refreshRevision } = discovery;
+  const inSave = save.session !== null;
+  useLayoutEffect(() => {
+    const root = content.current;
+    const request = navigationFocus.current;
+    if (!root || !request) return;
+    if (workspace !== "run-saves") {
+      navigationFocus.current = null;
+      return;
+    }
+    if (opening || initialCheck || blocked !== null) return;
+    if (request.kind === "workspace") {
+      if (inSave && focusNavigationTarget(root.querySelector("#native-overview-tab")))
+        navigationFocus.current = null;
+      return;
+    }
+    if (inSave) return;
+    const heading = root.querySelector<HTMLElement>("#discovery-title");
+    // Wait for the refreshed list so a removed save cannot take focus with it.
+    if (isRefreshing || refreshRevision === request.refreshRevision) {
+      if (!request.headingFocused) request.headingFocused = focusNavigationTarget(heading);
+      return;
+    }
+    navigationFocus.current = null;
+    if (request.headingFocused && document.activeElement !== heading) return;
+    const button = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("button[data-save-id]"),
+    ).find((candidate) => candidate.dataset["saveId"] === request.saveId);
+    if (!focusNavigationTarget(button)) focusNavigationTarget(heading);
+  }, [workspace, opening, initialCheck, blocked, inSave, isRefreshing, refreshRevision]);
+
   async function open(saveId: string) {
     const request = generation.current;
     const result = await save.open(saveId);
-    if (request === generation.current && result !== null) save.enter(result);
+    if (request === generation.current && result !== null) {
+      navigationFocus.current = { kind: "workspace" };
+      save.enter(result);
+    }
   }
   function close() {
     generation.current += 1;
-    if (save.session !== null) void closeNativeArtwork(save.session.id);
+    if (save.session !== null) {
+      navigationFocus.current = {
+        kind: "discovery",
+        saveId: save.session.id,
+        refreshRevision,
+        headingFocused: false,
+      };
+      void closeNativeArtwork(save.session.id);
+    }
     save.close();
   }
   const { t } = usePreferences();

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -133,6 +133,88 @@ describe("read-only native discovery", () => {
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
     expect(tauriReadApi.environment.detect).toHaveBeenCalledTimes(2);
   });
+  it("focuses the Overview tab and every shortcut destination in keyboard order", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    (await screen.findByRole("button", { name: /Open workspace/ })).focus();
+    await user.keyboard("{Enter}");
+    const overview = await screen.findByRole("tab", { name: "Overview" });
+    expect(document.activeElement).toBe(overview);
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("tabpanel", { name: "Overview" }));
+
+    for (const section of ["Players", "Upgrades", "Run", "Items"]) {
+      const panel = screen.getByRole("tabpanel", { name: "Overview" });
+      within(panel)
+        .getByRole("button", { name: `Open ${section}` })
+        .focus();
+      await user.keyboard("{Enter}");
+      const tab = screen.getByRole("tab", { name: section, selected: true });
+      expect(document.activeElement).toBe(tab);
+      await user.tab();
+      expect(document.activeElement).toBe(screen.getByRole("tabpanel", { name: section }));
+      await user.tab({ shift: true });
+      await user.keyboard("{Home}");
+      expect(document.activeElement).toBe(overview);
+    }
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Maps", selected: true }));
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(overview);
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Maps", selected: true }));
+  });
+  it("restores the originating save by identity after discovery reorders the list", async () => {
+    const earlier = { ...environment.saves[0]!, id: "earlier", name: "Earlier save" };
+    const latest = environment.saves[0]!;
+    vi.mocked(tauriReadApi.environment.detect)
+      .mockResolvedValueOnce({ ok: true, data: { ...environment, saves: [latest, earlier] } })
+      .mockResolvedValueOnce({ ok: true, data: { ...environment, saves: [earlier, latest] } });
+    const opened = openResult(undefined, "unresolved");
+    if (!opened.ok) throw new Error("Expected a valid save fixture");
+    vi.mocked(tauriReadApi.saves.open).mockResolvedValue({
+      ...opened,
+      data: { ...opened.data, session: { ...opened.data.session, id: earlier.id } },
+    });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    const origin = await screen.findByRole("button", { name: /Earlier save/ });
+    origin.focus();
+    await user.keyboard("{Enter}");
+    (await screen.findByRole("button", { name: "Change save" })).focus();
+    await user.keyboard("{Enter}");
+    const restored = await screen.findByRole("button", { name: /Earlier save.*Open workspace/ });
+    expect(restored).not.toBe(origin);
+    expect(document.activeElement).toBe(restored);
+  });
+  it.each([false, true])(
+    "handles a removed save without stealing focus during refresh (user moved focus: %s)",
+    async (moveFocus) => {
+      type DiscoveryResult = Awaited<ReturnType<typeof tauriReadApi.environment.detect>>;
+      let finish!: (result: DiscoveryResult) => void;
+      const refreshed = new Promise<DiscoveryResult>((resolve) => {
+        finish = resolve;
+      });
+      vi.mocked(tauriReadApi.environment.detect)
+        .mockResolvedValueOnce({ ok: true, data: environment })
+        .mockReturnValueOnce(refreshed);
+      render(<TauriDiscovery />);
+      const user = userEvent.setup();
+      const origin = await screen.findByRole("button", { name: /Open workspace/ });
+      origin.focus();
+      await user.keyboard("{Enter}");
+      (await screen.findByRole("button", { name: "Change save" })).focus();
+      await user.keyboard("{Enter}");
+      const heading = document.getElementById("discovery-title");
+      expect(document.activeElement).toBe(heading);
+      const theme = screen.getByRole("button", { name: "Theme: System" });
+      if (moveFocus) theme.focus();
+      await act(() => finish({ ok: true, data: { ...environment, saves: [] } }));
+      expect(screen.queryByRole("button", { name: /Open workspace/ })).toBeNull();
+      expect(document.activeElement).toBe(moveFocus ? theme : heading);
+    },
+  );
   it("keeps Players selection across tabs with read-only details, fallback and keyboard navigation", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     render(<TauriDiscovery />);
@@ -287,12 +369,14 @@ describe("read-only native discovery", () => {
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.getByTestId("editor-content").hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Check Again" }));
     vi.mocked(tauriReadApi.game.status).mockResolvedValue({
       ok: true,
       data: { status: "not_running", running: false },
     });
     await user.click(screen.getByRole("button", { name: "Check Again" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Overview" }));
     vi.mocked(tauriReadApi.game.status).mockResolvedValue({
       ok: false,
       error: { code: "invalid_response", message: "private" },

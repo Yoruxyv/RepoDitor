@@ -75,6 +75,60 @@ async function exactBackup(source: string, before: Buffer) {
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
 
+test("ordinary packaged workspace preserves keyboard focus across navigation", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    await page.setViewportSize({ width: 960, height: 640 });
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    await open.focus();
+    await page.keyboard.press("Enter");
+    const overview = page.getByRole("tab", { name: "Overview", selected: true });
+    await expect(overview).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("tabpanel", { name: "Overview" })).toBeFocused();
+
+    for (const section of ["Players", "Upgrades", "Run", "Items"]) {
+      await page.getByRole("button", { name: `Open ${section}`, exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("tab", { name: section, selected: true })).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(page.getByRole("tabpanel", { name: section })).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Home");
+      await expect(overview).toBeFocused();
+    }
+    await page.keyboard.press("End");
+    await expect(page.getByRole("tab", { name: "Maps", selected: true })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(overview).toBeFocused();
+
+    const change = page.getByRole("button", { name: "Change save" });
+    await change.focus();
+    await page.keyboard.press("Enter");
+    await expect(open).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(overview).toBeFocused();
+    await rename(f.source, `${f.source}.hidden`);
+    try {
+      await change.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("heading", { name: "No valid saves yet" })).toBeVisible();
+      await expect(page.locator("#discovery-title")).toBeFocused();
+    } finally {
+      await rename(`${f.source}.hidden`, f.source);
+    }
+    expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary packaged avatars validate save membership and retain read-only fallback", async ({
   browserName,
 }, info) => {

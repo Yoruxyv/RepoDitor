@@ -127,6 +127,7 @@ try {
     if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
     $titles = @($native.suites.specs.title)
     foreach ($case in @(
+        'ordinary packaged workspace preserves keyboard focus across navigation',
         'ordinary native upgrade artwork is scoped, validated, refreshed and read-only',
         'ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads',
         'ordinary native Item artwork displays beyond the upgrade budget and stays read-only',

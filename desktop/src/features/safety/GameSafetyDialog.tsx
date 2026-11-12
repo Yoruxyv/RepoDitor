@@ -62,6 +62,14 @@ export function GameSafetyDialog({
       if (modal.open) modal.close();
       queueMicrotask(() => {
         if (modal.open) return;
+        const focused = document.activeElement;
+        if (
+          focused &&
+          focused !== document.body &&
+          !modal.contains(focused) &&
+          !focused.closest("[hidden], [inert]")
+        )
+          return;
         const returnTarget =
           previouslyFocused?.isConnected && !previouslyFocused.closest("[inert]")
             ? previouslyFocused

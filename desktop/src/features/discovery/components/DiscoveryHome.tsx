@@ -88,6 +88,7 @@ export function DiscoveryHome({
           <h1
             className="font-display mt-2 text-4xl font-semibold uppercase leading-none tracking-tight text-ink sm:text-[2.5rem]"
             id="discovery-title"
+            tabIndex={-1}
           >
             {getHeadline(data, t)}
           </h1>

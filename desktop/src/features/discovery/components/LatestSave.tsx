@@ -27,6 +27,7 @@ export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSavePr
       <div className="mt-3 overflow-hidden rounded-sm border border-line bg-surface">
         <button
           className="w-full border-l-2 border-accent p-5 text-left transition duration-150 hover:bg-raised active:translate-y-px disabled:cursor-wait disabled:opacity-70 sm:p-6"
+          data-save-id={save.id}
           disabled={isDisabled || onOpen === null}
           type="button"
           onClick={() => onOpen?.(save.id)}
