@@ -73,6 +73,46 @@ describe("native upgrade drafts", () => {
     }));
   });
 
+  it.each([true, false])(
+    "keeps Overview available and defers Players/Upgrades until initial safety resolves (synthetic: %s)",
+    async (enabled) => {
+      let resolve!: (state: Awaited<ReturnType<typeof tauriHealthApi.state>>) => void;
+      vi.mocked(tauriHealthApi.state).mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      );
+      const user = userEvent.setup();
+      renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+      expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
+      await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+      expect(tauriHealthApi.state).toHaveBeenCalledOnce();
+      expect(tauriReadApi.players.list).not.toHaveBeenCalled();
+      expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
+      await act(async () =>
+        resolve({
+          enabled,
+          state: enabled ? "idle" : "disabled",
+          pending: null,
+          canonical: enabled
+            ? { opened: openResult().data, players, upgrades, run: runState }
+            : null,
+          upgradeSession: enabled ? "synthetic-session" : null,
+        }),
+      );
+      await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledOnce());
+      if (enabled) {
+        expect(tauriReadApi.players.list).not.toHaveBeenCalled();
+        expect(await screen.findByRole("spinbutton", { name: "Strength for Alpha" })).toBeTruthy();
+      } else {
+        await waitFor(() => expect(tauriReadApi.players.list).toHaveBeenCalledOnce());
+        expect(screen.getByRole("tab", { name: "Upgrades" })).toBeTruthy();
+        expect(tauriHealthApi.writeUpgrades).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it("uses the native selected-player avatar and keeps image failure at initials", async () => {
     vi.mocked(tauriReadApi.players.avatar).mockImplementation(async (_save, playerId) => ({
       ok: true,

@@ -89,12 +89,11 @@ describe("independent synthetic MetaSave drafts", () => {
         intent: null,
       },
     };
-    backend.state
-      .mockResolvedValueOnce(pending)
-      .mockResolvedValue({ ...initial, admission: null, session: null });
+    backend.state.mockResolvedValueOnce(pending);
     backend.recover.mockResolvedValue({
+      operationId: id,
       status: "unchanged",
-      view: cosmetics,
+      fresh: { ...initial, admission: null, session: null },
       fingerprint: cosmetics.fingerprint,
     } satisfies Partial<MetaResult>);
     await act(() => result.current.reconcile());
@@ -109,6 +108,42 @@ describe("independent synthetic MetaSave drafts", () => {
     act(() => result.current.revert());
     expect(result.current.intent).toBeNull();
   });
+  it("acknowledges Save from a settled response and uses its new session on the next Save", async () => {
+    const initial = state();
+    const backend = api(initial);
+    const { result } = renderHook(() => useTauriCosmetics(true, 0, backend));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const fresh = { ...initial, session: "fresh-session" };
+    backend.write.mockImplementation(async ({ operationId }) => ({
+      operationId,
+      status: "applied",
+      view: initial.view,
+      fingerprint: cosmetics.fingerprint,
+    }));
+    backend.state.mockImplementationOnce(async (operationId) => ({
+      ...initial,
+      state: "pending",
+      session: null,
+      recoverySession: "recovery-only",
+      pending: { operationId, status: "applied" },
+    }));
+    backend.recover.mockImplementation(async (operationId) => ({
+      operationId,
+      status: "applied",
+      fresh,
+      fingerprint: cosmetics.fingerprint,
+    }));
+    act(() => result.current.stage("unlockAll"));
+    await act(() => result.current.save());
+    expect(result.current.saved).toBe(true);
+    expect(result.current.state.session).toBe("fresh-session");
+    expect(result.current.intent).toBeNull();
+    expect(backend.state).toHaveBeenCalledTimes(2);
+    act(() => result.current.stage("unlockAll"));
+    await act(() => result.current.save());
+    expect(backend.write.mock.calls[1]![0].session).toBe("fresh-session");
+  });
+
   it("fresh hosts rediscover pending evidence without a Run session; conflicts preserve it", async () => {
     const initial: MetaState = {
       ...state(),

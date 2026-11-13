@@ -108,9 +108,14 @@ def test_actions_preserve_exact_backup_unrelated_bytes_and_recover_without_repla
     assert state["state"] == "pending"
     assert tx.pending.read_bytes() == evidence
     written = path.read_bytes()
-    assert api.meta_recover(root, OP, state["pending"]["proof"])["status"] == "applied"
+    recovered = api.meta_recover(root, OP, state["pending"]["proof"])
+    assert recovered["status"] == "applied"
+    assert recovered["fingerprint"] == sha256(written).hexdigest()
     assert path.read_bytes() == written
     assert not tx.pending.exists()
+    fresh = api.meta_state(root)
+    for field in ("state", "namespace", "view", "admission", "pending"):
+        assert recovered[field] == fresh[field]
     state = api.meta_state(root, OP)
     assert api.meta_recover(root, OP, state["pending"]["proof"])["status"] == "applied"
     assert write(fixture, value, prepare=True)["reason"] == "write_duplicate"
@@ -170,9 +175,38 @@ def test_catalog_unavailable_recovery_does_not_grant_fresh_admission(fixture):
     assert state["view"]["capabilities"]["canUnlockAll"] is False
     assert state["view"]["capabilities"]["canClearPresets"] is False
     assert tx.pending.read_bytes() == pending
-    assert api.meta_recover(root, OP, state["pending"]["proof"])["status"] == "unchanged"
+    result = api.meta_recover(root, OP, state["pending"]["proof"])
+    assert result["status"] == "unchanged"
+    assert result["state"] == "idle"
+    assert result["pending"] is None
+    assert result["admission"] is None
+    assert result["view"]["capabilities"]["canClearPresets"] is False
+    assert not tx.pending.exists()
     assert path.read_bytes() == before
     assert write(fixture, value, prepare=True)["status"] == "rejected"
+
+
+def test_recovery_preserves_pending_evidence_if_canonical_view_has_another_identity(
+    fixture, monkeypatch
+):
+    root, path, before, _game = fixture
+    assert write(fixture, intent(fixture), prepare=True)["status"] == "prepared"
+    state = api.meta_state(root)
+    tx = storage.HealthTransaction(path, OP)
+    evidence = tx.pending.read_bytes()
+    original = api._canonical
+
+    def mismatched_view(root, directory):
+        result = original(root, directory)
+        result["view"]["fingerprint"] = "f" * 64
+        return result
+
+    monkeypatch.setattr(api, "_canonical", mismatched_view)
+    result = api.meta_recover(root, OP, state["pending"]["proof"])
+    assert result["status"] == "conflict"
+    assert "admission" not in result
+    assert tx.pending.read_bytes() == evidence
+    assert path.read_bytes() == before
 
 
 def test_changed_recovery_evidence_and_legacy_writes_fail_closed(fixture):

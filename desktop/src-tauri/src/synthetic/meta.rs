@@ -104,6 +104,8 @@ pub struct Result {
     backup_available: bool,
     #[serde(skip_deserializing)]
     view: Option<cosmetics::Cosmetics>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    fresh: Option<State>,
 }
 struct MutationGrant {
     token: String,
@@ -148,6 +150,7 @@ fn failure(id: &str, status: &str) -> Result {
         fingerprint: None,
         backup_available: false,
         view: None,
+        fresh: None,
     }
 }
 fn view(raw: &Value) -> std::result::Result<cosmetics::Cosmetics, BackendError> {
@@ -168,21 +171,7 @@ fn parse_state(bytes: &[u8]) -> std::result::Result<State, BackendError> {
     if !matches!(state, "idle" | "pending") {
         return Err(BackendError::Invalid);
     }
-    let mut result = disabled(state);
-    result.view = Some(view(&raw["view"])?);
-    let namespace = raw["namespace"]
-        .as_str()
-        .filter(|s| hex(s, 64))
-        .ok_or(BackendError::Invalid)?;
-    result.namespace = Some(namespace.into());
-    if !raw["admission"].is_null() {
-        let proof: Admission =
-            serde_json::from_value(raw["admission"].clone()).map_err(|_| BackendError::Invalid)?;
-        if !proof.valid() {
-            return Err(BackendError::Invalid);
-        }
-        result.admission = Some(proof);
-    }
+    let mut result = canonical_state(&raw, state, view(&raw["view"])?)?;
     if state == "pending" {
         let pending: Pending =
             serde_json::from_value(raw["pending"].clone()).map_err(|_| BackendError::Invalid)?;
@@ -202,8 +191,39 @@ fn parse_state(bytes: &[u8]) -> std::result::Result<State, BackendError> {
     }
     Ok(result)
 }
+fn canonical_state(
+    raw: &Value,
+    state: &str,
+    projection: cosmetics::Cosmetics,
+) -> std::result::Result<State, BackendError> {
+    let mut result = disabled(state);
+    result.view = Some(projection);
+    let namespace = raw["namespace"]
+        .as_str()
+        .filter(|s| hex(s, 64))
+        .ok_or(BackendError::Invalid)?;
+    result.namespace = Some(namespace.into());
+    if !raw["admission"].is_null() {
+        let proof: Admission =
+            serde_json::from_value(raw["admission"].clone()).map_err(|_| BackendError::Invalid)?;
+        if !proof.valid() {
+            return Err(BackendError::Invalid);
+        }
+        result.admission = Some(proof);
+    }
+    Ok(result)
+}
 fn parse_result(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
-    let raw = crate::error::json(bytes)?;
+    decode_result(crate::error::json(bytes)?, id, false)
+}
+fn parse_recovery(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
+    decode_result(crate::error::json(bytes)?, id, true)
+}
+fn decode_result(
+    raw: Value,
+    id: &str,
+    recovering: bool,
+) -> std::result::Result<Result, BackendError> {
     if raw["ok"] != true {
         return Err(BackendError::Invalid);
     }
@@ -252,9 +272,24 @@ fn parse_result(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendEr
     {
         return Err(BackendError::Invalid);
     }
+    if recovering && matches!(result.status.as_str(), "applied" | "unchanged") {
+        if raw["state"] != "idle" || raw.get("pending") != Some(&Value::Null) {
+            return Err(BackendError::Invalid);
+        }
+        let projection = result.view.take().ok_or(BackendError::Invalid)?;
+        result.fresh = Some(canonical_state(&raw, "idle", projection)?);
+    }
     Ok(result)
 }
 impl Session {
+    fn publish_recovery(&mut self, generation: u64, state: &mut State) {
+        if self.generation == generation {
+            self.issue(state);
+        } else {
+            state.admission = None;
+        }
+    }
+
     fn issue(&mut self, state: &mut State) {
         self.generation += 1;
         self.mutation = None;
@@ -275,10 +310,9 @@ impl Session {
             if let (Some(admission), Some(namespace), Some(projection)) =
                 (&state.admission, &state.namespace, &state.view)
             {
-                let raw = serde_json::to_value(projection).unwrap();
                 self.mutation = Some(MutationGrant {
                     token: token.clone(),
-                    fingerprint: raw["fingerprint"].as_str().unwrap().into(),
+                    fingerprint: projection.fingerprint().into(),
                     namespace: namespace.clone(),
                     admission: admission.digest.clone(),
                 });
@@ -423,18 +457,36 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
         return failure(&request.operation_id, "conflict");
     }
     let host = app.state::<Arc<HostState>>().inner().clone();
-    let grant = host.meta_session.lock().unwrap().recovery.take();
+    let (grant, generation) = {
+        let mut session = host.meta_session.lock().unwrap();
+        (session.recovery.take(), session.generation)
+    };
     let Some(grant) =
         grant.filter(|g| g.operation == request.operation_id && g.token == request.session)
     else {
         return failure(&request.operation_id, "conflict");
     };
-    dispatch(
-        app,
-        Operation::TestMetaRecover(request.operation_id.clone(), grant.proof),
-        &request.operation_id,
-    )
+    let operation = Operation::TestMetaRecover(request.operation_id.clone(), grant.proof);
+    let expected = request.operation_id.clone();
+    let Outcome::Success { mut data, .. } = backend::request(app, operation, move |bytes| {
+        parse_recovery(bytes, &expected)
+    })
     .await
+    else {
+        return failure(&request.operation_id, "conflict");
+    };
+    if let Some(fresh) = &mut data.fresh {
+        // A concurrent inspection may have already replaced this grant.
+        if admitted() {
+            host.meta_session
+                .lock()
+                .unwrap()
+                .publish_recovery(generation, fresh);
+        } else {
+            fresh.admission = None;
+        }
+    }
+    data
 }
 
 #[cfg(test)]

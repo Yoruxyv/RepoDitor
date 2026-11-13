@@ -59,6 +59,47 @@ fn recovery_only_authority_survives_missing_catalog_and_never_issues_a_mutator()
     assert_ne!(session.recovery.unwrap().token, old);
 }
 #[test]
+fn recovery_requires_settled_identity_and_only_issues_current_pinned_admission() {
+    let id = "d".repeat(32);
+    let mut raw = fixture();
+    raw["operationId"] = json!(id);
+    raw["status"] = json!("applied");
+    raw["fingerprint"] = raw["view"]["fingerprint"].clone();
+    raw["backupAvailable"] = json!(true);
+    let parse = |raw: &Value| parse_recovery(&serde_json::to_vec(raw).unwrap(), &id);
+    for (key, bad) in [
+        ("operationId", json!("e".repeat(32))),
+        ("fingerprint", json!("e".repeat(64))),
+        ("namespace", Value::Null),
+        ("state", json!("pending")),
+        ("pending", json!({"operationId": id})),
+    ] {
+        let mut unrelated = raw.clone();
+        unrelated[key] = bad;
+        assert!(parse(&unrelated).is_err());
+    }
+    raw["admission"]["build"] = json!("26407089");
+    assert!(parse(&raw).is_err());
+    raw["admission"] = fixture()["admission"].clone();
+    let mut session = Session::default();
+    let mut fresh = parse(&raw).unwrap().fresh.unwrap();
+    session.publish_recovery(0, &mut fresh);
+    assert!(fresh.session.is_some());
+    let token = session.mutation.as_ref().unwrap().token.clone();
+    let mut superseded = parse(&raw).unwrap().fresh.unwrap();
+    session.publish_recovery(0, &mut superseded);
+    assert!(superseded.session.is_none());
+    assert!(superseded.admission.is_none());
+    assert_eq!(session.mutation.as_ref().unwrap().token, token);
+    raw["admission"] = Value::Null;
+    let mut read_only = parse(&raw).unwrap().fresh.unwrap();
+    session.publish_recovery(1, &mut read_only);
+    assert!(read_only.session.is_none());
+    assert!(session.mutation.is_none());
+    assert!(session.recovery.is_none());
+}
+
+#[test]
 fn blocked_state_revokes_all_previous_authority() {
     let mut state = decode(fixture()).unwrap();
     let mut session = Session::default();

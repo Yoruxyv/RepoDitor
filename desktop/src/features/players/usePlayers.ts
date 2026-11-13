@@ -38,6 +38,7 @@ export function usePlayers(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerDto[]> | null = null,
   list: RepoDitorApi["players"]["list"] = listDesktopPlayers,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<PlayersState>(() => initialState(initialResult));
@@ -93,15 +94,16 @@ export function usePlayers(
 
   useEffect(() => {
     mounted.current = true;
-    const request =
-      initialResultRef.current === null
-        ? window.setTimeout(() => void loadPlayers(false))
-        : undefined;
     return () => {
       mounted.current = false;
-      if (request !== undefined) window.clearTimeout(request);
     };
-  }, [loadPlayers]);
+  }, []);
+  useEffect(() => {
+    if (!loadInitially || initialResultRef.current !== null || projectionVersion.current !== 0)
+      return;
+    const request = window.setTimeout(() => void loadPlayers(false));
+    return () => window.clearTimeout(request);
+  }, [loadPlayers, loadInitially]);
 
   function updateHealth(player: PlayerDto, health: number): void {
     if (!Number.isSafeInteger(health)) return;

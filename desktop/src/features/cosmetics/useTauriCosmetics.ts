@@ -155,7 +155,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     return pending;
   }, [api]);
   useEffect(() => {
-    if (!visit || intent) return;
+    if (!visit || visit === checkedVisit || intent) return;
     let cancelled = false;
     async function checkVisit() {
       // An earlier visit may still be inspecting MetaSave, but cannot authorize this visit.
@@ -168,7 +168,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     return () => {
       cancelled = true;
     };
-  }, [visit, intent, reload]);
+  }, [visit, checkedVisit, intent, reload]);
   const locked = loading || saving || recovering || state.state !== "idle";
   const lockAllBlockedReason =
     state.view?.cosmetics.find(
@@ -229,14 +229,17 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
       operation.current = pending.pending.operationId;
       const result = await api.recover(pending.pending.operationId, pending.recoverySession);
       if (!mounted.current) return;
-      if (!["applied", "unchanged"].includes(result.status) || !canonicalResult(result)) {
-        setState(pending);
-        setError(CONFLICT);
-        return;
-      }
-      const fresh = await api.state();
-      if (!mounted.current) return;
-      if (fresh.state !== "idle" || !fresh.view) {
+      const fresh = result.fresh;
+      const fingerprint = fresh?.view?.fingerprint;
+      if (
+        !["applied", "unchanged"].includes(result.status) ||
+        result.operationId !== pending.pending.operationId ||
+        fresh?.state !== "idle" ||
+        fresh.pending ||
+        fresh.recoverySession ||
+        !fingerprint ||
+        fingerprint !== result.fingerprint
+      ) {
         setState(pending);
         setError(CONFLICT);
         return;

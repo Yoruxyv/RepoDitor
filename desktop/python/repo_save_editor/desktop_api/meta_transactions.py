@@ -6,7 +6,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from repo_save_editor.core.crypto import encrypt_save_fields
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
@@ -72,7 +72,12 @@ def _changes(intent: dict[str, Any]) -> list[dict[str, object]]:
     return [{"feature": "cosmetics", "entity": entity, "field": field, "after": after}]
 
 
-def _canonical(root: Path, directory: SaveDirectory | None) -> dict[str, object]:
+class _Canonical(TypedDict):
+    view: dict[str, object]
+    admission: dict[str, str] | None
+
+
+def _canonical(root: Path, directory: SaveDirectory | None) -> _Canonical:
     _path, data, source, _repository = _load_meta_save(root, directory)
     try:
         proof, catalog = admit_cosmetics(root.parents[2])
@@ -194,12 +199,25 @@ def meta_recover(root: Path, operation: str, proof: str) -> dict[str, object]:
         with health_lock(path) as directory:
             tx = HealthTransaction(path, operation, directory=directory)
             result = tx.inspect()
-            if result["status"] not in {"applied", "unchanged"} or tx.proof() != proof:
+            fingerprint = result["fingerprint"]
+            if (
+                result["status"] not in {"applied", "unchanged"}
+                or not isinstance(fingerprint, str)
+                or tx.proof() != proof
+            ):
                 raise RecoveryError("write_conflict")
             canonical = _canonical(root, directory)
-            if tx.proof() != proof:
+            if canonical["view"]["fingerprint"] != fingerprint or tx.proof() != proof:
                 raise RecoveryError("write_conflict")
-            tx.recover()
-            return {"ok": True, **result, **canonical}
+            if tx.recover() != result or inspect_pending(path, directory) is not None:
+                raise RecoveryError("write_conflict")
+            return {
+                "ok": True,
+                **result,
+                **canonical,
+                "state": "idle",
+                "namespace": tx.namespace(),
+                "pending": None,
+            }
     except (OSError, ValueError, TypeError, GameSafetyError, DesktopSaveError) as exc:
         return _failure(operation, "conflict", _reason(exc))

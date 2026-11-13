@@ -31,6 +31,7 @@ export interface MetaResult {
   fingerprint: string | null;
   backupAvailable: boolean;
   reason: string | null;
+  fresh?: MetaState;
 }
 export interface MetaWrite {
   operationId: string;

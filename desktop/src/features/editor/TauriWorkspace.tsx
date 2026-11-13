@@ -63,8 +63,9 @@ export function TauriWorkspace({
     )
       tab.focus();
   }, [section]);
-  const players = usePlayers(session.id, null, tauriReadApi.players.list);
-  const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list);
+  const [initialHealthKnown, setInitialHealthKnown] = useState(false);
+  const players = usePlayers(session.id, null, tauriReadApi.players.list, initialHealthKnown);
+  const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list, initialHealthKnown);
   // Cold projections share the native worker with Save and its acknowledgement.
   const run = useRunState(session.id, null, tauriReadApi.run.get, section === "run");
   const items = useItems(session.id, null, tauriReadApi.advanced.get, section === "items");
@@ -75,6 +76,9 @@ export function TauriWorkspace({
     if (projection.advanced) items.acceptSnapshot(projection.advanced);
     onCanonical(projection.opened);
   });
+  useEffect(() => {
+    if (health.phase !== "checking") setInitialHealthKnown(true);
+  }, [health.phase]);
   const canLoadMaps = health.phase !== "saving" && health.phase !== "reconciling";
   const maps = useMaps(null, tauriReadApi.maps.list, canLoadMaps && section === "maps");
   const restoredSelection = useRef<string | null>(null);

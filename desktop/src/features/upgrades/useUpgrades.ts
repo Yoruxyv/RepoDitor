@@ -62,6 +62,7 @@ export function useUpgrades(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
   list: RepoDitorApi["upgrades"]["list"] = listDesktopUpgrades,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(() => {
@@ -112,13 +113,15 @@ export function useUpgrades(
 
   useEffect(() => {
     mounted.current = true;
-    const request =
-      initialResultRef.current === null ? window.setTimeout(() => void load(false)) : undefined;
     return () => {
       mounted.current = false;
-      if (request !== undefined) window.clearTimeout(request);
     };
-  }, [load]);
+  }, []);
+  useEffect(() => {
+    if (!loadInitially || initialResultRef.current !== null) return;
+    const request = window.setTimeout(() => void load(false));
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially]);
 
   function update(upgrade: PlayerUpgradeDto, player: PlayerDto, value: number): void {
     const before = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
