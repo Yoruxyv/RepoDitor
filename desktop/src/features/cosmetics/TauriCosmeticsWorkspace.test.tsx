@@ -99,7 +99,7 @@ describe("native Cosmetics composition", () => {
       expect(screen.getByText("Cosmetic #999")).toBeTruthy();
       expect(get).toHaveBeenCalledTimes(1);
       expect(artworkRequests).toEqual([firstToken]);
-      expect(screen.getByTestId(`${id}-loading`)).toBeTruthy();
+      expect(screen.getByTestId(`${id}-loading`).classList.contains("size-[48px]")).toBe(true);
       expect(screen.queryByTestId(id)).toBeNull();
       expect(screen.queryByText("Validated MetaSave")).toBeNull();
 
@@ -114,6 +114,7 @@ describe("native Cosmetics composition", () => {
       await waitFor(() =>
         expect(screen.getByTestId(id).getAttribute("data-artwork-revision")).toBe("b".repeat(64)),
       );
+      expect(screen.getByTestId(id).classList.contains("size-[48px]")).toBe(true);
       expect(get).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();

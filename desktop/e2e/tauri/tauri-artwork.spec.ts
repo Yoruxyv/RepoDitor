@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import {
   createMetaSaveFixture,
   createRunSaveFixture,
@@ -37,7 +37,11 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
   await mkdir(path.join(home, "AppData", "LocalLow", "semiwork", "Repo"), { recursive: true });
   const meta = createMetaSaveFixture(home);
   const original = await readFile(meta);
-  async function setSource(version: string) {
+  async function setSource(
+    version: string,
+    sourceVersion = version,
+    pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+  ) {
     const revision = version.repeat(64);
     await writeFile(
       path.join(home, "cosmetics-get.json"),
@@ -58,11 +62,10 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
         ok: true,
         artwork: {
           cosmeticId: 0,
-          sourceIdentity: revision,
+          sourceIdentity: sourceVersion.repeat(64),
           width: 1,
           height: 1,
-          pngBase64:
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+          pngBase64,
         },
       }),
     );
@@ -71,19 +74,31 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
   const app = await launch(fixture.executable, home, fixture.environment);
   try {
     const { page } = app;
+    await page.setViewportSize({ width: 960, height: 640 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     const artworkTokens: Array<string | null> = [];
     const catalog = await page.evaluateHandle(() => {
       const originalFetch = window.fetch.bind(window);
-      let release!: () => void;
-      const revisit = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      const observation = { reads: 0, release };
+      const release: Record<string, () => void> = {};
+      const hold = (stage: string) =>
+        new Promise<void>((resolve) => {
+          release[stage] = resolve;
+        });
+      const catalogs = [hold("initial"), hold("revisit")];
+      const artwork = hold("artwork");
+      const observation = { reads: 0, artworkStarted: false, release };
       // WebView2 handles custom IPC URLs outside Playwright request routing.
       window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-        if (url.hostname === "ipc.localhost" && url.pathname === "/cosmetics_get") {
-          if (++observation.reads === 2) await revisit;
+        if (url.hostname === "ipc.localhost") {
+          if (url.pathname === "/cosmetics_get") {
+            const wait = catalogs[observation.reads++];
+            if (wait) await wait;
+          }
+          if (url.pathname === "/cosmetic_artwork_get" && !observation.artworkStarted) {
+            observation.artworkStarted = true;
+            await artwork;
+          }
         }
         return originalFetch(input, init);
       };
@@ -99,13 +114,47 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     const open = page.getByRole("button", { name: "Cosmetics", exact: true });
     const search = page.getByRole("searchbox", { name: "Search cosmetics" });
     const icon = page.getByTestId("cosmetic-icon-0");
+    const card = page.getByRole("listitem", { name: /Installed Cosmetic 0,/ });
+    const placeholder = page.getByTestId("cosmetic-icon-0-loading");
+    async function measure(frame: Locator) {
+      const layout = await frame.evaluate((node) => {
+        const bounds = node.getBoundingClientRect();
+        const row = node.closest("li")!.getBoundingClientRect();
+        const label = node.parentElement!.querySelector("[title]")!.getBoundingClientRect();
+        return {
+          width: bounds.width,
+          height: bounds.height,
+          cardHeight: row.height,
+          labelX: label.x - row.x,
+          labelY: label.y - row.y,
+          labelWidth: label.width,
+        };
+      });
+      expect(layout).toMatchObject({ width: 48, height: 48 });
+      return layout;
+    }
     async function expectArtwork(version: string) {
-      await page.getByRole("listitem", { name: /Installed Cosmetic 0,/ }).scrollIntoViewIfNeeded();
+      await card.scrollIntoViewIfNeeded();
       await expect(icon).toHaveAttribute("data-artwork-revision", version.repeat(64));
+      await expect(icon).toHaveAttribute("aria-busy", "false");
+      await expect(icon.locator("img")).toHaveAttribute("alt", "");
     }
     await open.click();
+    const skeleton = page.getByTestId("cosmetics-skeleton");
+    await expect(skeleton).toHaveCSS("animation-name", "none");
+    const coldFrame = await page.getByTestId("cosmetic-thumbnail-skeleton").evaluate((node) => {
+      const { width, height } = node.getBoundingClientRect();
+      return { width, height };
+    });
+    expect(coldFrame).toEqual({ width: 48, height: 48 });
+    await catalog.evaluate(({ release }) => release.initial());
     await search.fill("Installed Cosmetic 0");
+    await card.scrollIntoViewIfNeeded();
+    await expect(placeholder).toBeVisible();
+    const loading = await measure(icon);
+    await catalog.evaluate(({ release }) => release.artwork());
     await expectArtwork("a");
+    expect(await measure(icon)).toEqual(loading);
     expect(await catalogReads()).toBe(1);
     expect(artworkTokens).toEqual([expect.stringMatching(/^cosmetic-artwork:[0-9a-f]{32}$/)]);
 
@@ -114,13 +163,15 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await open.click();
     await expect.poll(catalogReads).toBe(2);
     await expect(search).toHaveValue("Installed Cosmetic 0");
-    await page.getByRole("listitem", { name: /Installed Cosmetic 0,/ }).scrollIntoViewIfNeeded();
-    await expect(page.getByTestId("cosmetic-icon-0-loading")).toBeVisible();
+    await card.scrollIntoViewIfNeeded();
+    await expect(placeholder).toBeVisible();
+    expect(await measure(placeholder)).toEqual(loading);
     await expect(icon).toHaveCount(0);
     await expect(page.getByText("Validated MetaSave")).toHaveCount(0);
     expect(artworkTokens).toHaveLength(1);
-    await catalog.evaluate(({ release }) => release());
+    await catalog.evaluate(({ release }) => release.revisit());
     await expectArtwork("b");
+    expect(await measure(icon)).toEqual(loading);
     expect(await catalogReads()).toBe(2);
     expect(artworkTokens).toHaveLength(2);
     expect(artworkTokens[1]).not.toBe(artworkTokens[0]);
@@ -128,9 +179,40 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await setSource("c");
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expectArtwork("c");
+    expect(await measure(icon)).toEqual(loading);
     expect(await catalogReads()).toBe(3);
     expect(artworkTokens).toHaveLength(3);
     expect(new Set(artworkTokens).size).toBe(3);
+
+    for (const [version, source, pixels] of [
+      ["d", "c", undefined],
+      ["e", "e", "AAAA"],
+    ] as const) {
+      const nextRequest = artworkTokens.length + 1;
+      await setSource(version, source, pixels);
+      await page.getByRole("button", { name: "Refresh", exact: true }).click();
+      await card.scrollIntoViewIfNeeded();
+      await expect.poll(() => artworkTokens.length).toBe(nextRequest);
+      await expect(icon).toHaveAttribute("data-icon-source", "fallback");
+      await expect(icon.locator("img")).toHaveCount(0);
+      expect(await measure(icon)).toEqual(loading);
+    }
+    expect(await catalogReads()).toBe(5);
+    expect(new Set(artworkTokens).size).toBe(5);
+    await search.fill("999");
+    const missing = page.getByTestId("cosmetic-icon-999");
+    await expect(missing).toHaveAttribute("data-icon-source", "fallback");
+    for (const [width, height] of [
+      [1600, 900],
+      [1200, 800],
+      [960, 640],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await measure(missing);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    }
     await expect(page.getByTestId("workspace")).toHaveCount(0);
     await expect(native(page, "test_meta_write", { request: {} })).rejects.toBeDefined();
     expect(await readFile(meta)).toEqual(original);

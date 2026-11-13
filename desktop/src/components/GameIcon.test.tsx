@@ -77,6 +77,42 @@ describe("GameIcon", () => {
     expect(screen.getByTestId("remounted-icon").getAttribute("aria-busy")).toBe("false");
   });
 
+  it.each([
+    ["cosmetic", "size-[48px]"],
+    ["item", "size-14"],
+    ["map", "aspect-2/1"],
+  ] as const)("keeps the %s frame through loading, decoding and fallback", (variant, sizeClass) => {
+    const icon = (token: string | null) => (
+      <GameIcon
+        fallback={WrenchIcon}
+        fallbackSource="fallback"
+        testId="frame"
+        token={token}
+        variant={variant}
+      />
+    );
+    function expectFrame(source: string) {
+      const frame = screen.getByTestId("frame");
+      expect(frame.classList.contains(sizeClass)).toBe(true);
+      if (variant === "map") expect(frame.classList.contains("w-full")).toBe(true);
+      expect(frame.getAttribute("aria-hidden")).toBe("true");
+      expect(frame.dataset.iconSource).toBe(source);
+    }
+    const { rerender } = render(icon(`frame-${variant}`));
+    const image = screen.getByTestId("frame").querySelector("img")!;
+    expect(image.alt).toBe("");
+    expect(screen.getByTestId("frame-loading")).toBeTruthy();
+    expectFrame("local");
+    fireEvent.load(image);
+    expect(screen.queryByTestId("frame-loading")).toBeNull();
+    expectFrame("local");
+    fireEvent.error(image);
+    expect(screen.getByTestId("frame").querySelector("img")).toBeNull();
+    expectFrame("fallback");
+    rerender(icon(null));
+    expectFrame("fallback");
+  });
+
   it("keeps upgrade thumbnail and fallback geometry aligned", () => {
     const { rerender } = render(
       <GameIcon

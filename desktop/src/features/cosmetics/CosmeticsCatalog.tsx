@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 
 import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 
-import { GameIcon } from "@/components/GameIcon";
+import { COSMETIC_ICON_SIZE, GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
 import { Skeleton } from "@/components/Skeleton";
 import { usePreferences } from "@/app/preferences";
@@ -374,7 +374,7 @@ export function CosmeticsCatalog({
               <div className="flex min-w-0 items-start gap-3">
                 {showArtwork && pendingArtwork ? (
                   <Skeleton
-                    className="size-12 shrink-0 border border-line"
+                    className={`${COSMETIC_ICON_SIZE} shrink-0 border border-line`}
                     testId={`${iconId}-loading`}
                   />
                 ) : null}

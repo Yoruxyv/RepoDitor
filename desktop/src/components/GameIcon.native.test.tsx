@@ -6,7 +6,7 @@ import { GameIcon } from "./GameIcon";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const token = (n: string) => `upgrade-artwork:${n.repeat(32)}`;
-function icon(value: string, variant: "upgrade" | "item" = "upgrade") {
+function icon(value: string, variant: "upgrade" | "item" | "cosmetic" = "upgrade") {
   return (
     <GameIcon
       fallback={WrenchIcon}
@@ -72,7 +72,8 @@ describe("native GameIcon", () => {
     expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
     expect(invoke).not.toHaveBeenCalled();
   });
-  it("requests Item artwork on intersection and cancels when the card leaves view", async () => {
+  it.each(["item", "cosmetic"] as const)("cancels offscreen %s artwork", async (variant) => {
+    const sizeClass = variant === "item" ? "size-14" : "size-[48px]";
     let observe!: IntersectionObserverCallback;
     const disconnect = vi.fn();
     vi.stubGlobal(
@@ -85,28 +86,29 @@ describe("native GameIcon", () => {
         disconnect = disconnect;
       },
     );
-    const value = "item-artwork:" + "d".repeat(32);
+    const value = `${variant}-artwork:${"d".repeat(32)}`;
     let finish!: (result: unknown) => void;
     vi.mocked(invoke)
       .mockReset()
       .mockImplementation((command) =>
-        command === "item_artwork_cancel"
+        command === `${variant}_artwork_cancel`
           ? Promise.resolve()
           : new Promise((resolve) => {
               finish = resolve;
             }),
       );
     try {
-      const { unmount } = render(icon(value, "item"));
+      const { unmount } = render(icon(value, variant));
       expect(invoke).not.toHaveBeenCalled();
       const intersection = (isIntersecting: boolean) =>
         observe([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
       act(() => intersection(true));
-      expect(invoke).toHaveBeenCalledExactlyOnceWith("item_artwork_get", { token: value });
+      expect(invoke).toHaveBeenCalledExactlyOnceWith(`${variant}_artwork_get`, { token: value });
       act(() => intersection(false));
-      expect(invoke).toHaveBeenLastCalledWith("item_artwork_cancel", { token: value });
+      expect(invoke).toHaveBeenLastCalledWith(`${variant}_artwork_cancel`, { token: value });
       await act(async () => finish({ ok: true, data: null }));
       expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
+      expect(screen.getByTestId("native-icon").classList.contains(sizeClass)).toBe(true);
       act(() => intersection(true));
       await act(async () =>
         finish({
@@ -117,6 +119,8 @@ describe("native GameIcon", () => {
       expect(screen.getByTestId("native-icon").querySelector("img")).toBeTruthy();
       act(() => intersection(false));
       expect(screen.getByTestId("native-icon").querySelector("img")).toBeNull();
+      expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
+      expect(screen.getByTestId("native-icon").classList.contains(sizeClass)).toBe(true);
       unmount();
       expect(disconnect).toHaveBeenCalled();
       render(icon(value));

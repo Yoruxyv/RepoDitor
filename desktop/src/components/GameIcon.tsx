@@ -21,10 +21,11 @@ interface GameIconProps {
 }
 
 const loadedIconTokens = new Set<string>();
+export const COSMETIC_ICON_SIZE = "size-[48px]";
 
 function variantSize(variant: GameIconProps["variant"]): string {
   if (variant === "map") return "aspect-2/1 w-full";
-  if (variant === "cosmetic") return "size-12";
+  if (variant === "cosmetic") return COSMETIC_ICON_SIZE;
   return variant === "upgrade" ? "size-20" : "size-14";
 }
 
@@ -42,7 +43,7 @@ export function GameIcon({
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,
   );
-  const fallbackVariant = variant === "cosmetic" ? "item" : variant;
+  const frameClassName = variantSize(variant);
   const failed = token !== null && failedToken === token;
   const loaded =
     token !== null &&
@@ -52,10 +53,11 @@ export function GameIcon({
   if (token === null || failed || unavailable) {
     return (
       <FeatureIcon
+        frameClassName={frameClassName}
         icon={fallback}
+        iconSize={variant === "upgrade" ? 46 : 34}
         source={fallbackSource}
         testId={testId}
-        variant={fallbackVariant}
       />
     );
   }
@@ -65,7 +67,7 @@ export function GameIcon({
       ref={element}
       aria-hidden="true"
       aria-busy={!loaded}
-      className={`${variantSize(variant)} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border ${
+      className={`${frameClassName} relative grid shrink-0 place-items-center overflow-hidden rounded-sm border ${
         loaded || variant === "upgrade" ? "border-transparent bg-transparent" : "border-line bg-app"
       }`}
       data-icon-source="local"

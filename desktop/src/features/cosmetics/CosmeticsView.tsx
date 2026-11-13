@@ -3,6 +3,7 @@ import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@pho
 
 import type { CosmeticsViewDto } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { COSMETIC_ICON_SIZE } from "@/components/GameIcon";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
@@ -37,7 +38,7 @@ function CosmeticCardSkeleton({ first }: { readonly first: boolean }) {
     >
       <div className="flex min-w-0 items-start gap-3">
         <Skeleton
-          className="size-12 shrink-0"
+          className={`${COSMETIC_ICON_SIZE} shrink-0`}
           testId={first ? "cosmetic-thumbnail-skeleton" : undefined}
         />
         <div className="min-w-0 flex-1 space-y-2">
