@@ -27,6 +27,20 @@ function withArtwork(token: string, fingerprint: string) {
   };
 }
 
+class VisibleArtworkObserver {
+  readonly callback: IntersectionObserverCallback;
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+  }
+  observe() {
+    this.callback(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+  disconnect() {}
+}
+
 describe("native Cosmetics composition", () => {
   beforeEach(() => {
     window.repoditor = createRepoDitorApi(vi.fn());
@@ -68,22 +82,7 @@ describe("native Cosmetics composition", () => {
         },
       };
     });
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        readonly callback: IntersectionObserverCallback;
-        constructor(callback: IntersectionObserverCallback) {
-          this.callback = callback;
-        }
-        observe() {
-          this.callback(
-            [{ isIntersecting: true } as IntersectionObserverEntry],
-            this as unknown as IntersectionObserver,
-          );
-        }
-        disconnect() {}
-      },
-    );
+    vi.stubGlobal("IntersectionObserver", VisibleArtworkObserver);
     try {
       const { rerender } = renderWithPreferences(
         <TauriCosmeticsWorkspace active recoveryGeneration={0} />,
@@ -149,6 +148,7 @@ describe("native Cosmetics composition", () => {
     renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
     expect(await screen.findByRole("searchbox", { name: "Search cosmetics" })).toBeTruthy();
     expect(screen.getByText("Cosmetic #999")).toBeTruthy();
+    expect(screen.getByTestId("cosmetic-artwork-status").textContent).toMatch(/built-in icons/);
     expect(screen.getByTestId("cosmetic-icon-999").getAttribute("data-icon-source")).toBe(
       "fallback",
     );
@@ -163,5 +163,35 @@ describe("native Cosmetics composition", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(tauriReadApi.cosmetics.get).toHaveBeenCalledTimes(2));
     expect(window.repoditor.cosmetics.write).not.toHaveBeenCalled();
+  });
+  it("separates catalog validation from the active artwork request", async () => {
+    const read = deferred<DesktopOperationResult<CosmeticsViewDto>>();
+    const image = deferred<unknown>();
+    const token = `cosmetic-artwork:${"f".repeat(32)}`;
+    vi.mocked(tauriReadApi.cosmetics.get).mockReturnValueOnce(read.promise);
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "test_meta_state") return disabledMeta();
+      if (command === "cosmetic_artwork_get") return image.promise;
+    });
+    vi.stubGlobal("IntersectionObserver", VisibleArtworkObserver);
+    try {
+      renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+      expect(
+        screen.getByText("Validating MetaSave and the installed cosmetic catalog…"),
+      ).toBeTruthy();
+      expect(screen.queryByTestId("cosmetic-artwork-status")).toBeNull();
+      await act(() => read.resolve({ ok: true, data: withArtwork(token, "f".repeat(64)) }));
+      expect(await screen.findByText("Loading images for visible cosmetics…")).toBeTruthy();
+      expect(screen.getByRole("searchbox").matches(":disabled")).toBe(false);
+      expect(
+        screen.queryByText("Validating MetaSave and the installed cosmetic catalog…"),
+      ).toBeNull();
+      await act(() => image.resolve({ ok: true, data: null }));
+      expect(screen.getByTestId("cosmetic-artwork-status").textContent).toMatch(/built-in icons/);
+      const icon = screen.getByTestId(`cosmetic-icon-${cosmetics.cosmetics[0]!.id}`);
+      expect(icon.dataset.iconSource).toBe("fallback");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

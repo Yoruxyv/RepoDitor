@@ -140,6 +140,9 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
       await expect(icon.locator("img")).toHaveAttribute("alt", "");
     }
     await open.click();
+    await expect(
+      page.getByText("Validating MetaSave and the installed cosmetic catalog…"),
+    ).toBeVisible();
     const skeleton = page.getByTestId("cosmetics-skeleton");
     await expect(skeleton).toHaveCSS("animation-name", "none");
     const coldFrame = await page.getByTestId("cosmetic-thumbnail-skeleton").evaluate((node) => {
@@ -151,9 +154,14 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await search.fill("Installed Cosmetic 0");
     await card.scrollIntoViewIfNeeded();
     await expect(placeholder).toBeVisible();
+    await expect(page.getByTestId("cosmetic-artwork-status")).toHaveText(
+      "Loading images for visible cosmetics…",
+    );
+    await expect(search).toBeEnabled();
     const loading = await measure(icon);
     await catalog.evaluate(({ release }) => release.artwork());
     await expectArtwork("a");
+    await expect(page.getByTestId("cosmetic-artwork-status")).toContainText("built-in icons");
     expect(await measure(icon)).toEqual(loading);
     expect(await catalogReads()).toBe(1);
     expect(artworkTokens).toEqual([expect.stringMatching(/^cosmetic-artwork:[0-9a-f]{32}$/)]);
@@ -162,6 +170,7 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await setSource("b");
     await open.click();
     await expect.poll(catalogReads).toBe(2);
+    await expect(page.getByText("Revalidating the catalog and its artwork sources…")).toBeVisible();
     await expect(search).toHaveValue("Installed Cosmetic 0");
     await card.scrollIntoViewIfNeeded();
     await expect(placeholder).toBeVisible();

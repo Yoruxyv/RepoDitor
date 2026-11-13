@@ -13,6 +13,31 @@ use std::sync::{atomic::Ordering, Arc};
 use synthetic::recovery;
 use tauri::Manager;
 
+const PROJECT_SOURCE_URL: &str = "https://github.com/Yoruxyv/RepoDitor";
+
+fn handle_project_window(url: &tauri::Url, open: impl FnOnce()) {
+    if url.as_str() == PROJECT_SOURCE_URL {
+        open();
+    }
+}
+
+fn open_project_source() {
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+
+    let url: Vec<_> = PROJECT_SOURCE_URL.encode_utf16().chain(Some(0)).collect();
+    // WebView2 dispatches this handler on its COM-initialized UI thread.
+    unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            windows_sys::w!("open"),
+            url.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        );
+    }
+}
+
 #[cfg(all(windows, feature = "native-ui-test"))]
 fn ui_test_args(template: &str, e2e: &str, port: &str) -> Result<String, &'static str> {
     if e2e != "1"
@@ -512,7 +537,10 @@ fn main() {
                 .min_inner_size(960.0, 640.0)
                 .data_directory(profile)
                 .on_navigation(allowed_navigation)
-                .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
+                .on_new_window(|url, _| {
+                    handle_project_window(&url, open_project_source);
+                    tauri::webview::NewWindowResponse::Deny
+                })
                 .build()?;
             Ok(())
         })

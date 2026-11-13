@@ -7,8 +7,6 @@ import { ThemeMenu } from "@/app/ThemeMenu";
 import { usePreferences } from "@/app/preferences";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import { closeNativeArtwork } from "@/app/tauriArtwork";
-import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
-import { INITIAL_STATE as idleAssets } from "@/features/assets/useAssetPreparation";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
@@ -122,11 +120,18 @@ function DiscoveryPreview() {
   );
   if (opening) {
     view = (
-      <AssetPreparationView
-        mode="save"
-        saveDetail={t("entry.detail.readingSave")}
-        state={idleAssets}
-      />
+      <section
+        aria-labelledby="native-opening-title"
+        className="rounded-sm border border-line bg-surface p-6"
+        data-testid="native-save-opening"
+      >
+        <h1 className="text-2xl font-semibold text-ink" id="native-opening-title">
+          {t("saves.openingSave")}
+        </h1>
+        <output className="mt-2 block text-sm text-secondary">
+          {t("entry.detail.readingSave")}
+        </output>
+      </section>
     );
   } else if (save.session !== null) {
     view = (

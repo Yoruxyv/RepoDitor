@@ -1,6 +1,6 @@
 /** One cancellable native decoder lane; completed pixels are never cached here. */
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import type { DesktopOperationResult } from "@electron/contracts";
 
 export interface NativeArtwork {
@@ -18,9 +18,21 @@ interface Request {
 const pending = new Map<string, Request>();
 const queue: Request[] = [];
 let active: Request | null = null;
+const activityListeners = new Set<() => void>();
 // A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
 const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16, cosmetic: 2_000 };
 type ArtworkScope = keyof typeof REQUEST_LIMITS;
+
+function subscribeActivity(listener: () => void): () => void {
+  activityListeners.add(listener);
+  return () => {
+    activityListeners.delete(listener);
+  };
+}
+
+export function useCosmeticArtworkActivity(): boolean {
+  return useSyncExternalStore(subscribeActivity, () => active?.scope === "cosmetic");
+}
 
 export function closeNativeArtwork(saveId: string): Promise<void> {
   return invoke<void>("upgrade_artwork_cancel", { saveId }).catch(() => undefined);
@@ -107,6 +119,9 @@ function pump(): void {
   const request = queue.shift();
   if (!request) return;
   active = request;
+  if (request.scope === "cosmetic") {
+    for (const listener of activityListeners) listener();
+  }
   void invoke<DesktopOperationResult<NativeArtwork | null>>(`${request.scope}_artwork_get`, {
     token: request.token,
   })
@@ -124,6 +139,9 @@ function pump(): void {
       if (pending.get(request.token) === request) pending.delete(request.token);
       active = null;
       pump();
+      if (request.scope === "cosmetic") {
+        for (const listener of activityListeners) listener();
+      }
     });
 }
 export function acquireNativeArtwork(

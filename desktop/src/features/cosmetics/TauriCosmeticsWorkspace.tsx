@@ -1,13 +1,44 @@
 /** Global Cosmetics presentation with independently admitted synthetic MetaSave editing. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
-import { closeNativeCosmeticArtwork } from "@/app/tauriArtwork";
+import { closeNativeCosmeticArtwork, useCosmeticArtworkActivity } from "@/app/tauriArtwork";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { CosmeticsView } from "./CosmeticsView";
 import { useCosmeticsRead } from "./useCosmeticsRead";
 import { useTauriCosmetics } from "./useTauriCosmetics";
 import { TauriCosmeticsActions, TauriCosmeticsStatus } from "./TauriCosmeticsActions";
+
+function CosmeticArtworkStatus() {
+  const { t } = usePreferences();
+  const decoding = useCosmeticArtworkActivity();
+  return (
+    <p className="mb-4 text-sm text-secondary" data-testid="cosmetic-artwork-status">
+      {t(decoding ? "cosmetics.decodingVisible" : "cosmetics.visibleArtwork")}
+    </p>
+  );
+}
+
+function CosmeticsPreparationStatus({
+  validating,
+  hasCatalog,
+  hasRetainedView,
+}: {
+  readonly validating: boolean;
+  readonly hasCatalog: boolean;
+  readonly hasRetainedView: boolean;
+}) {
+  const { t } = usePreferences();
+  const message = hasRetainedView ? "cosmetics.revalidating" : "cosmetics.validating";
+  return (
+    <>
+      <output className={validating ? "mb-4 block text-sm text-secondary" : undefined}>
+        {validating ? t(message) : null}
+      </output>
+      {hasCatalog ? <CosmeticArtworkStatus /> : null}
+    </>
+  );
+}
 
 export function TauriCosmeticsWorkspace({
   active,
@@ -58,6 +89,11 @@ export function TauriCosmeticsWorkspace({
           ) : null}
         </div>
       </div>
+      <CosmeticsPreparationStatus
+        validating={active && loading && !meta.saving && !meta.recovery}
+        hasCatalog={active && !loading && !error && (view?.catalogAvailable ?? false)}
+        hasRetainedView={view !== null}
+      />
       {meta.enabled ? <TauriCosmeticsStatus meta={meta} /> : null}
       <fieldset
         disabled={meta.enabled && meta.locked}

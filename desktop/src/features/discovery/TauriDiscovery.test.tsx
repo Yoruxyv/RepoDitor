@@ -89,6 +89,31 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
   });
+  it("explains a pending save open and enters Overview without waiting for projections", async () => {
+    let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open).mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    vi.mocked(tauriReadApi.players.list).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(tauriReadApi.upgrades.list).mockReturnValue(new Promise(() => undefined));
+    render(<TauriDiscovery />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
+    const opening = screen.getByRole("region", { name: "Opening save" });
+    expect(within(opening).getByRole("status").textContent).toBe(
+      "Reading and validating save data…",
+    );
+    expect(within(opening).queryByRole("progressbar")).toBeNull();
+    expect(tauriReadApi.players.list).not.toHaveBeenCalled();
+    await act(() => complete(openResult(undefined, "unresolved")));
+    expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(screen.queryByTestId("native-save-opening")).toBeNull();
+    expect(tauriReadApi.run.get).not.toHaveBeenCalled();
+    expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
+    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+  });
   it("opens global read-only Cosmetics without opening a Run save", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({
       ok: true,

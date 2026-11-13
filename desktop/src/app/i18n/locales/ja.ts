@@ -27,6 +27,11 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "画像の進行状況を表示",
   "cosmetics.artwork.degraded":
     "一部の画像を準備できませんでした。編集操作は引き続き利用できます。",
+  "cosmetics.validating": "MetaSave とインストール済みのコスメティックカタログを検証しています…",
+  "cosmetics.revalidating": "カタログと画像の参照元を再検証しています…",
+  "cosmetics.decodingVisible": "表示中のコスメティック画像を読み込んでいます…",
+  "cosmetics.visibleArtwork":
+    "コスメティック画像は閲覧時に読み込まれます。利用できない画像には内蔵アイコンを表示します。",
   "app.cosmetics": "コスメティック",
   "utility.group": "アプリケーション設定",
   "utility.githubUnavailable": "GitHub スター数を取得できません",

@@ -28,6 +28,11 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "Tampilkan progres gambar",
   "cosmetics.artwork.degraded":
     "Sebagian gambar kosmetik gagal disiapkan. Pengeditan tetap tersedia.",
+  "cosmetics.validating": "Memvalidasi MetaSave dan katalog kosmetik terpasang…",
+  "cosmetics.revalidating": "Memvalidasi ulang katalog dan sumber gambarnya…",
+  "cosmetics.decodingVisible": "Memuat gambar kosmetik yang terlihat…",
+  "cosmetics.visibleArtwork":
+    "Gambar kosmetik dimuat saat Anda menelusuri katalog. Gambar yang tidak tersedia diganti ikon bawaan.",
   "app.cosmetics": "Kosmetik",
   "utility.group": "Utilitas aplikasi",
   "utility.githubUnavailable": "Jumlah bintang GitHub tidak tersedia",

@@ -27,6 +27,11 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "이미지 준비 진행률 보기",
   "cosmetics.artwork.degraded":
     "일부 이미지를 준비하지 못했습니다. 편집은 계속 사용할 수 있습니다.",
+  "cosmetics.validating": "MetaSave와 설치된 꾸미기 카탈로그를 검증하는 중…",
+  "cosmetics.revalidating": "카탈로그와 이미지 출처를 다시 검증하는 중…",
+  "cosmetics.decodingVisible": "화면에 보이는 꾸미기 이미지를 불러오는 중…",
+  "cosmetics.visibleArtwork":
+    "꾸미기 이미지는 탐색할 때 불러옵니다. 사용할 수 없는 이미지는 기본 아이콘으로 표시됩니다.",
   "app.cosmetics": "코스메틱",
   "utility.group": "애플리케이션 도구",
   "utility.githubUnavailable": "GitHub 스타 수를 불러올 수 없음",

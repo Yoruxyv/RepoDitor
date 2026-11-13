@@ -26,6 +26,11 @@ export const en = {
   "cosmetics.artwork.expand": "Show artwork progress",
   "cosmetics.artwork.degraded":
     "Some cosmetic artwork could not be prepared. Editing remains available.",
+  "cosmetics.validating": "Validating MetaSave and the installed cosmetic catalog…",
+  "cosmetics.revalidating": "Revalidating the catalog and its artwork sources…",
+  "cosmetics.decodingVisible": "Loading images for visible cosmetics…",
+  "cosmetics.visibleArtwork":
+    "Cosmetic images load as you browse. Unavailable images use built-in icons.",
   "app.cosmetics": "Cosmetics",
   "utility.group": "Application utilities",
   "utility.githubUnavailable": "GitHub star count unavailable",

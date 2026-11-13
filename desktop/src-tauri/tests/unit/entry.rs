@@ -1,5 +1,30 @@
 use super::allowed_navigation;
 
+#[test]
+fn only_the_exact_project_url_reaches_the_system_browser_handoff() {
+    let mut calls = 0;
+    for url in [
+        "https://github.com/Yoruxyv/RepoDitor/",
+        "https://github.com/Yoruxyv/RepoDitor?x=1",
+        "https://github.com/Yoruxyv/RepoDitor#readme",
+        "https://github.com/Yoruxyv/RepoDitor/issues",
+        "http://github.com/Yoruxyv/RepoDitor",
+        "https://github.com@example.com/Yoruxyv/RepoDitor",
+        "https://github.com.evil.example/Yoruxyv/RepoDitor",
+        "file:///RepoDitor",
+        "https://example.com/",
+    ] {
+        let url = url.parse().unwrap();
+        super::handle_project_window(&url, || calls += 1);
+        assert!(!allowed_navigation(&url));
+    }
+    assert_eq!(calls, 0);
+    let project = "https://github.com/Yoruxyv/RepoDitor".parse().unwrap();
+    super::handle_project_window(&project, || calls += 1);
+    assert_eq!(calls, 1);
+    assert!(!allowed_navigation(&project));
+}
+
 #[cfg(all(windows, feature = "native-ui-test"))]
 #[test]
 fn browser_arguments_require_explicit_test_admission_and_preserve_defaults() {

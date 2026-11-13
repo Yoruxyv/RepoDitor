@@ -166,12 +166,18 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
       const firstStatus = new Promise<void>((resolve) => {
         window.addEventListener("repoditor-test-release-status", () => resolve(), { once: true });
       });
-      // Delay the first status at the renderer IPC boundary while retaining the packaged bridge.
+      const saveOpen = new Promise<void>((resolve) => {
+        window.addEventListener("repoditor-test-release-save-open", () => resolve(), {
+          once: true,
+        });
+      });
+      // Hold responses at the renderer IPC boundary while retaining the packaged bridge.
       window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href);
         if (url.hostname === "ipc.localhost" && url.pathname === "/game_status") {
           await firstStatus;
         }
+        if (url.hostname === "ipc.localhost" && url.pathname === "/saves_open") await saveOpen;
         return originalFetch(input, init);
       };
     });
@@ -188,9 +194,28 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
     await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-status")));
     await expect(check).toHaveCount(0);
     await expect(content).not.toHaveAttribute("inert");
+    const opening = page.getByRole("region", { name: "Opening save" });
+    await expect(opening.getByRole("status")).toHaveText("Reading and validating save data…");
+    await expect(opening.getByRole("progressbar")).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-save-open")));
+    await expect(opening).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeFocused();
     await expect(page.getByRole("heading", { name: "Browse this save" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Edit this save" })).toHaveCount(0);
+    const previewUrl = page.url();
+    await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
+      "href",
+      "https://github.com/Yoruxyv/RepoDitor",
+    );
+    const unsafeUrl = "https://github.com/Yoruxyv/RepoDitor?unexpected=1";
+    expect(await page.evaluate((url) => window.open(url, "_blank") === null, unsafeUrl)).toBe(true);
+    await page.evaluate((url) => {
+      location.href = url;
+    }, unsafeUrl);
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    expect(page.url()).toBe(previewUrl);
+    expect(page.context().pages()).toEqual([page]);
 
     await page.getByRole("tab", { name: "Maps", exact: true }).click();
     const unavailable = page.getByText(/No validated R\.E\.P\.O\. installation was found/);
