@@ -96,6 +96,8 @@ try {
     foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions', 'test_health_batches', 'test_refill_transactions', 'test_meta_transactions')) {
         if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
+    $healthAdmission = $python.SelectNodes("//testcase[contains(@classname,'test_health_admission')]")
+    if ($healthAdmission.Count -lt 53) { throw 'Required single-player Health admission cases were not all collected.' }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--all-features')

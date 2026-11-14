@@ -516,21 +516,38 @@ without that evidence, manual recovery remains unsupported. Reparse ancestry,
 non-NTFS/remote storage, unknown owner state, conflicting backups and unreadable
 receipts remain stop conditions. No normal production UI restore command exists.
 
-For old Electron coexistence, the supported policy is a hard cutover, not mixed
-writers. Do not authorize a shared writable profile while older or unknown portable
-binaries retain access. An enforceable deployment would need a separately managed
-maintenance/profile security boundary plus application-control rules that exclude
-unapproved executables and sidecars. A same-user directory ACL alone does not
-distinguish old and new applications. Broad path/publisher allow rules must not
-silently allow older releases. Validate denial by actually attempting an old binary
-against synthetic data, including portable/renamed copies, and verify source bytes
-remain unchanged; also validate approved game/editor access and recovery. Windows
-[access control](https://learn.microsoft.com/windows/security/identity-protection/access-control/access-control)
-and [application-control rule behavior](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/applocker/understanding-applocker-rule-behavior)
-describe those separate boundaries. This deployment enforcement is not installed
-or validated by RepoDitor today; environments without it remain unsupported for
-production Tauri writes. Do not change system policy or production permissions as
-part of the synthetic drill.
+Production activation requires exclusive access to the writable profile during
+the maintenance operation. The per-slot Python lock serializes updated,
+cooperating Electron, Tauri and sidecar writers and their recovery. A pending
+receipt blocks another cooperating write after a worker exits. Windows namespace
+validation pins ordinary local NTFS ancestry and uses handle-relative
+operations. Source identity and encrypted fingerprint checks reject drift
+observed before replacement. These checks preserve the transaction's target and
+its backup.
+
+Old or standalone writers can ignore the coordination lock. The source
+comparison and protected replacement are separate operations. An external
+writer with effective access can change the target after the last comparison
+or overwrite a completed edit afterward. Closing known windows, prompting the
+operator, enumerating processes and rechecking fingerprints cannot guarantee
+exclusion. The final game-status check also leaves a game-launch race.
+
+Enterprise-wide application control is one possible enforcement mechanism. A
+separately secured profile or principal could meet the same requirement if it
+denies effective write access to unapproved writers and retains approved game,
+editor and recovery access. Same-user ACLs alone cannot separate binaries
+running with the same token. Windows share modes constrain access to particular
+open objects for the lifetime of their handles. Any app-level design relying on
+them would have to prove that the ordinary atomic replacement still succeeds,
+that external opens and renames cannot win across the boundary, and that the
+game or sync client cannot write from stale state. The current application has
+established none of those guarantees for noncooperating writers. Do not activate
+production writes on a shared writable profile while this gap remains. Validate
+any proposed boundary on disposable data with old, renamed and portable
+binaries and standalone sidecars, plus approved positive write and recovery
+controls. Do not change production system policy during that drill.
+See [Windows access control](https://learn.microsoft.com/windows/security/identity-protection/access-control/access-control)
+and [file handle sharing](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).
 
 Production release additionally requires domain-specific game-build approval,
 compatibility measurements for the provisional encrypted-save resource ceilings,

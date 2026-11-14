@@ -654,9 +654,22 @@ class HealthTransaction:
             records.append([path.name, digest])
         return sha256(json.dumps([self.namespace(), records], sort_keys=True).encode()).hexdigest()
 
+    def inspect_single_health(self) -> dict[str, object]:
+        """Read only the single-player Health intent attributed to this operation."""
+        pending = inspect_pending(self.path, self.directory)
+        receipt = pending if pending is not None else self._read(self.archive)
+        if (
+            receipt.operation != self.operation
+            or receipt.intent is None
+            or not valid_intent(receipt.intent)
+        ):
+            raise RecoveryError("write_conflict")
+        self._require_namespace(receipt)
+        return receipt.intent
+
     @bounded_save_operation
     def inspect(self) -> dict[str, object]:
-        """Classify attributed MetaSave evidence without adoption, settlement or cleanup."""
+        """Classify attributed evidence without adoption, settlement or cleanup."""
         self._preflight_resources()
         receipt = inspect_pending(self.path, self.directory)
         active = receipt is not None
