@@ -454,7 +454,9 @@ procedure below is validated against disposable synthetic saves; it is not
 permission to apply these steps to a player profile. Use the required Windows
 `npm run test:tauri-safety` gate to reproduce the Python and packaged Tauri drills.
 Its native fixtures live under `desktop/build/recovery-checkpoint/tauri-safety`.
-Use a fresh output name for repeated runs; preserve previous evidence.
+Use a fresh output name for repeated runs. For an acceptance run that needs the
+exact executable copies, use `-KeepExecutables` as described in the
+[Desktop safety gate instructions](../desktop/README.md#optional-native-discovery-preview).
 
 Before any future production authorization, an operator must have a tested offline
 maintenance window and exclusive access to the save profile. Close the game, all

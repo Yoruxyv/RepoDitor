@@ -20,7 +20,6 @@ export interface MetaState {
     fingerprint: string;
     status: "applied" | "unchanged";
     backupAvailable: boolean;
-    proof: string;
     intent: MetaIntent | null;
   } | null;
 }
@@ -32,6 +31,7 @@ export interface MetaResult {
   backupAvailable: boolean;
   reason: string | null;
   fresh?: MetaState;
+  recoverySession?: string;
 }
 export interface MetaWrite {
   operationId: string;

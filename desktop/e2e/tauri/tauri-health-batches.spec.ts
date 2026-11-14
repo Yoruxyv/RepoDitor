@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -9,6 +9,7 @@ import {
   E2E_SAVE_ID,
   getPythonExecutable,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
@@ -29,7 +30,7 @@ async function fixture(info: TestInfo, ordinary = false) {
   const source = await createRunSaveFixture(home);
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(
+  await stageTestExecutable(
     required(ordinary ? "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE" : "REPODITOR_SAFETY_UI_HOST"),
     executable,
   );
@@ -226,7 +227,7 @@ for (const phase of ["before_replace", "after_replace"]) {
         const secondHome = path.join(f.home, "second-host");
         await mkdir(secondHome);
         const secondExe = path.join(secondHome, "repoditor-preview.exe");
-        await copyFile(f.executable, secondExe);
+        await stageTestExecutable(f.executable, secondExe);
         await stageFrozenBackend(secondHome, required("REPODITOR_RECOVERY_BACKEND"));
         second = await launch(secondExe, secondHome, {
           REPODITOR_E2E_LOCAL_APP_DATA_LOW: path.join(f.home, "AppData/LocalLow"),

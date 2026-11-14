@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Locator } from "@playwright/test";
 import {
@@ -9,6 +9,7 @@ import {
   getPythonExecutable,
   E2E_SAVE_ID,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import {
@@ -522,7 +523,7 @@ test("ordinary frozen upgrade artwork rejects unreviewed sources without affecti
   const before = await readFile(save);
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"), executable);
+  await stageTestExecutable(prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"), executable);
   await stageFrozenBackend(home, prepared("REPODITOR_ARTIFACT_BACKEND"));
   const app = await launch(executable, home);
   try {

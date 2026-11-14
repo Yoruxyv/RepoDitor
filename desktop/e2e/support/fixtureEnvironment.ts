@@ -3,11 +3,12 @@
  * shared by source and packaged Electron E2E. Overrides redirect every game/app data
  * location into temporary test-owned directories.
  */
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 export const DESKTOP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const PYTHON_ROOT = path.join(DESKTOP_ROOT, "python");
@@ -38,6 +39,24 @@ export function getPythonExecutable(): string {
     throw new Error(`Python test environment is missing: ${executable}`);
   }
   return executable;
+}
+
+export async function stageTestExecutable(source: string, destination: string): Promise<void> {
+  if (!process.env.REPODITOR_NATIVE_RUN_ID) {
+    await copyFile(source, destination);
+    return;
+  }
+  await promisify(execFile)(
+    getPythonExecutable(),
+    [
+      "-B",
+      path.join(DESKTOP_ROOT, "scripts/tauri/native_artifacts.py"),
+      "copy",
+      source,
+      destination,
+    ],
+    { windowsHide: true },
+  );
 }
 
 function writeEncryptedJsonFixture(sourcePath: string, targetPath: string): void {

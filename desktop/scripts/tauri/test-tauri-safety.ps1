@@ -3,25 +3,39 @@ param(
     [string]$NormalBackend = '',
     [string]$FaultBackend = '',
     [switch]$CompareStartup,
-    [switch]$TestBrowserArgs
+    [switch]$TestBrowserArgs,
+    [switch]$KeepExecutables,
+    [ValidateRange(0, 1024)] [double]$WarnFreeGiB = 20,
+    [Parameter(DontShow)] [string]$CoordinatedRun = ''
 )
 $ErrorActionPreference = 'Stop'
 $desktop = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $repository = [IO.Path]::GetFullPath((Join-Path $desktop '..'))
-$output = [IO.Path]::GetFullPath((Join-Path $desktop $OutputDirectory))
-$build = Join-Path $desktop 'build'
 if (-not $IsWindows) { throw 'The Tauri safety gate requires Windows.' }
 if ($CompareStartup -and $TestBrowserArgs) { throw 'Select one startup test mode.' }
-if (-not $output.StartsWith("$build\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must be inside desktop/build.' }
-if (Test-Path -LiteralPath $output) { throw 'Use a fresh output directory; previous diagnostics are preserved.' }
-$nativeName = [IO.Path]::GetRelativePath($build, $output).Replace('\', '-')
-$nativeOutput = Join-Path $build "recovery-checkpoint/$nativeName"
-if (Test-Path -LiteralPath $nativeOutput) { throw 'Native output already exists; use a fresh output directory.' }
-New-Item -ItemType Directory -Path $output | Out-Null
+$python = Join-Path $repository '.venv/Scripts/python.exe'
+$retention = Join-Path $PSScriptRoot 'native_artifacts.py'
+if (-not $CoordinatedRun) {
+    $mode = if ($CompareStartup) { 'compare' } elseif ($TestBrowserArgs) { 'browser' } else { 'full' }
+    $arguments = @('run', (Join-Path $PSHOME 'pwsh.exe'), $OutputDirectory,
+        ([int]$KeepExecutables.IsPresent), $WarnFreeGiB.ToString([Globalization.CultureInfo]::InvariantCulture), $mode)
+    $PSNativeCommandArgumentPassing = 'Standard'
+    & $python -B $retention @arguments $NormalBackend $FaultBackend
+    exit $LASTEXITCODE
+}
+if ($CoordinatedRun -cne $env:REPODITOR_NATIVE_RUN_ID -or
+    -not $env:REPODITOR_NATIVE_RUN_OUTPUT -or -not $env:REPODITOR_NATIVE_RUN_FIXTURES) {
+    throw 'Native safety run coordinator is missing.'
+}
+$output = $env:REPODITOR_NATIVE_RUN_OUTPUT
+$nativeOutput = $env:REPODITOR_NATIVE_RUN_FIXTURES
 
 function Run-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
+}
+function Complete-Validation {
+    Run-Checked $python @('-B', $retention, 'seal')
 }
 function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions, [bool]$BrowserArgs = $false) {
     $env:TAURI_CONFIG = if ($TestPermissions) { Get-Content -LiteralPath 'src-tauri/recovery.test.conf.json' -Raw } else { $null }
@@ -38,8 +52,9 @@ function Build-Host([string]$Name, [string]$Features, [bool]$TestPermissions, [b
     Run-Checked 'cargo' $arguments
     $folder = Join-Path $output "hosts/$Name"
     New-Item -ItemType Directory -Path $folder | Out-Null
-    Copy-Item -LiteralPath 'src-tauri/target/release/repoditor-preview.exe' -Destination $folder
-    return (Join-Path $folder 'repoditor-preview.exe')
+    $executable = Join-Path $folder 'repoditor-preview.exe'
+    Run-Checked $python @('-B', $retention, 'copy', (Join-Path $desktop 'src-tauri/target/release/repoditor-preview.exe'), $executable)
+    return $executable
 }
 
 $previousConfig = $env:TAURI_CONFIG
@@ -52,6 +67,9 @@ try {
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:TAURI_CONFIG = $null
     $env:REPODITOR_NATIVE_BROWSER_ARGS = $null
+    Run-Checked $python @('-B', '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+        '--basetemp', (Join-Path $output 'retention-fixtures'), '--junitxml', (Join-Path $output 'retention-tests.xml'),
+        'scripts/tauri/test_native_artifacts.py')
     Run-Checked 'npx' @('--no-install', 'vitest', 'run', 'e2e/support/tauriStartup.test.ts', '--reporter=default', '--reporter=json', "--outputFile=$output/probe-transport.json")
     $probe = Get-Content -LiteralPath (Join-Path $output 'probe-transport.json') -Raw | ConvertFrom-Json
     if ($probe.numPassedTests -ne 14 -or $probe.numPendingTests -ne 0 -or $probe.numFailedTests -ne 0) { throw 'Required probe transport regressions did not all pass.' }
@@ -68,7 +86,8 @@ try {
     if ($TestBrowserArgs) {
         Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts', '--grep', 'startup ordinary')
         $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
-        if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 1) { throw 'The ordinary browser-arguments control did not pass.' }
+        if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 1 -or $startup.stats.unexpected -ne 0 -or $startup.stats.flaky -ne 0) { throw 'The ordinary browser-arguments control did not pass.' }
+        Complete-Validation
         return
     }
     if ($CompareStartup) {
@@ -80,23 +99,24 @@ try {
         if ($comparisons.Count -ne 6) { throw 'Controlled comparisons were not all collected.' }
         $comparisons | Select-Object mode, ready | ConvertTo-Json | Write-Host
         if (@($comparisons | Where-Object ready).Count -eq 0) { throw 'No controlled startup variant exposed a bridge. Full safety validation has not run.' }
+        Complete-Validation
         return
     }
     # Prove ordinary packaged startup before constructing or launching the synthetic matrix.
     Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-startup.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $startup = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
-    if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5) { throw 'Required startup controls did not all pass.' }
+    if ($startup.stats.skipped -ne 0 -or $startup.stats.expected -ne 5 -or $startup.stats.unexpected -ne 0 -or $startup.stats.flaky -ne 0) { throw 'Required startup controls did not all pass.' }
     $env:TAURI_CONFIG = $null
     Run-Checked 'uv' @('run', '--locked', '--no-sync', '--project', $repository, '--group', 'test', 'pytest', '-q', '-rs',
         '../desktop/python/tests/core', '../desktop/python/tests/storage', '../desktop/python/tests/desktop_api',
         '../desktop/python/tests/services/test_installed_build.py',
         '--basetemp', (Join-Path $output 'python-fixtures'), '-o', "cache_dir=$output/pytest-cache", '--junitxml', (Join-Path $output 'python.xml'))
-    [xml]$python = Get-Content -LiteralPath (Join-Path $output 'python.xml') -Raw
-    if ($python.SelectNodes('//testcase/skipped').Count -ne 0) { throw 'Mandatory Windows save-integrity tests were skipped.' }
+    [xml]$pythonReport = Get-Content -LiteralPath (Join-Path $output 'python.xml') -Raw
+    if ($pythonReport.SelectNodes('//testcase/skipped').Count -ne 0) { throw 'Mandatory Windows save-integrity tests were skipped.' }
     foreach ($suite in @('test_windows_save_directory', 'test_writer_coordination', 'test_health_recovery', 'test_save_writes', 'test_cosmetics', 'test_health_receipts', 'test_numeric_integrity', 'test_installed_build', 'test_health_ui', 'test_save_resources', 'test_resource_recovery', 'test_upgrade_transactions', 'test_run_transactions', 'test_health_batches', 'test_refill_transactions', 'test_meta_transactions')) {
-        if ($python.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
+        if ($pythonReport.SelectNodes("//testcase[contains(@classname,'$suite')]").Count -eq 0) { throw "Required suite was not collected: $suite" }
     }
-    $healthAdmission = $python.SelectNodes("//testcase[contains(@classname,'test_health_admission')]")
+    $healthAdmission = $pythonReport.SelectNodes("//testcase[contains(@classname,'test_health_admission')]")
     if ($healthAdmission.Count -lt 53) { throw 'Required single-player Health admission cases were not all collected.' }
     Run-Checked 'cargo' @('fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check')
     Run-Checked 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked')
@@ -126,7 +146,7 @@ try {
     Run-Checked 'npm' @('run', 'test:tauri-artifacts')
     Run-Checked 'npx' @('--no-install', 'playwright', 'test', 'e2e/tauri/tauri-recovery.spec.ts', 'e2e/tauri/tauri-safety.spec.ts', 'e2e/tauri/tauri-upgrade-drafts.spec.ts', 'e2e/tauri/tauri-run-editing.spec.ts', 'e2e/tauri/tauri-health-batches.spec.ts', 'e2e/tauri/tauri-items-refill.spec.ts', 'e2e/tauri/tauri-meta-cosmetics.spec.ts', 'e2e/tauri/tauri-artwork.spec.ts', '--config', 'playwright.tauri-safety.config.ts')
     $native = Get-Content -LiteralPath $env:REPODITOR_NATIVE_REPORT -Raw | ConvertFrom-Json
-    if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0) { throw 'Native safety cases were skipped or not collected.' }
+    if ($native.stats.skipped -ne 0 -or $native.stats.expected -eq 0 -or $native.stats.unexpected -ne 0 -or $native.stats.flaky -ne 0) { throw 'Native safety cases did not all pass.' }
     $titles = @($native.suites.specs.title)
     foreach ($case in @(
         'ordinary packaged workspace preserves keyboard focus across navigation',
@@ -200,6 +220,7 @@ try {
     )) {
         if ($case -notin $titles) { throw "Required native case was not collected: $case" }
     }
+    Complete-Validation
 } finally {
     $env:TAURI_CONFIG = $previousConfig
     $env:REPODITOR_NATIVE_BROWSER_ARGS = $previousBrowserArgs

@@ -104,6 +104,28 @@ function canonicalResult(result: MetaResult): boolean {
   return view.fingerprint === fingerprint;
 }
 
+function settledState(result: MetaResult, operationId: string): MetaState | undefined {
+  const fresh = result.fresh;
+  if (
+    (result.status === "applied" || result.status === "unchanged") &&
+    result.operationId === operationId &&
+    fresh?.state === "idle" &&
+    !fresh.pending &&
+    !fresh.recoverySession &&
+    fresh.view?.fingerprint &&
+    fresh.view.fingerprint === result.fingerprint
+  ) {
+    return fresh;
+  }
+  return undefined;
+}
+
+function retargetIntent(intent: MetaIntent | null, admission: MetaState["admission"]) {
+  return intent && admission
+    ? { metaCosmetics: { ...intent.metaCosmetics, admission: admission.digest } }
+    : intent;
+}
+
 export function useTauriCosmetics(active: boolean, recoveryGeneration: number, api = tauriMetaApi) {
   const visit = useMemo(
     () => (active ? { recoveryGeneration } : null),
@@ -213,47 +235,39 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     setSaved(false);
     setError(null);
   }
-  async function reconcile() {
+  async function reconcile(recoverySession?: string) {
     if (inFlight.current) return;
     inFlight.current = true;
     setSaving(true);
     setError(null);
     try {
-      const pending = await api.state(operation.current ?? undefined);
-      if (!mounted.current) return;
-      if (!pending.pending || !pending.recoverySession) {
-        setState(pending);
-        setError(CONFLICT);
-        return;
+      let inspected: MetaState | undefined;
+      if (!recoverySession || !operation.current) {
+        inspected = await api.state(operation.current ?? undefined);
+        if (!mounted.current) return;
+        if (!inspected.pending || !inspected.recoverySession) {
+          if (!operation.current) setState(inspected);
+          setError(CONFLICT);
+          return;
+        }
+        operation.current = inspected.pending.operationId;
+        recoverySession = inspected.recoverySession;
       }
-      operation.current = pending.pending.operationId;
-      const result = await api.recover(pending.pending.operationId, pending.recoverySession);
+      const id = operation.current;
+      const result = await api.recover(id, recoverySession);
       if (!mounted.current) return;
-      const fresh = result.fresh;
-      const fingerprint = fresh?.view?.fingerprint;
-      if (
-        !["applied", "unchanged"].includes(result.status) ||
-        result.operationId !== pending.pending.operationId ||
-        fresh?.state !== "idle" ||
-        fresh.pending ||
-        fresh.recoverySession ||
-        !fingerprint ||
-        fingerprint !== result.fingerprint
-      ) {
-        setState(pending);
+      const fresh = settledState(result, id);
+      if (!fresh) {
+        if (inspected) setState(inspected);
         setError(CONFLICT);
         return;
       }
       operation.current = null;
       setRecovering(false);
       setState(fresh);
-      const retained = intent ?? pending.pending.intent;
+      const retained = intent ?? inspected?.pending?.intent ?? null;
       const next = result.status === "unchanged" ? retained : null;
-      setIntent(
-        next && fresh.admission
-          ? { metaCosmetics: { ...next.metaCosmetics, admission: fresh.admission.digest } }
-          : next,
-      );
+      setIntent(retargetIntent(next, fresh.admission));
       setSaved(result.status === "applied");
     } finally {
       inFlight.current = false;
@@ -268,7 +282,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     const id = crypto.randomUUID().replaceAll("-", "");
     operation.current = id;
     setRecovering(true);
-    let delivered = false;
+    let delivered: MetaResult | undefined;
     try {
       const result = await api.write({
         operationId: id,
@@ -276,7 +290,9 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
         fingerprint: state.view.fingerprint,
         intent,
       });
-      delivered = result.status === "applied" && canonicalResult(result);
+      if (result.operationId === id && result.status === "applied" && canonicalResult(result)) {
+        delivered = result;
+      }
       if (mounted.current) {
         if (result.status === "rejected") {
           operation.current = null;
@@ -292,7 +308,8 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
       if (mounted.current) setSaving(false);
     }
     // A positive write still requires canonical reconciliation and explicit acknowledgement.
-    if (mounted.current && operation.current && delivered) await reconcile();
+    if (mounted.current && operation.current && delivered)
+      await reconcile(delivered.recoverySession);
   }
   function revert() {
     if (locked || inFlight.current) return;

@@ -184,7 +184,14 @@ def meta_write(
                 before_replace=before_replace,
             )
             result = tx.recover(own_completion=True)
-            return {"ok": True, **result, "view": _serialize(data, written, catalog)}
+            response = {"ok": True, **result, "view": _serialize(data, written, catalog)}
+            if result["status"] == "applied":
+                # The pending receipt stays in place for an independent recovery process.
+                response.update(
+                    recoveryProof=tx.proof(expected_fingerprint=sha256(written).hexdigest()),
+                    namespace=tx.namespace(),
+                )
+            return response
     except (OSError, ValueError, TypeError, GameSafetyError, DesktopSaveError) as exc:
         return _failure(
             operation, "uncertain" if tx is not None and tx.started else "rejected", _reason(exc)

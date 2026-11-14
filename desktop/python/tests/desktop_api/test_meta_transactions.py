@@ -1,6 +1,7 @@
 """Disposable MetaSave persistence and recovery use independent, pinned admission."""
 
 import json
+import os
 import runpy
 from copy import deepcopy
 from hashlib import sha256
@@ -78,16 +79,53 @@ def test_actual_fixture_anchor_and_admission_are_source_pinned(fixture, monkeypa
         admission.admit_cosmetics(root.parents[2])
 
 
+@pytest.mark.parametrize("changed", ["access_time", "file_id", "modification_time"])
+def test_fixture_admission_checks_source_identity_not_access_time(fixture, monkeypatch, changed):
+    root, _path, _before, game = fixture
+    low = root.parents[2]
+    source = game / "REPO_Data/sharedassets9.assets"
+    expected, _catalog = admission.admit_cosmetics(low)
+    stat = Path.stat
+
+    def queried(path, *, follow_symlinks=True):
+        info = stat(path, follow_symlinks=follow_symlinks)
+        if path != source:
+            return info
+        positional, named = info.__reduce__()[1]
+        fields = list(positional)
+        if changed == "access_time":
+            fields[7] += 1
+            named["st_atime_ns"] += 1_000_000_000
+            named["st_atime"] += 1
+        elif changed == "file_id":
+            fields[1] += 1
+        else:
+            named["st_mtime_ns"] += 1
+        return os.stat_result(fields, named)
+
+    monkeypatch.setattr(Path, "stat", queried)
+    if changed == "access_time":
+        assert admission.admit_cosmetics(low)[0] == expected
+    else:
+        with pytest.raises(ValueError, match="Synthetic cosmetic source changed"):
+            admission.admit_cosmetics(low)
+
+
 @pytest.mark.parametrize("action", ["unlockIds", "unlockAll", "lockAll", "clearPresets"])
 def test_actions_preserve_exact_backup_unrelated_bytes_and_recover_without_replay(fixture, action):
     root, path, before, _game = fixture
     value = intent(fixture, action)
-    assert write(fixture, value, prepare=True)["status"] == "prepared"
+    prepared = write(fixture, value, prepare=True)
+    assert prepared["status"] == "prepared"
+    assert "recoveryProof" not in prepared
     tx = storage.HealthTransaction(path, OP)
     receipt = json.loads(tx.pending.read_bytes())
     assert receipt["version"] == 8
     assert receipt["namespace"] is not None
-    assert write(fixture, value)["status"] == "applied"
+    applied = write(fixture, value)
+    assert applied["status"] == "applied"
+    archive = tx.archive.read_bytes()
+    assert json.loads(archive)["phase"] == "applied"
     assert tx.backup.read_bytes() == before
     plain = _decrypt_plaintext(path.read_bytes())
     assert (
@@ -106,13 +144,16 @@ def test_actions_preserve_exact_backup_unrelated_bytes_and_recover_without_repla
     evidence = tx.pending.read_bytes()
     state = api.meta_state(root)
     assert state["state"] == "pending"
+    assert applied["namespace"] == state["namespace"]
+    assert applied["recoveryProof"] == state["pending"]["proof"]
     assert tx.pending.read_bytes() == evidence
     written = path.read_bytes()
-    recovered = api.meta_recover(root, OP, state["pending"]["proof"])
+    recovered = api.meta_recover(root, OP, applied["recoveryProof"])
     assert recovered["status"] == "applied"
     assert recovered["fingerprint"] == sha256(written).hexdigest()
     assert path.read_bytes() == written
     assert not tx.pending.exists()
+    assert tx.archive.read_bytes() == archive
     fresh = api.meta_state(root)
     for field in ("state", "namespace", "view", "admission", "pending"):
         assert recovered[field] == fresh[field]
@@ -224,6 +265,24 @@ def test_changed_recovery_evidence_and_legacy_writes_fail_closed(fixture):
     assert tx.pending.read_bytes() == pending
     assert tx.backup.read_bytes() == b"damaged"
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("changed", ["source", "backup"])
+def test_successful_write_proof_cannot_acknowledge_changed_evidence(fixture, changed):
+    root, path, before, _game = fixture
+    value = intent(fixture)
+    assert write(fixture, value, prepare=True)["status"] == "prepared"
+    result = write(fixture, value)
+    assert result["status"] == "applied"
+    tx = storage.HealthTransaction(path, OP)
+    pending, archive = tx.pending.read_bytes(), tx.archive.read_bytes()
+    target = path if changed == "source" else tx.backup
+    target.write_bytes(_encrypt_plaintext(SOURCE + b" "))
+    assert api.meta_recover(root, OP, result["recoveryProof"])["status"] == "conflict"
+    assert tx.pending.read_bytes() == pending
+    assert tx.archive.read_bytes() == archive
+    if changed == "source":
+        assert tx.backup.read_bytes() == before
 
 
 @pytest.mark.parametrize("final", [Status.NOT_RUNNING, Status.RUNNING, Status.UNKNOWN, "failure"])

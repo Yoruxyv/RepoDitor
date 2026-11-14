@@ -289,6 +289,10 @@ jobs:
           name: windows-tauri-safety-diagnostics
           path: |
             desktop/build/tauri-safety/validation.log
+            desktop/build/tauri-safety/retention-tests.xml
+            desktop/build/tauri-safety/artifact-retention.json
+            desktop/build/tauri-safety/executable-manifest.jsonl
+            desktop/build/tauri-safety/validation-passed.json
             desktop/build/tauri-safety/probe-transport.json
             desktop/build/tauri-safety/python.xml
             desktop/build/tauri-safety/native.json

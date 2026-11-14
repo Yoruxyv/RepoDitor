@@ -2,7 +2,7 @@
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
-import { access, copyFile, mkdir, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, symlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -12,6 +12,7 @@ import {
   E2E_SAVE_ID,
   getPythonExecutable,
   isolatedApplicationEnvironment,
+  stageTestExecutable,
 } from "./fixtureEnvironment";
 import {
   cdpEndpoint,
@@ -55,8 +56,8 @@ export async function stageSyntheticBackend(
 ) {
   await mkdir(path.join(home, "backend"), { recursive: true });
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(path.resolve(DESKTOP_ROOT, host), executable);
-  await copyFile(
+  await stageTestExecutable(path.resolve(DESKTOP_ROOT, host), executable);
+  await stageTestExecutable(
     path.join(DESKTOP_ROOT, "src-tauri/target/test-fixtures/sidecar.exe"),
     path.join(home, "backend/repoditor-backend.exe"),
   );

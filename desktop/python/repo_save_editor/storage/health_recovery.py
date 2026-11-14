@@ -634,7 +634,7 @@ class HealthTransaction:
             if _present(path, directory=self.directory):
                 _hash(path, directory=self.directory)
 
-    def proof(self) -> str:
+    def proof(self, *, expected_fingerprint: str | None = None) -> str:
         """Bind inspection to owned evidence without counting receipts as save payloads."""
         paths = [self.path, self.pending, self.archive, self.backup, self.temporary]
         paths.extend(p for p, _pid, _started in self._receipt_temps())
@@ -652,6 +652,11 @@ class HealthTransaction:
             else:
                 digest = _hash(path, directory=self.directory)
             records.append([path.name, digest])
+        if (
+            expected_fingerprint is not None
+            and [self.path.name, expected_fingerprint] not in records
+        ):
+            raise RecoveryError("write_conflict")
         return sha256(json.dumps([self.namespace(), records], sort_keys=True).encode()).hexdigest()
 
     def inspect_single_health(self) -> dict[str, object]:

@@ -356,8 +356,13 @@ catalog scan after that status check. The existing post-check game-start race an
 old noncooperating-binary limitation remain; updated legacy Cosmetics writers
 reject pending MetaSave evidence under the shared target lock.
 
-Recovery-only tokens are separate from mutation tokens and bind inspected operation,
-namespace and evidence. Read-only inspection neither adopts nor settles receipts.
+Recovery-only tokens are separate from mutation tokens and bind the operation,
+namespace and evidence. After a verified write subprocess exits, the host can issue
+a one-use recovery token from its durable proof while the same session generation
+is current. The renderer uses that token to reconcile and acknowledges Save only
+after receiving canonical idle state. Explicit inspection renews recovery authority
+after a lost response, restart, or invalid token. Read-only inspection neither
+adopts nor settles receipts.
 Catalog loss cannot authorize a fresh write, but validated existing evidence may
 still be reconciled after canonical decoding and a second proof check under lock.
 Recovery never restores save bytes or replays intent. Ambiguous, live-owner or

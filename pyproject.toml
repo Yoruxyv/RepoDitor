@@ -125,6 +125,7 @@ ignore = ["E501"]
 "tools/capabilities/workflow.py" = ["T201"]
 "desktop/python/repo_save_editor/desktop_api/__main__.py" = ["T201"]
 "desktop/python/tests/**/*.py" = ["S101"]
+"desktop/scripts/tauri/test_native_artifacts.py" = ["S101"]
 "tools/capabilities/tests/**/*.py" = ["S101"]
 
 [tool.ruff.lint.mccabe]

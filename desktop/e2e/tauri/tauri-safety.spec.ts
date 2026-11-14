@@ -21,6 +21,7 @@ import {
   getPythonExecutable,
   isolatedApplicationEnvironment,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import {
@@ -53,7 +54,7 @@ async function fixture(info: TestInfo, host = "REPODITOR_RECOVERY_EXECUTABLE", p
   const source = await createRunSaveFixture(home);
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(required(host), executable);
+  await stageTestExecutable(required(host), executable);
   await stageFrozenBackend(
     home,
     required(production ? "REPODITOR_ARTIFACT_BACKEND" : "REPODITOR_RECOVERY_BACKEND"),
@@ -531,7 +532,7 @@ test("two native hosts serialize writers and reconcile cancellation", async ({
   const secondHome = path.join(f.home, "second-host");
   await mkdir(secondHome);
   const secondExecutable = path.join(secondHome, "repoditor-preview.exe");
-  await copyFile(f.executable, secondExecutable);
+  await stageTestExecutable(f.executable, secondExecutable);
   await stageFrozenBackend(secondHome, required("REPODITOR_RECOVERY_BACKEND"));
   const marker = path.join(f.home, "phase.json");
   const shared = {
@@ -743,8 +744,9 @@ test("offline recovery preserves conflict evidence and restores exact backup byt
     await readFile(path.join(intake, path.basename(receiptPath))),
   );
   expect(await readdir(slot)).toEqual([path.basename(f.source)]);
-  await copyFile(required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"), f.executable);
-  const reopened = await launch(f.executable, f.home);
+  const ordinary = path.join(f.home, "repoditor-preview-ordinary.exe");
+  await stageTestExecutable(required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"), ordinary);
+  const reopened = await launch(ordinary, f.home);
   try {
     expect(await native(reopened.page, "saves_open", { saveId: E2E_SAVE_ID })).toMatchObject({
       ok: true,

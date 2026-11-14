@@ -85,7 +85,6 @@ describe("independent synthetic MetaSave drafts", () => {
         fingerprint: cosmetics.fingerprint,
         status: "unchanged",
         backupAvailable: false,
-        proof: "e".repeat(64),
         intent: null,
       },
     };
@@ -119,13 +118,7 @@ describe("independent synthetic MetaSave drafts", () => {
       status: "applied",
       view: initial.view,
       fingerprint: cosmetics.fingerprint,
-    }));
-    backend.state.mockImplementationOnce(async (operationId) => ({
-      ...initial,
-      state: "pending",
-      session: null,
       recoverySession: "recovery-only",
-      pending: { operationId, status: "applied" },
     }));
     backend.recover.mockImplementation(async (operationId) => ({
       operationId,
@@ -133,16 +126,74 @@ describe("independent synthetic MetaSave drafts", () => {
       fresh,
       fingerprint: cosmetics.fingerprint,
     }));
+    let settle!: (value: Partial<MetaResult>) => void;
+    backend.recover.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+    );
     act(() => result.current.stage("unlockAll"));
-    await act(() => result.current.save());
+    let save!: Promise<void>;
+    act(() => {
+      save = result.current.save();
+    });
+    const id = backend.write.mock.calls[0]![0].operationId;
+    await waitFor(() => expect(backend.recover).toHaveBeenCalledWith(id, "recovery-only"));
+    expect(result.current.saved).toBe(false);
+    expect(result.current.intent).not.toBeNull();
+    await act(async () => {
+      settle({ operationId: id, status: "applied", fresh, fingerprint: cosmetics.fingerprint });
+      await save;
+    });
     expect(result.current.saved).toBe(true);
     expect(result.current.state.session).toBe("fresh-session");
     expect(result.current.intent).toBeNull();
-    expect(backend.state).toHaveBeenCalledTimes(2);
+    expect(backend.state).toHaveBeenCalledOnce();
     act(() => result.current.stage("unlockAll"));
     await act(() => result.current.save());
     expect(backend.write.mock.calls[1]![0].session).toBe("fresh-session");
   });
+
+  it.each([undefined, "invalid-grant"])(
+    "uses explicit inspection when its write grant is %s",
+    async (grant) => {
+      const initial = state();
+      const backend = api(initial);
+      const { result } = renderHook(() => useTauriCosmetics(true, 0, backend));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      backend.write.mockImplementation(async ({ operationId }) => ({
+        operationId,
+        status: "applied",
+        view: initial.view,
+        fingerprint: cosmetics.fingerprint,
+        recoverySession: grant,
+      }));
+      act(() => result.current.stage("unlockAll"));
+      await act(() => result.current.save());
+      expect(result.current.saved).toBe(false);
+      expect(result.current.recovery).toBe(true);
+      expect(result.current.intent).not.toBeNull();
+      const id = backend.write.mock.calls[0]![0].operationId;
+      expect(backend.state).toHaveBeenCalledTimes(grant ? 1 : 2);
+      backend.state.mockResolvedValueOnce({
+        ...initial,
+        state: "pending",
+        recoverySession: "inspected",
+        pending: { operationId: id },
+      });
+      backend.recover.mockResolvedValueOnce({
+        operationId: id,
+        status: "applied",
+        fresh: initial,
+        fingerprint: cosmetics.fingerprint,
+      });
+      await act(() => result.current.reconcile());
+      expect(backend.state).toHaveBeenLastCalledWith(id);
+      expect(backend.recover).toHaveBeenLastCalledWith(id, "inspected");
+      expect(result.current.saved).toBe(true);
+    },
+  );
 
   it("fresh hosts rediscover pending evidence without a Run session; conflicts preserve it", async () => {
     const initial: MetaState = {
@@ -155,7 +206,6 @@ describe("independent synthetic MetaSave drafts", () => {
         fingerprint: cosmetics.fingerprint,
         status: "unchanged",
         backupAvailable: false,
-        proof: "e".repeat(64),
         intent: { metaCosmetics: { action: "unlockIds", admission: "a".repeat(64), ids: [0, 2] } },
       },
     };

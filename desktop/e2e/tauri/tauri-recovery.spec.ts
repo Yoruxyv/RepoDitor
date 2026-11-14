@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
 import {
@@ -9,6 +9,7 @@ import {
   E2E_SAVE_ID,
   getPythonExecutable,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
@@ -31,7 +32,7 @@ async function fixture(info: TestInfo, phase = "") {
   const source = await createRunSaveFixture(home);
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await cp(path.resolve(DESKTOP_ROOT, FEATURE), executable);
+  await stageTestExecutable(path.resolve(DESKTOP_ROOT, FEATURE), executable);
   await stageFrozenBackend(
     home,
     process.env["REPODITOR_RECOVERY_BACKEND"] ??
@@ -377,8 +378,9 @@ test("the normal build denies both internal recovery commands", async ({ browser
   const normal = process.env["REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"];
   if (!normal) throw new Error("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE must name the normal host");
   const f = await fixture(info);
-  await cp(path.resolve(DESKTOP_ROOT, normal), f.executable);
-  const app = await launch(f.executable, f.home);
+  const ordinary = path.join(f.home, "repoditor-preview-ordinary.exe");
+  await stageTestExecutable(path.resolve(DESKTOP_ROOT, normal), ordinary);
+  const app = await launch(ordinary, f.home);
   try {
     for (const command of ["test_health_write", "test_health_recover"]) {
       const denied = await native(app.page, command, request("a".repeat(64))).catch(

@@ -7,7 +7,12 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::{atomic::Ordering, Arc},
+    time::Instant,
+};
 use tauri::Manager;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -79,6 +84,7 @@ struct Pending {
     status: String,
     fingerprint: String,
     backup_available: bool,
+    #[serde(skip_serializing)]
     proof: String,
     intent: Option<Intent>,
 }
@@ -106,6 +112,14 @@ pub struct Result {
     view: Option<cosmetics::Cosmetics>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     fresh: Option<State>,
+    #[serde(skip)]
+    write_proof: Option<WriteProof>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    recovery_session: Option<String>,
+}
+struct WriteProof {
+    proof: String,
+    namespace: String,
 }
 struct MutationGrant {
     token: String,
@@ -151,6 +165,8 @@ fn failure(id: &str, status: &str) -> Result {
         backup_available: false,
         view: None,
         fresh: None,
+        write_proof: None,
+        recovery_session: None,
     }
 }
 fn view(raw: &Value) -> std::result::Result<cosmetics::Cosmetics, BackendError> {
@@ -214,13 +230,31 @@ fn canonical_state(
     Ok(result)
 }
 fn parse_result(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
-    decode_result(crate::error::json(bytes)?, id, false)
+    let raw = crate::error::json(bytes)?;
+    let mut result = decode_result(&raw, id, false)?;
+    if let Some(proof) = raw.get("recoveryProof") {
+        let hash = |value: &Value| {
+            value
+                .as_str()
+                .filter(|value| hex(value, 64))
+                .map(str::to_owned)
+                .ok_or(BackendError::Invalid)
+        };
+        if result.status != "applied" || result.reason.is_some() {
+            return Err(BackendError::Invalid);
+        }
+        result.write_proof = Some(WriteProof {
+            proof: hash(proof)?,
+            namespace: hash(&raw["namespace"])?,
+        });
+    }
+    Ok(result)
 }
 fn parse_recovery(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
-    decode_result(crate::error::json(bytes)?, id, true)
+    decode_result(&crate::error::json(bytes)?, id, true)
 }
 fn decode_result(
-    raw: Value,
+    raw: &Value,
     id: &str,
     recovering: bool,
 ) -> std::result::Result<Result, BackendError> {
@@ -277,11 +311,49 @@ fn decode_result(
             return Err(BackendError::Invalid);
         }
         let projection = result.view.take().ok_or(BackendError::Invalid)?;
-        result.fresh = Some(canonical_state(&raw, "idle", projection)?);
+        result.fresh = Some(canonical_state(raw, "idle", projection)?);
     }
     Ok(result)
 }
 impl Session {
+    fn invalidate(&mut self) -> u64 {
+        self.generation += 1;
+        self.mutation = None;
+        self.recovery = None;
+        self.generation
+    }
+
+    fn publish_write(&mut self, generation: u64, namespace: &str, result: &mut Result) {
+        let Some(evidence) = result.write_proof.take() else {
+            return;
+        };
+        if self.generation != generation || evidence.namespace != namespace {
+            return;
+        }
+        result.recovery_session = Some(self.issue_recovery(&result.operation_id, evidence.proof));
+    }
+
+    fn issue_recovery(&mut self, operation: &str, proof: String) -> String {
+        let token = format!("meta-{}-recovery", uuid::Uuid::new_v4());
+        self.recovery = Some(RecoveryGrant {
+            token: token.clone(),
+            operation: operation.into(),
+            proof,
+        });
+        token
+    }
+
+    fn take_recovery(&mut self, operation: &str, token: &str) -> Option<RecoveryGrant> {
+        if !self
+            .recovery
+            .as_ref()
+            .is_some_and(|grant| grant.operation == operation && grant.token == token)
+        {
+            return None;
+        }
+        self.recovery.take()
+    }
+
     fn publish_recovery(&mut self, generation: u64, state: &mut State) {
         if self.generation == generation {
             self.issue(state);
@@ -291,22 +363,17 @@ impl Session {
     }
 
     fn issue(&mut self, state: &mut State) {
-        self.generation += 1;
-        self.mutation = None;
-        self.recovery = None;
+        self.invalidate();
+        if let Some(pending) = &state.pending {
+            state.recovery_session =
+                Some(self.issue_recovery(&pending.operation_id, pending.proof.clone()));
+            return;
+        }
         let instance = self
             .instance
             .get_or_insert_with(|| uuid::Uuid::new_v4().to_string());
         let token = format!("meta-{instance}-{}", self.generation);
-        if let Some(pending) = &state.pending {
-            let token = format!("{token}-recovery");
-            self.recovery = Some(RecoveryGrant {
-                token: token.clone(),
-                operation: pending.operation_id.clone(),
-                proof: pending.proof.clone(),
-            });
-            state.recovery_session = Some(token);
-        } else if state.state == "idle" {
+        if state.state == "idle" {
             if let (Some(admission), Some(namespace), Some(projection)) =
                 (&state.admission, &state.namespace, &state.view)
             {
@@ -358,18 +425,18 @@ pub async fn state(app: tauri::AppHandle, raw: Value) -> State {
     }
     let operation = raw["operationId"].as_str().map(str::to_owned);
     let host = app.state::<Arc<HostState>>().inner().clone();
+    // Revoke authority when inspection starts, including while the backend is still queued.
+    let generation = host.meta_session.lock().unwrap().invalidate();
     match backend::request(app, Operation::TestMetaState(operation), parse_state).await {
         Outcome::Success { mut data, .. } => {
-            host.meta_session.lock().unwrap().issue(&mut data);
+            let mut session = host.meta_session.lock().unwrap();
+            if session.generation != generation || host.closing.load(Ordering::SeqCst) {
+                return disabled("blocked");
+            }
+            session.issue(&mut data);
             data
         }
-        Outcome::Failure { .. } => {
-            host.meta_session
-                .lock()
-                .unwrap()
-                .issue(&mut disabled("blocked"));
-            disabled("blocked")
-        }
+        Outcome::Failure { .. } => disabled("blocked"),
     }
 }
 #[derive(Deserialize)]
@@ -405,7 +472,10 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
         return failure(id, "rejected");
     }
     let host = app.state::<Arc<HostState>>().inner().clone();
-    let grant = host.meta_session.lock().unwrap().mutation.take();
+    let (grant, generation) = {
+        let mut session = host.meta_session.lock().unwrap();
+        (session.mutation.take(), session.generation)
+    };
     let Some(grant) = grant.filter(|g| {
         g.token == request.session
             && g.fingerprint == request.fingerprint
@@ -430,18 +500,25 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
     if prepared.status != "prepared" {
         return prepared;
     }
-    dispatch(
+    let mut result = dispatch(
         app,
         Operation::TestMetaWrite(
             id.clone(),
             request.fingerprint,
             payload,
-            grant.namespace,
+            grant.namespace.clone(),
             started,
         ),
         id,
     )
-    .await
+    .await;
+    if admitted() && !host.closing.load(Ordering::SeqCst) {
+        host.meta_session
+            .lock()
+            .unwrap()
+            .publish_write(generation, &grant.namespace, &mut result);
+    }
+    result
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -453,17 +530,21 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
     let Ok(request) = serde_json::from_value::<Recover>(raw) else {
         return failure("", "conflict");
     };
-    if !cfg!(feature = "synthetic-health-ui") || !test_root() || !hex(&request.operation_id, 32) {
+    if !admitted() || !hex(&request.operation_id, 32) {
         return failure(&request.operation_id, "conflict");
     }
     let host = app.state::<Arc<HostState>>().inner().clone();
+    if host.closing.load(Ordering::SeqCst) {
+        return failure(&request.operation_id, "conflict");
+    }
     let (grant, generation) = {
         let mut session = host.meta_session.lock().unwrap();
-        (session.recovery.take(), session.generation)
+        (
+            session.take_recovery(&request.operation_id, &request.session),
+            session.generation,
+        )
     };
-    let Some(grant) =
-        grant.filter(|g| g.operation == request.operation_id && g.token == request.session)
-    else {
+    let Some(grant) = grant else {
         return failure(&request.operation_id, "conflict");
     };
     let operation = Operation::TestMetaRecover(request.operation_id.clone(), grant.proof);
@@ -477,7 +558,7 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
     };
     if let Some(fresh) = &mut data.fresh {
         // A concurrent inspection may have already replaced this grant.
-        if admitted() {
+        if admitted() && !host.closing.load(Ordering::SeqCst) {
             host.meta_session
                 .lock()
                 .unwrap()

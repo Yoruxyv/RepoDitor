@@ -249,6 +249,16 @@ Native fixtures share those bundles through test-only directory junctions while
 save/profile roots stay isolated. Do not mutate a shared bundle. Existing source
 and backend hashes must be checked before reuse; CI always builds from source.
 
+The runner admits one safety run per checkout. On a successful run, after Windows
+confirms the test process tree has exited, it retires verified executable copies
+listed in `executable-manifest.jsonl`. Use `-KeepExecutables` to pin all copies
+from a run for acceptance or replay. Failed and interrupted runs and startup
+comparisons keep their copies. Reports, traces, receipts, backups, shared
+build outputs and prior checkpoints are preserved. `artifact-retention.json`
+records the executable bytes generated, retired and retained, plus files that
+could not be removed. Before building, the runner warns if the estimated growth
+would leave less free space than `-WarnFreeGiB` (default 20 GiB).
+
 For packaged UI validation, build a separate host with
 `tauri build --features synthetic-health-ui --config src-tauri/recovery.test.conf.json --no-bundle -- --locked`.
 Keep normal, protocol-only and UI-without-test-permissions builds for the negative

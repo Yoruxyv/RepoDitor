@@ -54,9 +54,58 @@ fn recovery_only_authority_survives_missing_catalog_and_never_issues_a_mutator()
     assert!(grant.token.ends_with("-recovery"));
     assert_eq!(grant.operation, "d".repeat(32));
     assert_eq!(grant.proof, "e".repeat(64));
+    assert!(serde_json::to_value(&state).unwrap()["pending"]
+        .get("proof")
+        .is_none());
     let old = grant.token.clone();
     session.issue(&mut state);
     assert_ne!(session.recovery.unwrap().token, old);
+}
+
+#[test]
+fn write_evidence_is_private_and_recovery_token_is_bound_and_one_use() {
+    let id = "d".repeat(32);
+    let namespace = "c".repeat(64);
+    let proof = "e".repeat(64);
+    let raw = json!({"ok":true,"operationId":id,"status":"applied","fingerprint":"a".repeat(64),
+        "backupAvailable":true,"view":fixture()["view"],"recoveryProof":proof,"namespace":namespace});
+    let parse = |raw: &Value| parse_result(&serde_json::to_vec(raw).unwrap(), &id);
+    for (key, invalid) in [
+        ("recoveryProof", json!("invalid")),
+        ("namespace", Value::Null),
+        ("status", json!("uncertain")),
+        ("reason", json!("write_conflict")),
+    ] {
+        let mut altered = raw.clone();
+        altered[key] = invalid;
+        assert!(parse(&altered).is_err());
+    }
+    let mut session = Session::default();
+    let generation = session.invalidate();
+    for (generation, namespace) in [(generation - 1, namespace.as_str()), (generation, "wrong")] {
+        let mut result = parse(&raw).unwrap();
+        session.publish_write(generation, namespace, &mut result);
+        assert!(result.recovery_session.is_none());
+        assert!(session.recovery.is_none());
+    }
+    let mut result = parse(&raw).unwrap();
+    session.publish_write(generation, &namespace, &mut result);
+    let wire = serde_json::to_value(&result).unwrap();
+    assert!(wire.get("recoveryProof").is_none());
+    assert!(wire.get("namespace").is_none());
+    let token = wire["recoverySession"].as_str().unwrap();
+    assert!(session.mutation.is_none());
+    assert!(Session::default().take_recovery(&id, token).is_none());
+    assert!(session.take_recovery(&"a".repeat(32), token).is_none());
+    assert!(session.take_recovery(&id, "wrong").is_none());
+    assert_eq!(session.take_recovery(&id, token).unwrap().proof, proof);
+    assert!(session.take_recovery(&id, token).is_none());
+
+    let mut delayed = parse(&raw).unwrap();
+    session.invalidate();
+    session.publish_write(generation, &namespace, &mut delayed);
+    assert!(delayed.recovery_session.is_none());
+    assert!(session.recovery.is_none());
 }
 #[test]
 fn recovery_requires_settled_identity_and_only_issues_current_pinned_admission() {

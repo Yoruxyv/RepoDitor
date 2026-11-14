@@ -1,8 +1,12 @@
-import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import { expect, test } from "@playwright/test";
-import { createRunSaveFixture, DESKTOP_ROOT } from "../support/fixtureEnvironment";
+import {
+  createRunSaveFixture,
+  DESKTOP_ROOT,
+  stageTestExecutable,
+} from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
 import {
@@ -115,7 +119,7 @@ test("startup ordinary packaged host exposes its bridge and remains read-only", 
   const before = await readFile(source);
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(path.resolve(DESKTOP_ROOT, normal), executable);
+  await stageTestExecutable(path.resolve(DESKTOP_ROOT, normal), executable);
   await stageFrozenBackend(home, backend);
   const app = await launch(executable, home);
   try {

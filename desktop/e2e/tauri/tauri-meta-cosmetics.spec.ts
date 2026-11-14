@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
@@ -8,6 +8,7 @@ import {
   DESKTOP_ROOT,
   getPythonExecutable,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
 
@@ -51,7 +52,7 @@ runpy.run_path(sys.argv[2])['create'](Path(sys.argv[3]))`,
     ],
   );
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(
+  await stageTestExecutable(
     required(ordinary ? "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE" : "REPODITOR_SAFETY_UI_HOST"),
     executable,
   );
@@ -60,7 +61,7 @@ runpy.run_path(sys.argv[2])['create'](Path(sys.argv[3]))`,
     required(ordinary ? "REPODITOR_ARTIFACT_BACKEND" : "REPODITOR_RECOVERY_BACKEND"),
   );
   const game = path.join(home, "SteamLibrary/steamapps/common/RepoDitor E2E Install");
-  await copyFile(process.execPath, path.join(game, "REPO.exe"));
+  await stageTestExecutable(process.execPath, path.join(game, "REPO.exe"));
   return { home, source, executable, game, before: await readFile(source) };
 }
 async function open(app: App) {

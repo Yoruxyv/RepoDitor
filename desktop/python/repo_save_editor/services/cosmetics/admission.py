@@ -26,6 +26,16 @@ def fixture_manifest() -> dict[str, object]:
     return cast(dict[str, object], json.loads(MANIFEST))
 
 
+def _source_identity(info: os.stat_result) -> list[int]:
+    return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]
+
+
+def _source_metadata(info: os.stat_result) -> tuple[object, ...]:
+    # Reads can update access time, and Windows path and handle queries can disagree on ctime.
+    stamp = getattr(info, "st_birthtime_ns", None) if os.name == "nt" else info.st_ctime_ns
+    return (info.st_mode, info.st_nlink, info.st_uid, info.st_gid, stamp)
+
+
 def admit_cosmetics(low: Path) -> tuple[dict[str, str], tuple[InstalledCosmeticMetadata, ...]]:
     """Admit only exact generated sources beneath the isolated fixture's fixed game root."""
     if (
@@ -54,11 +64,13 @@ def admit_cosmetics(low: Path) -> tuple[dict[str, str], tuple[InstalledCosmeticM
                 before = os.fstat(stream.fileno())
                 blob = stream.read(1024 * 1024 + 1)
                 after = os.fstat(stream.fileno())
-            identity = [before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns]
+            identity = _source_identity(before)
+            current = owned_file(home, path).stat(follow_symlinks=False)
             if (
                 len(blob) > 1024 * 1024
-                or identity != [after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns]
-                or path.stat() != after
+                or identity != _source_identity(after)
+                or identity != _source_identity(current)
+                or _source_metadata(current) != _source_metadata(after)
             ):
                 raise ValueError("Synthetic cosmetic source changed.")
             digest = sha256(blob).hexdigest()

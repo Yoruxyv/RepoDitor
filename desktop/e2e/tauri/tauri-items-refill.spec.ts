@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -9,6 +9,7 @@ import {
   E2E_SAVE_ID,
   getPythonExecutable,
   PYTHON_ROOT,
+  stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
@@ -59,7 +60,7 @@ p.write_bytes(encrypt_save(d))`,
   );
   await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
-  await copyFile(
+  await stageTestExecutable(
     required(ordinary ? "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE" : "REPODITOR_SAFETY_UI_HOST"),
     executable,
   );

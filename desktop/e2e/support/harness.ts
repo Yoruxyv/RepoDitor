@@ -7,16 +7,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  copyFile,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
@@ -30,6 +21,7 @@ import {
   createRunSaveFixture,
   getPythonExecutable,
   isolatedApplicationEnvironment,
+  stageTestExecutable,
 } from "./fixtureEnvironment";
 
 export interface SourceE2eHarness {
@@ -81,7 +73,7 @@ export async function createGameFixture(home: string, cosmeticCount = 28): Promi
     },
   );
   if (process.platform === "win32") {
-    await copyFile(process.execPath, path.join(gameRoot, "REPO.exe"));
+    await stageTestExecutable(process.execPath, path.join(gameRoot, "REPO.exe"));
   }
   return gameRoot;
 }
