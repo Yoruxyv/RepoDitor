@@ -275,21 +275,17 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
   };
   await writeFile(path.join(home, "cosmetics-get.json"), JSON.stringify({ ok: true, cosmetics }));
   const artwork = path.join(home, "native-cosmetic-artwork.json");
+  const batchArtwork = path.join(home, "native-cosmetic-artwork-batch.json");
+  const image = (cosmeticId: number) => ({
+    cosmeticId,
+    sourceIdentity: revision,
+    width: 1,
+    height: 1,
+    pngBase64:
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+  });
   function setImage(cosmeticId: number) {
-    return writeFile(
-      artwork,
-      JSON.stringify({
-        ok: true,
-        artwork: {
-          cosmeticId,
-          sourceIdentity: revision,
-          width: 1,
-          height: 1,
-          pngBase64:
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
-        },
-      }),
-    );
+    return writeFile(artwork, JSON.stringify({ ok: true, artwork: image(cosmeticId) }));
   }
   await setImage(0);
   const app = await launch(fixture.executable, home, fixture.environment);
@@ -334,10 +330,34 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
     expect(
       await native(page, "cosmetic_artwork_get", { token: `cosmetic-artwork:${"0".repeat(32)}` }),
     ).toMatchObject({ ok: false });
+    const tokens = [0, 279, 558].map(
+      (id) => projection.data.cosmetics.find((entry) => entry.id === id)?.iconToken,
+    );
+    expect(tokens).toEqual(
+      Array.from({ length: 3 }, () => expect.stringMatching(/^cosmetic-artwork:/)),
+    );
+    await expect(
+      native(page, "cosmetic_artwork_get", { tokens: [token, token] }),
+    ).resolves.toMatchObject({ ok: false });
+    await writeFile(batchArtwork, JSON.stringify({ ok: true, artworks: [image(0)] }));
+    await expect(native(page, "cosmetic_artwork_get", { tokens })).resolves.toMatchObject({
+      ok: false,
+    });
+    await writeFile(
+      batchArtwork,
+      JSON.stringify({ ok: true, artworks: [image(0), image(558), false] }),
+    );
+    await expect(native(page, "cosmetic_artwork_get", { tokens })).resolves.toMatchObject({
+      ok: true,
+      data: [{ token: tokens[0], revision }, null, false],
+    });
     await page.getByRole("button", { name: "Run Saves", exact: true }).click();
     await expect
       .poll(async () => native(page, "cosmetic_artwork_get", { token }))
       .toMatchObject({ ok: false });
+    await expect(native(page, "cosmetic_artwork_get", { tokens })).resolves.toMatchObject({
+      ok: false,
+    });
     await expect(native(page, "test_meta_write", { request: {} })).rejects.toBeDefined();
   } finally {
     await close(app.child, app.browser);
@@ -516,6 +536,13 @@ test("ordinary native upgrade artwork is scoped, validated, refreshed and read-o
     expect(
       (await native<{ ok: boolean }>(page, "upgrade_artwork_get", { token: currentToken })).ok,
     ).toBe(true);
+    await writeFile(
+      path.join(home, "upgrades-list.json"),
+      JSON.stringify({ ok: true, fingerprint: "d".repeat(64), upgrades: fixture.upgrades }),
+    );
+    await expect(
+      native(page, "upgrades_list", { saveId: E2E_SAVE_ID, background: true }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "save_stale" } });
     await native(page, "saves_open", { saveId: E2E_SAVE_ID });
     expect(
       (await native<{ ok: boolean }>(page, "upgrade_artwork_get", { token: currentToken })).ok,

@@ -12,6 +12,7 @@ from repo_save_editor.core.save_resources import bounded_save_operation
 from repo_save_editor.desktop_api.cosmetic_artwork import (
     get_cosmetic_artwork,
     get_native_cosmetic_artwork,
+    get_native_cosmetic_artwork_batch,
     get_native_cosmetics,
 )
 from repo_save_editor.desktop_api.cosmetic_preparation import (
@@ -316,6 +317,13 @@ def _parser() -> argparse.ArgumentParser:
         handler=lambda args: get_native_cosmetic_artwork(
             args.fingerprint, args.proof, args.identity
         )
+    )
+
+    native_batch = commands.add_parser("native-cosmetic-artwork-batch")
+    native_batch.add_argument("fingerprint")
+    native_batch.add_argument("members", nargs="+")
+    native_batch.set_defaults(
+        handler=lambda args: get_native_cosmetic_artwork_batch(args.fingerprint, args.members)
     )
     commands.add_parser("cosmetics-prepare").set_defaults(
         handler=_prepare_cosmetics, streaming=True

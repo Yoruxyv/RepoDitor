@@ -82,7 +82,11 @@ async fn saves_open(
     state.artwork.lock().unwrap().clear();
     backend::request(app, Operation::Open(id.clone()), move |bytes| {
         let opened = saves::parse(bytes, &id)?;
-        state.artwork.lock().unwrap().open(&id);
+        state
+            .artwork
+            .lock()
+            .unwrap()
+            .open(&id, opened.fingerprint());
         #[cfg(feature = "synthetic-health-recovery")]
         state.open_editor(&id, opened.fingerprint());
         Ok(opened)
@@ -143,6 +147,7 @@ async fn players_avatar(
 async fn upgrades_list(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
+    background: Option<bool>,
 ) -> Outcome<Vec<upgrades::Upgrade>> {
     let Some(id) = save_id
         .as_ref()
@@ -153,18 +158,43 @@ async fn upgrades_list(
         return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
     };
     let state = app.state::<Arc<HostState>>().inner().clone();
-    let generation = state.artwork.lock().unwrap().generation(&id);
-    backend::request(app, Operation::Upgrades(id.clone()), move |bytes| {
-        let mut values = upgrades::parse(bytes)?;
-        let raw = error::json(bytes)?;
-        state.artwork.lock().unwrap().register(
-            &id,
-            generation,
-            raw["fingerprint"].as_str(),
-            &mut values,
-        );
-        Ok(values)
-    })
+    // Synthetic transaction reads keep their existing worker ordering.
+    let preparing = background == Some(true) && !cfg!(feature = "synthetic-health-recovery");
+    let (generation, preparation) = {
+        let registry = state.artwork.lock().unwrap();
+        (
+            registry.generation(&id),
+            preparing
+                .then(|| registry.session_preparation(&id))
+                .flatten(),
+        )
+    };
+    if preparing && preparation.is_none() {
+        return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
+    }
+    let (fingerprint, cancelled) = preparation.unzip();
+    backend::request(
+        app,
+        Operation::Upgrades(id.clone(), cancelled),
+        move |bytes| {
+            let mut values = upgrades::parse(bytes)?;
+            let raw = error::json(bytes)?;
+            let mut registry = state.artwork.lock().unwrap();
+            if preparing && registry.generation(&id) != generation {
+                return Err(BackendError::Failed);
+            }
+            if let Some(expected) = fingerprint.as_deref() {
+                if raw["fingerprint"].as_str() != Some(expected) {
+                    return Err(BackendError::Domain {
+                        code: "save_stale",
+                        message: "The selected save changed. Open it again to prepare upgrades.",
+                    });
+                }
+            }
+            registry.register(&id, generation, raw["fingerprint"].as_str(), &mut values);
+            Ok(values)
+        },
+    )
     .await
 }
 
@@ -196,8 +226,55 @@ async fn map_artwork_get(
 async fn cosmetic_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
-) -> Outcome<Option<artwork::Image>> {
-    get_artwork(app, token, artwork::Scope::Cosmetic, Service::Cosmetics).await
+    tokens: Option<Vec<String>>,
+) -> CosmeticArtworkOutcome {
+    match (token, tokens) {
+        (None, Some(tokens)) => {
+            CosmeticArtworkOutcome::Batch(get_cosmetic_batch(app, tokens).await)
+        }
+        (token, None) => CosmeticArtworkOutcome::Single(
+            get_artwork(app, token, artwork::Scope::Cosmetic, Service::Cosmetics).await,
+        ),
+        (Some(_), Some(_)) => CosmeticArtworkOutcome::Single(Outcome::for_service(
+            Err(BackendError::Request),
+            Service::Cosmetics,
+        )),
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum CosmeticArtworkOutcome {
+    Single(Outcome<Option<artwork::Image>>),
+    Batch(Outcome<Vec<artwork::BatchImage>>),
+}
+
+async fn get_cosmetic_batch(
+    app: tauri::AppHandle,
+    tokens: Vec<String>,
+) -> Outcome<Vec<artwork::BatchImage>> {
+    let state = app.state::<Arc<HostState>>().inner().clone();
+    let admission = state.artwork.lock().unwrap().begin_cosmetic_batch(tokens);
+    let batch = match admission {
+        Ok(batch) => batch,
+        Err(error) => return Outcome::for_service(Err(error), Service::Cosmetics),
+    };
+    let parser = batch.clone();
+    let mut response =
+        backend::request(app, Operation::CosmeticBatch(batch.clone()), move |bytes| {
+            parser.parse(bytes)
+        })
+        .await;
+    let images = match &mut response {
+        Outcome::Success { data, .. } => Some(data.as_mut_slice()),
+        Outcome::Failure { .. } => None,
+    };
+    state
+        .artwork
+        .lock()
+        .unwrap()
+        .finish_cosmetic_batch(&batch, images);
+    response
 }
 
 async fn get_artwork(

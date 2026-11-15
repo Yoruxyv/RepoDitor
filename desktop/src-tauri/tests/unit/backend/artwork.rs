@@ -49,13 +49,87 @@ fn cosmetic_png_requires_numeric_id_exact_revision_and_complete_bytes() {
         assert!(verify(&bad).is_err());
     }
 }
+
+#[test]
+fn cosmetic_batch_validates_members_and_isolates_failure_and_cancellation() {
+    let revision = "b".repeat(64);
+    let proof = format!(
+        "{revision}:{}:{}:{}",
+        "c".repeat(32),
+        "d".repeat(64),
+        "e".repeat(64)
+    );
+    let mut registry = Registry {
+        meta_fingerprint: "a".repeat(64),
+        ..Registry::default()
+    };
+    let tokens: Vec<_> = (0..4)
+        .map(|id| {
+            register(
+                &mut registry.cosmetics,
+                Scope::Cosmetic,
+                &id.to_string(),
+                Some(&proof),
+            )
+        })
+        .collect();
+    for bad in [
+        vec![tokens[0].clone(); 2],
+        vec![tokens[0].clone(), tokens[1].replace("cosmetic-", "item-")],
+        vec![tokens[0].clone(); 5],
+    ] {
+        assert_eq!(
+            registry.begin_cosmetic_batch(bad).err(),
+            Some(BackendError::Request)
+        );
+    }
+    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    assert!(registry.begin(&tokens[0]).is_err());
+    assert!(registry.begin_cosmetic_batch(tokens.clone()).is_err());
+    assert_eq!(
+        batch
+            .parse(br#"{"ok":true,"artworks":[null]}"#)
+            .unwrap_err(),
+        BackendError::Invalid
+    );
+    let valid = json!({"cosmeticId":0,"sourceIdentity":revision,"width":1,"height":1,"pngBase64":STANDARD.encode(png())});
+    let message = json!({"ok":true,"artworks":[valid,valid,false,null]});
+    let mut images = batch.parse(&serde_json::to_vec(&message).unwrap()).unwrap();
+    assert!(matches!(images[0], BatchImage::Ready(_)));
+    assert!(matches!(images[1], BatchImage::Unavailable));
+    assert!(matches!(images[2], BatchImage::Deferred(false)));
+    registry.cancel(&tokens[2]);
+    assert!(!batch.cancelled.load(Ordering::SeqCst));
+    registry.finish_cosmetic_batch(&batch, Some(&mut images));
+    assert!(matches!(images[0], BatchImage::Ready(_)));
+    assert!(matches!(images[2], BatchImage::Unavailable));
+
+    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    for token in &tokens {
+        registry.cancel(token);
+    }
+    assert!(batch.cancelled.load(Ordering::SeqCst));
+    registry.finish_cosmetic_batch(&batch, None);
+
+    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    registry.revoke_cosmetics();
+    assert!(batch.cancelled.load(Ordering::SeqCst));
+    assert!(batch
+        .parse(&serde_json::to_vec(&message).unwrap())
+        .unwrap()
+        .iter()
+        .all(|image| matches!(image, BatchImage::Unavailable)));
+    registry.finish_cosmetic_batch(&batch, None);
+    assert!(registry.begin_cosmetic_batch(tokens).is_err());
+}
+
 #[test]
 fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
     let mut registry = Registry::default();
     let mut rows = upgrades(20);
     registry.register("save", None, Some(&"a".repeat(64)), &mut rows);
     assert!(rows.iter().all(|row| row.icon_token.is_none()));
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     registry.register(
         "save",
         registry.generation("save"),
@@ -86,7 +160,7 @@ fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
     assert!(cancelled.load(Ordering::SeqCst));
     assert!(!registry.finish(&token, &cancelled));
     let (_, _, _, current) = registry.begin(&token).unwrap();
-    registry.open("other");
+    registry.open("other", &"a".repeat(64));
     assert!(current.load(Ordering::SeqCst));
     assert!(!registry.finish(&token, &current));
     assert!(registry.begin(&token).is_err());
@@ -94,13 +168,13 @@ fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
 #[test]
 fn stale_lists_cannot_register_and_refresh_revokes_old_tokens() {
     let mut registry = Registry::default();
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
-    registry.open("other");
+    registry.open("other", &"a".repeat(64));
     let mut rows = upgrades(1);
     registry.register("save", generation, Some(&"a".repeat(64)), &mut rows);
     assert!(rows[0].icon_token.is_none());
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
     registry.register("save", generation, Some(&"a".repeat(64)), &mut rows);
     let old = rows[0].icon_token.clone().unwrap();
@@ -141,7 +215,7 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     raw.resize(crate::backend::process::STDOUT_LIMIT + 1, b' ');
     assert!(crate::projections::items::parse(&raw).is_err());
     let mut registry = Registry::default();
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
     registry.register_items("save", generation, Some(&"b".repeat(64)), &mut items);
     let tokens: Vec<_> = items
@@ -161,7 +235,7 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     assert!(cancelled.load(Ordering::SeqCst));
     assert!(registry.begin(token).is_err());
     assert_eq!(registry.items.len(), 70);
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     assert!(registry.items.is_empty());
 }
 
@@ -294,7 +368,7 @@ fn map_tokens_bind_to_catalog_revision_and_ignore_save_lifecycle() {
     assert!(save.is_none());
     assert_eq!(identity, revision);
     assert_eq!(family, "Arctic");
-    registry.open("save");
+    registry.open("save", &"a".repeat(64));
     registry.clear();
     assert!(!work.load(Ordering::SeqCst));
     let image = json!({"ok":true,"artwork":{"mapFamily":family,"sourceIdentity":identity,

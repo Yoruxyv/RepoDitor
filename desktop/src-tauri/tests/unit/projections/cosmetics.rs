@@ -97,7 +97,7 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
     assert!(registry
         .begin(&token.replace("cosmetic-", "item-"))
         .is_err());
-    registry.open("run");
+    registry.open("run", &"a".repeat(64));
     registry.clear();
     let (fingerprint, binding, id, work) = registry.begin(token).unwrap();
     assert_eq!(fingerprint.as_deref(), Some("a".repeat(64).as_str()));

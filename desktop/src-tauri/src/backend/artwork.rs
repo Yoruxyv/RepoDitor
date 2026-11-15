@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 pub const MAX_IMAGES: usize = 16;
 pub const MAX_PNG: usize = 1024 * 1024;
+const MAX_COSMETIC_BATCH: usize = 4;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
@@ -48,15 +49,30 @@ struct Entry {
     revision: Option<String>,
     cancelled: Arc<AtomicBool>,
 }
+
+pub struct CosmeticBatch {
+    pub fingerprint: String,
+    pub members: Vec<CosmeticMember>,
+    pub cancelled: Arc<AtomicBool>,
+}
+
+pub struct CosmeticMember {
+    token: String,
+    pub key: String,
+    pub proof: String,
+    cancelled: Arc<AtomicBool>,
+}
+
 #[derive(Default)]
 pub struct Registry {
-    session: Option<(String, Uuid)>,
+    session: Option<(String, Uuid, String, Arc<AtomicBool>)>,
     fingerprint: String,
     entries: HashMap<String, Entry>,
     item_fingerprint: String,
     items: HashMap<String, Entry>,
     maps: HashMap<String, Entry>,
     cosmetics: HashMap<String, Entry>,
+    cosmetic_batch: Option<Arc<CosmeticBatch>>,
     cosmetic_generation: u64,
     cosmetics_warmed: bool,
     meta_fingerprint: String,
@@ -71,19 +87,32 @@ impl Registry {
     pub fn clear(&mut self) {
         revoke(&mut self.entries);
         revoke(&mut self.items);
-        self.session = None;
+        if let Some((_, _, _, cancelled)) = self.session.take() {
+            cancelled.store(true, Ordering::SeqCst);
+        }
         self.fingerprint.clear();
         self.item_fingerprint.clear();
     }
-    pub fn open(&mut self, save: &str) {
+    pub fn open(&mut self, save: &str, fingerprint: &str) {
         self.clear();
-        self.session = Some((save.into(), Uuid::new_v4()));
+        self.session = Some((
+            save.into(),
+            Uuid::new_v4(),
+            fingerprint.into(),
+            Arc::default(),
+        ));
     }
     pub fn generation(&self, save: &str) -> Option<Uuid> {
         self.session
             .as_ref()
-            .filter(|(id, _)| id == save)
-            .map(|(_, generation)| *generation)
+            .filter(|(id, _, _, _)| id == save)
+            .map(|(_, generation, _, _)| *generation)
+    }
+    pub fn session_preparation(&self, save: &str) -> Option<(String, Arc<AtomicBool>)> {
+        self.session
+            .as_ref()
+            .filter(|(id, _, _, _)| id == save)
+            .map(|(_, _, fingerprint, cancelled)| (fingerprint.clone(), cancelled.clone()))
     }
     pub fn register(
         &mut self,
@@ -147,6 +176,9 @@ impl Registry {
     }
     pub fn revoke_cosmetics(&mut self) -> u64 {
         revoke(&mut self.cosmetics);
+        if let Some(batch) = &self.cosmetic_batch {
+            batch.cancelled.store(true, Ordering::SeqCst);
+        }
         self.meta_fingerprint.clear();
         self.cosmetic_generation = self.cosmetic_generation.wrapping_add(1);
         self.cosmetic_generation
@@ -243,6 +275,15 @@ impl Registry {
         if let Some(entry) = self.entry(token) {
             entry.cancelled.store(true, Ordering::SeqCst);
         }
+        if let Some(batch) = &self.cosmetic_batch {
+            if batch
+                .members
+                .iter()
+                .all(|row| row.cancelled.load(Ordering::SeqCst))
+            {
+                batch.cancelled.store(true, Ordering::SeqCst);
+            }
+        }
     }
     pub fn finish(&self, token: &str, cancelled: &Arc<AtomicBool>) -> bool {
         let valid = self
@@ -254,6 +295,73 @@ impl Registry {
     }
     pub fn retire_cosmetic(&mut self, token: &str) {
         self.cosmetics.remove(token);
+    }
+
+    pub fn begin_cosmetic_batch(
+        &mut self,
+        tokens: Vec<String>,
+    ) -> Result<Arc<CosmeticBatch>, BackendError> {
+        if !(2..=MAX_COSMETIC_BATCH).contains(&tokens.len())
+            || !valid_revision(&self.meta_fingerprint)
+            || tokens.iter().enumerate().any(|(i, token)| {
+                !Scope::Cosmetic.accepts(token)
+                    || tokens[..i].contains(token)
+                    || !self.cosmetics.contains_key(token)
+            })
+        {
+            return Err(BackendError::Request);
+        }
+        if self.cosmetic_batch.is_some()
+            || tokens
+                .iter()
+                .any(|token| !self.cosmetics[token].cancelled.load(Ordering::SeqCst))
+        {
+            return Err(BackendError::Failed);
+        }
+        let members = tokens
+            .into_iter()
+            .map(|token| {
+                let entry = self
+                    .cosmetics
+                    .get_mut(&token)
+                    .expect("admitted cosmetic token");
+                entry.cancelled = Arc::new(AtomicBool::new(false));
+                CosmeticMember {
+                    token,
+                    key: entry.key.clone(),
+                    proof: entry.revision.clone().expect("registered cosmetic proof"),
+                    cancelled: entry.cancelled.clone(),
+                }
+            })
+            .collect();
+        let batch = Arc::new(CosmeticBatch {
+            fingerprint: self.meta_fingerprint.clone(),
+            members,
+            cancelled: Arc::new(AtomicBool::new(false)),
+        });
+        self.cosmetic_batch = Some(batch.clone());
+        Ok(batch)
+    }
+
+    pub fn finish_cosmetic_batch(
+        &mut self,
+        batch: &Arc<CosmeticBatch>,
+        mut images: Option<&mut [BatchImage]>,
+    ) {
+        if self
+            .cosmetic_batch
+            .as_ref()
+            .is_some_and(|active| Arc::ptr_eq(active, batch))
+        {
+            self.cosmetic_batch = None;
+        }
+        for (index, member) in batch.members.iter().enumerate() {
+            if !self.finish(&member.token, &member.cancelled) {
+                if let Some(rows) = images.as_deref_mut() {
+                    rows[index] = BatchImage::Unavailable;
+                }
+            }
+        }
     }
     fn entry(&self, token: &str) -> Option<&Entry> {
         if Scope::Cosmetic.accepts(token) {
@@ -311,6 +419,52 @@ pub struct Image {
     token: String,
     revision: String,
     data_url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum BatchImage {
+    Ready(Image),
+    Deferred(bool),
+    Unavailable,
+}
+
+impl CosmeticBatch {
+    pub fn parse(&self, bytes: &[u8]) -> Result<Vec<BatchImage>, BackendError> {
+        let mut raw = json(bytes)?;
+        if raw["ok"] != true {
+            return Err(BackendError::Invalid);
+        }
+        let images = raw
+            .get_mut("artworks")
+            .and_then(serde_json::Value::as_array_mut)
+            .filter(|rows| rows.len() == self.members.len())
+            .ok_or(BackendError::Invalid)?;
+        // Re-encoding a validated PNG can grow it. Keep the renderer frame bounded too.
+        let mut remaining = super::process::STDOUT_LIMIT - 4096;
+        Ok(images
+            .iter_mut()
+            .zip(&self.members)
+            .map(|(image, member)| {
+                if member.cancelled.load(Ordering::SeqCst) {
+                    return BatchImage::Unavailable;
+                }
+                if *image == false {
+                    return BatchImage::Deferred(false);
+                }
+                let revision = member.proof.split_once(':').map(|(revision, _)| revision);
+                let Ok(image) = normalize(image.take(), &member.key, &member.token, revision)
+                else {
+                    return BatchImage::Unavailable;
+                };
+                if image.data_url.len() > remaining {
+                    return BatchImage::Deferred(false);
+                }
+                remaining -= image.data_url.len();
+                BatchImage::Ready(image)
+            })
+            .collect())
+    }
 }
 pub fn parse(
     bytes: &[u8],

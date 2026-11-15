@@ -12,13 +12,17 @@ interface Request {
   readonly token: string;
   readonly scope: ArtworkScope;
   readonly reuseKey: string | undefined;
+  readonly element: HTMLSpanElement | undefined;
   readonly listeners: Set<(image: NativeArtwork | null) => void>;
   settled: boolean;
+  singleOnly: boolean;
   cancellation: Promise<unknown> | null;
 }
 const pending = new Map<string, Request>();
 const queue: Request[] = [];
-let active: Request | null = null;
+let active: Request[] = [];
+let scheduled = false;
+const MAX_COSMETIC_BATCH = 4;
 const activityListeners = new Set<() => void>();
 // At most 12 MiB of string storage even with two bytes per base64 character.
 const cosmeticThumbnails = new Map<string, NativeArtwork>();
@@ -36,7 +40,7 @@ function subscribeActivity(listener: () => void): () => void {
 }
 
 export function useCosmeticArtworkActivity(): boolean {
-  return useSyncExternalStore(subscribeActivity, () => active?.scope === "cosmetic");
+  return useSyncExternalStore(subscribeActivity, () => active[0]?.scope === "cosmetic");
 }
 
 export function closeNativeArtwork(saveId: string): Promise<void> {
@@ -94,6 +98,7 @@ export function useNativeArtwork(
             receive(image);
           },
           reuseKey,
+          scope === "cosmetic" ? node : undefined,
         );
       } else if (release) {
         release();
@@ -115,13 +120,16 @@ export function useNativeArtwork(
     unavailable: native && (!allowed || current?.image === null),
   };
 }
-function validImage(image: NativeArtwork | null, token: string): boolean {
+function validImage(image: unknown, token: string): image is NativeArtwork {
+  if (!image || typeof image !== "object") return false;
+  const { token: reply, revision, dataUrl } = image as Partial<NativeArtwork>;
   return (
-    image !== null &&
-    image.token === token &&
-    /^[0-9a-f]{64}$/.test(image.revision) &&
-    image.dataUrl.length <= 1_398_126 &&
-    /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.dataUrl)
+    reply === token &&
+    typeof revision === "string" &&
+    /^[0-9a-f]{64}$/.test(revision) &&
+    typeof dataUrl === "string" &&
+    dataUrl.length <= 1_398_126 &&
+    /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)
   );
 }
 
@@ -156,42 +164,118 @@ export function restoreNativeCosmeticPreviews(view: CosmeticsViewDto): Cosmetics
   };
 }
 
+function batchable(request: Request | undefined): boolean {
+  return !!request?.element && !request.singleOnly;
+}
+
+function takeNext(): Request | undefined {
+  let index = 0;
+  const first = queue[0]?.element;
+  if (first && batchable(queue[0])) {
+    // Scroll can change which cards are central while the native decoder is busy.
+    const viewportCenter = window.innerHeight / 2;
+    const distance = (node: HTMLSpanElement) => {
+      if (!node.isConnected) return Infinity;
+      const { top, height } = node.getBoundingClientRect();
+      return Math.abs(top + height / 2 - viewportCenter);
+    };
+    let nearest = distance(first);
+    for (let i = 1; i < queue.length; i++) {
+      const candidate = queue[i]?.element;
+      if (!candidate || !batchable(queue[i])) break;
+      const candidateDistance = distance(candidate);
+      if (candidateDistance < nearest) {
+        index = i;
+        nearest = candidateDistance;
+      }
+    }
+  }
+  return queue.splice(index, 1)[0];
+}
+
 function pump(): void {
-  if (active !== null) return;
-  const request = queue.shift();
+  if (active.length || scheduled || !queue.length) return;
+  if (batchable(queue[0])) {
+    // Collect the visible observer callbacks from this turn before choosing up to four cards.
+    scheduled = true;
+    setTimeout(() => {
+      scheduled = false;
+      startNext();
+    }, 0);
+  } else {
+    startNext();
+  }
+}
+
+function startNext(): void {
+  const collect = batchable(queue[0]);
+  const request = takeNext();
   if (!request) return;
-  active = request;
+  const requests = [request];
+  while (collect && requests.length < MAX_COSMETIC_BATCH && batchable(queue[0])) {
+    requests.push(takeNext()!);
+  }
+  active = requests;
   if (request.scope === "cosmetic") {
     for (const listener of activityListeners) listener();
   }
-  void invoke<DesktopOperationResult<NativeArtwork | null>>(`${request.scope}_artwork_get`, {
-    token: request.token,
-  })
-    .then((result) => {
-      request.settled = true;
-      const image = result.ok && validImage(result.data, request.token) ? result.data : null;
-      if (image && request.reuseKey && request.listeners.size > 0)
-        retainCosmeticThumbnail(request.reuseKey, image);
-      for (const listener of request.listeners) listener(image);
-    })
-    .catch(() => {
-      request.settled = true;
-      for (const listener of request.listeners) listener(null);
-    })
-    .finally(async () => {
-      await request.cancellation;
-      if (pending.get(request.token) === request) pending.delete(request.token);
-      active = null;
-      pump();
-      if (request.scope === "cosmetic") {
-        for (const listener of activityListeners) listener();
-      }
-    });
+  void runRequests(request, requests);
+}
+
+function settleImage(request: Request, value: unknown, batch: boolean): boolean {
+  request.settled = true;
+  if (batch && value === false) return false;
+  const image = validImage(value, request.token) ? value : null;
+  if (image && request.reuseKey && request.listeners.size > 0) {
+    retainCosmeticThumbnail(request.reuseKey, image);
+  }
+  for (const listener of request.listeners) listener(image);
+  return true;
+}
+
+function finishRequests(requests: Request[], deferred: Request[]): void {
+  for (const request of requests) {
+    if (pending.get(request.token) !== request) continue;
+    if (deferred.includes(request) && request.listeners.size > 0) {
+      request.singleOnly = true;
+      request.settled = false;
+      queue.push(request);
+    } else {
+      pending.delete(request.token);
+    }
+  }
+}
+
+async function runRequests(first: Request, requests: Request[]): Promise<void> {
+  const batch = requests.length > 1;
+  const result = await invoke<DesktopOperationResult<unknown>>(
+    `${first.scope}_artwork_get`,
+    batch ? { tokens: requests.map(({ token }) => token) } : { token: first.token },
+  ).catch(() => null);
+  const data = result?.ok ? result.data : null;
+  const replies = batch ? data : [data];
+  const images: unknown[] =
+    Array.isArray(replies) && replies.length === requests.length ? replies : [];
+  const deferred: Request[] = [];
+  try {
+    for (const [index, request] of requests.entries()) {
+      if (!settleImage(request, images[index], batch)) deferred.push(request);
+    }
+  } finally {
+    await Promise.all(requests.map(({ cancellation }) => cancellation));
+    finishRequests(requests, deferred);
+    active = [];
+    pump();
+    if (first.scope === "cosmetic") {
+      for (const listener of activityListeners) listener();
+    }
+  }
 }
 export function acquireNativeArtwork(
   token: string,
   listener: (image: NativeArtwork | null) => void,
   reuseKey?: string,
+  element?: HTMLSpanElement,
 ): () => void {
   const scope = artworkScope(token);
   const key = cosmeticReuseKey(token, reuseKey);
@@ -231,8 +315,10 @@ export function acquireNativeArtwork(
       token,
       scope,
       reuseKey: key,
+      element: scope === "cosmetic" ? element : undefined,
       listeners: new Set(),
       settled: false,
+      singleOnly: false,
       cancellation: null,
     };
     pending.set(token, request);
@@ -244,7 +330,7 @@ export function acquireNativeArtwork(
   return () => {
     owned.listeners.delete(listener);
     if (owned.listeners.size > 0) return;
-    if (active === owned && !owned.settled) {
+    if (active.includes(owned) && !owned.settled) {
       owned.cancellation ??= invoke(`${owned.scope}_artwork_cancel`, { token }).catch(
         () => undefined,
       );

@@ -15,6 +15,25 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 }
 
 describe("injected upgrade reads", () => {
+  it("prepares once when the workspace becomes eligible and keeps explicit reloads foreground", async () => {
+    const list = vi.fn().mockResolvedValue({ ok: true, data: upgrades });
+    const prepare = vi.fn().mockResolvedValue({ ok: true, data: upgrades });
+    const { result, rerender } = renderHook(
+      ({ active }) => useUpgrades(saveId, null, list, active, prepare),
+      { initialProps: { active: false }, wrapper },
+    );
+    expect(prepare).not.toHaveBeenCalled();
+    rerender({ active: true });
+    await waitFor(() => expect(result.current.upgrades).toEqual(upgrades));
+    rerender({ active: false });
+    rerender({ active: true });
+    await act(async () => {
+      await result.current.reload();
+    });
+    expect(prepare).toHaveBeenCalledExactlyOnceWith(saveId);
+    expect(list).toHaveBeenCalledExactlyOnceWith(saveId);
+  });
+
   it("refreshes optional tokens without replacing canonical values with an older read", async () => {
     const initial = upgrades.map((upgrade) => ({ ...upgrade, iconToken: null }));
     const list = vi.fn().mockResolvedValue({

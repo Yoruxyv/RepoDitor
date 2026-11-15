@@ -16,6 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 use windows_sys::Win32::System::JobObjects::*;
+use windows_sys::Win32::System::Threading::{BELOW_NORMAL_PRIORITY_CLASS, CREATE_NO_WINDOW};
 
 pub(crate) const STDOUT_LIMIT: usize = 2 * 1024 * 1024;
 
@@ -50,6 +51,7 @@ pub fn run(
     timeout: Duration,
     cancelled: Arc<AtomicBool>,
     cosmetic_key: Option<&str>,
+    background: bool,
 ) -> Result<Vec<u8>, BackendError> {
     if cancelled.load(Ordering::SeqCst) {
         return Err(BackendError::Failed);
@@ -63,7 +65,14 @@ pub fn run(
         .env_remove("PYTHONPATH")
         .env_remove("PYTHONHOME")
         .env_remove("REPODITOR_NATIVE_COSMETIC_KEY")
-        .creation_flags(0x08000000)
+        .creation_flags(
+            CREATE_NO_WINDOW
+                | if background {
+                    BELOW_NORMAL_PRIORITY_CLASS
+                } else {
+                    0
+                },
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

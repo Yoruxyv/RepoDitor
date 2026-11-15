@@ -29,6 +29,9 @@ from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.storage.repository import read_save_bytes
 
 MAX_ID = 2_000
+MAX_NATIVE_BATCH = 4
+# Reserve space for the JSON envelope and each image's fixed metadata in the 2 MiB frame.
+NATIVE_BATCH_BASE64_BUDGET = 2 * 1024 * 1024 - 4096
 
 
 def serialize_cosmetic_artwork(decoded: DecodedCosmeticArtwork) -> dict[str, object]:
@@ -189,6 +192,35 @@ def get_native_cosmetic_artwork(fingerprint: str, proof: str, identity: str) -> 
         "ok": True,
         "artwork": image,
     }
+
+
+def get_native_cosmetic_artwork_batch(fingerprint: str, members: list[str]) -> dict[str, object]:
+    """Read up to four independently authenticated thumbnails within one native frame."""
+    if not 4 <= len(members) <= 2 * MAX_NATIVE_BATCH or len(members) % 2:
+        return {"ok": False}
+    count = len(members) // 2
+    if len(set(members[1::2])) != count or not _hex(fingerprint, 64):
+        return {"ok": False}
+    remaining = NATIVE_BATCH_BASE64_BUDGET
+    images: list[object] = []
+    for proof, identity in zip(members[::2], members[1::2], strict=True):
+        image = get_native_cosmetic_artwork(fingerprint, proof, identity)["artwork"]
+        if isinstance(image, dict):
+            size = len(image["pngBase64"])
+            if size > remaining:
+                # A valid image that does not fit can still use the existing single-image lane.
+                images.append(False)
+                continue
+            remaining -= size
+        images.append(image)
+    if any(image is not None for image in images):
+        try:
+            current = sha256(read_save_bytes(_meta_path(None))).hexdigest()
+        except (DesktopSaveError, OSError, ValueError):
+            current = None
+        if current != fingerprint:
+            images = [None] * count
+    return {"ok": True, "artworks": images}
 
 
 __all__ = ["get_cosmetic_artwork", "serialize_cosmetic_artwork"]

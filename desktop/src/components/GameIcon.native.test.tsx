@@ -103,13 +103,18 @@ describe("native GameIcon", () => {
       const intersection = (isIntersecting: boolean) =>
         observe([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
       act(() => intersection(true));
-      expect(invoke).toHaveBeenCalledExactlyOnceWith(`${variant}_artwork_get`, { token: value });
+      await waitFor(() =>
+        expect(invoke).toHaveBeenCalledExactlyOnceWith(`${variant}_artwork_get`, { token: value }),
+      );
       act(() => intersection(false));
       expect(invoke).toHaveBeenLastCalledWith(`${variant}_artwork_cancel`, { token: value });
       await act(async () => finish({ ok: true, data: null }));
       expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
       expect(screen.getByTestId("native-icon").classList.contains(sizeClass)).toBe(true);
       act(() => intersection(true));
+      await waitFor(() =>
+        expect(invoke).toHaveBeenNthCalledWith(3, `${variant}_artwork_get`, { token: value }),
+      );
       await act(async () =>
         finish({
           ok: true,

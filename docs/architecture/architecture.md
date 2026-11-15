@@ -126,7 +126,7 @@ The Rust source root keeps application bootstrap and typed command registration 
 `main.rs`, with public error mapping in `error.rs`. `backend/` owns fixed sidecar
 operations, request admission and process supervision. Private unit-test modules
 load their implementations from `tests/unit/`, mirroring their owning modules;
-`entry.rs` contains bootstrap tests. Process tests reuse the unchanged
+`entry.rs` contains bootstrap tests. Process tests reuse the
 `tests/sidecar_fixture.rs` executable fixture. `projections/` owns
 the validated Python DTOs returned to React. `synthetic/` owns transaction and
 recovery transport and is compiled only with `synthetic-health-recovery`; its
@@ -178,8 +178,9 @@ source enum, nullable nonnegative gameplay caps and JavaScript-safe per-player
 values. Stored values above presentation caps or the editor's Int32 write bound
 remain visible. Upgrade keys and per-upgrade player IDs must be unique, and each
 upgrade must reference the same player-ID set, as Python's projection guarantees.
-This does not compare independent reads with a cached Players snapshot: external
-save changes are read afresh. Reopening refreshes the workspace and selection.
+An explicit list read uses current save bytes. Background preparation requires
+the fingerprint of the opened snapshot. Reopening refreshes the workspace and
+selection after external changes.
 Players and Upgrades share the selected-player state. The injected Upgrades hook
 coalesces overlapping reads and ignores late results after unmount. The shared
 view retains editable Electron controls by default; the ordinary native variant renders
@@ -203,8 +204,11 @@ Tauri shows the shared editor preparation panel while the save-open read is
 pending. The bridge returns one result, so the panel uses indeterminate progress.
 Cancel returns to discovery and discards the result. The next open is available
 after the bounded native read settles. Overview uses the opened snapshot as soon
-as the game-status gate allows entry. Existing Players and Upgrades reads can
-continue in the background. Run, Items, Maps and artwork load on demand.
+as the game-status gate allows entry. Players and Upgrades can continue in the
+background. In the read-only host, one below-normal-priority Upgrade preparation
+can run alongside Players without holding the foreground worker. Closing or
+switching saves cancels that preparation, and the host rejects results from an
+old session generation. Run, Items, Maps and artwork load on demand.
 Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
@@ -802,7 +806,7 @@ Cosmetic preparation checks baked and decoded readiness before starting a finite
 Sprite batch. Navigation shares in-flight work, valid results survive relaunch,
 and failed optional work does not repeatedly scan the game. Upgrade preparation
 retains its own finite coordinator. `python/client.cts` owns command allowlists,
-output/time limits and child cleanup on shutdown; there is no permanent renderer.
+output/time limits and child cleanup on shutdown.
 `GameIcon` confines image loading to the thumbnail box and falls back on null/error.
 
 Tauri retains the active Run save's Players, Upgrades, Run, Items and Maps
@@ -815,8 +819,14 @@ sources on entry, refresh and game-safety recovery. A successful catalog read
 issues new artwork tokens and presentation keys tied to the MetaSave fingerprint,
 cosmetic ID, installed source and PNG file identity. The renderer can reuse up
 to 24 previously validated thumbnails in memory when those keys match. Pending
-and failed images are not retained. Artwork tokens keep their existing revocation
-and authorization rules.
+and failed images are not retained. In the shared artwork queue, visible
+Cosmetics requests near the viewport center take priority within their group.
+Up to four adjacent queued requests share one sidecar call and a 2 MiB response
+budget. Each image is independently validated. The queue preserves requests for
+other domains, drops cancelled or stale results, and sends valid images that did
+not fit through the single-image path. Batching reduces launches and brings a
+group of visible images in sooner, while the first individual image can appear
+later and a cache-cleared entry can take longer.
 
 On Windows, native Cosmetics also uses
 `%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview\artwork-v1`. It contains
@@ -837,6 +847,36 @@ the installed sources. An initial catalog response can carry up to eight warm
 thumbnails through the existing native PNG validator after checking the current
 MetaSave fingerprint. The cache stores no MetaSave or transaction data. The live
 MetaSave read and compatibility checks still run on entry.
+
+#### Windows loading acceptance
+
+W7 accepts functional loading parity with the differences below. Both hosts
+launch one-shot Python subprocesses. Electron prepares the major Run projections
+before showing Overview. Tauri shows Overview after save and game-status
+validation, then prepares Players and Upgrades in the background and reads Run,
+Items and Maps on first use. Revisits use the open session's projections. Reopen
+the save to see external edits after a projection has completed.
+
+The figures are medians in seconds, with observed ranges in parentheses. Each
+build had three packaged samples on the same Windows machine, using disposable
+saves, R.E.P.O. build `26407089`, and matching cache states. Workspace timings end
+when the benchmark observes usable content. Thumbnail timings end when the
+centered target image is visible.
+
+| Scenario                   | Electron            | Tauri               |
+| -------------------------- | ------------------- | ------------------- |
+| Cold save open to Overview | 8.06 (8.06–8.61)    | 0.92 (0.91–0.92)    |
+| First Upgrades visit       | 0.044 (0.044–0.047) | 0.047 (0.046–0.076) |
+| First Run visit            | 0.031 (0.028–0.033) | 0.88 (0.88–0.92)    |
+| First Items visit          | 0.041 (0.039–0.045) | 0.88 (0.87–0.88)    |
+| First Maps visit           | 0.041 (0.040–0.042) | 0.87 (0.86–0.88)    |
+| Cold Cosmetics thumbnail   | 1.65 (1.63–2.35)    | 3.15 (3.13–3.20)    |
+| Warm Cosmetics thumbnail   | 0.36 (0.33–0.38)    | 1.06 (1.04–1.25)    |
+
+Warm Cosmetics still validates MetaSave and installed sources before showing
+cached artwork. A persistent Python worker is an optional future optimization.
+Loading acceptance grants no production save-write authority and leaves installer
+and release acceptance separate.
 
 #### Native artwork cache developer commands
 

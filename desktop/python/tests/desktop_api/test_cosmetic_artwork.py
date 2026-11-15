@@ -91,6 +91,57 @@ def test_native_proof_binds_exact_id_source_and_metasave(
         read.assert_called_once()
 
 
+def test_native_batch_keeps_valid_members_bounds_bytes_and_rechecks_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = bytes.fromhex("a" * 64)
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic batch MetaSave"
+    meta.write_bytes(original)
+    fingerprint = sha256(original).hexdigest()
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    binding = f"{'b' * 64}:{'c' * 32}:{'d' * 64}"
+    members = [
+        value
+        for identity in ("1", "2")
+        for value in (
+            f"{binding}:{native._signature(key, fingerprint, identity, binding)}",
+            identity,
+        )
+    ]
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    with patch.object(native, "read_bound_cosmetic_png", return_value=png) as read:
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 3) == {"ok": False}
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members[:2] * 2) == {
+            "ok": False
+        }
+        read.assert_not_called()
+        forged = [*members[:2], members[0], members[3]]
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, forged)
+        assert result["artworks"][0]["cosmeticId"] == 1
+        assert result["artworks"][1] is None
+        read.assert_called_once()
+        monkeypatch.setattr(native, "NATIVE_BATCH_BASE64_BUDGET", len(png) * 2)
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, members)
+        assert result["artworks"][0]["cosmeticId"] == 1
+        assert result["artworks"][1] is False
+        assert meta.read_bytes() == original
+
+    def replace_during_read(*_args, identity, **_kwargs):
+        if identity == "2":
+            meta.write_bytes(b"changed")
+        return png
+
+    monkeypatch.setattr(native, "read_bound_cosmetic_png", replace_during_read)
+    assert native.get_native_cosmetic_artwork_batch(fingerprint, members) == {
+        "ok": True,
+        "artworks": [None, None],
+    }
+
+
 @pytest.mark.parametrize("changed", [False, True])
 def test_warm_artwork_requires_current_metasave(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: bool

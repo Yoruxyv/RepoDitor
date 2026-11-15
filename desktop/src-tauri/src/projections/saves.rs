@@ -52,7 +52,6 @@ pub struct SaveOpenResult {
     required_upgrade_visual_keys: Vec<String>,
     presentation_readiness: &'static str,
 }
-#[cfg(feature = "synthetic-health-recovery")]
 impl SaveOpenResult {
     pub fn fingerprint(&self) -> &str {
         &self.session.fingerprint

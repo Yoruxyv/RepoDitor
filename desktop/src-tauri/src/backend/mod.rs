@@ -80,7 +80,7 @@ impl HostState {
             .all(|slot| !slot.load(Ordering::SeqCst))
     }
 }
-struct Request(Arc<HostState>, usize, Arc<AtomicBool>);
+struct Request(Arc<HostState>, usize, Arc<AtomicBool>, bool);
 impl Request {
     fn reserve(state: Arc<HostState>, slot: usize) -> Result<Self, BackendError> {
         if state.closing.load(Ordering::SeqCst) {
@@ -90,7 +90,7 @@ impl Request {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .map_err(|_| BackendError::Failed)?;
         let cancelled = state.closing.clone();
-        Ok(Self(state, slot, cancelled))
+        Ok(Self(state, slot, cancelled, false))
     }
 }
 impl Drop for Request {
@@ -112,7 +112,8 @@ pub enum Operation {
         String,
         Arc<AtomicBool>,
     ),
-    Upgrades(String),
+    CosmeticBatch(Arc<artwork::CosmeticBatch>),
+    Upgrades(String, Option<Arc<AtomicBool>>),
     Run(String),
     Items(String),
     Maps,
@@ -158,8 +159,8 @@ impl Operation {
             Self::Game => 2,
             Self::Players(_) => 3,
             Self::Avatar(..) => AVATAR_SLOT,
-            Self::Artwork(..) => ARTWORK_SLOT,
-            Self::Upgrades(_) => 4,
+            Self::Artwork(..) | Self::CosmeticBatch(_) => ARTWORK_SLOT,
+            Self::Upgrades(..) => 4,
             Self::Run(_) => 5,
             Self::Items(_) => 6,
             Self::Maps => 7,
@@ -189,11 +190,13 @@ impl Operation {
             Self::Open(_) => Service::Save,
             Self::Game => Service::Game,
             Self::Players(_) | Self::Avatar(..) => Service::Player,
-            Self::Upgrades(_) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
+            Self::Upgrades(..) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
             Self::Run(_) => Service::Run,
             Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
             Self::Maps | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
-            Self::Cosmetics(_) | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
+            Self::Cosmetics(_)
+            | Self::Artwork(artwork::Scope::Cosmetic, ..)
+            | Self::CosmeticBatch(_) => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaState(..)
             | Self::TestMetaPrepare(..)
@@ -235,7 +238,14 @@ impl Operation {
                 args.push(key);
                 args
             }
-            Self::Upgrades(id) => vec!["upgrades-list", id],
+            Self::CosmeticBatch(batch) => {
+                let mut args = vec!["native-cosmetic-artwork-batch", batch.fingerprint.as_str()];
+                for member in &batch.members {
+                    args.extend([member.proof.as_str(), member.key.as_str()]);
+                }
+                args
+            }
+            Self::Upgrades(id, _) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
             Self::Maps => vec!["maps-list"],
@@ -354,7 +364,8 @@ fn execute(
 ) -> Result<Vec<u8>, BackendError> {
     let state = &request.0;
     // Each optional/status lane has one permit; network lookup cannot delay save work.
-    let _domain_worker = if request.1 == Operation::Game.slot()
+    let _domain_worker = if request.3
+        || request.1 == Operation::Game.slot()
         || request.1 == AVATAR_SLOT
         || request.1 == ARTWORK_SLOT
     {
@@ -383,7 +394,7 @@ fn execute(
         .ok_or(BackendError::Timeout)?;
     let cosmetic_key = matches!(
         args.first().copied(),
-        Some("cosmetics-get" | "native-cosmetic-artwork")
+        Some("cosmetics-get" | "native-cosmetic-artwork" | "native-cosmetic-artwork-batch")
     )
     .then(|| {
         state
@@ -397,7 +408,14 @@ fn execute(
             })
             .as_str()
     });
-    let result = process::run(executable, args, remaining, request.2.clone(), cosmetic_key);
+    let result = process::run(
+        executable,
+        args,
+        remaining,
+        request.2.clone(),
+        cosmetic_key,
+        request.3,
+    );
     #[cfg(feature = "synthetic-health-recovery")]
     if request.1 == 9
         && !matches!(
@@ -464,8 +482,14 @@ where
         Ok(request) => request,
         Err(error) => return Outcome::for_service(Err(error), service),
     };
-    if let Operation::Artwork(.., cancelled) = &operation {
-        request.2 = cancelled.clone();
+    match &operation {
+        Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
+        Operation::CosmeticBatch(batch) => request.2 = batch.cancelled.clone(),
+        Operation::Upgrades(_, Some(cancelled)) => {
+            request.2 = cancelled.clone();
+            request.3 = true;
+        }
+        _ => {}
     }
     #[cfg(feature = "synthetic-health-recovery")]
     let is_write = matches!(

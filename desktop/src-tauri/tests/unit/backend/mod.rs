@@ -1,6 +1,47 @@
 use super::*;
 
 #[test]
+fn background_upgrades_are_bounded_separately_and_cancel_when_the_save_closes() {
+    let state = Arc::new(HostState::default());
+    let fingerprint = "a".repeat(64);
+    state.artwork.lock().unwrap().open("save", &fingerprint);
+    let (expected, cancelled) = state
+        .artwork
+        .lock()
+        .unwrap()
+        .session_preparation("save")
+        .unwrap();
+    assert_eq!(expected, fingerprint);
+    let slot = Operation::Upgrades("save".into(), Some(cancelled.clone())).slot();
+    let held = state.domain_worker.lock().unwrap();
+    let mut request = Request::reserve(state.clone(), slot).unwrap();
+    assert!(Request::reserve(state.clone(), slot).is_err());
+    request.2 = cancelled;
+    request.3 = true;
+    let executable = process::tests::fixture();
+    assert!(execute(
+        &request,
+        executable,
+        &["success"],
+        Instant::now(),
+        Duration::from_secs(2)
+    )
+    .is_ok());
+    state.artwork.lock().unwrap().clear();
+    assert_eq!(
+        execute(
+            &request,
+            executable,
+            &["success"],
+            Instant::now(),
+            Duration::from_secs(2)
+        ),
+        Err(BackendError::Failed)
+    );
+    drop(held);
+}
+
+#[test]
 fn artwork_has_one_independent_cancellable_lane() {
     let state = Arc::new(HostState::default());
     let operation = Operation::Artwork(

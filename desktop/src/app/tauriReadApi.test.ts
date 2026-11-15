@@ -78,10 +78,11 @@ describe("typed native read capabilities", () => {
     });
     expect(Object.keys(tauriReadApi.run)).toEqual(["get"]);
   });
-  it("only exposes the named upgrades read and sanitizes bridge rejections", async () => {
+  it("uses the same named upgrades read for preparation and foreground requests", async () => {
     vi.mocked(invoke)
       .mockResolvedValueOnce({ ok: true, data: upgrades })
-      .mockRejectedValueOnce(new Error("private path"));
+      .mockRejectedValueOnce(new Error("private path"))
+      .mockResolvedValueOnce({ ok: true, data: upgrades });
     expect(await tauriReadApi.upgrades.list(saveId)).toEqual({ ok: true, data: upgrades });
     expect(invoke).toHaveBeenNthCalledWith(1, "upgrades_list", { saveId });
     expect(await tauriReadApi.upgrades.list(saveId)).toEqual({
@@ -91,7 +92,9 @@ describe("typed native read capabilities", () => {
         message: "The desktop upgrades bridge failed unexpectedly.",
       },
     });
-    expect(Object.keys(tauriReadApi.upgrades)).toEqual(["list"]);
+    expect(await tauriReadApi.upgrades.prepare(saveId)).toEqual({ ok: true, data: upgrades });
+    expect(invoke).toHaveBeenNthCalledWith(3, "upgrades_list", { saveId, background: true });
+    expect(Object.keys(tauriReadApi.upgrades)).toEqual(["list", "prepare"]);
   });
   it("lists players through one named read command and sanitizes transport rejection", async () => {
     vi.mocked(invoke)

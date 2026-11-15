@@ -17,12 +17,32 @@ import { tauriDiscoveryApi } from "@/features/discovery/tauriDiscoveryApi";
 
 let gameRequest: Promise<DesktopOperationResult<GameProcessState>> | null = null;
 
+async function readUpgrades(
+  saveId: string,
+  background = false,
+): Promise<DesktopOperationResult<PlayerUpgradeDto[]>> {
+  try {
+    return await invoke<DesktopOperationResult<PlayerUpgradeDto[]>>("upgrades_list", {
+      saveId,
+      ...(background ? { background: true } : {}),
+    });
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: "internal_error",
+        message: "The desktop upgrades bridge failed unexpectedly.",
+      },
+    };
+  }
+}
+
 export const tauriReadApi: {
   environment: RepoDitorApi["environment"];
   saves: Pick<RepoDitorApi["saves"], "open">;
   game: RepoDitorApi["game"];
   players: RepoDitorApi["players"];
-  upgrades: Pick<RepoDitorApi["upgrades"], "list">;
+  upgrades: Pick<RepoDitorApi["upgrades"], "list"> & { prepare: RepoDitorApi["upgrades"]["list"] };
   run: RepoDitorApi["run"];
   advanced: RepoDitorApi["advanced"];
   maps: RepoDitorApi["maps"];
@@ -87,21 +107,8 @@ export const tauriReadApi: {
     },
   },
   upgrades: {
-    async list(saveId) {
-      try {
-        return await invoke<DesktopOperationResult<PlayerUpgradeDto[]>>("upgrades_list", {
-          saveId,
-        });
-      } catch {
-        return {
-          ok: false,
-          error: {
-            code: "internal_error",
-            message: "The desktop upgrades bridge failed unexpectedly.",
-          },
-        };
-      }
-    },
+    list: readUpgrades,
+    prepare: (saveId) => readUpgrades(saveId, true),
   },
   players: {
     async avatar(saveId, playerId) {

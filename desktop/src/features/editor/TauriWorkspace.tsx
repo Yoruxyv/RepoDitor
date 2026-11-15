@@ -58,11 +58,13 @@ function WorkspacePreparationStatus({
 
 export function TauriWorkspace({
   session,
+  active = true,
   onClose,
   onCanonical = () => undefined,
   onHealthAvailability,
 }: {
   readonly session: SaveSession;
+  readonly active?: boolean;
   readonly onClose: () => void;
   readonly onCanonical?: (opened: SaveOpenResult) => void;
   readonly onHealthAvailability?: (enabled: boolean) => void;
@@ -82,8 +84,15 @@ export function TauriWorkspace({
       tab.focus();
   }, [section]);
   const [initialHealthKnown, setInitialHealthKnown] = useState(false);
+  const prepare = initialHealthKnown && active;
   const players = usePlayers(session.id, null, tauriReadApi.players.list, initialHealthKnown);
-  const upgrades = useUpgrades(session.id, null, tauriReadApi.upgrades.list, initialHealthKnown);
+  const upgrades = useUpgrades(
+    session.id,
+    null,
+    tauriReadApi.upgrades.list,
+    prepare,
+    tauriReadApi.upgrades.prepare,
+  );
   // Cold projections share the native worker with Save and its acknowledgement.
   const run = useRunState(session.id, null, tauriReadApi.run.get, section === "run");
   const items = useItems(session.id, null, tauriReadApi.advanced.get, section === "items");

@@ -57,7 +57,8 @@ fn main() {
         | "upgrade-artwork"
         | "item-artwork"
         | "map-artwork"
-        | "native-cosmetic-artwork" => {
+        | "native-cosmetic-artwork"
+        | "native-cosmetic-artwork-batch" => {
             let started = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

@@ -133,6 +133,88 @@ it("keeps visible Cosmetics queued behind other domains without losing their slo
   releases.forEach((release) => release());
 });
 
+it("uses the current viewport to prioritize queued Cosmetics without crossing other domains", async () => {
+  const cosmeticToken = (id: number) => token(id).replace("upgrade-", "cosmetic-");
+  const completions: Array<(response: unknown) => void> = [];
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementation(() => new Promise((resolve) => completions.push(resolve)));
+  const midpoint = window.innerHeight / 2;
+  const card = (top: () => number) => {
+    const node = document.createElement("span");
+    document.body.append(node);
+    vi.spyOn(node, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, top(), 48, 48));
+    return node;
+  };
+  let scrolled = false;
+  const first = card(() => midpoint - (scrolled ? 160 : 24));
+  const second = card(() => midpoint - (scrolled ? 24 : 160));
+  const afterUpgrade = card(() => midpoint - 24);
+  const releases = [
+    acquireNativeArtwork(cosmeticToken(1), vi.fn()),
+    acquireNativeArtwork(cosmeticToken(2), vi.fn(), undefined, first),
+    acquireNativeArtwork(cosmeticToken(3), vi.fn(), undefined, second),
+    acquireNativeArtwork(token(4), vi.fn()),
+    acquireNativeArtwork(cosmeticToken(5), vi.fn(), undefined, afterUpgrade),
+  ];
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", {
+    token: cosmeticToken(1),
+  });
+  scrolled = true;
+  for (const [index, [command, args]] of [
+    ["cosmetic_artwork_get", { tokens: [cosmeticToken(3), cosmeticToken(2)] }],
+    ["upgrade_artwork_get", { token: token(4) }],
+    ["cosmetic_artwork_get", { token: cosmeticToken(5) }],
+  ].entries()) {
+    completions[index]!({ ok: true, data: null });
+    await vi.waitFor(() => expect(invoke).toHaveBeenLastCalledWith(command, args));
+  }
+  completions[3]!({ ok: true, data: null });
+  await flush();
+  releases.forEach((release) => release());
+  [first, second, afterUpgrade].forEach((node) => node.remove());
+});
+
+it("bounds visible batches, drops cancelled replies, and defers oversized images behind queued work", async () => {
+  const tokens = Array.from({ length: 5 }, (_, i) => token(i + 1).replace("upgrade-", "cosmetic-"));
+  const cards = tokens.map(() => document.body.appendChild(document.createElement("span")));
+  const listeners = tokens.map(() => vi.fn());
+  const resolveImages: Array<(reply: unknown) => void> = [];
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementation((command) =>
+      command.endsWith("_cancel")
+        ? Promise.resolve()
+        : new Promise((resolve) => resolveImages.push(resolve)),
+    );
+  const release = tokens.map((id, i) =>
+    acquireNativeArtwork(id, listeners[i]!, undefined, cards[i]),
+  );
+  await vi.waitFor(() => expect(resolveImages).toHaveLength(1));
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", {
+    tokens: tokens.slice(0, 4),
+  });
+  release[1]!();
+  expect(invoke).toHaveBeenLastCalledWith("cosmetic_artwork_cancel", { token: tokens[1] });
+  const good = { ...image(1), token: tokens[0] };
+  resolveImages[0]!({ ok: true, data: [good, { ...good, token: tokens[1] }, good, false] });
+  await vi.waitFor(() => expect(resolveImages).toHaveLength(2));
+  expect(listeners[0]).toHaveBeenCalledExactlyOnceWith(good);
+  expect(listeners[1]).not.toHaveBeenCalled();
+  expect(listeners[2]).toHaveBeenCalledExactlyOnceWith(null);
+  expect(listeners[3]).not.toHaveBeenCalled();
+  expect(invoke).toHaveBeenLastCalledWith("cosmetic_artwork_get", { token: tokens[4] });
+  resolveImages[1]!({ ok: true, data: null });
+  await vi.waitFor(() => expect(resolveImages).toHaveLength(3));
+  expect(invoke).toHaveBeenLastCalledWith("cosmetic_artwork_get", { token: tokens[3] });
+  resolveImages[2]!({ ok: true, data: false });
+  await flush();
+  expect(listeners[3]).toHaveBeenCalledExactlyOnceWith(null);
+  expect(resolveImages).toHaveLength(3);
+  release.forEach((done) => done());
+  cards.forEach((node) => node.remove());
+});
+
 it("reuses only completed Cosmetics thumbnails with the same validated source and PNG key", async () => {
   const first = token(51).replace("upgrade-", "cosmetic-");
   const next = token(52).replace("upgrade-", "cosmetic-");

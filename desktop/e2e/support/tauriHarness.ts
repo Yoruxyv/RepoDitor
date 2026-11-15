@@ -228,7 +228,10 @@ export async function stageSyntheticBackend(
       ],
     },
   ];
-  await writeFile(path.join(home, "upgrades-list.json"), JSON.stringify({ ok: true, upgrades }));
+  await writeFile(
+    path.join(home, "upgrades-list.json"),
+    JSON.stringify({ ok: true, fingerprint: opened.session.fingerprint, upgrades }),
+  );
   await writeFile(
     path.join(home, "players-list.json"),
     JSON.stringify({

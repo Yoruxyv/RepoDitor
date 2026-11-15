@@ -35,6 +35,7 @@ function focusNavigationTarget(target: HTMLElement | null | undefined): boolean 
 function RunSaveContent({
   discovery,
   save,
+  active,
   onOpen,
   onCancel,
   onClose,
@@ -42,6 +43,7 @@ function RunSaveContent({
 }: {
   readonly discovery: ReturnType<typeof useEnvironmentDiscovery>;
   readonly save: ReturnType<typeof useSaveSession>;
+  readonly active: boolean;
   readonly onOpen: (saveId: string) => void;
   readonly onCancel: (saveId: string) => void;
   readonly onClose: () => void;
@@ -63,6 +65,7 @@ function RunSaveContent({
       <TauriWorkspace
         key={save.session.id}
         session={save.session}
+        active={active}
         onClose={onClose}
         onCanonical={save.enter}
         onHealthAvailability={onHealthAvailability}
@@ -227,6 +230,7 @@ function DiscoveryPreview() {
           <RunSaveContent
             discovery={discovery}
             save={save}
+            active={workspace === "run-saves" && !initialCheck && blocked === null}
             onOpen={(id) => void open(id)}
             onCancel={cancelOpen}
             onClose={close}

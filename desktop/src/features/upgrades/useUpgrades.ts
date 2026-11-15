@@ -63,6 +63,7 @@ export function useUpgrades(
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
   list: RepoDitorApi["upgrades"]["list"] = listDesktopUpgrades,
   loadInitially = true,
+  prepare = list,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(() => {
@@ -73,17 +74,18 @@ export function useUpgrades(
   });
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const requestInFlight = useRef(false);
   const snapshotVersion = useRef(0);
 
   const load = useCallback(
-    async (preserveExisting = false): Promise<boolean> => {
+    async (preserveExisting = false, read = list): Promise<boolean> => {
       if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
       requestInFlight.current = true;
       const version = snapshotVersion.current;
       try {
-        const resolved = await list(saveId);
+        const resolved = await read(saveId);
         if (!mounted.current || version !== snapshotVersion.current) return resolved.ok;
         if (resolved.ok) {
           setState({ upgrades: resolved.data, error: null, loading: false });
@@ -118,10 +120,12 @@ export function useUpgrades(
     };
   }, []);
   useEffect(() => {
-    if (!loadInitially || initialResultRef.current !== null) return;
-    const request = window.setTimeout(() => void load(false));
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false, prepare);
+    });
     return () => window.clearTimeout(request);
-  }, [load, loadInitially]);
+  }, [load, loadInitially, prepare]);
 
   function update(upgrade: PlayerUpgradeDto, player: PlayerDto, value: number): void {
     const before = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
