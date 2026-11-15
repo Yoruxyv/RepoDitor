@@ -9,6 +9,9 @@
   "scripts": {
     "dev:tauri": "tauri dev",
     "dev:tauri-ui": "vite --config vite.tauri.config.ts",
+    "tauri:cache:status": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py status",
+    "tauri:cache:clear": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py clear",
+    "tauri:cache:diagnostics": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py diagnostics",
     "build:tauri-ui": "tsc -p tsconfig.app.json && vite build --config vite.tauri.config.ts",
     "package:tauri": "npm run build:sidecar && tauri build --no-bundle -- --locked && node scripts/tauri/stage-tauri.mjs",
     "test:tauri": "cargo test --manifest-path src-tauri/Cargo.toml --locked",

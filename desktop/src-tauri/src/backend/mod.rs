@@ -1,5 +1,6 @@
 //! Fixed backend operations, bounded request admission, and lifetime ownership.
 pub(crate) mod artwork;
+pub(crate) mod cache_activity;
 pub(crate) mod process;
 
 use crate::error::{BackendError, Outcome, Service};

@@ -838,16 +838,57 @@ thumbnails through the existing native PNG validator after checking the current
 MetaSave fingerprint. The cache stores no MetaSave or transaction data. The live
 MetaSave read and compatibility checks still run on entry.
 
-To inspect the cache without opening its entries, list names and sizes under
-the dedicated directory. The WebView profile, game installation and game caches
-have separate locations. Future developer tooling can use the versioned file
-names to identify this cache and report cache decisions without exporting
-artwork, fingerprints or paths to game data.
+#### Native artwork cache developer commands
+
+From the Windows checkout's `desktop/` directory, use the repository-local
+commands below. Status reports the resolved path, schema, logical bytes of
+recognized files, structural checks and lock state. It leaves source validation
+to the application and counts unknown entries without opening or listing their
+names.
 
 ```powershell
-$artworkCache = Join-Path $env:LOCALAPPDATA 'io.github.yoruxyv.repoditor.preview\artwork-v1'
-Get-ChildItem -LiteralPath $artworkCache -File | Select-Object Name, Length
+npm run tauri:cache:status
+npm run tauri:cache:clear
+npm run tauri:cache:clear -- --yes
+npm run --silent tauri:cache:diagnostics
 ```
+
+Close RepoDitor before clearing. The interactive command requires typing
+`CLEAR`. The noninteractive invocation is intended for controlled benchmarks.
+Clear takes the Windows cache admission guard and publication lock, then deletes
+only the allowlisted cache files through retained NTFS directory handles. It
+keeps the cache directory, publication lock and unknown entries. It refuses
+active cache users, unsafe paths and unverifiable access. A partial result lists
+entries already removed. Repeat the command after resolving the blocker. The
+guard coordinates current Tauri hosts and sidecars across sessions of the same
+Windows account. Process inspection also checks standard executable names from
+earlier builds. Keep any
+renamed legacy executable closed throughout the operation.
+
+For a cold/warm walkthrough on a disposable profile, inspect and clear with the
+app closed, then launch the Tauri host from a shell with diagnostics enabled.
+Open Cosmetics, switch away and return, then close and restart the app with the
+same isolated profile. Open Cosmetics again and export the observations.
+
+```powershell
+$env:REPODITOR_CACHE_DIAGNOSTICS = '1'
+npm run dev:tauri
+# In a second shell after the journey
+npm run --silent tauri:cache:diagnostics
+```
+
+The opt-in recorder retains up to 48 observations in a 24 KiB file inside
+`artwork-v1`. Including that file, RepoDitor publishes at most 8.66 MiB there.
+The output contains fixed event codes, counts and sidecar durations. Compare
+`catalog_scan` on the first visit with `catalog_hit` on a revisit or restart.
+`initial_catalog` marks requests before a host's first successful catalog response.
+`entry_protection_rejected` covers damaged protected data and changed binding
+context because Windows does not distinguish them for these reads. Per-operation
+records are best effort during contention and may add I/O to benchmark runs.
+An empty log means observations are unavailable. It cannot reconstruct past
+requests. Live renderer counters and click-to-image durations are unavailable
+in the CLI. Exported diagnostics omit paths, identifiers, cache payloads and
+credentials.
 
 Canonical filename derivation, source reconciliation, native decoder resources and
 reader isolation are documented in [installed artwork](../reverse-engineering/truck_artwork.md).

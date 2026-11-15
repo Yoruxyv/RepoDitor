@@ -91,7 +91,7 @@ def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
     key = _host_key()
     snapshot = None
 
-    with native_artwork_cache() as cache:
+    with native_artwork_cache("initial_catalog" if warm_artwork else "catalog") as cache:
 
         def catalog() -> tuple[InstalledCosmeticMetadata, ...] | None:
             nonlocal snapshot
@@ -174,7 +174,7 @@ def get_native_cosmetic_artwork(fingerprint: str, proof: str, identity: str) -> 
         path = _meta_path(None)
         if sha256(read_save_bytes(path)).hexdigest() != fingerprint:
             return unavailable
-        with native_artwork_cache() as cache:
+        with native_artwork_cache("thumbnail") as cache:
             png = read_bound_cosmetic_png(
                 revision, filename, png_revision, cache=cache, identity=identity
             )

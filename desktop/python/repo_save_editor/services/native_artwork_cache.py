@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 import struct
 import zlib
+from collections import Counter
 from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from pathlib import Path
-from typing import Final
+from time import perf_counter
+from typing import Final, Literal, TypedDict
 
+from repo_save_editor.services.cache_activity import cache_activity
+from repo_save_editor.services.environment.windows_paths import resolve_windows_local_app_data
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 if os.name == "nt":
@@ -20,6 +25,47 @@ CATALOG_LIMIT: Final = 256 * 1024
 PNG_LIMIT: Final = 256 * 1024
 PNG_SLOTS: Final = 32
 SEAL_OVERHEAD: Final = 4096
+CACHE_VERSION: Final = 1
+DIAGNOSTICS_FILE: Final = "diagnostics.json"
+DIAGNOSTICS_LIMIT: Final = 24 * 1024
+DIAGNOSTICS_RECORDS: Final = 48
+PUBLISH_LOCK: Final = "publish.lock"
+PUBLISH_TEMP: Final = "publish.tmp"
+Operation = Literal["initial_catalog", "catalog", "thumbnail"]
+EVENTS: Final = frozenset(
+    {
+        "entry_missing",
+        "entry_inaccessible",
+        "entry_malformed",
+        "entry_oversized",
+        "entry_protection_rejected",
+        "catalog_metadata_invalid",
+        "catalog_hit",
+        "catalog_scan",
+        "thumbnail_hit",
+        "thumbnail_slot_reused",
+        "thumbnail_read",
+        "source_changed",
+        "source_unavailable",
+        "publication_busy",
+        "publication_failed",
+        "published",
+    }
+)
+
+
+class Observation(TypedDict):
+    operation: Operation
+    durationMs: int
+    events: dict[str, int]
+
+
+def png_identity(header: bytes, slot: int) -> str | None:
+    if len(header) == 4 and header.isdigit():
+        identity = int(header)
+        if identity % PNG_SLOTS == slot and identity < 2000:
+            return str(identity)
+    return None
 
 
 def cacheable_png(source: bytes) -> bytes | None:
@@ -108,71 +154,106 @@ class NativeArtworkCache:
     def __init__(self, directory: SaveDirectory, root: Path) -> None:
         self.directory = directory
         self.root = root
+        self.events: Counter[str] | None = None
 
-    def _read(self, name: str, limit: int) -> bytes | None:
+    def note(self, event: str, count: int = 1) -> None:
+        if self.events is not None and count > 0 and event in EVENTS:
+            self.events[event] += count
+
+    def _read(self, name: str, limit: int, *, observe: bool = True) -> bytes | None:
         try:
             with self.directory.open(self.root / name) as handle:
-                if os.fstat(handle.fileno()).st_size > limit:
-                    return None
-                data = handle.read(limit + 1)
-            return data if len(data) <= limit else None
+                data = (
+                    handle.read(limit + 1) if os.fstat(handle.fileno()).st_size <= limit else None
+                )
+            if data is not None and 0 < len(data) <= limit:
+                return data
+            if observe:
+                self.note("entry_malformed" if data == b"" else "entry_oversized")
+        except FileNotFoundError:
+            if observe:
+                self.note("entry_missing")
         except OSError:
-            return None
+            if observe:
+                self.note("entry_inaccessible")
+        return None
+
+    @contextmanager
+    def publication(self, *, create: bool) -> Iterator[None]:
+        with self.directory.open(self.root / PUBLISH_LOCK, "a+b" if create else "rb") as lock:
+            lock.seek(0)
+            try:
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as error:
+                raise BlockingIOError("Cache publication lock is unavailable.") from error
+            yield
+
+    def _replace(self, name: str, data: bytes) -> None:
+        staged = self.root / PUBLISH_TEMP
+        with suppress(FileNotFoundError):
+            self.directory.remove(staged)
+        with self.directory.open(staged, "xb", rename=True) as handle:
+            handle.write(data)
+            handle.flush()
+            self.directory.replace(handle, self.root / name)
 
     def _write(self, name: str, data: bytes) -> None:
-        # Only one publisher can own the fixed staging file, even across sidecars.
         try:
-            with self.directory.open(self.root / "publish.lock", "a+b") as lock:
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-                staged = self.root / "publish.tmp"
-                with suppress(FileNotFoundError):
-                    self.directory.remove(staged)
-                with self.directory.open(staged, "xb", rename=True) as handle:
-                    handle.write(data)
-                    handle.flush()
-                    self.directory.replace(handle, self.root / name)
+            with self.publication(create=True):
+                self._replace(name, data)
+        except BlockingIOError:
+            self.note("publication_busy")
         except OSError:
-            pass  # Optional work, including lock contention or interrupted publication.
+            self.note("publication_failed")
+        else:
+            self.note("published")
 
     def catalog(self, revision: str) -> bytes | None:
         frame = self._read("catalog.bin", CATALOG_LIMIT + SEAL_OVERHEAD)
         if frame is not None:
-            with suppress(OSError, ValueError):
+            try:
                 return _protect(frame, f"catalog/{revision}", CATALOG_LIMIT, seal=False)
+            except (OSError, ValueError):
+                self.note("entry_protection_rejected")
         return None
 
     def publish_catalog(self, revision: str, data: bytes) -> None:
         if len(data) <= CATALOG_LIMIT:
-            with suppress(OSError, ValueError):
+            try:
                 sealed = _protect(
                     data, f"catalog/{revision}", CATALOG_LIMIT + SEAL_OVERHEAD, seal=True
                 )
                 self._write("catalog.bin", sealed)
+            except (OSError, ValueError):
+                self.note("publication_failed")
 
     def png(self, slot: int) -> tuple[str, bytes] | None:
         frame = self._read(f"png-{slot:02d}.bin", PNG_LIMIT + SEAL_OVERHEAD + 4)
-        if frame is not None and len(frame) > 4 and frame[:4].isdigit():
-            identity = int(frame[:4])
-            if identity % PNG_SLOTS == slot and identity < 2000:
-                return str(identity), frame[4:]
+        if frame is not None:
+            identity = png_identity(frame[:4], slot)
+            if identity is not None and len(frame) > 4:
+                return identity, frame[4:]
+            self.note("entry_malformed")
         return None
 
     def open_png(self, identity: str, binding: str) -> bytes | None:
         entry = self.png(int(identity) % PNG_SLOTS)
         if entry is not None and entry[0] == identity:
             return self.unseal_png(identity, binding, entry[1])
+        if entry is not None:
+            self.note("thumbnail_slot_reused")
         return None
 
-    @staticmethod
-    def unseal_png(identity: str, binding: str, frame: bytes) -> bytes | None:
-        with suppress(OSError, ValueError):
+    def unseal_png(self, identity: str, binding: str, frame: bytes) -> bytes | None:
+        try:
             return _protect(frame, f"png/{identity}/{binding}", PNG_LIMIT, seal=False)
-        return None
+        except (OSError, ValueError):
+            self.note("entry_protection_rejected")
+            return None
 
     def publish_png(self, identity: str, binding: str, data: bytes) -> None:
         if len(data) <= PNG_LIMIT:
-            with suppress(OSError, ValueError):
+            try:
                 sealed = _protect(
                     data, f"png/{identity}/{binding}", PNG_LIMIT + SEAL_OVERHEAD, seal=True
                 )
@@ -180,30 +261,93 @@ class NativeArtworkCache:
                     f"png-{int(identity) % PNG_SLOTS:02d}.bin",
                     identity.zfill(4).encode("ascii") + sealed,
                 )
+            except (OSError, ValueError):
+                self.note("publication_failed")
+
+    def observations(self) -> list[Observation]:
+        frame = self._read(DIAGNOSTICS_FILE, DIAGNOSTICS_LIMIT, observe=False)
+        try:
+            rows = json.loads(frame) if frame is not None else []
+        except (ValueError, RecursionError):
+            return []
+        if not isinstance(rows, list) or len(rows) > DIAGNOSTICS_RECORDS:
+            return []
+        return [record for row in rows if (record := _observation(row)) is not None]
+
+    def record(self, operation: Operation, started: float) -> None:
+        if self.events is None:
+            return
+        observation: Observation = {
+            "operation": operation,
+            "durationMs": min(120_000, round((perf_counter() - started) * 1_000)),
+            "events": dict(self.events),
+        }
+        with suppress(OSError), self.publication(create=True):
+            rows = [*self.observations(), observation][-DIAGNOSTICS_RECORDS:]
+            data = json.dumps(rows, separators=(",", ":")).encode("ascii")
+            if len(data) <= DIAGNOSTICS_LIMIT:
+                self._replace(DIAGNOSTICS_FILE, data)
+
+
+def _observation(row: object) -> Observation | None:
+    if not isinstance(row, dict):
+        return None
+    operation, duration, events = row.get("operation"), row.get("durationMs"), row.get("events")
+    if (
+        operation not in ("initial_catalog", "catalog", "thumbnail")
+        or type(duration) is not int
+        or not 0 <= duration <= 120_000
+        or not isinstance(events, dict)
+        or any(
+            key not in EVENTS or type(value) is not int or not 1 <= value <= 2000
+            for key, value in events.items()
+        )
+    ):
+        return None
+    return {"operation": operation, "durationMs": duration, "events": dict(events)}
+
+
+def artwork_cache_root() -> Path | None:
+    if os.name != "nt":
+        return None
+    local: Path | None
+    if os.environ.get("REPODITOR_E2E") == "1":
+        local = Path(os.environ.get("LOCALAPPDATA", ""))
+        profile = "RepoDitorPreview"
+    else:
+        local = resolve_windows_local_app_data()
+        profile = "io.github.yoruxyv.repoditor.preview"
+    if local is not None and local.is_absolute() and ".." not in local.parts:
+        return local / profile / f"artwork-v{CACHE_VERSION}"
+    return None
+
+
+def _close_cache(directory: SaveDirectory) -> None:
+    with suppress(OSError):
+        directory.close()
 
 
 @contextmanager
-def native_artwork_cache() -> Iterator[NativeArtworkCache | None]:
-    local = os.environ.get("LOCALAPPDATA")
-    if os.name == "nt" and local and Path(local).is_absolute():
-        profile = (
-            "RepoDitorPreview"
-            if os.environ.get("REPODITOR_E2E") == "1"
-            else ("io.github.yoruxyv.repoditor.preview")
-        )
-        root = Path(local) / profile / "artwork-v1"
+def native_artwork_cache(operation: Operation | None = None) -> Iterator[NativeArtworkCache | None]:
+    root = artwork_cache_root()
+    with ExitStack() as lifetime:
+        cache = None
         # The native window owns and creates the app profile before this sidecar runs.
         try:
-            with SaveDirectory(root):
-                root.mkdir(exist_ok=True)
-            directory = SaveDirectory(root / "catalog.bin")
+            if root is not None:
+                lifetime.enter_context(cache_activity())
+                with SaveDirectory(root):
+                    root.mkdir(exist_ok=True)
+                directory = SaveDirectory(root / "catalog.bin")
+                lifetime.callback(_close_cache, directory)
+                cache = NativeArtworkCache(directory, root)
         except OSError:
             pass
-        else:
-            try:
-                yield NativeArtworkCache(directory, root)
-            finally:
-                with suppress(OSError):
-                    directory.close()
-            return
-    yield None
+        if cache is not None and operation and os.environ.get("REPODITOR_CACHE_DIAGNOSTICS") == "1":
+            cache.events = Counter()
+        started = perf_counter()
+        try:
+            yield cache
+        finally:
+            if cache is not None and operation:
+                cache.record(operation, started)

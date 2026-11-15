@@ -462,6 +462,9 @@ async fn test_health_state(app: tauri::AppHandle, save_id: String) -> recovery::
 }
 
 fn main() {
+    let fixture = std::env::var("REPODITOR_E2E").as_deref() == Ok("1");
+    let _cache_activity =
+        backend::cache_activity::retain(fixture).expect("Unable to coordinate artwork cache use");
     tauri::Builder::default()
         .manage(Arc::new(HostState::default()))
         .invoke_handler(tauri::generate_handler![
@@ -503,8 +506,8 @@ fn main() {
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_state,
         ])
-        .setup(|app| {
-            let profile = if std::env::var("REPODITOR_E2E").as_deref() == Ok("1") {
+        .setup(move |app| {
+            let profile = if fixture {
                 std::path::PathBuf::from(
                     std::env::var_os("LOCALAPPDATA").ok_or("Missing isolated test profile")?,
                 )

@@ -62,6 +62,7 @@ def test_native_proof_binds_exact_id_source_and_metasave(
     key = bytes.fromhex("a" * 64)
     monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
     meta = tmp_path / "MetaSave.es3"
     meta.write_bytes(b"synthetic MetaSave bytes")
     fingerprint = sha256(meta.read_bytes()).hexdigest()
@@ -96,6 +97,7 @@ def test_warm_artwork_requires_current_metasave(
 ) -> None:
     monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", "a" * 64)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
     meta = tmp_path / "MetaSave.es3"
     original = b"synthetic MetaSave bytes"
     meta.write_bytes(original)

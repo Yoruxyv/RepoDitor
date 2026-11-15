@@ -544,10 +544,19 @@ def _read_native_catalog(
             )
             or len(set(filenames.values())) != len(filenames)
         ):
+            if cache is not None:
+                cache.note("catalog_metadata_invalid")
             return None
         return catalog, filenames
     except (ValueError, KeyError, TypeError):
+        if cache is not None:
+            cache.note("catalog_metadata_invalid")
         return None
+
+
+def _cache_event(cache: NativeArtworkCache | None, event: str, count: int = 1) -> None:
+    if cache is not None:
+        cache.note(event, count)
 
 
 def _file_binding(library: Path, path: Path, revision: str, png_revision: str) -> str | None:
@@ -568,6 +577,8 @@ def _warm_pngs(
     for slot in range(PNG_SLOTS):
         entry = cache.png(slot)
         if entry is None or entry[0] not in mapped:
+            if entry is not None:
+                cache.note("source_changed")
             continue
         identity, frame = entry
         key, png_revision = mapped[identity]
@@ -578,6 +589,7 @@ def _warm_pngs(
             if png is None or len(png) > remaining:
                 continue
             if _file_binding(library, path, revision, png_revision) != binding:
+                cache.note("source_changed")
                 continue
         except (OSError, ValueError):
             continue
@@ -605,6 +617,7 @@ def native_cosmetic_catalog(
     try:
         reviewed = _reviewed_installation(None)
         if reviewed is None:
+            _cache_event(cache, "source_unavailable")
             return None
         root, library, build, assembly = reviewed
         before = _native_sources(root, library, build)
@@ -612,9 +625,11 @@ def native_cosmetic_catalog(
             return None
         revision = _digest([build.build_id, before])
         if not all(before[1]):
+            _cache_event(cache, "source_unavailable")
             cache = None
         cached = _read_native_catalog(cache, revision)
         if cached is None:
+            _cache_event(cache, "catalog_scan")
             keys, paths, catalog = _cosmetic_keys(root, native=True)
             if not paths.issubset({Path(watch["path"]) for watch in before[0]}):
                 return None
@@ -628,7 +643,10 @@ def native_cosmetic_catalog(
             _warm_pngs(cache, root, library, revision, mapped) if cache and warm_artwork else {}
         )
         if _native_sources(root, library, build) != before:
+            _cache_event(cache, "source_changed")
             return None
+        _cache_event(cache, "catalog_hit", int(cached is not None))
+        _cache_event(cache, "thumbnail_hit", len(previews))
         if cache is not None and cached is None:
             cache.publish_catalog(
                 revision,
@@ -639,6 +657,7 @@ def native_cosmetic_catalog(
             )
         return catalog, revision, mapped, previews
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+        _cache_event(cache, "source_unavailable")
         return None
 
 
@@ -660,18 +679,28 @@ def read_bound_cosmetic_png(
         root, library, build, assembly = reviewed
         before = _native_sources(root, library, build)
         if assembly not in before[0] or _digest([build.build_id, before]) != revision:
+            if cache is not None:
+                cache.note("source_changed")
             return None
         path = _cosmetic_png(root, key)
         stamp = _png_stamp(owned_file(library, path).stat())
         if _png_revision(path, stamp) != png_revision:
+            if cache is not None:
+                cache.note("source_changed")
             return None
         binding = f"{revision}:{key}:{png_revision}" if cache and all(before[1]) else None
         cached = cache.open_png(identity, binding) if cache and binding is not None else None
         png = cached if cached is not None else _read_owned_png(library, path, stamp)
         if _native_sources(root, library, build) != before:
+            if cache is not None:
+                cache.note("source_changed")
             return None
         if _file_binding(library, path, revision, png_revision) is None:
+            if cache is not None:
+                cache.note("source_changed")
             return None
+        if cache is not None and png is not None:
+            cache.note("thumbnail_hit" if cached is not None else "thumbnail_read")
         if (
             cache is not None
             and binding is not None
@@ -682,4 +711,6 @@ def read_bound_cosmetic_png(
             cache.publish_png(identity, binding, stripped)
         return png
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+        if cache is not None:
+            cache.note("source_unavailable")
         return None
