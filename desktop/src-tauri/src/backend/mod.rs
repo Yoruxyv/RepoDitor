@@ -115,7 +115,7 @@ pub enum Operation {
     Run(String),
     Items(String),
     Maps,
-    Cosmetics,
+    Cosmetics(bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealth(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
@@ -162,7 +162,7 @@ impl Operation {
             Self::Run(_) => 5,
             Self::Items(_) => 6,
             Self::Maps => 7,
-            Self::Cosmetics => 8,
+            Self::Cosmetics(_) => 8,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaPrepare(..)
             | Self::TestMetaWrite(..)
@@ -192,7 +192,7 @@ impl Operation {
             Self::Run(_) => Service::Run,
             Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
             Self::Maps | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
-            Self::Cosmetics | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
+            Self::Cosmetics(_) | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaState(..)
             | Self::TestMetaPrepare(..)
@@ -238,7 +238,8 @@ impl Operation {
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
             Self::Maps => vec!["maps-list"],
-            Self::Cosmetics => vec!["cosmetics-get", "--native-artwork"],
+            Self::Cosmetics(true) => vec!["cosmetics-get", "--native-artwork", "--warm-artwork"],
+            Self::Cosmetics(false) => vec!["cosmetics-get", "--native-artwork"],
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealth(id, fingerprint, payload, operation, _) => vec![
                 "saves-write",

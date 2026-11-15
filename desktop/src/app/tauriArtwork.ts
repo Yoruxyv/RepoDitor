@@ -1,7 +1,7 @@
 /** One cancellable native decoder lane and bounded Cosmetics thumbnail reuse. */
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
-import type { DesktopOperationResult } from "@electron/contracts";
+import type { CosmeticsViewDto, DesktopOperationResult } from "@electron/contracts";
 
 export interface NativeArtwork {
   readonly token: string;
@@ -124,6 +124,38 @@ function validImage(image: NativeArtwork | null, token: string): boolean {
     /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.dataUrl)
   );
 }
+
+function cosmeticReuseKey(token: string, reuseKey?: string) {
+  return artworkScope(token) === "cosmetic" &&
+    isNativeArtworkToken(token) &&
+    /^[0-9a-f]{64}:\d{1,4}:[0-9a-f]{64}:[0-9a-f]{64}$/.test(reuseKey ?? "")
+    ? reuseKey
+    : undefined;
+}
+
+function retainCosmeticThumbnail(key: string, image: NativeArtwork) {
+  if (image.dataUrl.length > MAX_REUSED_DATA_URL) return;
+  cosmeticThumbnails.set(key, image);
+  if (cosmeticThumbnails.size > MAX_REUSED_THUMBNAILS) {
+    const oldest = cosmeticThumbnails.keys().next().value!;
+    cosmeticThumbnails.delete(oldest);
+  }
+}
+
+export function restoreNativeCosmeticPreviews(view: CosmeticsViewDto): CosmeticsViewDto {
+  if (!view.cosmetics.some((row) => row.iconPreview)) return view;
+  return {
+    ...view,
+    cosmetics: view.cosmetics.map(({ iconPreview, ...row }) => {
+      if (row.iconToken && iconPreview && validImage(iconPreview, row.iconToken)) {
+        const key = cosmeticReuseKey(row.iconToken, row.iconReuseKey);
+        if (key) retainCosmeticThumbnail(key, iconPreview);
+      }
+      return row;
+    }),
+  };
+}
+
 function pump(): void {
   if (active !== null) return;
   const request = queue.shift();
@@ -138,18 +170,8 @@ function pump(): void {
     .then((result) => {
       request.settled = true;
       const image = result.ok && validImage(result.data, request.token) ? result.data : null;
-      if (
-        image &&
-        request.reuseKey &&
-        request.listeners.size > 0 &&
-        image.dataUrl.length <= MAX_REUSED_DATA_URL
-      ) {
-        cosmeticThumbnails.set(request.reuseKey, image);
-        if (cosmeticThumbnails.size > MAX_REUSED_THUMBNAILS) {
-          const oldest = cosmeticThumbnails.keys().next().value!;
-          cosmeticThumbnails.delete(oldest);
-        }
-      }
+      if (image && request.reuseKey && request.listeners.size > 0)
+        retainCosmeticThumbnail(request.reuseKey, image);
       for (const listener of request.listeners) listener(image);
     })
     .catch(() => {
@@ -172,12 +194,7 @@ export function acquireNativeArtwork(
   reuseKey?: string,
 ): () => void {
   const scope = artworkScope(token);
-  const key =
-    scope === "cosmetic" &&
-    isNativeArtworkToken(token) &&
-    /^[0-9a-f]{64}:\d{1,4}:[0-9a-f]{64}:[0-9a-f]{64}$/.test(reuseKey ?? "")
-      ? reuseKey
-      : undefined;
+  const key = cosmeticReuseKey(token, reuseKey);
   if (key) {
     const image = cosmeticThumbnails.get(key);
     if (image) {

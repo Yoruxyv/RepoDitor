@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CosmeticsViewDto, RepoDitorApi } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { restoreNativeCosmeticPreviews } from "@/app/tauriArtwork";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 export function useCosmeticsRead(
@@ -39,7 +40,7 @@ export function useCosmeticsRead(
         if (isCurrent())
           setState(
             result.ok
-              ? { request, view: result.data, error: null }
+              ? { request, view: restoreNativeCosmeticPreviews(result.data), error: null }
               : { request, view: null, error: operationErrorKey(result.error.code) },
           );
       } catch {

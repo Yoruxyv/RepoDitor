@@ -818,6 +818,37 @@ to 24 previously validated thumbnails in memory when those keys match. Pending
 and failed images are not retained. Artwork tokens keep their existing revocation
 and authorization rules.
 
+On Windows, native Cosmetics also uses
+`%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview\artwork-v1`. It contains
+`catalog.bin`, up to 32 `png-NN.bin` slots, and a fixed publication lock and
+temporary file. RepoDitor writes at most 8.64 MiB across these files. An NTFS
+directory handle pins publication to the app-owned namespace. A publisher holds
+an exclusive lock and atomically replaces a single entry. A later publisher can
+remove an incomplete temporary file left by interruption.
+
+Windows DPAPI protects the entries under the current Windows account. Catalog
+entries contain canonical presentation metadata and baked identifiers. They are
+bound to the reviewed Steam build and assembly and current installed-source
+identities, including NTFS change times and the Unity data directory's file
+names, which can affect external reference resolution. Each artwork entry binds the
+cosmetic ID and current PNG identity and excludes ancillary PNG metadata.
+Missing or unreadable entries fall back to
+the installed sources. An initial catalog response can carry up to eight warm
+thumbnails through the existing native PNG validator after checking the current
+MetaSave fingerprint. The cache stores no MetaSave or transaction data. The live
+MetaSave read and compatibility checks still run on entry.
+
+To inspect the cache without opening its entries, list names and sizes under
+the dedicated directory. The WebView profile, game installation and game caches
+have separate locations. Future developer tooling can use the versioned file
+names to identify this cache and report cache decisions without exporting
+artwork, fingerprints or paths to game data.
+
+```powershell
+$artworkCache = Join-Path $env:LOCALAPPDATA 'io.github.yoruxyv.repoditor.preview\artwork-v1'
+Get-ChildItem -LiteralPath $artworkCache -File | Select-Object Name, Length
+```
+
 Canonical filename derivation, source reconciliation, native decoder resources and
 reader isolation are documented in [installed artwork](../reverse-engineering/truck_artwork.md).
 

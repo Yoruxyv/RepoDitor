@@ -24,6 +24,8 @@ pub struct Cosmetics {
     cosmetics: Vec<Cosmetic>,
     #[serde(default, skip_serializing)]
     artwork_proofs: HashMap<String, String>,
+    #[serde(default, skip_serializing)]
+    artwork_previews: HashMap<String, Value>,
 }
 
 impl Cosmetics {
@@ -31,10 +33,16 @@ impl Cosmetics {
         &self.fingerprint
     }
 
-    pub fn artwork_rows(&mut self) -> impl Iterator<Item = (String, String, &mut Cosmetic)> {
+    pub fn artwork_rows(
+        &mut self,
+    ) -> impl Iterator<Item = (String, String, Option<Value>, &mut Cosmetic)> {
         let mut proofs = std::mem::take(&mut self.artwork_proofs);
         if proofs.len() > 2_000 {
             proofs.clear();
+        }
+        let mut previews = std::mem::take(&mut self.artwork_previews);
+        if previews.len() > 8 {
+            previews.clear();
         }
         self.cosmetics.iter_mut().filter_map(move |cosmetic| {
             if !cosmetic.known || !(0..2_000).contains(&cosmetic.id) {
@@ -42,7 +50,8 @@ impl Cosmetics {
             }
             let id = cosmetic.id.to_string();
             let proof = proofs.remove(&id)?;
-            Some((id, proof, cosmetic))
+            let preview = previews.remove(&id);
+            Some((id, proof, preview, cosmetic))
         })
     }
 }
@@ -81,6 +90,8 @@ pub(crate) struct Cosmetic {
     pub icon_token: Option<String>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub icon_reuse_key: Option<String>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub icon_preview: Option<crate::backend::artwork::Image>,
 }
 
 fn integer<E: serde::de::Error>(value: Number) -> Result<i64, E> {

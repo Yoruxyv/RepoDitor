@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hmac
+import json
 import os
 import struct
 from hashlib import sha256
@@ -24,6 +25,7 @@ from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.presentation_catalog import (
     discover_cosmetic_presentation_catalog,
 )
+from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.storage.repository import read_save_bytes
 
 MAX_ID = 2_000
@@ -84,27 +86,64 @@ def _signature(key: bytes, fingerprint: str, identity: str, binding: str) -> str
     ).hex()
 
 
-def get_native_cosmetics() -> dict[str, object]:
+def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
     """Attach private artwork proofs to the independently validated MetaSave view."""
     key = _host_key()
     snapshot = None
 
-    def catalog() -> tuple[InstalledCosmeticMetadata, ...] | None:
-        nonlocal snapshot
-        snapshot = native_cosmetic_catalog() if key is not None else None
-        return snapshot[0] if snapshot is not None else discover_cosmetic_presentation_catalog()
+    with native_artwork_cache() as cache:
 
-    response = get_cosmetics(catalog_loader=catalog)
+        def catalog() -> tuple[InstalledCosmeticMetadata, ...] | None:
+            nonlocal snapshot
+            snapshot = (
+                native_cosmetic_catalog(cache, warm_artwork=warm_artwork)
+                if key is not None
+                else None
+            )
+            return snapshot[0] if snapshot is not None else discover_cosmetic_presentation_catalog()
+
+        response = get_cosmetics(catalog_loader=catalog)
     view = response.get("cosmetics")
     if key is not None and snapshot is not None and isinstance(view, dict):
-        _, revision, mappings = snapshot
+        _, revision, mappings, warm = snapshot
         fingerprint = view["fingerprint"]
+        try:
+            current = sha256(read_save_bytes(_meta_path(None))).hexdigest()
+        except (DesktopSaveError, OSError, ValueError):
+            current = None
+        if current != fingerprint:
+            return {
+                "ok": False,
+                "error": {"code": "save_stale", "message": "MetaSave changed during validation."},
+            }
         proofs = {}
         for identity, (filename, png_revision) in mappings.items():
             binding = f"{revision}:{filename}:{png_revision}"
             proofs[identity] = f"{binding}:{_signature(key, fingerprint, identity, binding)}"
         view["artworkProofs"] = proofs
+        # Leave headroom in the existing 2 MiB sidecar frame for base64 expansion.
+        if warm and len(json.dumps(response)) <= 1024 * 1024:
+            view["artworkPreviews"] = {
+                identity: image
+                for identity, png in warm.items()
+                if (image := _native_image(int(identity), revision, png)) is not None
+            }
     return response
+
+
+def _native_image(cosmetic_id: int, revision: str, png: bytes | None) -> dict[str, object] | None:
+    if png is None or len(png) < 57 or not png.startswith(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"):
+        return None
+    width, height = struct.unpack_from(">II", png, 16)
+    if not (0 < width <= 2048 and 0 < height <= 2048 and width * height <= 1024 * 1024):
+        return None
+    return {
+        "cosmeticId": cosmetic_id,
+        "sourceIdentity": revision,
+        "width": width,
+        "height": height,
+        "pngBase64": base64.b64encode(png).decode("ascii"),
+    }
 
 
 def get_native_cosmetic_artwork(fingerprint: str, proof: str, identity: str) -> dict[str, object]:
@@ -135,11 +174,12 @@ def get_native_cosmetic_artwork(fingerprint: str, proof: str, identity: str) -> 
         path = _meta_path(None)
         if sha256(read_save_bytes(path)).hexdigest() != fingerprint:
             return unavailable
-        png = read_bound_cosmetic_png(revision, filename, png_revision)
-        if png is None or len(png) < 57 or not png.startswith(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"):
-            return unavailable
-        width, height = struct.unpack_from(">II", png, 16)
-        if not (0 < width <= 2048 and 0 < height <= 2048 and width * height <= 1024 * 1024):
+        with native_artwork_cache() as cache:
+            png = read_bound_cosmetic_png(
+                revision, filename, png_revision, cache=cache, identity=identity
+            )
+        image = _native_image(cosmetic_id, revision, png)
+        if image is None:
             return unavailable
         if sha256(read_save_bytes(path)).hexdigest() != fingerprint:
             return unavailable
@@ -147,13 +187,7 @@ def get_native_cosmetic_artwork(fingerprint: str, proof: str, identity: str) -> 
         return unavailable
     return {
         "ok": True,
-        "artwork": {
-            "cosmeticId": cosmetic_id,
-            "sourceIdentity": revision,
-            "width": width,
-            "height": height,
-            "pngBase64": base64.b64encode(png).decode("ascii"),
-        },
+        "artwork": image,
     }
 
 

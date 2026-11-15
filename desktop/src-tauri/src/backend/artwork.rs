@@ -58,6 +58,7 @@ pub struct Registry {
     maps: HashMap<String, Entry>,
     cosmetics: HashMap<String, Entry>,
     cosmetic_generation: u64,
+    cosmetics_warmed: bool,
     meta_fingerprint: String,
 }
 impl Registry {
@@ -158,8 +159,9 @@ impl Registry {
         if self.cosmetic_generation != generation {
             return;
         }
+        self.cosmetics_warmed = true;
         self.meta_fingerprint = projection.fingerprint().to_owned();
-        for (id, proof, row) in projection.artwork_rows() {
+        for (id, proof, preview, row) in projection.artwork_rows() {
             let mut parts = proof.split(':');
             let (Some(source), Some(filename), Some(file), Some(signature), None) = (
                 parts.next(),
@@ -184,14 +186,18 @@ impl Registry {
                 // private proof separate from the renderer's presentation-only key.
                 row.icon_reuse_key =
                     Some(format!("{}:{id}:{source}:{file}", self.meta_fingerprint));
-                row.icon_token = Some(register(
-                    &mut self.cosmetics,
-                    Scope::Cosmetic,
-                    &id,
-                    Some(&proof),
-                ));
+                let token = register(&mut self.cosmetics, Scope::Cosmetic, &id, Some(&proof));
+                if let Some(image) = preview {
+                    row.icon_preview = normalize(image, &id, &token, Some(source))
+                        .ok()
+                        .filter(|image| image.data_url.len() <= 256 * 1024);
+                }
+                row.icon_token = Some(token);
             }
         }
+    }
+    pub fn needs_warm_cosmetics(&self) -> bool {
+        !self.cosmetics_warmed
     }
     pub fn begin(
         &mut self,
@@ -299,7 +305,7 @@ struct PythonImage {
     height: u32,
     png_base64: String,
 }
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     token: String,
@@ -316,10 +322,19 @@ pub fn parse(
     if raw["ok"] != true {
         return Err(BackendError::Invalid);
     }
-    let mut value = raw.get_mut("artwork").ok_or(BackendError::Invalid)?.take();
+    let value = raw.get_mut("artwork").ok_or(BackendError::Invalid)?.take();
     if value.is_null() {
         return Ok(None);
     }
+    normalize(value, key, token, expected_revision).map(Some)
+}
+
+fn normalize(
+    mut value: serde_json::Value,
+    key: &str,
+    token: &str,
+    expected_revision: Option<&str>,
+) -> Result<Image, BackendError> {
     let item = Scope::Item.accepts(token);
     let map = Scope::Map.accepts(token);
     let cosmetic = Scope::Cosmetic.accepts(token);
@@ -424,11 +439,11 @@ pub fn parse(
     } else {
         image.png_base64
     };
-    Ok(Some(Image {
+    Ok(Image {
         token: token.into(),
         revision: image.source_identity,
         data_url: format!("data:image/png;base64,{encoded}"),
-    }))
+    })
 }
 
 fn complete_png(png: &[u8]) -> bool {

@@ -300,8 +300,13 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
     cosmetics_get = commands.add_parser("cosmetics-get")
     cosmetics_get.add_argument("--native-artwork", action="store_true")
+    cosmetics_get.add_argument("--warm-artwork", action="store_true")
     cosmetics_get.set_defaults(
-        handler=lambda args: get_native_cosmetics() if args.native_artwork else get_cosmetics()
+        handler=lambda args: (
+            get_native_cosmetics(warm_artwork=args.warm_artwork)
+            if args.native_artwork
+            else get_cosmetics()
+        )
     )
     native_cosmetic = commands.add_parser("native-cosmetic-artwork")
     native_cosmetic.add_argument("fingerprint")

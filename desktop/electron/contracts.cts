@@ -304,6 +304,7 @@ export interface CosmeticDto {
   iconToken: string | null;
   /** Tauri presentation identity from a freshly validated projection. */
   iconReuseKey?: string;
+  iconPreview?: { token: string; revision: string; dataUrl: string };
 }
 
 export interface CosmeticsViewDto {

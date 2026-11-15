@@ -52,14 +52,35 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
         .map(|id| (id.to_string(), json!(&proof)))
         .collect::<serde_json::Map<_, _>>()
         .into();
+    let preview = |id| {
+        json!({
+            "cosmeticId": id,
+            "sourceIdentity": "b".repeat(64),
+            "width": 1,
+            "height": 1,
+            "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+        })
+    };
+    raw["cosmetics"]["artworkPreviews"] = json!({
+        "557": preview(558),
+        "558": preview(558),
+        "999": preview(999),
+    });
     let mut registry = Registry::default();
     let generation = registry.revoke_cosmetics();
     let mut data = decode(raw.clone()).unwrap();
     registry.register_cosmetics(generation, &mut data);
     let public = serde_json::to_value(data).unwrap();
     assert!(public.get("artworkProofs").is_none());
+    assert!(public.get("artworkPreviews").is_none());
     assert!(public["cosmetics"][560]["iconToken"].is_null());
     assert!(public["cosmetics"][560].get("iconReuseKey").is_none());
+    assert!(public["cosmetics"][560].get("iconPreview").is_none());
+    assert!(public["cosmetics"][557].get("iconPreview").is_none());
+    assert_eq!(
+        public["cosmetics"][558]["iconPreview"]["revision"],
+        "b".repeat(64)
+    );
     assert_eq!(
         public["cosmetics"][558]["iconReuseKey"],
         format!(
@@ -70,6 +91,7 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
         )
     );
     let token = public["cosmetics"][558]["iconToken"].as_str().unwrap();
+    assert_eq!(public["cosmetics"][558]["iconPreview"]["token"], token);
     assert!(Scope::Cosmetic.accepts(token));
     assert!(!Scope::Map.accepts(token));
     assert!(registry
@@ -90,6 +112,7 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
     let late = serde_json::to_value(late).unwrap();
     assert!(late["cosmetics"][558]["iconToken"].is_null());
     assert!(late["cosmetics"][558].get("iconReuseKey").is_none());
+    assert!(late["cosmetics"][558].get("iconPreview").is_none());
 }
 
 #[test]

@@ -303,8 +303,11 @@ fn cosmetic_artwork_cancel(app: tauri::AppHandle, token: Option<String>) {
 #[tauri::command]
 async fn cosmetics_get(app: tauri::AppHandle) -> Outcome<cosmetics::Cosmetics> {
     let state = app.state::<Arc<HostState>>().inner().clone();
-    let generation = state.artwork.lock().unwrap().revoke_cosmetics();
-    backend::request(app, Operation::Cosmetics, move |bytes| {
+    let (generation, warm_artwork) = {
+        let mut registry = state.artwork.lock().unwrap();
+        (registry.revoke_cosmetics(), registry.needs_warm_cosmetics())
+    };
+    backend::request(app, Operation::Cosmetics(warm_artwork), move |bytes| {
         let mut data = cosmetics::parse(bytes)?;
         state
             .artwork

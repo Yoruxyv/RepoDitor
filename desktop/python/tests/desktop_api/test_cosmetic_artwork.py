@@ -61,6 +61,7 @@ def test_native_proof_binds_exact_id_source_and_metasave(
 ) -> None:
     key = bytes.fromhex("a" * 64)
     monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     meta = tmp_path / "MetaSave.es3"
     meta.write_bytes(b"synthetic MetaSave bytes")
     fingerprint = sha256(meta.read_bytes()).hexdigest()
@@ -81,9 +82,42 @@ def test_native_proof_binds_exact_id_source_and_metasave(
         assert response["artwork"]["cosmeticId"] == 556
         assert response["artwork"]["sourceIdentity"] == revision
         assert "watches" not in response["artwork"]
-        read.assert_called_once_with(revision, filename, png_revision)
+        read.assert_called_once_with(revision, filename, png_revision, cache=None, identity="556")
         meta.write_bytes(b"changed")
         assert native.get_native_cosmetic_artwork(fingerprint, proof, "556") == unavailable
         meta.unlink()
         assert native.get_native_cosmetic_artwork(fingerprint, proof, "556") == unavailable
         read.assert_called_once()
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_warm_artwork_requires_current_metasave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: bool
+) -> None:
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", "a" * 64)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic MetaSave bytes"
+    meta.write_bytes(original)
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+
+    def catalog(_cache, *, warm_artwork):
+        assert warm_artwork
+        if changed:
+            meta.write_bytes(b"new source")
+        return (), "b" * 64, {"0": ("c" * 32, "d" * 64)}, {"0": png}
+
+    def projection(*, catalog_loader):
+        catalog_loader()
+        return {"ok": True, "cosmetics": {"fingerprint": sha256(original).hexdigest()}}
+
+    monkeypatch.setattr(native, "native_cosmetic_catalog", catalog)
+    monkeypatch.setattr(native, "get_cosmetics", projection)
+    result = native.get_native_cosmetics(warm_artwork=True)
+    if changed:
+        assert result["ok"] is False
+        assert result["error"]["code"] == "save_stale"
+    else:
+        assert result["ok"] is True
+        assert result["cosmetics"]["artworkPreviews"]["0"]["sourceIdentity"] == "b" * 64

@@ -18,6 +18,7 @@ from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
+from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_hash import unity_hash128
@@ -172,7 +173,7 @@ def _installation(
     monkeypatch.setattr(
         baked,
         "_cosmetic_keys",
-        lambda _: (
+        lambda _, **_options: (
             {"0": "First", "547": "New", "556": "Last"},
             {root / "REPO_Data/sharedassets0.assets"},
             tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in range(557)),
@@ -216,7 +217,7 @@ def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
     path.write_bytes(png)
     snapshot = baked.native_cosmetic_catalog()
     assert snapshot is not None
-    catalog, revision, images = snapshot
+    catalog, revision, images, _previews = snapshot
     assert len(catalog) == 557
     assert list(images) == ["556"]
     key, png_revision = images["556"]
@@ -229,11 +230,107 @@ def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
     os.utime(replacement, ns=(old.st_atime_ns, old.st_mtime_ns))
     replacement.replace(path)
     assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
-    stamp = baked._digest(baked._png_stamp(path.stat()))
+    stamp = baked._png_revision(path, baked._png_stamp(path.stat()))
     (root / "REPO_Data/level0").write_bytes(b"changed source")
     assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
     path.unlink()
     assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native artwork cache uses Windows DPAPI")
+def test_native_catalog_and_artwork_warm_restart_and_source_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    (tmp_path / "RepoDitorPreview").mkdir()
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Last"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+    extract = baked._cosmetic_keys
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        snapshot = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert snapshot is not None
+        _catalog, revision, images, previews = snapshot
+        assert previews == {}
+        key, png_revision = images["556"]
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+        cache_root = cache.root
+    with monkeypatch.context() as warm_check, native_artwork_cache() as cache:
+        assert cache is not None
+        warm_check.setattr(
+            baked, "_cosmetic_keys", lambda *_, **_options: pytest.fail("Rescanned valid catalog")
+        )
+        warm_check.setattr(baked, "_read_owned_png", lambda *_: pytest.fail("Read installed PNG"))
+        warm = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert warm == (*snapshot[:3], {"556": png})
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+
+    (cache_root / f"png-{556 % 32:02d}.bin").write_bytes(b"0556" + b"corrupt")
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        invalid = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert invalid is not None
+        assert invalid[3] == {}
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+        rebuilt = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert rebuilt is not None
+        assert rebuilt[3] == {"556": png}
+
+    old = path.stat()
+    path.write_bytes(bytes([0]) + png[1:])
+    os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        changed_png = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert changed_png is not None
+        assert changed_png[3] == {}
+        assert changed_png[2]["556"][1] != png_revision
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            is None
+        )
+
+    catalog_file = cache_root / "catalog.bin"
+    for invalidate in (lambda: catalog_file.write_bytes(b"forged"), catalog_file.unlink):
+        invalidate()
+        with native_artwork_cache() as cache:
+            assert cache is not None
+            assert baked.native_cosmetic_catalog(cache) is not None
+        assert catalog_file.stat().st_size > 6
+
+    with monkeypatch.context() as update, native_artwork_cache() as cache:
+        assert cache is not None
+        calls = []
+
+        def rescan(game: Path, **options):
+            calls.append(game)
+            return extract(game, **options)
+
+        update.setattr(baked, "_cosmetic_keys", rescan)
+        (root / "REPO_Data/alternate.assets").write_bytes(b"new external candidate")
+        assert baked.native_cosmetic_catalog(cache) is not None
+        assert calls == [root]
+        (root / "REPO_Data/level0").write_bytes(b"updated source")
+        assert baked.native_cosmetic_catalog(cache) is not None
+        assert calls == [root, root]
 
 
 @pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])

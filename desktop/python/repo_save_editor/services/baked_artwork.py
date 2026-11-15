@@ -6,18 +6,31 @@ cache contains source identities and canonical hash inputs, never game artwork.
 
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import os
 import stat
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import replace
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Final
 
+from repo_save_editor.services.native_artwork_cache import (
+    PNG_SLOTS,
+    NativeArtworkCache,
+    cacheable_png,
+)
+
+if os.name == "nt":
+    import msvcrt
+
 from repo_save_editor.services.cosmetics.installed_catalog import (
+    MAX_OPEN_FILES,
     _catalog_payload,
     _find_cosmetic_vector,
     _find_unique_meta_manager,
@@ -43,6 +56,7 @@ from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, Artw
 from repo_save_editor.services.unity_hash import unity_hash128
 from repo_save_editor.services.unity_serialized import (
     MONO_BEHAVIOUR_CLASS_ID,
+    SerializedFileIndex,
     parse_mono_behaviour_prefix,
     read_pptr,
 )
@@ -76,10 +90,31 @@ def _watch(root: Path, path: Path) -> dict[str, str]:
     }
 
 
+class _NativeCatalogResolver(_ArtworkResolver):
+    def __init__(self, data_dir: Path) -> None:
+        super().__init__(data_dir)
+        self.targets: dict[tuple[Path, int], SerializedFileIndex] = {}
+
+    def target_index(self, source: SerializedFileIndex, file_id: int) -> SerializedFileIndex:
+        if file_id <= 0:
+            return super().target_index(source, file_id)
+        key = (source.path, file_id)
+        target = self.targets.get(key)
+        if target is None:
+            target = super().target_index(source, file_id)
+            # The native catalog verifies the installed identities around this scan.
+            if len(self.targets) < MAX_OPEN_FILES:
+                self.targets[key] = target
+        return target
+
+
 def _cosmetic_keys(
     root: Path,
+    *,
+    native: bool = False,
 ) -> tuple[dict[str, str], set[Path], tuple[InstalledCosmeticMetadata, ...]]:
-    with _ArtworkResolver(root / "REPO_Data") as resolver:
+    resolver_type = _NativeCatalogResolver if native else _ArtworkResolver
+    with resolver_type(root / "REPO_Data") as resolver:
         level = resolver.open(root / "REPO_Data/level0")
         record, prefix, _ = _find_unique_meta_manager(resolver, level)
         pointers = _find_cosmetic_vector(resolver, level, record, prefix)
@@ -398,38 +433,223 @@ def _digest(value: object) -> str:
     ).hexdigest()
 
 
-def native_cosmetic_catalog() -> (
-    tuple[tuple[InstalledCosmeticMetadata, ...], str, dict[str, tuple[str, str]]] | None
+@lru_cache(maxsize=1)
+def _basic_info() -> Callable[[int, int, ctypes.Array[ctypes.c_longlong], int], int]:
+    query = ctypes.WinDLL("kernel32", use_last_error=True).GetFileInformationByHandleEx
+    query.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong]
+    query.restype = ctypes.c_int
+    return query
+
+
+def _change_time(path: Path, expected: tuple[int, ...] | None = None) -> int:
+    if os.name != "nt":
+        return path.stat().st_ctime_ns
+    # FILE_BASIC_INFO includes NTFS ChangeTime, unlike Python's Windows st_ctime.
+    info = (ctypes.c_longlong * 5)()
+    with path.open("rb") as stream:
+        if expected is not None and _png_stamp(os.fstat(stream.fileno())) != expected:
+            raise ValueError("Artwork file changed during inspection")
+        if not _basic_info()(msvcrt.get_osfhandle(stream.fileno()), 0, info, ctypes.sizeof(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    return int(info[3])
+
+
+def _png_revision(path: Path, stamp: tuple[int, ...]) -> str:
+    return _digest([stamp, _change_time(path, stamp)])
+
+
+def _native_sources(
+    root: Path,
+    library: Path,
+    build: ValidatedInstalledBuild,
+) -> tuple[list[dict[str, str]], list[int], list[str]]:
+    watches = _source_watches(root, library, build)
+    changed = [_change_time(Path(watch["path"])) for watch in watches]
+    # An added basename can make a previously unique Unity external reference ambiguous.
+    names: list[str] = []
+    with os.scandir(root / "REPO_Data") as entries:
+        for count, entry in enumerate(entries, 1):
+            if count > MAX_OPEN_FILES:
+                return watches, [0], []
+            info = entry.stat(follow_symlinks=False)
+            if entry.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+                changed.append(0)  # Recheck the resolver directly on every visit.
+            if stat.S_ISREG(info.st_mode):
+                names.append(entry.name)
+    return watches, changed, sorted(names)
+
+
+def _cosmetic_directory(library: Path, directory: Path) -> list[tuple[int, int, int]]:
+    stamp = []
+    current = library
+    for part in ("", *directory.relative_to(library).parts):
+        current = current / part
+        info = current.lstat()
+        if not stat.S_ISDIR(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("Invalid Cosmetics directory")
+        stamp.append((info.st_dev, info.st_ino, info.st_mtime_ns))
+    if directory.resolve(strict=True) != directory:
+        raise ValueError("Noncanonical Cosmetics directory")
+    return stamp
+
+
+def _bind_cosmetic_files(
+    root: Path,
+    library: Path,
+    filenames: dict[str, str],
+) -> dict[str, tuple[str, str]]:
+    directory = _cosmetic_png(root, "").parent
+    try:
+        before = _cosmetic_directory(library, directory)
+        mapped = {}
+        for identity, key in filenames.items():
+            path = directory / (key + ".png")
+            try:
+                info = path.lstat()
+                if (
+                    stat.S_ISREG(info.st_mode)
+                    and not getattr(info, "st_file_attributes", 0) & 0x400
+                    and 57 <= info.st_size <= MAX_NATIVE_PNG
+                ):
+                    mapped[identity] = (key, _png_revision(path, _png_stamp(info)))
+            except (OSError, ValueError):
+                continue
+        return mapped if _cosmetic_directory(library, directory) == before else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _read_native_catalog(
+    cache: NativeArtworkCache | None,
+    revision: str,
+) -> tuple[tuple[InstalledCosmeticMetadata, ...], dict[str, str]] | None:
+    try:
+        data = cache.catalog(revision) if cache is not None else None
+        if data is None:
+            return None
+        payload = json.loads(data)
+        catalog = _parse_cached_catalog(payload["catalog"])
+        filenames = payload["filenames"]
+        if (
+            catalog is None
+            or len(catalog) > MAX_IDENTITIES
+            or not isinstance(filenames, dict)
+            or len(filenames) > len(catalog)
+            or not set(filenames).issubset({str(row.cosmetic_id) for row in catalog})
+            or any(
+                not isinstance(key, str)
+                or len(key) != 32
+                or any(c not in "0123456789abcdef" for c in key)
+                for key in filenames.values()
+            )
+            or len(set(filenames.values())) != len(filenames)
+        ):
+            return None
+        return catalog, filenames
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _file_binding(library: Path, path: Path, revision: str, png_revision: str) -> str | None:
+    if _png_revision(path, _png_stamp(owned_file(library, path).stat())) != png_revision:
+        return None
+    return f"{revision}:{path.stem}:{png_revision}"
+
+
+def _warm_pngs(
+    cache: NativeArtworkCache,
+    root: Path,
+    library: Path,
+    revision: str,
+    mapped: dict[str, tuple[str, str]],
+) -> dict[str, bytes]:
+    previews = {}
+    remaining = 384 * 1024
+    for slot in range(PNG_SLOTS):
+        entry = cache.png(slot)
+        if entry is None or entry[0] not in mapped:
+            continue
+        identity, frame = entry
+        key, png_revision = mapped[identity]
+        path = _cosmetic_png(root, key)
+        try:
+            binding = _file_binding(library, path, revision, png_revision)
+            png = cache.unseal_png(identity, binding, frame) if binding is not None else None
+            if png is None or len(png) > remaining:
+                continue
+            if _file_binding(library, path, revision, png_revision) != binding:
+                continue
+        except (OSError, ValueError):
+            continue
+        previews[identity] = png
+        remaining -= len(png)
+        if len(previews) == 8:
+            break
+    return previews
+
+
+def native_cosmetic_catalog(
+    cache: NativeArtworkCache | None = None,
+    *,
+    warm_artwork: bool = False,
+) -> (
+    tuple[
+        tuple[InstalledCosmeticMetadata, ...],
+        str,
+        dict[str, tuple[str, str]],
+        dict[str, bytes],
+    ]
+    | None
 ):
-    """Read the canonical vector once, ignoring the editable baked mapping cache."""
+    """Read the authoritative catalog and bind eligible presentation artifacts."""
     try:
         reviewed = _reviewed_installation(None)
         if reviewed is None:
             return None
         root, library, build, assembly = reviewed
-        before = _source_watches(root, library, build)
-        if assembly not in before:
+        before = _native_sources(root, library, build)
+        if assembly not in before[0]:
             return None
-        keys, paths, catalog = _cosmetic_keys(root)
-        if not paths.issubset({Path(watch["path"]) for watch in before}):
+        revision = _digest([build.build_id, before])
+        if not all(before[1]):
+            cache = None
+        cached = _read_native_catalog(cache, revision)
+        if cached is None:
+            keys, paths, catalog = _cosmetic_keys(root, native=True)
+            if not paths.issubset({Path(watch["path"]) for watch in before[0]}):
+                return None
+            filenames = {
+                identity: unity_hash128(name) for identity, name in _supported_keys(keys).items()
+            }
+        else:
+            catalog, filenames = cached
+        mapped = _bind_cosmetic_files(root, library, filenames)
+        previews = (
+            _warm_pngs(cache, root, library, revision, mapped) if cache and warm_artwork else {}
+        )
+        if _native_sources(root, library, build) != before:
             return None
-        mapped = {}
-        for identity, name in _supported_keys(keys).items():
-            key = unity_hash128(name)
-            try:
-                stamp = _png_stamp(owned_file(library, _cosmetic_png(root, key)).stat())
-            except (OSError, ValueError):
-                continue
-            if 57 <= stamp[2] <= MAX_NATIVE_PNG:
-                mapped[identity] = (key, _digest(stamp))
-        if _source_watches(root, library, build) != before:
-            return None
-        return catalog, _digest([build.build_id, before]), mapped
+        if cache is not None and cached is None:
+            cache.publish_catalog(
+                revision,
+                json.dumps(
+                    {"catalog": _catalog_payload(catalog), "filenames": filenames},
+                    separators=(",", ":"),
+                ).encode(),
+            )
+        return catalog, revision, mapped, previews
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
         return None
 
 
-def read_bound_cosmetic_png(revision: str, key: str, png_revision: str) -> bytes | None:
+def read_bound_cosmetic_png(
+    revision: str,
+    key: str,
+    png_revision: str,
+    *,
+    cache: NativeArtworkCache | None = None,
+    identity: str = "",
+) -> bytes | None:
     """Recheck the installed sources and one previously verified baked mapping."""
     try:
         if len(key) != 32 or any(c not in "0123456789abcdef" for c in key):
@@ -438,14 +658,28 @@ def read_bound_cosmetic_png(revision: str, key: str, png_revision: str) -> bytes
         if reviewed is None:
             return None
         root, library, build, assembly = reviewed
-        before = _source_watches(root, library, build)
-        if assembly not in before or _digest([build.build_id, before]) != revision:
+        before = _native_sources(root, library, build)
+        if assembly not in before[0] or _digest([build.build_id, before]) != revision:
             return None
         path = _cosmetic_png(root, key)
         stamp = _png_stamp(owned_file(library, path).stat())
-        if _digest(stamp) != png_revision:
+        if _png_revision(path, stamp) != png_revision:
             return None
-        png = _read_owned_png(library, path, stamp)
-        return png if _source_watches(root, library, build) == before else None
+        binding = f"{revision}:{key}:{png_revision}" if cache and all(before[1]) else None
+        cached = cache.open_png(identity, binding) if cache and binding is not None else None
+        png = cached if cached is not None else _read_owned_png(library, path, stamp)
+        if _native_sources(root, library, build) != before:
+            return None
+        if _file_binding(library, path, revision, png_revision) is None:
+            return None
+        if (
+            cache is not None
+            and binding is not None
+            and cached is None
+            and png is not None
+            and (stripped := cacheable_png(png)) is not None
+        ):
+            cache.publish_png(identity, binding, stripped)
+        return png
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
         return None

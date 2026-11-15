@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
-import { acquireNativeArtwork } from "./tauriArtwork";
+import { cosmetics } from "@/test/repoditorApiFixture";
+import { acquireNativeArtwork, restoreNativeCosmeticPreviews } from "./tauriArtwork";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const token = (n: number) => `upgrade-artwork:${n.toString(16).padStart(32, "0")}`;
@@ -178,4 +179,33 @@ it("reuses only completed Cosmetics thumbnails with the same validated source an
   responses[3]!({ ok: true, data: { ...image(53), token: last } });
   await flush();
   releaseRetry();
+});
+
+it("restores a warm thumbnail through the bounded lane only for its current key and token", async () => {
+  const current = token(61).replace("upgrade-", "cosmetic-");
+  const wrong = token(62).replace("upgrade-", "cosmetic-");
+  const key = `${"b".repeat(64)}:0:${"a".repeat(64)}:${"e".repeat(64)}`;
+  const row = { ...cosmetics.cosmetics[0]!, iconToken: current, iconReuseKey: key };
+  const preview = { ...image(61), token: current };
+  const restored = restoreNativeCosmeticPreviews({
+    ...cosmetics,
+    cosmetics: [{ ...row, iconPreview: preview }],
+  });
+  expect(restored.cosmetics).toEqual([row]);
+  vi.mocked(invoke).mockReset().mockResolvedValue({ ok: true, data: null });
+  const receive = vi.fn();
+  acquireNativeArtwork(current, receive, key)();
+  expect(receive).toHaveBeenCalledExactlyOnceWith(preview);
+  expect(invoke).not.toHaveBeenCalled();
+
+  const changedKey = key.slice(0, -1) + "f";
+  restoreNativeCosmeticPreviews({
+    ...cosmetics,
+    cosmetics: [{ ...row, iconReuseKey: changedKey, iconPreview: { ...preview, token: wrong } }],
+  });
+  const release = acquireNativeArtwork(current, receive, changedKey);
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", { token: current });
+  await flush();
+  expect(receive).toHaveBeenLastCalledWith(null);
+  release();
 });
