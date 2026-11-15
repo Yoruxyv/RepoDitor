@@ -311,6 +311,8 @@ export const en = {
   "entry.readingPreparingSave": "Reading and preparing this save",
   "entry.decodingGameAssets": "Decoding game assets",
   "entry.detail.readingSave": "Reading and validating save data…",
+  "entry.cancelOpening": "Cancel opening",
+  "entry.cancelledOpening": "Opening canceled. The current save read is finishing.",
   "entry.detail.items": "Loading item data…",
   "entry.detail.upgrades": "Loading upgrade data…",
   "entry.detail.upgradeArtworkCache": "Checking cached artwork and loading upgrade data…",

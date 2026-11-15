@@ -199,7 +199,13 @@ recovery disables editing. Read-loading, sanitized error/retry and empty states
 remain available. The canonical upgrade snapshot supersedes older pending reads
 and refreshes values while retaining optional presentation metadata. The separate
 test-only `test_upgrades_write` command adds no production mutation permission.
-Overview does not wait for optional artwork. Game status retains the
+Tauri shows the shared editor preparation panel while the save-open read is
+pending. The bridge returns one result, so the panel uses indeterminate progress.
+Cancel returns to discovery and discards the result. The next open is available
+after the bounded native read settles. Overview uses the opened snapshot as soon
+as the game-status gate allows entry. Existing Players and Upgrades reads can
+continue in the background. Run, Items, Maps and artwork load on demand.
+Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
 unchecked, as in Electron. Native close cancels outstanding backend work.

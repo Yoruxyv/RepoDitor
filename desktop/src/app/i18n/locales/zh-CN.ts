@@ -289,6 +289,8 @@ export const zhCN: Record<keyof typeof en, string> = {
   "entry.readingPreparingSave": "正在读取并准备此存档",
   "entry.decodingGameAssets": "正在解码游戏资源",
   "entry.detail.readingSave": "正在读取并验证存档数据…",
+  "entry.cancelOpening": "取消打开存档",
+  "entry.cancelledOpening": "已取消打开存档，正在结束本次读取。",
   "entry.detail.items": "正在加载物品数据…",
   "entry.detail.upgrades": "正在加载升级数据…",
   "entry.detail.upgradeArtworkCache": "正在检查缓存图像并加载升级数据…",

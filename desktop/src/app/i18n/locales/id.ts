@@ -313,6 +313,8 @@ export const id: Record<keyof typeof en, string> = {
   "entry.readingPreparingSave": "Membaca dan menyiapkan save ini",
   "entry.decodingGameAssets": "Mendekode aset game",
   "entry.detail.readingSave": "Membaca dan memvalidasi data save…",
+  "entry.cancelOpening": "Batalkan pembukaan save",
+  "entry.cancelledOpening": "Pembukaan dibatalkan. Proses membaca save sedang diselesaikan.",
   "entry.detail.items": "Memuat data item…",
   "entry.detail.upgrades": "Memuat data upgrade…",
   "entry.detail.upgradeArtworkCache": "Memeriksa cache gambar dan memuat data upgrade…",

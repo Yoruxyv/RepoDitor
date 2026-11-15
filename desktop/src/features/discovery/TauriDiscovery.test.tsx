@@ -105,14 +105,78 @@ describe("read-only native discovery", () => {
     expect(within(opening).getByRole("status").textContent).toBe(
       "Reading and validating save data…",
     );
-    expect(within(opening).queryByRole("progressbar")).toBeNull();
+    expect(opening.getAttribute("data-entry-mode")).toBe("save");
+    expect(within(opening).getByRole("heading")).toBe(document.activeElement);
+    expect(
+      within(opening)
+        .getByRole("progressbar", { name: "Editor preparation progress" })
+        .hasAttribute("aria-valuenow"),
+    ).toBe(false);
     expect(tauriReadApi.players.list).not.toHaveBeenCalled();
     await act(() => complete(openResult(undefined, "unresolved")));
     expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
-    expect(screen.queryByTestId("native-save-opening")).toBeNull();
+    expect(screen.queryByTestId("asset-preparation")).toBeNull();
+    expect(await screen.findByText("Loading player data…")).toBeTruthy();
     expect(tauriReadApi.run.get).not.toHaveBeenCalled();
     expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
     expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+  });
+  it.each([true, false])(
+    "cancels by keyboard and discards a late save result (success: %s)",
+    async (ok) => {
+      type Result = Awaited<ReturnType<typeof tauriReadApi.saves.open>>;
+      let complete!: (result: Result) => void;
+      vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+      vi.mocked(tauriReadApi.saves.open).mockReturnValueOnce(
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+      );
+      render(<TauriDiscovery />);
+      const user = userEvent.setup();
+      (await screen.findByRole("button", { name: /Open workspace/ })).focus();
+      await user.keyboard("{Enter}");
+      await screen.findByRole("heading", { name: "Opening save" });
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Cancel opening" })).toBe(document.activeElement);
+      await user.keyboard("{Enter}");
+      expect(screen.queryByTestId("asset-preparation")).toBeNull();
+      expect(
+        screen.getByText("Opening canceled. The current save read is finishing."),
+      ).toBeTruthy();
+      const openButton = screen.getByRole<HTMLButtonElement>("button", { name: /Open workspace/ });
+      expect(openButton.disabled).toBe(true);
+      expect(document.activeElement).toBe(document.getElementById("discovery-title"));
+      expect(tauriReadApi.saves.open).toHaveBeenCalledOnce();
+
+      await act(() =>
+        complete(
+          ok ? openResult() : { ok: false, error: { code: "save_missing", message: "private" } },
+        ),
+      );
+      await waitFor(() => expect(document.activeElement).toBe(openButton));
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByTestId("workspace")).toBeNull();
+      expect(tauriReadApi.players.list).not.toHaveBeenCalled();
+      await user.keyboard("{Enter}");
+      expect(await screen.findByRole("tab", { name: "Overview" })).toBe(document.activeElement);
+      expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(2);
+    },
+  );
+  it("uses the selected theme and locale during preparation", async () => {
+    localStorage.setItem("repoditor.theme", "light");
+    localStorage.setItem("repoditor.locale", "id");
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open).mockReturnValue(new Promise(() => undefined));
+    render(<TauriDiscovery />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Buka ruang kerja/ }));
+    const panel = await screen.findByRole("region", { name: "Membuka save" });
+    expect(document.documentElement.dataset["theme"]).toBe("light");
+    expect(document.documentElement.lang).toBe("id");
+    expect(within(panel).getByRole("status").textContent).toBe(
+      "Membaca dan memvalidasi data save…",
+    );
+    expect(within(panel).getByRole("button", { name: "Batalkan pembukaan save" })).toBeTruthy();
   });
   it("opens global read-only Cosmetics without opening a Run save", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({
@@ -416,12 +480,13 @@ describe("read-only native discovery", () => {
     "shows the existing translated %s failure without entering a workspace",
     async (code) => {
       vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
-      vi.mocked(tauriReadApi.saves.open).mockResolvedValue({
+      vi.mocked(tauriReadApi.saves.open).mockResolvedValueOnce({
         ok: false,
         error: { code, message: "private raw diagnostic" },
       });
       render(<TauriDiscovery />);
-      await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).not.toContain("private");
       if (code === "save_missing") {
@@ -430,6 +495,11 @@ describe("read-only native discovery", () => {
         );
       }
       expect(screen.queryByTestId("workspace")).toBeNull();
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: /Open workspace/ })),
+      );
+      await user.keyboard("{Enter}");
+      expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
     },
   );
   it("identifies a missing MetaSave without exposing backend diagnostics", async () => {

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate, TranslationKey } from "@/app/i18n";
+import { INITIAL_STATE } from "./useAssetPreparation";
 
 const SEGMENT_COUNT = 18;
 const PROGRESS_REVEAL_DELAY_MS = 500;
@@ -39,12 +40,13 @@ interface AssetPreparationViewProps {
   readonly footerText?: readonly [string, string];
   readonly continueImmediately?: boolean;
   readonly continueLabel?: string;
-  readonly state: AssetPreparationState;
+  readonly state?: AssetPreparationState;
   readonly mode?: "save" | "artwork";
   readonly saveDetail?: string;
   readonly editorProgress?: PreparationProgress | null;
   readonly artworkDetail?: boolean;
   readonly onContinue?: () => void;
+  readonly onCancel?: () => void;
 }
 
 interface PreparationProgress {
@@ -275,7 +277,7 @@ function AssetPreparationFooter({
 }
 
 export function AssetPreparationView({
-  state,
+  state = INITIAL_STATE,
   copyOverrides,
   progressText,
   progressLabel,
@@ -287,6 +289,7 @@ export function AssetPreparationView({
   editorProgress = null,
   artworkDetail = false,
   onContinue,
+  onCancel,
 }: AssetPreparationViewProps) {
   const { t } = usePreferences();
   const progress = preparationProgress(state, mode, editorProgress);
@@ -316,7 +319,7 @@ export function AssetPreparationView({
 
   return (
     <section
-      aria-busy={true}
+      aria-busy={mode === "artwork" ? true : undefined}
       aria-labelledby="asset-preparation-title"
       className="mx-auto grid min-h-96 max-w-4xl place-items-center px-2 py-8"
       data-entry-mode={mode}
@@ -357,16 +360,16 @@ export function AssetPreparationView({
               aria-live="polite"
               className="font-display mt-1 text-4xl font-semibold uppercase leading-none tracking-[0.02em] text-ink sm:text-5xl"
               id="asset-preparation-title"
+              tabIndex={-1}
             >
               {copy.title}
             </h1>
-            <p
-              aria-live="polite"
-              className="mt-3 min-h-6 text-sm font-medium text-secondary"
+            <output
+              className="mt-3 block min-h-6 text-sm font-medium text-secondary"
               data-testid="entry-loading-detail"
             >
               {copy.detail}
-            </p>
+            </output>
 
             <PreparationProgressDisplay
               mode={mode}
@@ -399,6 +402,15 @@ export function AssetPreparationView({
                 onClick={onContinue}
               >
                 {continueLabel ?? t("assets.continueEditor")}
+              </button>
+            ) : null}
+            {onCancel !== undefined ? (
+              <button
+                className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+                type="button"
+                onClick={onCancel}
+              >
+                {t("entry.cancelOpening")}
               </button>
             ) : null}
           </div>

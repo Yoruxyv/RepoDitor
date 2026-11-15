@@ -305,6 +305,9 @@ export const ja: Record<keyof typeof en, string> = {
   "entry.readingPreparingSave": "このセーブを読み込み、準備しています",
   "entry.decodingGameAssets": "ゲームアセットをデコード中",
   "entry.detail.readingSave": "セーブデータを読み込み、検証しています…",
+  "entry.cancelOpening": "セーブを開くのをキャンセル",
+  "entry.cancelledOpening":
+    "セーブを開く操作をキャンセルしました。実行中の読み込みが終わるまでお待ちください。",
   "entry.detail.items": "アイテムデータを読み込み中…",
   "entry.detail.upgrades": "アップグレードデータを読み込み中…",
   "entry.detail.upgradeArtworkCache":

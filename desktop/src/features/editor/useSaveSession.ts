@@ -27,34 +27,49 @@ export function useSaveSession(openSave = desktopOpen) {
   const { t } = usePreferences();
   const [session, setSession] = useState<SaveSession | null>(null);
   const [openingSaveId, setOpeningSaveId] = useState<string | null>(null);
+  const [drainingOpen, setDrainingOpen] = useState(false);
   const [error, setError] = useState<TranslationKey | null>(null);
   const [saveError, setSaveError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastBackupPath, setLastBackupPath] = useState<string | null>(null);
   const requestInFlight = useRef(false);
+  const activeOpen = useRef<{ cancelled: boolean } | null>(null);
 
   async function open(saveId: string): Promise<SaveOpenResult | null> {
     if (requestInFlight.current) {
       return null;
     }
     requestInFlight.current = true;
+    const request = { cancelled: false };
+    activeOpen.current = request;
     setOpeningSaveId(saveId);
     setError(null);
     setSaveError(null);
     setLastBackupPath(null);
     try {
       const result = await openSave(saveId);
+      if (request.cancelled) return null;
       if (result.ok) {
         return result.data;
       }
       setError(operationErrorKey(result.error.code));
     } catch {
-      setError("error.service");
+      if (!request.cancelled) setError("error.service");
     } finally {
       requestInFlight.current = false;
+      activeOpen.current = null;
       setOpeningSaveId(null);
+      if (request.cancelled) setDrainingOpen(false);
     }
     return null;
+  }
+
+  function cancelOpen(): void {
+    if (!activeOpen.current) return;
+    // The native read can finish, but a cancelled result must never open the editor.
+    activeOpen.current.cancelled = true;
+    setOpeningSaveId(null);
+    setDrainingOpen(true);
   }
 
   function enter(opened: SaveOpenResult): void {
@@ -100,11 +115,13 @@ export function useSaveSession(openSave = desktopOpen) {
   return {
     session,
     openingSaveId,
+    drainingOpen,
     error: error ? t(error) : null,
     saveError: saveError ? t(saveError) : null,
     saving,
     lastBackupPath,
     open,
+    cancelOpen,
     enter,
     write,
     close,

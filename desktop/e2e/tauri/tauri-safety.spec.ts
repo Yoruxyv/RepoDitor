@@ -197,10 +197,46 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
     await expect(content).not.toHaveAttribute("inert");
     const opening = page.getByRole("region", { name: "Opening save" });
     await expect(opening.getByRole("status")).toHaveText("Reading and validating save data…");
-    await expect(opening.getByRole("progressbar")).toHaveCount(0);
+    const progress = opening.getByRole("progressbar", { name: "Editor preparation progress" });
+    await expect(progress).toBeVisible();
+    await expect(progress).not.toHaveAttribute("aria-valuenow", /./);
     await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.getByRole("button", { name: /^Theme:/ }).click();
+    await page.getByRole("option", { name: "Dark" }).click();
+    await opening.screenshot({ path: info.outputPath("preparation-dark.png") });
+    await page.setViewportSize({ width: 960, height: 640 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.getByRole("button", { name: /^Theme:/ }).click();
+    await page.getByRole("option", { name: "Light" }).click();
+    await expect(opening.locator(".asset-preparation-sweep")).toHaveCSS("animation-name", "none");
+    await expect(opening.locator(".asset-preparation-crate")).toHaveCSS("animation-name", "none");
+    await page.getByRole("button", { name: "Language: English" }).click();
+    await page.getByRole("option", { name: "Bahasa Indonesia" }).click();
+    const localized = page.getByRole("region", { name: "Membuka save" });
+    await expect(localized.getByRole("status")).toHaveText("Membaca dan memvalidasi data save…");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      960,
+    );
+    await localized.screenshot({ path: info.outputPath("preparation-light-id.png") });
+    await page.getByRole("button", { name: "Bahasa: Bahasa Indonesia" }).click();
+    await page.getByRole("option", { name: "English" }).click();
+    const cancel = opening.getByRole("button", { name: "Cancel opening" });
+    await opening.getByRole("heading").focus();
+    await page.keyboard.press("Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(opening).toHaveCount(0);
+    await expect(
+      page.getByText("Opening canceled. The current save read is finishing."),
+    ).toBeVisible();
+    const reopen = page.getByRole("button", { name: /Open workspace/ });
+    await expect(reopen).toBeDisabled();
     await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-save-open")));
     await expect(opening).toHaveCount(0);
+    await expect(reopen).toBeFocused();
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.keyboard.press("Enter");
     await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeFocused();
     await expect(page.getByRole("heading", { name: "Browse this save" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Edit this save" })).toHaveCount(0);

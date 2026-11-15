@@ -7,6 +7,7 @@ import { ThemeMenu } from "@/app/ThemeMenu";
 import { usePreferences } from "@/app/preferences";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import { closeNativeArtwork } from "@/app/tauriArtwork";
+import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
@@ -31,6 +32,60 @@ function focusNavigationTarget(target: HTMLElement | null | undefined): boolean 
   return document.activeElement === target;
 }
 
+function RunSaveContent({
+  discovery,
+  save,
+  onOpen,
+  onCancel,
+  onClose,
+  onHealthAvailability,
+}: {
+  readonly discovery: ReturnType<typeof useEnvironmentDiscovery>;
+  readonly save: ReturnType<typeof useSaveSession>;
+  readonly onOpen: (saveId: string) => void;
+  readonly onCancel: (saveId: string) => void;
+  readonly onClose: () => void;
+  readonly onHealthAvailability: (enabled: boolean) => void;
+}) {
+  const { t } = usePreferences();
+  const openingId = save.openingSaveId;
+  if (openingId !== null) {
+    return (
+      <AssetPreparationView
+        mode="save"
+        saveDetail={t("entry.detail.readingSave")}
+        onCancel={() => onCancel(openingId)}
+      />
+    );
+  }
+  if (save.session !== null) {
+    return (
+      <TauriWorkspace
+        key={save.session.id}
+        session={save.session}
+        onClose={onClose}
+        onCanonical={save.enter}
+        onHealthAvailability={onHealthAvailability}
+      />
+    );
+  }
+  return (
+    <>
+      {save.drainingOpen ? (
+        <output className="mb-4 block border-l-2 border-accent bg-accent-muted px-4 py-3 text-sm text-secondary">
+          {t("entry.cancelledOpening")}
+        </output>
+      ) : null}
+      <DiscoveryHome
+        discovery={discovery}
+        openError={save.error}
+        openingSaveId={null}
+        onOpenSave={save.drainingOpen ? null : onOpen}
+      />
+    </>
+  );
+}
+
 function DiscoveryPreview() {
   const [workspace, setWorkspace] = useState<"run-saves" | "cosmetics">("run-saves");
   const [healthEnabled, setHealthEnabled] = useState(false);
@@ -38,7 +93,7 @@ function DiscoveryPreview() {
   const safety = useGameSafety(tauriReadApi.game.status);
   const opening = save.openingSaveId !== null;
   const discovery = useEnvironmentDiscovery(
-    workspace === "run-saves" && save.session === null && !opening,
+    workspace === "run-saves" && save.session === null && !opening && !save.drainingOpen,
     safety.recoveryGeneration,
     tauriReadApi.environment.detect,
   );
@@ -59,6 +114,13 @@ function DiscoveryPreview() {
       : null;
   const { isRefreshing, refreshRevision } = discovery;
   const inSave = save.session !== null;
+  const focusPreparation =
+    workspace === "run-saves" && opening && !initialCheck && blocked === null;
+  const waitingForDiscovery = isRefreshing || save.drainingOpen;
+  useLayoutEffect(() => {
+    if (focusPreparation)
+      focusNavigationTarget(content.current?.querySelector("#asset-preparation-title"));
+  }, [focusPreparation]);
   useLayoutEffect(() => {
     const root = content.current;
     const request = navigationFocus.current;
@@ -76,7 +138,7 @@ function DiscoveryPreview() {
     if (inSave) return;
     const heading = root.querySelector<HTMLElement>("#discovery-title");
     // Wait for the refreshed list so a removed save cannot take focus with it.
-    if (isRefreshing || refreshRevision === request.refreshRevision) {
+    if (waitingForDiscovery || refreshRevision === request.refreshRevision) {
       if (!request.headingFocused) request.headingFocused = focusNavigationTarget(heading);
       return;
     }
@@ -86,64 +148,41 @@ function DiscoveryPreview() {
       root.querySelectorAll<HTMLButtonElement>("button[data-save-id]"),
     ).find((candidate) => candidate.dataset["saveId"] === request.saveId);
     if (!focusNavigationTarget(button)) focusNavigationTarget(heading);
-  }, [workspace, opening, initialCheck, blocked, inSave, isRefreshing, refreshRevision]);
+  }, [workspace, opening, initialCheck, blocked, inSave, waitingForDiscovery, refreshRevision]);
 
   async function open(saveId: string) {
     const request = generation.current;
     const result = await save.open(saveId);
-    if (request === generation.current && result !== null) {
+    if (request !== generation.current) return;
+    if (result === null) {
+      focusDiscoveryAfterRefresh(saveId);
+    } else {
       navigationFocus.current = { kind: "workspace" };
       save.enter(result);
     }
   }
+  function focusDiscoveryAfterRefresh(saveId: string) {
+    navigationFocus.current = {
+      kind: "discovery",
+      saveId,
+      refreshRevision,
+      headingFocused: false,
+    };
+  }
+  function cancelOpen(saveId: string) {
+    generation.current += 1;
+    focusDiscoveryAfterRefresh(saveId);
+    save.cancelOpen();
+  }
   function close() {
     generation.current += 1;
     if (save.session !== null) {
-      navigationFocus.current = {
-        kind: "discovery",
-        saveId: save.session.id,
-        refreshRevision,
-        headingFocused: false,
-      };
+      focusDiscoveryAfterRefresh(save.session.id);
       void closeNativeArtwork(save.session.id);
     }
     save.close();
   }
   const { t } = usePreferences();
-  let view = (
-    <DiscoveryHome
-      discovery={discovery}
-      openError={save.error}
-      openingSaveId={save.openingSaveId}
-      onOpenSave={(id) => void open(id)}
-    />
-  );
-  if (opening) {
-    view = (
-      <section
-        aria-labelledby="native-opening-title"
-        className="rounded-sm border border-line bg-surface p-6"
-        data-testid="native-save-opening"
-      >
-        <h1 className="text-2xl font-semibold text-ink" id="native-opening-title">
-          {t("saves.openingSave")}
-        </h1>
-        <output className="mt-2 block text-sm text-secondary">
-          {t("entry.detail.readingSave")}
-        </output>
-      </section>
-    );
-  } else if (save.session !== null) {
-    view = (
-      <TauriWorkspace
-        key={save.session.id}
-        session={save.session}
-        onClose={close}
-        onCanonical={save.enter}
-        onHealthAvailability={setHealthEnabled}
-      />
-    );
-  }
   return (
     <AppShell>
       <output
@@ -184,7 +223,16 @@ function DiscoveryPreview() {
             </button>
           ))}
         </nav>
-        <div hidden={workspace !== "run-saves"}>{view}</div>
+        <div hidden={workspace !== "run-saves"}>
+          <RunSaveContent
+            discovery={discovery}
+            save={save}
+            onOpen={(id) => void open(id)}
+            onCancel={cancelOpen}
+            onClose={close}
+            onHealthAvailability={setHealthEnabled}
+          />
+        </div>
         <TauriCosmeticsWorkspace
           active={workspace === "cosmetics"}
           recoveryGeneration={safety.recoveryGeneration}

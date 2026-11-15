@@ -38,6 +38,24 @@ function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
   return null;
 }
 
+function WorkspacePreparationStatus({
+  started,
+  playersLoading,
+  upgradesLoading,
+}: {
+  readonly started: boolean;
+  readonly playersLoading: boolean;
+  readonly upgradesLoading: boolean;
+}) {
+  const { t } = usePreferences();
+  let detail: string | undefined;
+  if (started && playersLoading) detail = t("entry.detail.players");
+  else if (started && upgradesLoading) detail = t("entry.detail.upgrades");
+  return (
+    <output className={detail ? "mb-4 block text-sm text-secondary" : undefined}>{detail}</output>
+  );
+}
+
 export function TauriWorkspace({
   session,
   onClose,
@@ -194,12 +212,19 @@ export function TauriWorkspace({
           tabIndex={0}
         >
           {section === "overview" ? (
-            <OverviewView
-              readOnly={!health.enabled}
-              session={currentSession}
-              availableDestinations={["players", "upgrades", "run", "items"]}
-              onNavigate={selectTabWithFocus}
-            />
+            <>
+              <WorkspacePreparationStatus
+                started={initialHealthKnown}
+                playersLoading={players.loading}
+                upgradesLoading={upgrades.loading}
+              />
+              <OverviewView
+                readOnly={!health.enabled}
+                session={currentSession}
+                availableDestinations={["players", "upgrades", "run", "items"]}
+                onNavigate={selectTabWithFocus}
+              />
+            </>
           ) : null}
           {section === "players" ? (
             <TauriPlayersView

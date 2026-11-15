@@ -311,6 +311,8 @@ export const ko: Record<keyof typeof en, string> = {
   "entry.readingPreparingSave": "이 세이브를 읽고 준비하는 중",
   "entry.decodingGameAssets": "게임 에셋 디코딩 중",
   "entry.detail.readingSave": "세이브 데이터를 읽고 검증하는 중…",
+  "entry.cancelOpening": "세이브 열기 취소",
+  "entry.cancelledOpening": "열기를 취소했습니다. 진행 중인 세이브 읽기를 마무리하는 중입니다.",
   "entry.detail.items": "아이템 데이터 불러오는 중…",
   "entry.detail.upgrades": "업그레이드 데이터 불러오는 중…",
   "entry.detail.upgradeArtworkCache": "캐시된 이미지를 확인하고 업그레이드 데이터를 불러오는 중…",
