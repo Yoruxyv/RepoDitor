@@ -17,6 +17,7 @@ interface GameIconProps {
   readonly loading?: "eager" | "lazy";
   readonly testId: string;
   readonly token: string | null;
+  readonly reuseKey?: string | undefined;
   readonly variant: "item" | "upgrade" | "cosmetic" | "map";
 }
 
@@ -35,10 +36,11 @@ export function GameIcon({
   loading = "lazy",
   testId,
   token,
+  reuseKey,
   variant,
 }: GameIconProps) {
   const element = useRef<HTMLSpanElement>(null);
-  const { native, image, unavailable } = useNativeArtwork(token, variant, element);
+  const { native, image, unavailable } = useNativeArtwork(token, variant, element, reuseKey);
   const [failedToken, setFailedToken] = useState<string | null>(null);
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,

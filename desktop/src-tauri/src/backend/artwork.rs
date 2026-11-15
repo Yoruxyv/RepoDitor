@@ -159,17 +159,32 @@ impl Registry {
             return;
         }
         self.meta_fingerprint = projection.fingerprint().to_owned();
-        for (id, proof, icon) in projection.artwork_rows() {
-            if proof.len() == 227
-                && proof.split(':').zip([64, 32, 64, 64]).all(|(part, size)| {
+        for (id, proof, row) in projection.artwork_rows() {
+            let mut parts = proof.split(':');
+            let (Some(source), Some(filename), Some(file), Some(signature), None) = (
+                parts.next(),
+                parts.next(),
+                parts.next(),
+                parts.next(),
+                parts.next(),
+            ) else {
+                continue;
+            };
+            if [source, filename, file, signature]
+                .into_iter()
+                .zip([64, 32, 64, 64])
+                .all(|(part, size)| {
                     part.len() == size
                         && part
                             .bytes()
                             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
                 })
-                && proof.split(':').count() == 4
             {
-                *icon = Some(register(
+                // The fresh projection verifies both source and PNG identities. Keep its
+                // private proof separate from the renderer's presentation-only key.
+                row.icon_reuse_key =
+                    Some(format!("{}:{id}:{source}:{file}", self.meta_fingerprint));
+                row.icon_token = Some(register(
                     &mut self.cosmetics,
                     Scope::Cosmetic,
                     &id,

@@ -42,6 +42,7 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     version: string,
     sourceVersion = version,
     pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+    pngVersion = "d",
   ) {
     const revision = version.repeat(64);
     await writeFile(
@@ -52,7 +53,7 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
           ...fixture.cosmetics,
           fingerprint: revision,
           artworkProofs: {
-            0: [revision, "c".repeat(32), "d".repeat(64), "e".repeat(64)].join(":"),
+            0: [revision, "c".repeat(32), pngVersion.repeat(64), "e".repeat(64)].join(":"),
           },
         },
       }),
@@ -194,6 +195,18 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     expect(artworkTokens).toHaveLength(3);
     expect(new Set(artworkTokens).size).toBe(3);
 
+    await page.getByRole("button", { name: "Run Saves", exact: true }).click();
+    await open.click();
+    await expectArtwork("c");
+    expect(await catalogReads()).toBe(4);
+    expect(artworkTokens).toHaveLength(3);
+
+    await setSource("c", "c", undefined, "f");
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expectArtwork("c");
+    expect(await catalogReads()).toBe(5);
+    expect(artworkTokens).toHaveLength(4);
+
     for (const [version, source, pixels] of [
       ["d", "c", undefined],
       ["e", "e", "AAAA"],
@@ -207,8 +220,8 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
       await expect(icon.locator("img")).toHaveCount(0);
       expect(await measure(icon)).toEqual(loading);
     }
-    expect(await catalogReads()).toBe(5);
-    expect(new Set(artworkTokens).size).toBe(5);
+    expect(await catalogReads()).toBe(7);
+    expect(new Set(artworkTokens).size).toBe(6);
     await search.fill("999");
     const missing = page.getByTestId("cosmetic-icon-999");
     await expect(missing).toHaveAttribute("data-icon-source", "fallback");

@@ -386,6 +386,7 @@ export function CosmeticsCatalog({
                     loading="lazy"
                     testId={iconId}
                     token={cosmetic.iconToken}
+                    reuseKey={cosmetic.iconReuseKey}
                     variant="cosmetic"
                   />
                 ) : null}

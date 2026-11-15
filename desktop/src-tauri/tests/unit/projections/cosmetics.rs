@@ -59,6 +59,16 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
     let public = serde_json::to_value(data).unwrap();
     assert!(public.get("artworkProofs").is_none());
     assert!(public["cosmetics"][560]["iconToken"].is_null());
+    assert!(public["cosmetics"][560].get("iconReuseKey").is_none());
+    assert_eq!(
+        public["cosmetics"][558]["iconReuseKey"],
+        format!(
+            "{}:558:{}:{}",
+            "a".repeat(64),
+            "b".repeat(64),
+            "d".repeat(64)
+        )
+    );
     let token = public["cosmetics"][558]["iconToken"].as_str().unwrap();
     assert!(Scope::Cosmetic.accepts(token));
     assert!(!Scope::Map.accepts(token));
@@ -77,7 +87,9 @@ fn artwork_tracks_meta_generations_and_never_admits_unknown_ids() {
     assert!(registry.begin(token).is_err());
     let mut late = decode(raw).unwrap();
     registry.register_cosmetics(generation, &mut late);
-    assert!(serde_json::to_value(late).unwrap()["cosmetics"][558]["iconToken"].is_null());
+    let late = serde_json::to_value(late).unwrap();
+    assert!(late["cosmetics"][558]["iconToken"].is_null());
+    assert!(late["cosmetics"][558].get("iconReuseKey").is_none());
 }
 
 #[test]

@@ -131,3 +131,51 @@ it("keeps visible Cosmetics queued behind other domains without losing their slo
   releaseUpgrade();
   releases.forEach((release) => release());
 });
+
+it("reuses only completed Cosmetics thumbnails with the same validated source and PNG key", async () => {
+  const first = token(51).replace("upgrade-", "cosmetic-");
+  const next = token(52).replace("upgrade-", "cosmetic-");
+  const last = token(53).replace("upgrade-", "cosmetic-");
+  const prefix = `${"b".repeat(64)}:51:${"a".repeat(64)}:`;
+  const key = prefix + "c".repeat(64);
+  const changedKey = prefix + "d".repeat(64);
+  const responses: Array<(value: unknown) => void> = [];
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementation((command) =>
+      command === "cosmetic_artwork_get"
+        ? new Promise((resolve) => responses.push(resolve))
+        : Promise.resolve(),
+    );
+  const abandoned = vi.fn();
+  const releaseAbandoned = acquireNativeArtwork(first, abandoned, key);
+  releaseAbandoned();
+  responses[0]!({ ok: true, data: { ...image(51), token: first } });
+  await flush();
+  expect(abandoned).not.toHaveBeenCalled();
+
+  const receive = vi.fn();
+  const release = acquireNativeArtwork(next, receive, key);
+  const releaseOverlap = acquireNativeArtwork(next, vi.fn(), key);
+  expect(responses).toHaveLength(2);
+  responses[1]!({ ok: true, data: { ...image(52), token: next } });
+  await flush();
+  expect(receive).toHaveBeenCalledExactlyOnceWith({ ...image(52), token: next });
+  release();
+  releaseOverlap();
+  receive.mockClear();
+  acquireNativeArtwork(last, receive, key)();
+  expect(receive).toHaveBeenCalledExactlyOnceWith({ ...image(52), token: last });
+  expect(responses).toHaveLength(2);
+
+  const releaseChanged = acquireNativeArtwork(last, receive, changedKey);
+  expect(responses).toHaveLength(3);
+  responses[2]!({ ok: true, data: null });
+  await flush();
+  releaseChanged();
+  const releaseRetry = acquireNativeArtwork(last, receive, changedKey);
+  expect(responses).toHaveLength(4);
+  responses[3]!({ ok: true, data: { ...image(53), token: last } });
+  await flush();
+  releaseRetry();
+});

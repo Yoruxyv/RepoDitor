@@ -31,7 +31,7 @@ impl Cosmetics {
         &self.fingerprint
     }
 
-    pub fn artwork_rows(&mut self) -> impl Iterator<Item = (String, String, &mut Option<String>)> {
+    pub fn artwork_rows(&mut self) -> impl Iterator<Item = (String, String, &mut Cosmetic)> {
         let mut proofs = std::mem::take(&mut self.artwork_proofs);
         if proofs.len() > 2_000 {
             proofs.clear();
@@ -42,7 +42,7 @@ impl Cosmetics {
             }
             let id = cosmetic.id.to_string();
             let proof = proofs.remove(&id)?;
-            Some((id, proof, &mut cosmetic.icon_token))
+            Some((id, proof, cosmetic))
         })
     }
 }
@@ -59,7 +59,7 @@ struct Capabilities {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Cosmetic {
+pub(crate) struct Cosmetic {
     #[serde(deserialize_with = "safe_integer")]
     id: i64,
     display_name: String,
@@ -78,7 +78,9 @@ struct Cosmetic {
     #[serde(skip_serializing)]
     icon_key: Value,
     #[serde(skip_deserializing)]
-    icon_token: Option<String>,
+    pub icon_token: Option<String>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub icon_reuse_key: Option<String>,
 }
 
 fn integer<E: serde::de::Error>(value: Number) -> Result<i64, E> {

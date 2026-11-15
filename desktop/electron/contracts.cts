@@ -302,6 +302,8 @@ export interface CosmeticDto {
   mutationEligible: boolean;
   removalBlockedReason: string | null;
   iconToken: string | null;
+  /** Tauri presentation identity from a freshly validated projection. */
+  iconReuseKey?: string;
 }
 
 export interface CosmeticsViewDto {

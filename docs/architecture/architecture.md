@@ -805,6 +805,19 @@ retains its own finite coordinator. `python/client.cts` owns command allowlists,
 output/time limits and child cleanup on shutdown; there is no permanent renderer.
 `GameIcon` confines image loading to the thumbnail box and falls back on null/error.
 
+Tauri retains the active Run save's Players, Upgrades, Run, Items and Maps
+projections while navigating between tabs. Overview renders from the opened
+snapshot. Players and Upgrades prepare independently, while Run, Items and Maps
+load on demand. Closing the workspace disposes its projections.
+
+The separate Cosmetics workspace revalidates MetaSave and installed artwork
+sources on entry, refresh and game-safety recovery. A successful catalog read
+issues new artwork tokens and presentation keys tied to the MetaSave fingerprint,
+cosmetic ID, installed source and PNG file identity. The renderer can reuse up
+to 24 previously validated thumbnails in memory when those keys match. Pending
+and failed images are not retained. Artwork tokens keep their existing revocation
+and authorization rules.
+
 Canonical filename derivation, source reconciliation, native decoder resources and
 reader isolation are documented in [installed artwork](../reverse-engineering/truck_artwork.md).
 

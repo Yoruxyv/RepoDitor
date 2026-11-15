@@ -1,4 +1,4 @@
-/** One cancellable native decoder lane; completed pixels are never cached here. */
+/** One cancellable native decoder lane and bounded Cosmetics thumbnail reuse. */
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import type { DesktopOperationResult } from "@electron/contracts";
@@ -11,6 +11,7 @@ export interface NativeArtwork {
 interface Request {
   readonly token: string;
   readonly scope: ArtworkScope;
+  readonly reuseKey: string | undefined;
   readonly listeners: Set<(image: NativeArtwork | null) => void>;
   settled: boolean;
   cancellation: Promise<unknown> | null;
@@ -19,6 +20,10 @@ const pending = new Map<string, Request>();
 const queue: Request[] = [];
 let active: Request | null = null;
 const activityListeners = new Set<() => void>();
+// At most 12 MiB of string storage even with two bytes per base64 character.
+const cosmeticThumbnails = new Map<string, NativeArtwork>();
+const MAX_REUSED_THUMBNAILS = 24;
+const MAX_REUSED_DATA_URL = 256 * 1024;
 // A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
 const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16, cosmetic: 2_000 };
 type ArtworkScope = keyof typeof REQUEST_LIMITS;
@@ -58,6 +63,7 @@ export function useNativeArtwork(
   token: string | null,
   variant: "item" | "upgrade" | "cosmetic" | "map",
   element: RefObject<HTMLSpanElement | null>,
+  reuseKey?: string,
 ) {
   const scope = artworkScope(token);
   const native = scope !== null;
@@ -81,10 +87,14 @@ export function useNativeArtwork(
     const observer = new IntersectionObserver(([entry]) => {
       if (!observing) return;
       if (entry?.isIntersecting) {
-        release ??= acquireNativeArtwork(token, (image) => {
-          if (!image) observer.disconnect();
-          receive(image);
-        });
+        release ??= acquireNativeArtwork(
+          token,
+          (image) => {
+            if (!image) observer.disconnect();
+            receive(image);
+          },
+          reuseKey,
+        );
       } else if (release) {
         release();
         release = undefined;
@@ -97,7 +107,7 @@ export function useNativeArtwork(
       observer.disconnect();
       release?.();
     };
-  }, [allowed, element, hasObserver, scope, token]);
+  }, [allowed, element, hasObserver, reuseKey, scope, token]);
   const current = resolved && token && resolved.token === token ? resolved : null;
   return {
     native,
@@ -128,6 +138,18 @@ function pump(): void {
     .then((result) => {
       request.settled = true;
       const image = result.ok && validImage(result.data, request.token) ? result.data : null;
+      if (
+        image &&
+        request.reuseKey &&
+        request.listeners.size > 0 &&
+        image.dataUrl.length <= MAX_REUSED_DATA_URL
+      ) {
+        cosmeticThumbnails.set(request.reuseKey, image);
+        if (cosmeticThumbnails.size > MAX_REUSED_THUMBNAILS) {
+          const oldest = cosmeticThumbnails.keys().next().value!;
+          cosmeticThumbnails.delete(oldest);
+        }
+      }
       for (const listener of request.listeners) listener(image);
     })
     .catch(() => {
@@ -147,8 +169,24 @@ function pump(): void {
 export function acquireNativeArtwork(
   token: string,
   listener: (image: NativeArtwork | null) => void,
+  reuseKey?: string,
 ): () => void {
   const scope = artworkScope(token);
+  const key =
+    scope === "cosmetic" &&
+    isNativeArtworkToken(token) &&
+    /^[0-9a-f]{64}:\d{1,4}:[0-9a-f]{64}:[0-9a-f]{64}$/.test(reuseKey ?? "")
+      ? reuseKey
+      : undefined;
+  if (key) {
+    const image = cosmeticThumbnails.get(key);
+    if (image) {
+      cosmeticThumbnails.delete(key);
+      cosmeticThumbnails.set(key, image);
+      listener({ ...image, token });
+      return () => undefined;
+    }
+  }
   // One visible catalog can subscribe to at most the verified catalog bound. Abandoned requests
   // and other scopes cannot use up those places while the shared decoder finishes cancelling.
   const queued =
@@ -172,7 +210,14 @@ export function acquireNativeArtwork(
   }
   let request = pending.get(token);
   if (!request || request.listeners.size === 0) {
-    request = { token, scope, listeners: new Set(), settled: false, cancellation: null };
+    request = {
+      token,
+      scope,
+      reuseKey: key,
+      listeners: new Set(),
+      settled: false,
+      cancellation: null,
+    };
     pending.set(token, request);
     queue.push(request);
   }

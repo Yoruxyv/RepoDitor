@@ -163,6 +163,41 @@ describe("read-only native discovery", () => {
       expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(2);
     },
   );
+  it("reuses prepared players and upgrades until changing saves and ignores old reads", async () => {
+    const older = { ...environment.saves[0]!, id: "earlier", name: "Earlier save" };
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({
+      ok: true,
+      data: { ...environment, saves: [...environment.saves, older] },
+    });
+    const opened = openResult();
+    vi.mocked(tauriReadApi.saves.open).mockImplementation(async (id) =>
+      id === older.id ? openResult({ ...opened.data.session, ...older }) : opened,
+    );
+    const list = vi.mocked(tauriReadApi.players.list);
+    type Result = Awaited<ReturnType<typeof list>>;
+    let complete!: (result: Result) => void;
+    list.mockReturnValueOnce(new Promise((resolve) => (complete = resolve)));
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await screen.findByText("Loading player data…");
+    await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await user.click(await screen.findByRole("button", { name: /Earlier save/ }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    await screen.findByRole("button", { name: /Alpha/ });
+    await act(() =>
+      complete({ ok: true, data: [{ ...players[0]!, name: "Previous session player" }] }),
+    );
+    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+    await screen.findByRole("textbox", { name: "Strength for Alpha" });
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    expect(screen.getByRole("button", { name: /Alpha/ })).toBeTruthy();
+    expect(screen.queryByText("Previous session player")).toBeNull();
+    expect(list.mock.calls).toEqual([[opened.data.session.id], [older.id]]);
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2);
+  });
   it("uses the selected theme and locale during preparation", async () => {
     localStorage.setItem("repoditor.theme", "light");
     localStorage.setItem("repoditor.locale", "id");
