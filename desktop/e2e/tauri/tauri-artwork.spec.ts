@@ -476,10 +476,33 @@ test("ordinary native upgrade artwork is scoped, validated, refreshed and read-o
     pngBase64: png,
   };
   const response = path.join(home, "upgrade-artwork.json");
+  async function setSource(revision: string) {
+    await writeFile(
+      path.join(home, "maps-list.json"),
+      JSON.stringify({ ok: true, ...fixture.maps, entryArtworkRevision: revision }),
+    );
+  }
+  await setSource("1".repeat(64));
   await writeFile(response, JSON.stringify({ ok: true, artwork: image }));
   const app = await launch(fixture.executable, home, fixture.environment);
   try {
     const page = app.page;
+    async function refreshArtwork(artwork: typeof image, revision: string) {
+      await writeFile(response, JSON.stringify({ ok: true, artwork }));
+      await setSource(revision);
+      const proof = page.waitForResponse(
+        (reply) =>
+          new URL(reply.url()).pathname === "/maps_list" &&
+          reply.request().postDataJSON()?.validateOnly === true,
+      );
+      await page.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
+      expect(await proof.then((reply) => reply.json())).toMatchObject({
+        ok: true,
+        data: { entryArtworkRevision: revision },
+      });
+      await page.getByRole("tab", { name: "Players", exact: true }).click();
+      await page.getByRole("tab", { name: "Upgrades", exact: true }).click();
+    }
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await page.getByRole("tab", { name: "Upgrades", exact: true }).click();
     const icon = page.getByTestId(`upgrade-icon-${key}`);
@@ -515,20 +538,13 @@ test("ordinary native upgrade artwork is scoped, validated, refreshed and read-o
     await expect(icon).toHaveAttribute("data-artwork-revision", image.sourceIdentity);
     await page.screenshot({ path: info.outputPath("native-upgrade-artwork.png") });
     const next = { ...image, sourceIdentity: "b".repeat(64) };
-    await writeFile(response, JSON.stringify({ ok: true, artwork: next }));
-    await page.getByRole("tab", { name: "Players", exact: true }).click();
-    await page.getByRole("tab", { name: "Upgrades", exact: true }).click();
+    await refreshArtwork(next, "2".repeat(64));
     await expect(icon).toHaveAttribute("data-artwork-revision", next.sourceIdentity);
-    await writeFile(
-      response,
-      JSON.stringify({
-        ok: true,
-        artwork: { ...next, pngBase64: Buffer.from("not a PNG").toString("base64") },
-      }),
+    await refreshArtwork(
+      { ...next, pngBase64: Buffer.from("not a PNG").toString("base64") },
+      "3".repeat(64),
     );
-    await page.getByRole("tab", { name: "Players", exact: true }).click();
-    await page.getByRole("tab", { name: "Upgrades", exact: true }).click();
-    await expect(icon).not.toHaveAttribute("data-icon-source", "local");
+    await expect(icon).toHaveAttribute("data-icon-source", /category|specific|fallback/);
     await writeFile(response, JSON.stringify({ ok: true, artwork: next }));
     const refreshed = await native<{
       ok: boolean;

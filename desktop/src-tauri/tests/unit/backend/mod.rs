@@ -19,26 +19,34 @@ fn background_upgrades_are_bounded_separately_and_cancel_when_the_save_closes() 
     request.2 = cancelled;
     request.3 = true;
     let executable = process::tests::fixture();
-    assert!(execute(
-        &request,
-        executable,
-        &["success"],
-        Instant::now(),
-        Duration::from_secs(2)
-    )
-    .is_ok());
-    state.artwork.lock().unwrap().clear();
-    assert_eq!(
-        execute(
-            &request,
-            executable,
-            &["success"],
-            Instant::now(),
-            Duration::from_secs(2)
-        ),
-        Err(BackendError::Failed)
-    );
+    let marker =
+        std::env::temp_dir().join(format!("repoditor-upgrades-{}.ready", uuid::Uuid::new_v4()));
+    let (ready, result) = thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            execute(
+                &request,
+                executable,
+                &["hang", marker.to_str().unwrap()],
+                Instant::now(),
+                Duration::from_secs(5),
+            )
+        });
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !marker.exists() && !worker.is_finished() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+        let ready = marker.exists();
+        state.artwork.lock().unwrap().clear();
+        (ready, worker.join().unwrap())
+    });
+    if marker.exists() {
+        std::fs::remove_file(marker).unwrap();
+    }
+    assert!(ready, "background fixture never started: {result:?}");
+    assert_eq!(result, Err(BackendError::Failed));
+    drop(request);
     drop(held);
+    assert!(state.idle());
 }
 
 #[test]

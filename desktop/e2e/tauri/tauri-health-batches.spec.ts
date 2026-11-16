@@ -12,7 +12,13 @@ import {
   stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
-import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
+import {
+  close,
+  launch,
+  native,
+  openRunWorkspace,
+  stageFrozenBackend,
+} from "../support/tauriHarness";
 
 type App = Awaited<ReturnType<typeof launch>>;
 const edits = () => [
@@ -83,7 +89,7 @@ async function noEvidence(source: string) {
   ).toEqual([]);
 }
 async function openPlayers(app: App, recovery = false) {
-  await app.page.getByRole("button", { name: /Open workspace/ }).click();
+  await openRunWorkspace(app.page);
   await expect(app.page.getByTestId("health-status")).toHaveAttribute(
     "data-phase",
     recovery ? "recovery" : "editing",

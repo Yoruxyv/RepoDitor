@@ -9,7 +9,13 @@ import {
   stageTestExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
-import { close, launch, native, stageFrozenBackend } from "../support/tauriHarness";
+import {
+  close,
+  launch,
+  native,
+  openRunWorkspace,
+  stageFrozenBackend,
+} from "../support/tauriHarness";
 
 function required(name: string) {
   const value = process.env[name];
@@ -30,7 +36,7 @@ async function fixture(info: TestInfo, ordinary = false) {
   return { home, source, executable, before: await readFile(source) };
 }
 async function openUpgrades(app: Awaited<ReturnType<typeof launch>>) {
-  await app.page.getByRole("button", { name: /Open workspace/ }).click();
+  await openRunWorkspace(app.page);
   await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
   await app.page.getByRole("tab", { name: "Upgrades", exact: true }).click();
   await expect(app.page.getByRole("spinbutton", { name: "Strength for Alpha" })).toBeVisible();
@@ -269,7 +275,7 @@ test("upgrade intent survives lost response and interrupted recovery across host
     REPODITOR_RECOVERY_PHASE_FILE: recoveryMarker,
   });
   try {
-    await second.page.getByRole("button", { name: /Open workspace/ }).click();
+    await openRunWorkspace(second.page);
     await expect(second.page.getByTestId("health-status")).toHaveAttribute(
       "data-phase",
       "recovery",
@@ -286,7 +292,7 @@ test("upgrade intent survives lost response and interrupted recovery across host
     REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
   });
   try {
-    await third.page.getByRole("button", { name: /Open workspace/ }).click();
+    await openRunWorkspace(third.page);
     await expect(third.page.getByTestId("health-status")).toHaveAttribute("data-phase", "recovery");
     await third.page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
     await expect(third.page.getByTestId("health-status")).toHaveAttribute("data-phase", "saved");

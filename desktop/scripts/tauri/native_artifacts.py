@@ -361,15 +361,29 @@ def msvc_uploaders():
             "-products",
             "*",
             "-utf8",
-            "-find",
-            r"VC\Tools\MSVC\*\bin\Host*\*\vctip.exe",
+            "-property",
+            "installationPath",
         ],
         check=True,
         capture_output=True,
         encoding="utf-8",
-        timeout=5,
+        timeout=30,
     )
-    return tuple(Path(line).resolve(strict=True) for line in result.stdout.splitlines() if line)
+    # The installer query only lists roots. Search the fixed toolchain layout locally.
+    uploaders = []
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        installation = Path(line)
+        if not installation.is_absolute():
+            raise ValueError("Visual Studio discovery returned a relative installation path")
+        root = installation.resolve(strict=True)
+        uploaders.extend(
+            candidate
+            for candidate in root.glob("VC/Tools/MSVC/*/bin/Host*/*/vctip.exe")
+            if candidate.is_file() and candidate.resolve(strict=True) == candidate
+        )
+    return tuple(uploaders)
 
 
 def run_gate(shell, output_name, keep, warning_gib, mode, normal, fault):
@@ -377,7 +391,6 @@ def run_gate(shell, output_name, keep, warning_gib, mode, normal, fault):
     with SaveDirectory(DESKTOP / "unused") as desktop:
         volume, directory = desktop._directory_identity(desktop.handles[-1])
     with TestJob(f"Global\\RepoDitor.NativeSafety.{volume:x}.{directory}") as job:
-        build_uploaders = msvc_uploaders()
         for parent in (*reversed(output.parents), fixtures.parent):
             if parent.is_relative_to(build) and not parent.is_dir():
                 new_directory(parent)
@@ -423,11 +436,16 @@ def run_gate(shell, output_name, keep, warning_gib, mode, normal, fault):
                 command.extend((flag, value))
         started = datetime.now(UTC).isoformat()
         exit_code, passed, seal = 1, False, None
+        build_uploaders, run_error = (), None
         try:
+            build_uploaders = msvc_uploaders()
             exit_code = job.run(command, env)
             if exit_code == 0:
                 seal = artifacts.read_seal()
                 passed = True
+        except (OSError, ValueError, KeyboardInterrupt, subprocess.SubprocessError) as error:
+            run_error = str(error) or "interrupted"
+            raise
         finally:
             report = artifacts.finish(
                 passed=passed,
@@ -445,6 +463,8 @@ def run_gate(shell, output_name, keep, warning_gib, mode, normal, fault):
                 started_utc=started,
                 finished_utc=datetime.now(UTC).isoformat(),
             )
+            if run_error is not None:
+                report.update(state="error", run_error=run_error)
             if report["processes_exited"]:
                 try:
                     report["run_output_bytes"] = owned_bytes(output) + owned_bytes(fixtures)

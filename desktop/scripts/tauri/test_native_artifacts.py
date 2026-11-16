@@ -2,17 +2,76 @@
 
 import _winapi
 import ctypes
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 from uuid import uuid4
 
+import native_artifacts
 import pytest
 from native_artifacts import RunArtifacts, encode
 from windows_test_job import TestJob
 
 from repo_save_editor.storage.windows_save_directory import SaveNamespaceError
+
+
+def test_msvc_discovery_only_lists_installations_and_allows_exact_tool_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("PROGRAMFILES(X86)", str(tmp_path))
+    vswhere = tmp_path / "Microsoft Visual Studio/Installer/vswhere.exe"
+    vswhere.parent.mkdir(parents=True)
+    vswhere.touch()
+    installation = tmp_path / "Visual Studio"
+    toolchain = installation / "VC/Tools/MSVC/14.50/bin/Hostx64/x64"
+    toolchain.mkdir(parents=True)
+    uploader = toolchain / "vctip.exe"
+    uploader.touch()
+    (installation / "vctip.exe").touch()
+    (toolchain / "other.exe").touch()
+
+    def list_installations(command, **options):
+        assert command == [
+            str(vswhere),
+            "-all",
+            "-products",
+            "*",
+            "-utf8",
+            "-property",
+            "installationPath",
+        ]
+        assert options["timeout"] == 30
+        return subprocess.CompletedProcess(command, 0, stdout=f"{installation}\n", stderr="")
+
+    monkeypatch.setattr(native_artifacts.subprocess, "run", list_installations)
+    assert native_artifacts.msvc_uploaders() == (uploader.resolve(strict=True),)
+
+
+def test_msvc_discovery_timeout_preserves_diagnostics_without_launch(tmp_path, monkeypatch):
+    monkeypatch.setattr(native_artifacts, "DESKTOP", tmp_path)
+    node = tmp_path / "node.exe"
+    node.touch()
+    monkeypatch.setattr(native_artifacts.shutil, "which", lambda _: str(node))
+
+    def discovery_timeout():
+        raise subprocess.TimeoutExpired("vswhere.exe", 30)
+
+    def unexpected_launch(*_args):
+        pytest.fail("The test gate must not launch when Visual Studio discovery fails")
+
+    monkeypatch.setattr(native_artifacts, "msvc_uploaders", discovery_timeout)
+    monkeypatch.setattr(TestJob, "run", unexpected_launch)
+    with pytest.raises(subprocess.TimeoutExpired):
+        native_artifacts.run_gate("pwsh.exe", "build/reports", "0", 0, "full", "", "")
+
+    output = tmp_path / "build/reports"
+    report = json.loads((output / "artifact-retention.json").read_text(encoding="utf-8"))
+    assert report["state"] == "error"
+    assert "vswhere.exe" in report["run_error"]
+    assert "timed out" in report["run_error"]
+    assert report["validation_passed"] is False
+    assert report["retired_bytes"] == 0
+    assert (output / "executable-manifest.jsonl").is_file()
 
 
 @pytest.fixture

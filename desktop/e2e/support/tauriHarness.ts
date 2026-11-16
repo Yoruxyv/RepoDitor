@@ -43,6 +43,13 @@ export async function native<T>(
   ) as Promise<T>;
 }
 
+export async function openRunWorkspace(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /Open workspace/ }).click();
+  await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 export async function stageFrozenBackend(home: string, backend: string) {
   const source = path.resolve(DESKTOP_ROOT, backend);
   await access(path.join(source, "repoditor-backend.exe"));
