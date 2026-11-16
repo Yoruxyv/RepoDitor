@@ -1,6 +1,6 @@
 /** Accessible startup/progress presentation for fail-soft installed artwork work. */
 import { PackageIcon, WrenchIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -34,6 +34,8 @@ const STAGE_KEYS: Record<AssetPreparationStage, TranslationKey> = {
 };
 
 interface AssetPreparationViewProps {
+  readonly children?: ReactNode;
+  readonly compact?: boolean;
   readonly copyOverrides?: Partial<PreparationCopy>;
   readonly progressText?: string;
   readonly progressLabel?: string;
@@ -54,10 +56,11 @@ interface PreparationProgress {
   readonly total: number;
 }
 
-function countFilledSegments(progress: PreparationProgress | null): number {
+function countFilledSegments(progress: PreparationProgress | null, compact: boolean): number {
   if (progress === null) return 0;
   const ratio = progress.total > 0 ? progress.completed / progress.total : 1;
-  return Math.round(Math.min(1, Math.max(0, ratio)) * SEGMENT_COUNT);
+  const segments = Math.min(1, Math.max(0, ratio)) * SEGMENT_COUNT;
+  return compact ? Math.floor(segments) : Math.round(segments);
 }
 
 interface PreparationCopy {
@@ -136,37 +139,22 @@ function PreparationProgressDisplay({
   t,
   progressText,
   progressLabel,
+  compact,
 }: {
   readonly mode: "save" | "artwork";
   readonly progress: PreparationProgress | null;
   readonly t: Translate;
   readonly progressText?: string;
   readonly progressLabel?: string;
+  readonly compact: boolean;
 }) {
-  const filledSegments = countFilledSegments(progress);
+  const statusId = useId();
+  const filledSegments = countFilledSegments(progress, compact);
   const labelKey = mode === "save" ? "entry.progressLabel" : "assets.progressLabel";
   const countKey =
     mode === "save" ? "entry.progressCount" : PREPARATION_TRANSLATION_KEY.progressCount;
-  const progressAttributes =
-    progress === null
-      ? { role: "progressbar" as const, "aria-label": progressLabel ?? t(labelKey) }
-      : {
-          role: "progressbar" as const,
-          "aria-label": progressLabel ?? t(labelKey),
-          "aria-valuemin": 0,
-          "aria-valuemax": progress.total,
-          "aria-valuenow": progress.completed,
-          "aria-valuetext":
-            progressText ??
-            t(countKey, {
-              completed: progress.completed,
-              total: progress.total,
-            }),
-        };
-  const workingClass =
-    progress === null ? PROGRESS_VISIBILITY_CLASS.visible : PROGRESS_VISIBILITY_CLASS.hidden;
-  const countClass =
-    progress !== null ? PROGRESS_VISIBILITY_CLASS.visible : PROGRESS_VISIBILITY_CLASS.hidden;
+  const { visible, hidden } = PROGRESS_VISIBILITY_CLASS;
+  const [workingClass, countClass] = progress === null ? [visible, hidden] : [hidden, visible];
   const progressCount =
     progress === null
       ? ""
@@ -175,9 +163,25 @@ function PreparationProgressDisplay({
           completed: progress.completed,
           total: progress.total,
         }));
+  const valueAttributes =
+    progress !== null
+      ? {
+          "aria-valuemin": 0,
+          "aria-valuemax": progress.total,
+          "aria-valuenow": progress.completed,
+          "aria-valuetext": progressCount,
+        }
+      : undefined;
+  const progressAttributes = {
+    role: "progressbar" as const,
+    "aria-label": progressLabel ?? t(labelKey),
+    "aria-describedby": compact && progress === null ? statusId : undefined,
+    ...valueAttributes,
+  };
+  const liveStatus = compact ? { "aria-atomic": true, "aria-live": "polite" as const } : undefined;
 
   return (
-    <div className="mt-7">
+    <div className={compact ? "mt-4" : "mt-7"}>
       <div
         {...progressAttributes}
         className="relative overflow-hidden"
@@ -185,7 +189,7 @@ function PreparationProgressDisplay({
       >
         <div className="grid grid-cols-18 gap-1">
           {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
-            const filled = progress !== null && index < filledSegments;
+            const filled = index < filledSegments;
             return (
               <span
                 aria-hidden="true"
@@ -195,7 +199,7 @@ function PreparationProgressDisplay({
             );
           })}
         </div>
-        {progress === null ? (
+        {progress === null && !compact ? (
           <span
             aria-hidden="true"
             className="asset-preparation-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-accent-muted"
@@ -204,8 +208,10 @@ function PreparationProgressDisplay({
       </div>
 
       <div
+        {...liveStatus}
         className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
         data-testid="asset-progress-status"
+        id={statusId}
       >
         <span className="relative grid min-w-32 text-right">
           <span
@@ -276,7 +282,49 @@ function AssetPreparationFooter({
   );
 }
 
+function PreparationActions({
+  compact,
+  hint,
+  cancel,
+  proceed,
+  continueLabel,
+}: {
+  readonly compact: boolean;
+  readonly hint: string;
+  readonly cancel: (() => void) | undefined;
+  readonly proceed: (() => void) | undefined;
+  readonly continueLabel: string;
+}) {
+  const { t } = usePreferences();
+  const layout = compact ? "mt-4 flex flex-wrap justify-end gap-2" : "relative mt-5";
+  return (
+    <div className={layout}>
+      {!compact ? <p className="max-w-[58ch] text-sm/6 text-secondary">{hint}</p> : null}
+      {cancel ? (
+        <button
+          className="ui-feedback inline-flex max-w-full items-center rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          type="button"
+          onClick={cancel}
+        >
+          {t("entry.cancelOpening")}
+        </button>
+      ) : null}
+      {proceed ? (
+        <button
+          className={`ui-feedback inline-flex items-center rounded-sm border border-accent bg-accent-muted px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised ${compact ? "" : "mt-5"}`}
+          type="button"
+          onClick={proceed}
+        >
+          {continueLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function AssetPreparationView({
+  children,
+  compact = false,
   state = INITIAL_STATE,
   copyOverrides,
   progressText,
@@ -316,6 +364,12 @@ export function AssetPreparationView({
     ...preparationCopy(state, mode, saveDetail, artworkDetail, slow, t),
     ...copyOverrides,
   };
+  const canContinue = compact || continueImmediately || (mode === "artwork" && slow);
+  const currentAssetLabel = state.currentAssetLabel;
+  const assetValues = currentAssetLabel === null ? {} : { asset: currentAssetLabel };
+  const artworkProgressKey =
+    currentAssetLabel === null ? "entry.artworkProgressCount" : "entry.artworkProgressAsset";
+  const footerOverride = footerText === undefined ? {} : { footerText };
 
   return (
     <section
@@ -344,7 +398,9 @@ export function AssetPreparationView({
           </div>
         </header>
 
-        <div className="relative grid gap-7 py-9 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center sm:gap-9">
+        <div
+          className={`relative grid gap-7 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center sm:gap-9 ${compact ? "py-6" : "py-9"}`}
+        >
           <div
             aria-hidden="true"
             className="asset-preparation-crate mx-auto grid size-24 place-items-center border border-line-strong bg-surface-raised text-accent"
@@ -373,56 +429,39 @@ export function AssetPreparationView({
 
             <PreparationProgressDisplay
               mode={mode}
+              compact={compact}
               progress={visibleProgress}
               {...(progressText === undefined ? {} : { progressText })}
               {...(progressLabel === undefined ? {} : { progressLabel })}
               t={t}
             />
+            {children}
 
             {artworkDetail && state.completed !== null && state.total !== null ? (
               <p className="mt-2 text-right text-xs font-medium text-secondary">
-                {t(
-                  state.currentAssetLabel === null
-                    ? "entry.artworkProgressCount"
-                    : "entry.artworkProgressAsset",
-                  {
-                    completed: state.completed,
-                    total: state.total,
-                    ...(state.currentAssetLabel === null ? {} : { asset: state.currentAssetLabel }),
-                  },
-                )}
+                {t(artworkProgressKey, {
+                  completed: state.completed,
+                  total: state.total,
+                  ...assetValues,
+                })}
               </p>
             ) : null}
 
-            <p className="mt-5 max-w-[58ch] text-sm/6 text-secondary">{copy.hint}</p>
-            {mode === "artwork" && (slow || continueImmediately) && onContinue !== undefined ? (
-              <button
-                className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-accent bg-accent-muted px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-raised"
-                type="button"
-                onClick={onContinue}
-              >
-                {continueLabel ?? t("assets.continueEditor")}
-              </button>
-            ) : null}
-            {onCancel !== undefined ? (
-              <button
-                className="ui-feedback mt-5 inline-flex items-center rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
-                type="button"
-                onClick={onCancel}
-              >
-                {t("entry.cancelOpening")}
-              </button>
-            ) : null}
+            <PreparationActions
+              compact={compact}
+              hint={copy.hint}
+              cancel={onCancel}
+              proceed={canContinue ? onContinue : undefined}
+              continueLabel={continueLabel ?? t("assets.continueEditor")}
+            />
           </div>
         </div>
 
-        <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          <AssetPreparationFooter
-            {...(footerText === undefined ? {} : { footerText })}
-            mode={mode}
-            state={state}
-          />
-        </footer>
+        {!compact ? (
+          <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+            <AssetPreparationFooter {...footerOverride} mode={mode} state={state} />
+          </footer>
+        ) : null}
       </div>
     </section>
   );
