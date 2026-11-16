@@ -202,6 +202,34 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     assert not (root / "REPO_Data/StreamingAssets/BakedIcons").exists()
 
 
+def test_entry_artwork_proof_changes_for_edited_and_new_owned_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    directory = root / "REPO_Data/StreamingAssets/BakedIcons/Items"
+    directory.mkdir(parents=True)
+    path = directory / "fixture.png"
+    path.write_bytes(encode_rgba_png(bytes((0, 0, 0, 255)), 1, 1))
+    first = baked.entry_artwork_revision()
+    assert first is not None
+    assert baked.entry_artwork_revision() == first
+    info = path.stat()
+    path.write_bytes(encode_rgba_png(bytes((1, 0, 0, 255)), 1, 1))
+    assert path.stat().st_size == info.st_size
+    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+    modified = baked.entry_artwork_revision()
+    assert modified is not None
+    assert modified != first
+    (directory / "new.png").write_bytes(path.read_bytes())
+    expanded = baked.entry_artwork_revision()
+    assert expanded is not None
+    assert expanded != modified
+
+
 def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

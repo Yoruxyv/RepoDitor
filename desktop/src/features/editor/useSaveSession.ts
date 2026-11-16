@@ -4,7 +4,7 @@
  * Pending feature edits remain outside this hook; it sends their typed union only on
  * explicit save and accepts Python's returned fingerprint/session as authoritative.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   RepoDitorApi,
@@ -17,13 +17,14 @@ import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 const desktopOpen: RepoDitorApi["saves"]["open"] = (saveId) => window.repoditor.saves.open(saveId);
+type OpenSave = (saveId: string, signal: AbortSignal) => ReturnType<typeof desktopOpen>;
 
 /**
  * Own one Run-save session without exposing decrypted data to the renderer.
  *
  * @returns The renderer-safe session, operations, and translated failure state.
  */
-export function useSaveSession(openSave = desktopOpen) {
+export function useSaveSession(openSave: OpenSave = desktopOpen) {
   const { t } = usePreferences();
   const [session, setSession] = useState<SaveSession | null>(null);
   const [openingSaveId, setOpeningSaveId] = useState<string | null>(null);
@@ -33,41 +34,46 @@ export function useSaveSession(openSave = desktopOpen) {
   const [saving, setSaving] = useState(false);
   const [lastBackupPath, setLastBackupPath] = useState<string | null>(null);
   const requestInFlight = useRef(false);
-  const activeOpen = useRef<{ cancelled: boolean } | null>(null);
+  const activeOpen = useRef<AbortController | null>(null);
+  useEffect(() => () => activeOpen.current?.abort(), []);
 
   async function open(saveId: string): Promise<SaveOpenResult | null> {
     if (requestInFlight.current) {
       return null;
     }
     requestInFlight.current = true;
-    const request = { cancelled: false };
+    const request = new AbortController();
     activeOpen.current = request;
     setOpeningSaveId(saveId);
     setError(null);
     setSaveError(null);
     setLastBackupPath(null);
     try {
-      const result = await openSave(saveId);
-      if (request.cancelled) return null;
+      const result = await openSave(saveId, request.signal);
+      if (request.signal.aborted) return null;
       if (result.ok) {
         return result.data;
       }
-      setError(operationErrorKey(result.error.code));
+      setError(
+        result.error.code === "save_stale"
+          ? "error.saveOpenStale"
+          : operationErrorKey(result.error.code),
+      );
     } catch {
-      if (!request.cancelled) setError("error.service");
+      if (!request.signal.aborted) setError("error.service");
     } finally {
       requestInFlight.current = false;
       activeOpen.current = null;
       setOpeningSaveId(null);
-      if (request.cancelled) setDrainingOpen(false);
+      if (request.signal.aborted) setDrainingOpen(false);
     }
     return null;
   }
 
   function cancelOpen(): void {
     if (!activeOpen.current) return;
-    // The native read can finish, but a cancelled result must never open the editor.
-    activeOpen.current.cancelled = true;
+    // Wait for the current read to drain before opening another save.
+    activeOpen.current.abort();
     setOpeningSaveId(null);
     setDrainingOpen(true);
   }

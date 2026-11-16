@@ -112,11 +112,11 @@ pub enum Operation {
         String,
         Arc<AtomicBool>,
     ),
-    CosmeticBatch(Arc<artwork::CosmeticBatch>),
+    ArtworkBatch(Arc<artwork::ArtworkBatch>),
     Upgrades(String, Option<Arc<AtomicBool>>),
     Run(String),
     Items(String),
-    Maps,
+    Maps(bool, Option<String>),
     Cosmetics(bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealth(String, String, String, String, Instant),
@@ -159,11 +159,11 @@ impl Operation {
             Self::Game => 2,
             Self::Players(_) => 3,
             Self::Avatar(..) => AVATAR_SLOT,
-            Self::Artwork(..) | Self::CosmeticBatch(_) => ARTWORK_SLOT,
+            Self::Artwork(..) | Self::ArtworkBatch(_) => ARTWORK_SLOT,
             Self::Upgrades(..) => 4,
             Self::Run(_) => 5,
             Self::Items(_) => 6,
-            Self::Maps => 7,
+            Self::Maps(..) => 7,
             Self::Cosmetics(_) => 8,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaPrepare(..)
@@ -193,10 +193,12 @@ impl Operation {
             Self::Upgrades(..) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
             Self::Run(_) => Service::Run,
             Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
-            Self::Maps | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
-            Self::Cosmetics(_)
-            | Self::Artwork(artwork::Scope::Cosmetic, ..)
-            | Self::CosmeticBatch(_) => Service::Cosmetics,
+            Self::Maps(..) | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
+            Self::Cosmetics(_) | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
+            Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Upgrade => Service::Upgrade,
+            Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Item => Service::Items,
+            Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Map => Service::Maps,
+            Self::ArtworkBatch(_) => Service::Cosmetics,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestMetaState(..)
             | Self::TestMetaPrepare(..)
@@ -238,17 +240,48 @@ impl Operation {
                 args.push(key);
                 args
             }
-            Self::CosmeticBatch(batch) => {
+            Self::ArtworkBatch(batch) => {
+                if batch.scope == artwork::Scope::Map {
+                    let mut args = vec!["map-artwork-batch", batch.fingerprint.as_str(), "--"];
+                    args.extend(batch.members.iter().map(|member| member.key.as_str()));
+                    return args;
+                }
+                if let Some(save) = &batch.save {
+                    let mut args = vec![
+                        if batch.scope == artwork::Scope::Item {
+                            "item-artwork-batch"
+                        } else {
+                            "upgrade-artwork-batch"
+                        },
+                        save,
+                        batch.fingerprint.as_str(),
+                        "--",
+                    ];
+                    args.extend(batch.members.iter().map(|member| member.key.as_str()));
+                    return args;
+                }
                 let mut args = vec!["native-cosmetic-artwork-batch", batch.fingerprint.as_str()];
                 for member in &batch.members {
-                    args.extend([member.proof.as_str(), member.key.as_str()]);
+                    args.extend([
+                        member.proof.as_deref().unwrap_or_default(),
+                        member.key.as_str(),
+                    ]);
                 }
                 args
             }
             Self::Upgrades(id, _) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
             Self::Items(id) => vec!["advanced-get", id],
-            Self::Maps => vec!["maps-list"],
+            Self::Maps(proof, save) => {
+                let mut args = vec!["maps-list"];
+                if *proof {
+                    args.push("--entry-artwork-proof");
+                }
+                if let Some(save) = save {
+                    args.extend(["--verify-save", save]);
+                }
+                args
+            }
             Self::Cosmetics(true) => vec!["cosmetics-get", "--native-artwork", "--warm-artwork"],
             Self::Cosmetics(false) => vec!["cosmetics-get", "--native-artwork"],
             #[cfg(feature = "synthetic-health-recovery")]
@@ -484,7 +517,7 @@ where
     };
     match &operation {
         Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
-        Operation::CosmeticBatch(batch) => request.2 = batch.cancelled.clone(),
+        Operation::ArtworkBatch(batch) => request.2 = batch.cancelled.clone(),
         Operation::Upgrades(_, Some(cancelled)) => {
             request.2 = cancelled.clone();
             request.3 = true;

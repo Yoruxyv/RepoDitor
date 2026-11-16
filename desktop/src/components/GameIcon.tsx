@@ -18,6 +18,7 @@ interface GameIconProps {
   readonly testId: string;
   readonly token: string | null;
   readonly reuseKey?: string | undefined;
+  readonly upgradeItem?: boolean;
   readonly variant: "item" | "upgrade" | "cosmetic" | "map";
 }
 
@@ -30,6 +31,14 @@ function variantSize(variant: GameIconProps["variant"]): string {
   return variant === "upgrade" ? "size-20" : "size-14";
 }
 
+function placeholderStyle(variant: GameIconProps["variant"], native: boolean): string {
+  if (variant !== "upgrade") {
+    return `absolute inset-0 size-full ${native ? "motion-safe:animate-pulse" : ""}`;
+  }
+  const border = native ? "border-control motion-safe:animate-pulse" : "border-line";
+  return `absolute inset-y-0 left-1/2 h-full w-2/3 -translate-x-1/2 border ${border}`;
+}
+
 export function GameIcon({
   fallback,
   fallbackSource,
@@ -37,22 +46,23 @@ export function GameIcon({
   testId,
   token,
   reuseKey,
+  upgradeItem,
   variant,
 }: GameIconProps) {
   const element = useRef<HTMLSpanElement>(null);
-  const { native, image, unavailable } = useNativeArtwork(token, variant, element, reuseKey);
+  const { native, image, prepared, unavailable } = useNativeArtwork(
+    token,
+    variant,
+    element,
+    reuseKey,
+    upgradeItem,
+  );
   const [failedToken, setFailedToken] = useState<string | null>(null);
   const [loadedToken, setLoadedToken] = useState<string | null>(() =>
     token !== null && loadedIconTokens.has(token) ? token : null,
   );
   const frameClassName = variantSize(variant);
-  const failed = token !== null && failedToken === token;
-  const loaded =
-    token !== null &&
-    (!native || image !== null) &&
-    (loadedToken === token || loadedIconTokens.has(token));
-
-  if (token === null || failed || unavailable) {
+  if (token === null || failedToken === token || unavailable) {
     return (
       <FeatureIcon
         frameClassName={frameClassName}
@@ -63,6 +73,10 @@ export function GameIcon({
       />
     );
   }
+  const loaded =
+    (!native || image !== null) &&
+    (prepared || loadedToken === token || loadedIconTokens.has(token));
+  const eager = prepared || (variant === "upgrade" && native);
 
   return (
     <span
@@ -77,20 +91,13 @@ export function GameIcon({
       data-testid={testId}
     >
       {!loaded ? (
-        <Skeleton
-          className={
-            variant === "upgrade"
-              ? "absolute inset-y-0 left-1/2 h-full w-2/3 -translate-x-1/2 border border-line"
-              : "absolute inset-0 size-full"
-          }
-          testId={`${testId}-loading`}
-        />
+        <Skeleton className={placeholderStyle(variant, native)} testId={`${testId}-loading`} />
       ) : null}
       {!native || image ? (
         <img
           alt=""
           className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
-          loading={loading}
+          loading={eager ? "eager" : loading}
           src={native ? image!.dataUrl : `repoditor-icon://local/${encodeURIComponent(token)}`}
           onError={() => setFailedToken(token)}
           onLoad={() => {

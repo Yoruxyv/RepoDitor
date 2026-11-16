@@ -9,6 +9,7 @@ import {
   openResult,
   players,
   runState,
+  session,
   upgrades,
 } from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
@@ -89,16 +90,18 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
   });
-  it("explains a pending save open and enters Overview without waiting for projections", async () => {
+  it("holds opening until the five projections settle, then reuses them in the workspaces", async () => {
     let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
-    vi.mocked(tauriReadApi.saves.open).mockReturnValue(
+    vi.mocked(tauriReadApi.saves.open).mockReturnValueOnce(
       new Promise((resolve) => {
         complete = resolve;
       }),
     );
-    vi.mocked(tauriReadApi.players.list).mockReturnValue(new Promise(() => undefined));
-    vi.mocked(tauriReadApi.upgrades.list).mockReturnValue(new Promise(() => undefined));
+    let finishItems!: (result: Awaited<ReturnType<typeof tauriReadApi.advanced.get>>) => void;
+    vi.mocked(tauriReadApi.advanced.get).mockReturnValueOnce(
+      new Promise((resolve) => (finishItems = resolve)),
+    );
     render(<TauriDiscovery />);
     await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
     const opening = screen.getByRole("region", { name: "Opening save" });
@@ -114,12 +117,48 @@ describe("read-only native discovery", () => {
     ).toBe(false);
     expect(tauriReadApi.players.list).not.toHaveBeenCalled();
     await act(() => complete(openResult(undefined, "unresolved")));
+    expect(await screen.findByText("Loading item data…")).toBeTruthy();
+    expect(screen.getByText("Editor data 3/5")).toBeTruthy();
+    expect(screen.queryByText("Items · Running")).toBeNull();
+    expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(session.id, players[0]!.id);
+    expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+    await act(() => finishItems({ ok: true, data: advanced }));
     expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
-    expect(await screen.findByText("Loading player data…")).toBeTruthy();
-    expect(tauriReadApi.run.get).not.toHaveBeenCalled();
-    expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
-    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
+      await user.click(screen.getByRole("tab", { name }));
+      expect(screen.queryByTestId(`${name.toLowerCase()}-skeleton`)).toBeNull();
+    }
+    expect(tauriReadApi.players.list).toHaveBeenCalledOnce();
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledOnce();
+    expect(tauriReadApi.run.get).toHaveBeenCalledOnce();
+    expect(tauriReadApi.advanced.get).toHaveBeenCalledOnce();
+    expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
+  });
+  it("reuses the combined native source and save proof on cold opening and warm reopening", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.maps.list).mockResolvedValue({
+      ok: true,
+      data: { ...maps, entryArtworkRevision: "c".repeat(64), entrySaveVerified: true },
+    });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    const open = async () => {
+      await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+      await screen.findByRole("heading", { name: "Run snapshot" });
+    };
+    const saveProof = { id: session.id, fingerprint: session.fingerprint };
+    await open();
+    expect(tauriReadApi.maps.list).toHaveBeenNthCalledWith(1, "entry", saveProof);
+    expect(tauriReadApi.maps.list).toHaveBeenNthCalledWith(2, "verify", saveProof);
+    expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Change save" }));
+    await open();
+    expect(tauriReadApi.maps.list).toHaveBeenNthCalledWith(3, "entry", saveProof);
+    expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(3);
+    expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(2);
   });
   it.each([true, false])(
     "cancels by keyboard and discards a late save result (success: %s)",
@@ -160,9 +199,29 @@ describe("read-only native discovery", () => {
       expect(tauriReadApi.players.list).not.toHaveBeenCalled();
       await user.keyboard("{Enter}");
       expect(await screen.findByRole("tab", { name: "Overview" })).toBe(document.activeElement);
-      expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(2);
+      expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(3);
     },
   );
+  it("discards all prepared projections if the final source verification fails and supports retry", async () => {
+    const opened = openResult();
+    const fingerprint = opened.data.session.fingerprint;
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open)
+      .mockResolvedValueOnce(opened)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "save_stale", message: "private diagnostic" },
+      });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect((await screen.findByRole("alert")).textContent).not.toContain("private diagnostic");
+    expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+    expect(tauriReadApi.saves.open).toHaveBeenLastCalledWith(opened.data.session.id, fingerprint);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByRole("tab", { name: "Overview", selected: true })).toBeTruthy();
+    expect(tauriReadApi.advanced.get).toHaveBeenCalledTimes(2);
+  });
   it("reuses prepared players and upgrades until changing saves and ignores old reads", async () => {
     const older = { ...environment.saves[0]!, id: "earlier", name: "Earlier save" };
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({
@@ -181,22 +240,29 @@ describe("read-only native discovery", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     await screen.findByText("Loading player data…");
-    await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1));
+    expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
-    await user.click(screen.getByRole("button", { name: "Change save" }));
-    await user.click(await screen.findByRole("button", { name: /Earlier save/ }));
-    await user.click(await screen.findByRole("tab", { name: "Players" }));
-    await screen.findByRole("button", { name: /Alpha/ });
+    await user.click(screen.getByRole("button", { name: "Cancel opening" }));
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: /Earlier save/ }).disabled).toBe(
+      true,
+    );
     await act(() =>
       complete({ ok: true, data: [{ ...players[0]!, name: "Previous session player" }] }),
     );
+    expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: /Earlier save/ }));
+    await user.click(await screen.findByRole("tab", { name: "Players" }));
+    await screen.findByRole("button", { name: /Alpha/ });
     await user.click(screen.getByRole("tab", { name: "Upgrades" }));
     await screen.findByRole("textbox", { name: "Strength for Alpha" });
     await user.click(screen.getByRole("tab", { name: "Players" }));
     expect(screen.getByRole("button", { name: /Alpha/ })).toBeTruthy();
     expect(screen.queryByText("Previous session player")).toBeNull();
-    expect(list.mock.calls).toEqual([[opened.data.session.id], [older.id]]);
-    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2);
+    expect(list.mock.calls).toEqual([
+      [opened.data.session.id, opened.data.session.fingerprint],
+      [older.id, opened.data.session.fingerprint],
+    ]);
+    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1);
   });
   it("uses the selected theme and locale during preparation", async () => {
     localStorage.setItem("repoditor.theme", "light");
@@ -460,9 +526,9 @@ describe("read-only native discovery", () => {
     expect(await screen.findByRole("heading", { name: "Modded Moon" })).toBeTruthy();
     expect(screen.queryByText(empty)).toBeNull();
     expect(tauriReadApi.maps.list).toHaveBeenCalledTimes(4);
-    expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(1);
+    expect(tauriReadApi.saves.open).toHaveBeenCalledTimes(2);
   });
-  it("uses the existing Players loading, empty and retry states", async () => {
+  it("reports degraded Players preparation and retries it in the workspace", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     let complete!: (value: Awaited<ReturnType<typeof tauriReadApi.players.list>>) => void;
     vi.mocked(tauriReadApi.players.list)
@@ -475,9 +541,10 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByText("Loading player data…")).toBeTruthy();
+    expect(screen.getByText("Editor data 0/5")).toBeTruthy();
+    await act(() => complete({ ok: false, error: { code: "process_failed", message: "private" } }));
     await user.click(await screen.findByRole("tab", { name: "Players" }));
-    expect(await screen.findByTestId("players-skeleton")).toBeTruthy();
-    complete({ ok: false, error: { code: "process_failed", message: "private" } });
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).not.toContain("private");
     await user.click(screen.getByRole("button", { name: "Try again" }));

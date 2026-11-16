@@ -49,14 +49,18 @@ fn main() {
         | "saves-open"
         | "game-status"
         | "players-list"
+        | "players-avatar"
         | "upgrades-list"
         | "run-get"
         | "advanced-get"
         | "maps-list"
         | "cosmetics-get"
         | "upgrade-artwork"
+        | "upgrade-artwork-batch"
         | "item-artwork"
+        | "item-artwork-batch"
         | "map-artwork"
+        | "map-artwork-batch"
         | "native-cosmetic-artwork"
         | "native-cosmetic-artwork-batch" => {
             let started = std::time::SystemTime::now()
@@ -70,6 +74,28 @@ fn main() {
                     let response = std::fs::read_to_string(
                         std::path::PathBuf::from(root).join(format!("{}.json", args[1])),
                     )
+                    .or_else(|error| {
+                        if error.kind() != io::ErrorKind::NotFound {
+                            return Err(error);
+                        }
+                        match args[1].as_str() {
+                            "players-avatar" => Ok(format!(
+                                r#"{{"ok":true,"avatar":{{"playerId":"{}","avatarUrl":null,"status":"unavailable","retryAfterMs":null}}}}"#,
+                                args[3]
+                            )),
+                            "upgrade-artwork" | "item-artwork" => {
+                                Ok(r#"{"ok":true,"artwork":null}"#.into())
+                            }
+                            "upgrade-artwork-batch" | "item-artwork-batch" => {
+                                let count = args.len() - 5;
+                                Ok(format!(
+                                    r#"{{"ok":true,"artworks":[{}]}}"#,
+                                    vec!["null"; count].join(",")
+                                ))
+                            }
+                            _ => Err(error),
+                        }
+                    })
                     .unwrap();
                     if matches!(response.as_str(), "exit7" | "stdout" | "stderr") {
                         record_pids(&args[1], &[std::process::id()]);

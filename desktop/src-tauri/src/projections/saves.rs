@@ -19,6 +19,13 @@ pub fn valid_id(id: &str) -> bool {
             .all(|(s, n)| s.len() == n && s.bytes().all(|b| b.is_ascii_digit()))
 }
 
+pub(crate) fn valid_fingerprint(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
 pub(crate) fn valid_upgrade_key(key: &str) -> bool {
     key.starts_with("playerUpgrade")
         && key != "playerUpgrade"
@@ -80,11 +87,7 @@ pub fn parse(bytes: &[u8], requested: &str) -> Result<SaveOpenResult, BackendErr
             .iter()
             .any(|s| s.trim().is_empty())
         || DateTime::parse_from_rfc3339(&session.modified_at).is_err()
-        || session.fingerprint.len() != 64
-        || !session
-            .fingerprint
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || !valid_fingerprint(&session.fingerprint)
         || session.level < 1
         || session.player_count < 0
         || [session.level, session.currency, session.player_count]

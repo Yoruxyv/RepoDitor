@@ -1,6 +1,38 @@
 use super::allowed_navigation;
 
 #[test]
+fn entry_source_proof_distinguishes_incompatible_responses_from_changed_bytes() {
+    use super::{check_entry_fingerprint, BackendError};
+    let expected = "a".repeat(64);
+    let changed = "b".repeat(64);
+    assert_eq!(check_entry_fingerprint(None, None), Ok(()));
+    assert_eq!(
+        check_entry_fingerprint(Some(&expected), Some(&expected)),
+        Ok(())
+    );
+    assert_eq!(
+        check_entry_fingerprint(Some(&expected), Some("bad")),
+        Err(BackendError::Request)
+    );
+    for actual in [None, Some("not a digest"), Some(&"A".repeat(64))] {
+        assert!(matches!(
+            check_entry_fingerprint(actual, Some(&expected)),
+            Err(BackendError::Domain {
+                code: "save_source_unverified",
+                ..
+            })
+        ));
+    }
+    assert!(matches!(
+        check_entry_fingerprint(Some(&changed), Some(&expected)),
+        Err(BackendError::Domain {
+            code: "save_stale",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn only_the_exact_project_url_reaches_the_system_browser_handoff() {
     let mut calls = 0;
     for url in [

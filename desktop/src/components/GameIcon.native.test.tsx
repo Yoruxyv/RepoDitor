@@ -2,22 +2,106 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { WrenchIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
+import {
+  cancelEntryArtwork,
+  clearEntryArtwork,
+  preloadEntryArtwork,
+  rememberEntryArtwork,
+  restoreEntryArtwork,
+} from "@/app/tauriArtwork";
 import { GameIcon } from "./GameIcon";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const token = (n: string) => `upgrade-artwork:${n.repeat(32)}`;
-function icon(value: string, variant: "upgrade" | "item" | "cosmetic" = "upgrade") {
+function icon(
+  value: string,
+  variant: "upgrade" | "map" | "item" | "cosmetic" = "upgrade",
+  upgradeItem = false,
+) {
   return (
     <GameIcon
       fallback={WrenchIcon}
       fallbackSource="specific"
       testId="native-icon"
       token={value}
+      upgradeItem={upgradeItem}
       variant={variant}
     />
   );
 }
 describe("native GameIcon", () => {
+  it("restores prepared artwork only for the same proof and binds it to fresh tokens", async () => {
+    const original = token("1");
+    const current = token("2");
+    const shape = (value: string) => ({ upgrade: [value], map: [], item: [] });
+    vi.mocked(invoke)
+      .mockReset()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { token: original, revision: "a".repeat(64), dataUrl: "data:image/png;base64,AAAA" },
+      });
+    try {
+      const results = await preloadEntryArtwork(
+        shape(original),
+        new AbortController().signal,
+        vi.fn(),
+      );
+      rememberEntryArtwork("verified save and installation", shape(original), results);
+      cancelEntryArtwork();
+      expect(restoreEntryArtwork("verified save and installation", shape(current))).toEqual(
+        results,
+      );
+      const view = render(icon(current));
+      expect(screen.queryByTestId("native-icon-loading")).toBeNull();
+      expect(screen.getByTestId("native-icon").querySelector("img")).toBeTruthy();
+      expect(invoke).toHaveBeenCalledTimes(1);
+      view.unmount();
+      rememberEntryArtwork("verified save and installation", shape(current), results);
+      expect(restoreEntryArtwork("changed source", shape(original))).toBeNull();
+    } finally {
+      cancelEntryArtwork();
+      restoreEntryArtwork(null, shape(original));
+    }
+  });
+  it("uses prepared Maps and shares the checked Upgrade texture with its matching Item", async () => {
+    const upgrade = token("a");
+    const map = upgrade.replace("upgrade-", "map-");
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementation(async (_command, args) => ({
+        ok: true,
+        data: {
+          token: (args as { token: string }).token,
+          revision: "b".repeat(64),
+          dataUrl: "data:image/png;base64,AAAA",
+        },
+      }));
+    try {
+      await preloadEntryArtwork(
+        { upgrade: [upgrade], map: [map], item: [upgrade] },
+        new AbortController().signal,
+        vi.fn(),
+      );
+      const rendered = render(icon(upgrade));
+      expect(screen.getByTestId("native-icon").getAttribute("aria-busy")).toBe("false");
+      rendered.unmount();
+      clearEntryArtwork("upgrade");
+      const artwork = render(
+        <>
+          {icon(upgrade, "item", true)}
+          {icon(map, "map")}
+        </>,
+      );
+      expect(screen.queryByTestId("native-icon-loading")).toBeNull();
+      expect(
+        screen.getAllByTestId("native-icon").map((frame) => frame.querySelectorAll("img").length),
+      ).toEqual([1, 1]);
+      expect(invoke).toHaveBeenCalledTimes(2);
+      artwork.unmount();
+    } finally {
+      cancelEntryArtwork();
+    }
+  });
   it("shows only validated current-session images and cancels stale replies", async () => {
     const completions: Array<(value: unknown) => void> = [];
     vi.mocked(invoke)
@@ -29,6 +113,7 @@ describe("native GameIcon", () => {
       );
     const { rerender, unmount } = render(icon(token("a")));
     expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
+    await waitFor(() => expect(completions).toHaveLength(1));
     rerender(icon(token("b")));
     expect(invoke).toHaveBeenCalledWith("upgrade_artwork_cancel", { token: token("a") });
     await act(async () => {
@@ -42,6 +127,7 @@ describe("native GameIcon", () => {
       });
     });
     expect(screen.getByTestId("native-icon").querySelector("img")).toBeNull();
+    await waitFor(() => expect(completions).toHaveLength(2));
     await act(async () => {
       completions[1]!({
         ok: true,
@@ -54,6 +140,7 @@ describe("native GameIcon", () => {
     });
     const image = screen.getByTestId("native-icon").querySelector("img")!;
     expect(image.getAttribute("src")).toBe("data:image/png;base64,AQID");
+    expect(image.getAttribute("loading")).toBe("eager");
     expect(screen.getByTestId("native-icon").getAttribute("data-artwork-revision")).toBe(
       "d".repeat(64),
     );
@@ -61,10 +148,50 @@ describe("native GameIcon", () => {
     expect(screen.queryByTestId("native-icon-loading")).toBeNull();
     unmount();
     render(icon(token("b")));
+    await waitFor(() => expect(completions).toHaveLength(3));
     await act(async () => {
       completions[2]!({ ok: true, data: null });
     });
     expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
+  });
+  it("settles one Upgrade group to validated artwork and fallbacks", async () => {
+    let finish!: (result: unknown) => void;
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    render(
+      <>
+        {icon(token("a"))}
+        {icon(token("b"))}
+        {icon(token("c"))}
+      </>,
+    );
+    expect(screen.getAllByTestId("native-icon-loading")).toHaveLength(3);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledExactlyOnceWith("upgrade_artwork_get", {
+        tokens: [token("a"), token("b"), token("c")],
+      }),
+    );
+    await act(async () =>
+      finish({
+        ok: true,
+        data: [
+          { token: token("a"), revision: "d".repeat(64), dataUrl: "data:image/png;base64,AQID" },
+          null,
+          { token: token("b"), revision: "d".repeat(64), dataUrl: "data:image/png;base64,AQID" },
+        ],
+      }),
+    );
+    const [first, second, third] = screen.getAllByTestId("native-icon");
+    expect(second?.getAttribute("data-icon-source")).toBe("specific");
+    expect(third?.getAttribute("data-icon-source")).toBe("specific");
+    fireEvent.load(first!.querySelector("img")!);
+    expect(screen.queryByTestId("native-icon-loading")).toBeNull();
   });
   it.each(["upgrade-artwork:forged", token("a")])("rejects cross-domain tokens: %s", (value) => {
     vi.mocked(invoke).mockReset();

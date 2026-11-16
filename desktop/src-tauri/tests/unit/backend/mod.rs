@@ -316,11 +316,19 @@ fn queued_write_timeout_is_rejected_but_started_timeout_is_uncertain() {
 }
 #[test]
 fn maps_has_fixed_arguments_and_uses_the_bounded_domain_queue() {
-    assert_eq!(Operation::Maps.arguments(), ["maps-list"]);
+    assert_eq!(Operation::Maps(false, None).arguments(), ["maps-list"]);
+    assert_eq!(
+        Operation::Maps(true, None).arguments(),
+        ["maps-list", "--entry-artwork-proof"]
+    );
     let state = Arc::new(HostState::default());
     let held = state.domain_worker.lock().unwrap();
-    let request = Request::reserve(state.clone(), Operation::Maps.slot()).unwrap();
-    assert!(Request::reserve(state.clone(), Operation::Maps.slot()).is_err());
+    assert_eq!(
+        Operation::Maps(true, Some("save".into())).arguments(),
+        ["maps-list", "--entry-artwork-proof", "--verify-save", "save"]
+    );
+    let request = Request::reserve(state.clone(), Operation::Maps(false, None).slot()).unwrap();
+    assert!(Request::reserve(state.clone(), Operation::Maps(true, None).slot()).is_err());
     assert_eq!(
         execute(
             &request,

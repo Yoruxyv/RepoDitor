@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 import { cosmetics } from "@/test/repoditorApiFixture";
-import { acquireNativeArtwork, restoreNativeCosmeticPreviews } from "./tauriArtwork";
+import {
+  acquireNativeArtwork,
+  cancelEntryArtwork,
+  preloadEntryArtwork,
+  restoreNativeCosmeticPreviews,
+} from "./tauriArtwork";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const token = (n: number) => `upgrade-artwork:${n.toString(16).padStart(32, "0")}`;
@@ -14,7 +19,125 @@ const flush = async () => {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 };
 
+it("settles a grouped preparation before workspace entry", async () => {
+  const first = image(100);
+  const second = image(101);
+  vi.mocked(invoke)
+    .mockReset()
+    .mockResolvedValueOnce({ ok: true, data: [first, second] });
+  const report = vi.fn();
+  try {
+    await expect(
+      preloadEntryArtwork(
+        { upgrade: [first.token, second.token], map: [], item: [first.token] },
+        new AbortController().signal,
+        report,
+      ),
+    ).resolves.toMatchObject({
+      upgrade: { ready: 2, unavailable: 0, issues: {} },
+      item: { ready: 1, unavailable: 0, issues: {} },
+    });
+    expect(report.mock.calls.map(([progress]) => progress)).toEqual([
+      { scope: "upgrade", settled: 0, total: 3 },
+      { scope: "upgrade", settled: 1, total: 3 },
+      { scope: "upgrade", settled: 2, total: 3 },
+      { scope: "map", settled: 2, total: 3 },
+      { scope: "item", settled: 3, total: 3 },
+      { scope: null, settled: 3, total: 3 },
+    ]);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("upgrade_artwork_get", {
+      tokens: [first.token, second.token],
+    });
+  } finally {
+    cancelEntryArtwork();
+  }
+});
+
+it("discards pending native artwork after cancellation", async () => {
+  const first = image(102);
+  const item = token(103).replace("upgrade-", "item-");
+  let complete!: (result: unknown) => void;
+  vi.mocked(invoke)
+    .mockReset()
+    .mockImplementationOnce(() => new Promise((resolve) => (complete = resolve)))
+    .mockResolvedValue({ ok: true, data: null });
+  const stop = new AbortController();
+  const pending = preloadEntryArtwork(
+    { upgrade: [first.token], map: [], item: [item] },
+    stop.signal,
+    vi.fn(),
+  );
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+  stop.abort();
+  await expect(pending).resolves.toMatchObject({
+    upgrade: { ready: 0, issues: { timeout: 1 } },
+    item: { ready: 0, issues: { timeout: 1 } },
+  });
+  expect(invoke).toHaveBeenLastCalledWith("upgrade_artwork_cancel", { token: first.token });
+  complete({ ok: true, data: first });
+  await flush();
+  const receive = vi.fn();
+  const release = acquireNativeArtwork(first.token, receive);
+  await flush();
+  expect(receive).toHaveBeenCalledExactlyOnceWith(null);
+  expect(invoke).toHaveBeenCalledTimes(3);
+  release();
+});
+
+it("checks the first 64 Items in one batch and reports missing, rejected and deferred results", async () => {
+  const items = Array.from({ length: 65 }, (_, index) => token(index).replace("upgrade-", "item-"));
+  const images = items.slice(0, 64).map((item, index) => ({ ...image(index), token: item }));
+  vi.mocked(invoke)
+    .mockReset()
+    .mockResolvedValue({
+      ok: true,
+      data: [null, true, false, ...images.slice(3)],
+    });
+  const report = vi.fn();
+  try {
+    const results = await preloadEntryArtwork(
+      { upgrade: [], map: [], item: items },
+      new AbortController().signal,
+      report,
+    );
+    expect(results.item).toEqual({
+      ready: 61,
+      unavailable: 1,
+      issues: { failed: 1, response: 1, limit: 1 },
+    });
+    expect(report).toHaveBeenLastCalledWith({ scope: null, settled: 64, total: 65 });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("item_artwork_get", {
+      tokens: items.slice(0, 64),
+    });
+  } finally {
+    cancelEntryArtwork();
+  }
+});
+
 describe("native upgrade artwork admission", () => {
+  it("reserves the Upgrade queue limit independently of concurrent preloads", async () => {
+    let finish!: (result: unknown) => void;
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+      .mockResolvedValue({ ok: true, data: null });
+    const map = token(200).replace("upgrade-", "map-");
+    const releaseMap = acquireNativeArtwork(map, vi.fn());
+    const allowed = Array.from({ length: 16 }, (_, n) =>
+      acquireNativeArtwork(token(n + 1), vi.fn()),
+    );
+    const rejected = vi.fn();
+    const releaseRejected = acquireNativeArtwork(token(17), rejected);
+    await flush();
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(null);
+    finish({ ok: true, data: null });
+    await flush();
+    expect(invoke).toHaveBeenCalledWith("upgrade_artwork_get", { token: token(16) });
+    expect(invoke).not.toHaveBeenCalledWith("upgrade_artwork_get", { token: token(17) });
+    allowed.forEach((release) => release());
+    releaseMap();
+    releaseRejected();
+  });
   it("deduplicates subscribers, serializes work and never caches completed pixels", async () => {
     const pending: Array<(value: unknown) => void> = [];
     vi.mocked(invoke)

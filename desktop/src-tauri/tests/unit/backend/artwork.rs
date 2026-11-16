@@ -79,13 +79,17 @@ fn cosmetic_batch_validates_members_and_isolates_failure_and_cancellation() {
         vec![tokens[0].clone(); 5],
     ] {
         assert_eq!(
-            registry.begin_cosmetic_batch(bad).err(),
+            registry.begin_artwork_batch(Scope::Cosmetic, bad).err(),
             Some(BackendError::Request)
         );
     }
-    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    let batch = registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens.clone())
+        .unwrap();
     assert!(registry.begin(&tokens[0]).is_err());
-    assert!(registry.begin_cosmetic_batch(tokens.clone()).is_err());
+    assert!(registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens.clone())
+        .is_err());
     assert_eq!(
         batch
             .parse(br#"{"ok":true,"artworks":[null]}"#)
@@ -100,18 +104,22 @@ fn cosmetic_batch_validates_members_and_isolates_failure_and_cancellation() {
     assert!(matches!(images[2], BatchImage::Deferred(false)));
     registry.cancel(&tokens[2]);
     assert!(!batch.cancelled.load(Ordering::SeqCst));
-    registry.finish_cosmetic_batch(&batch, Some(&mut images));
+    registry.finish_artwork_batch(&batch, Some(&mut images));
     assert!(matches!(images[0], BatchImage::Ready(_)));
     assert!(matches!(images[2], BatchImage::Unavailable));
 
-    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    let batch = registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens.clone())
+        .unwrap();
     for token in &tokens {
         registry.cancel(token);
     }
     assert!(batch.cancelled.load(Ordering::SeqCst));
-    registry.finish_cosmetic_batch(&batch, None);
+    registry.finish_artwork_batch(&batch, None);
 
-    let batch = registry.begin_cosmetic_batch(tokens.clone()).unwrap();
+    let batch = registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens.clone())
+        .unwrap();
     registry.revoke_cosmetics();
     assert!(batch.cancelled.load(Ordering::SeqCst));
     assert!(batch
@@ -119,8 +127,45 @@ fn cosmetic_batch_validates_members_and_isolates_failure_and_cancellation() {
         .unwrap()
         .iter()
         .all(|image| matches!(image, BatchImage::Unavailable)));
-    registry.finish_cosmetic_batch(&batch, None);
-    assert!(registry.begin_cosmetic_batch(tokens).is_err());
+    registry.finish_artwork_batch(&batch, None);
+    assert!(registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens)
+        .is_err());
+}
+
+#[test]
+fn upgrade_batches_bind_to_the_save_and_drop_images_after_a_session_change() {
+    let fp = "a".repeat(64);
+    let mut registry = Registry::default();
+    let mut values = upgrades(2);
+    registry.open("save", &fp);
+    registry.register("save", registry.generation("save"), Some(&fp), &mut values);
+    let tokens: Vec<_> = values
+        .iter()
+        .map(|row| row.icon_token.clone().unwrap())
+        .collect();
+    assert!(registry
+        .begin_artwork_batch(Scope::Cosmetic, tokens.clone())
+        .is_err());
+    let batch = registry
+        .begin_artwork_batch(Scope::Upgrade, tokens.clone())
+        .unwrap();
+    assert_eq!(batch.save.as_deref(), Some("save"));
+    assert_eq!(batch.fingerprint, fp);
+    let image = json!({"upgradeKey":values[0].key,"sourceIdentity":"d".repeat(64),"width":1,"height":1,"pngBase64":STANDARD.encode(png())});
+    let response = serde_json::to_vec(&json!({"ok":true,"artworks":[image,image]})).unwrap();
+    let mut images = batch.parse(&response).unwrap();
+    assert!(matches!(images[0], BatchImage::Ready(_)));
+    assert!(matches!(images[1], BatchImage::Deferred(true)));
+    registry.open("other", &fp);
+    assert!(batch.cancelled.load(Ordering::SeqCst));
+    registry.finish_artwork_batch(&batch, Some(&mut images));
+    assert!(images
+        .iter()
+        .all(|row| matches!(row, BatchImage::Unavailable)));
+    assert!(registry
+        .begin_artwork_batch(Scope::Upgrade, tokens)
+        .is_err());
 }
 
 #[test]
@@ -200,7 +245,7 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
                 "canDuplicate":false,"canRefillToFull":false}})
     })
     .collect();
-    let rows: Vec<_> = (0..71)
+    let mut rows: Vec<_> = (0..71)
         .map(|i| {
             let name = format!("Tool {}", i % 70);
             json!({"name":name,"saveKey":format!("Item {name}/{i}"),"instanceId":i.to_string(),
@@ -208,6 +253,11 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
             "rechargeCapability":"unknown","canRefillToFull":false,"iconKey":null})
         })
         .collect();
+    rows.push(
+        json!({"name":"Upgrade Test0","saveKey":"Item Upgrade Test0/71","instanceId":"71",
+        "isUpgrade":true,"storedCharge":null,"chargeState":"unknown","rechargeCapability":"unknown",
+        "canRefillToFull":false,"iconKey":null,"upgradeVisualKey":"playerUpgradeTest0"}),
+    );
     let mut raw = serde_json::to_vec(&json!({"ok":true,"advanced":{"domains":domains,
         "items":rows,"unlinkedChargeEntryCount":0}}))
     .unwrap();
@@ -217,6 +267,15 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     let mut registry = Registry::default();
     registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
+    let mut upgraded = upgrades(1);
+    registry.register("save", generation, Some(&"a".repeat(64)), &mut upgraded);
+    registry.register_items("save", generation, Some(&"b".repeat(64)), &mut items);
+    assert_eq!(*items.upgrade_icons().next().unwrap().1, None);
+    registry.register_items("save", generation, Some(&"a".repeat(64)), &mut items);
+    assert_eq!(
+        *items.upgrade_icons().next().unwrap().1,
+        upgraded[0].icon_token
+    );
     registry.register_items("save", generation, Some(&"b".repeat(64)), &mut items);
     let tokens: Vec<_> = items
         .item_icons()
@@ -231,7 +290,16 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     let (_, fingerprint, key, cancelled) = registry.begin(token).unwrap();
     assert_eq!(key, "Item Tool 69");
     assert_eq!(fingerprint, "b".repeat(64));
+    let pair = vec![tokens[0].clone(), tokens[1].clone()];
+    assert!(registry
+        .begin_artwork_batch(Scope::Upgrade, pair.clone())
+        .is_err());
+    let batch = registry.begin_artwork_batch(Scope::Item, pair).unwrap();
+    assert_eq!(batch.fingerprint, fingerprint);
+    assert_eq!(batch.members[0].key, "Item Tool 0");
     registry.register_items("save", generation, Some(&"c".repeat(64)), &mut items);
+    assert!(batch.cancelled.load(Ordering::SeqCst));
+    registry.finish_artwork_batch(&batch, None);
     assert!(cancelled.load(Ordering::SeqCst));
     assert!(registry.begin(token).is_err());
     assert_eq!(registry.items.len(), 70);
@@ -404,4 +472,36 @@ fn map_tokens_bind_to_catalog_revision_and_ignore_save_lifecycle() {
     registry.clear_all();
     assert!(closing.load(Ordering::SeqCst));
     assert!(registry.begin(token).is_err());
+}
+
+#[test]
+fn map_batch_checks_every_revision_and_drops_results_after_catalog_refresh() {
+    let revision = "a".repeat(64);
+    let raw = json!({"ok":true,"available":true,"catalogPath":"E:/fixture/level0","maps":[
+        {"internalName":"Arctic","displayName":"Station","knownLabel":true,"artworkRevision":revision},
+        {"internalName":"Manor","displayName":"Manor","knownLabel":true,"artworkRevision":revision},
+        {"internalName":"Other","displayName":"Other","knownLabel":false,"artworkRevision":"b".repeat(64)}
+    ]});
+    let bytes = serde_json::to_vec(&raw).unwrap();
+    let mut projection = crate::projections::maps::parse(&bytes).unwrap();
+    let mut registry = Registry::default();
+    registry.register_maps(&mut projection);
+    let data = serde_json::to_value(projection).unwrap();
+    let token = |i: usize| data["maps"][i]["iconToken"].as_str().unwrap().to_owned();
+    assert!(registry
+        .begin_artwork_batch(Scope::Map, vec![token(0), token(2)])
+        .is_err());
+    let batch = registry
+        .begin_artwork_batch(Scope::Map, vec![token(0), token(1)])
+        .unwrap();
+    let image = |family, digest| json!({"mapFamily":family,"sourceIdentity":digest,"width":1,"height":1,"pngBase64":STANDARD.encode(png())});
+    let reply =
+        json!({"ok":true,"artworks":[image("Arctic", revision), image("Manor", "b".repeat(64))]});
+    let mut images = batch.parse(&serde_json::to_vec(&reply).unwrap()).unwrap();
+    assert!(matches!(images[0], BatchImage::Ready(_)));
+    assert!(matches!(images[1], BatchImage::Deferred(true)));
+    registry.register_maps(&mut crate::projections::maps::parse(&bytes).unwrap());
+    assert!(batch.cancelled.load(Ordering::SeqCst));
+    registry.finish_artwork_batch(&batch, Some(&mut images));
+    assert!(matches!(images[0], BatchImage::Unavailable));
 }

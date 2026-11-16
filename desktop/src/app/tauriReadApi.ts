@@ -17,14 +17,27 @@ import { tauriDiscoveryApi } from "@/features/discovery/tauriDiscoveryApi";
 
 let gameRequest: Promise<DesktopOperationResult<GameProcessState>> | null = null;
 
+export type NativeInstalledMaps = InstalledMapsDto & {
+  readonly entryArtworkRevision?: string;
+  readonly entrySaveVerified?: boolean;
+};
+type SaveProof = Pick<SaveOpenResult["session"], "id" | "fingerprint">;
+
+type EntryRead<T> = (
+  saveId: string,
+  prepareFingerprint?: string,
+) => Promise<DesktopOperationResult<T>>;
+
 async function readUpgrades(
   saveId: string,
   background = false,
+  prepareFingerprint?: string,
 ): Promise<DesktopOperationResult<PlayerUpgradeDto[]>> {
   try {
     return await invoke<DesktopOperationResult<PlayerUpgradeDto[]>>("upgrades_list", {
       saveId,
       ...(background ? { background: true } : {}),
+      prepareFingerprint,
     });
   } catch {
     return {
@@ -39,13 +52,20 @@ async function readUpgrades(
 
 export const tauriReadApi: {
   environment: RepoDitorApi["environment"];
-  saves: Pick<RepoDitorApi["saves"], "open">;
+  saves: {
+    open: (saveId: string, verifyFingerprint?: string) => ReturnType<RepoDitorApi["saves"]["open"]>;
+  };
   game: RepoDitorApi["game"];
-  players: RepoDitorApi["players"];
-  upgrades: Pick<RepoDitorApi["upgrades"], "list"> & { prepare: RepoDitorApi["upgrades"]["list"] };
-  run: RepoDitorApi["run"];
-  advanced: RepoDitorApi["advanced"];
-  maps: RepoDitorApi["maps"];
+  players: { list: EntryRead<PlayerDto[]>; avatar: RepoDitorApi["players"]["avatar"] };
+  upgrades: { list: EntryRead<PlayerUpgradeDto[]>; prepare: RepoDitorApi["upgrades"]["list"] };
+  run: { get: EntryRead<RunStateDto> };
+  advanced: { get: EntryRead<AdvancedSaveDto> };
+  maps: {
+    list: (
+      proof?: "entry" | "verify",
+      save?: SaveProof,
+    ) => Promise<DesktopOperationResult<NativeInstalledMaps>>;
+  };
   cosmetics: Pick<RepoDitorApi["cosmetics"], "get">;
 } = {
   environment: tauriDiscoveryApi,
@@ -65,9 +85,14 @@ export const tauriReadApi: {
     },
   },
   maps: {
-    async list() {
+    async list(proof, save) {
       try {
-        return await invoke<DesktopOperationResult<InstalledMapsDto>>("maps_list");
+        return await invoke<DesktopOperationResult<NativeInstalledMaps>>("maps_list", {
+          entryProof: proof !== undefined,
+          validateOnly: proof === "verify",
+          verifySaveId: save?.id,
+          verifyFingerprint: save?.fingerprint,
+        });
       } catch {
         return {
           ok: false,
@@ -80,9 +105,12 @@ export const tauriReadApi: {
     },
   },
   advanced: {
-    async get(saveId) {
+    async get(saveId, prepareFingerprint) {
       try {
-        return await invoke<DesktopOperationResult<AdvancedSaveDto>>("advanced_get", { saveId });
+        return await invoke<DesktopOperationResult<AdvancedSaveDto>>("advanced_get", {
+          saveId,
+          prepareFingerprint,
+        });
       } catch {
         return {
           ok: false,
@@ -95,9 +123,12 @@ export const tauriReadApi: {
     },
   },
   run: {
-    async get(saveId) {
+    async get(saveId, prepareFingerprint) {
       try {
-        return await invoke<DesktopOperationResult<RunStateDto>>("run_get", { saveId });
+        return await invoke<DesktopOperationResult<RunStateDto>>("run_get", {
+          saveId,
+          prepareFingerprint,
+        });
       } catch {
         return {
           ok: false,
@@ -107,7 +138,7 @@ export const tauriReadApi: {
     },
   },
   upgrades: {
-    list: readUpgrades,
+    list: (saveId, prepareFingerprint) => readUpgrades(saveId, false, prepareFingerprint),
     prepare: (saveId) => readUpgrades(saveId, true),
   },
   players: {
@@ -127,9 +158,12 @@ export const tauriReadApi: {
         };
       }
     },
-    async list(saveId) {
+    async list(saveId, prepareFingerprint) {
       try {
-        return await invoke<DesktopOperationResult<PlayerDto[]>>("players_list", { saveId });
+        return await invoke<DesktopOperationResult<PlayerDto[]>>("players_list", {
+          saveId,
+          prepareFingerprint,
+        });
       } catch {
         return {
           ok: false,
@@ -142,9 +176,12 @@ export const tauriReadApi: {
     },
   },
   saves: {
-    async open(saveId) {
+    async open(saveId, verifyFingerprint) {
       try {
-        return await invoke<DesktopOperationResult<SaveOpenResult>>("saves_open", { saveId });
+        return await invoke<DesktopOperationResult<SaveOpenResult>>("saves_open", {
+          saveId,
+          verifyFingerprint,
+        });
       } catch {
         return {
           ok: false,

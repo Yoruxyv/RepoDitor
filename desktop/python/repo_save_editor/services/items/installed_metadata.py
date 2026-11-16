@@ -170,14 +170,18 @@ def _resolve_mono_scripts(
     prefixes: Iterable[MonoBehaviourPrefix],
 ) -> dict[int, MonoScriptData]:
     script_ids: set[int] = set()
+    validated_external_files: set[int] = set()
     for prefix in prefixes:
-        if prefix.script.path_id == 0:
+        file_id, path_id = prefix.script.file_id, prefix.script.path_id
+        if path_id == 0:
             raise UnityMetadataError("MonoBehaviour contains a null script pointer.")
-        if resources.external_name(prefix.script.file_id).casefold() != GLOBAL_MANAGERS_NAME:
-            raise UnityMetadataError(
-                "MonoBehaviour script pointer targets an unsupported external file."
-            )
-        script_ids.add(prefix.script.path_id)
+        if file_id not in validated_external_files:
+            if resources.external_name(file_id).casefold() != GLOBAL_MANAGERS_NAME:
+                raise UnityMetadataError(
+                    "MonoBehaviour script pointer targets an unsupported external file."
+                )
+            validated_external_files.add(file_id)
+        script_ids.add(path_id)
     script_records = globals_.find_records(script_ids)
     return {
         path_id: parse_mono_script(globals_, record) for path_id, record in script_records.items()

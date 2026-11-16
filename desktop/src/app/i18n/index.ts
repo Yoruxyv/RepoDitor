@@ -61,6 +61,7 @@ const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   save_decrypt_failed: ERROR_TRANSLATION_KEY.saveInvalid,
   save_unsupported: ERROR_TRANSLATION_KEY.saveInvalid,
   save_stale: "error.saveStale",
+  save_source_unverified: "error.saveSourceUnverified",
   save_validation_failed: ERROR_TRANSLATION_KEY.saveInvalid,
   backup_failed: ERROR_TRANSLATION_KEY.write,
   save_write_failed: ERROR_TRANSLATION_KEY.write,

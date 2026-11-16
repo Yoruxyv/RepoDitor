@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.core.types import SaveData
@@ -14,14 +15,19 @@ from repo_save_editor.services.run import (
 )
 
 
-def get_run_state(save_id: str, root: Path | None = None) -> dict[str, object]:
+def get_run_state(
+    save_id: str, root: Path | None = None, *, include_fingerprint: bool = False
+) -> dict[str, object]:
     """Return friendly run values without exposing raw save structure."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
-    return {"ok": True, "run": serialize_run(data)}
+    result: dict[str, object] = {"ok": True, "run": serialize_run(data)}
+    if include_fingerprint:
+        result["fingerprint"] = sha256(source).hexdigest()
+    return result
 
 
 def serialize_run(data: SaveData) -> dict[str, object]:

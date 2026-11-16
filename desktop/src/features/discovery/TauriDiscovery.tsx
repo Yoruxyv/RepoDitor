@@ -5,12 +5,26 @@ import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { ThemeMenu } from "@/app/ThemeMenu";
 import { usePreferences } from "@/app/preferences";
+import type { TranslationKey } from "@/app/i18n";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
-import { closeNativeArtwork } from "@/app/tauriArtwork";
+import {
+  cancelEntryArtwork,
+  clearEntryArtwork,
+  closeNativeArtwork,
+  ENTRY_ARTWORK_SCOPES,
+  type EntryArtworkProgress,
+  type EntryArtworkResults,
+} from "@/app/tauriArtwork";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
+import {
+  entryProgressCounts,
+  prepareTauriEntry,
+  type TauriEntryProgress,
+  type TauriEntrySnapshot,
+} from "@/features/editor/tauriEntryPreparation";
 import { GameSafetyDialog } from "@/features/safety/GameSafetyDialog";
 import { useGameSafety } from "@/features/safety/useGameSafety";
 import { DiscoveryHome } from "./components/DiscoveryHome";
@@ -19,6 +33,40 @@ import { useEnvironmentDiscovery } from "./useEnvironmentDiscovery";
 type NavigationFocus =
   | { kind: "workspace" }
   | { kind: "discovery"; saveId: string; refreshRevision: number; headingFocused: boolean };
+
+type ArtworkDecision = { readonly result: EntryArtworkResults; readonly proceed: () => void };
+
+function waitForArtworkDecision(
+  result: EntryArtworkResults,
+  signal: AbortSignal,
+  show: (decision: ArtworkDecision) => void,
+) {
+  return new Promise<void>((resolve) => {
+    function proceed() {
+      signal.removeEventListener("abort", proceed);
+      resolve();
+    }
+    signal.addEventListener("abort", proceed, { once: true });
+    show({ result, proceed });
+  });
+}
+
+function ArtworkIssues({ result }: { readonly result: EntryArtworkResults }) {
+  const { t } = usePreferences();
+  return (
+    <output className="mt-2 block space-y-1 text-sm text-secondary">
+      {ENTRY_ARTWORK_SCOPES.flatMap((scope) => {
+        const { issues } = result[scope];
+        return (Object.keys(issues) as (keyof typeof issues)[]).map((reason) => (
+          <span className="block" key={scope + reason}>
+            {t(`nav.${scope}s`)} ·{" "}
+            {t(`entry.artworkIssue.${reason}`, { count: issues[reason] ?? 0 })}
+          </span>
+        ));
+      })}
+    </output>
+  );
+}
 
 function focusNavigationTarget(target: HTMLElement | null | undefined): boolean {
   if (
@@ -32,10 +80,67 @@ function focusNavigationTarget(target: HTMLElement | null | undefined): boolean 
   return document.activeElement === target;
 }
 
+function OpeningSavePreparation({
+  progress,
+  artworkProgress,
+  artworkDecision,
+  onCancel,
+}: {
+  readonly progress: TauriEntryProgress | null;
+  readonly artworkProgress: EntryArtworkProgress | null;
+  readonly artworkDecision: ArtworkDecision | null;
+  readonly onCancel: () => void;
+}) {
+  const { t } = usePreferences();
+  const counts = progress && entryProgressCounts(progress);
+  let detail: TranslationKey = counts ? "entry.detail.finalizing" : "entry.detail.readingSave";
+  if (counts?.current) detail = `entry.detail.${counts.current}`;
+  if (artworkProgress?.scope) detail = `entry.artwork.${artworkProgress.scope}`;
+  if (artworkDecision) detail = "entry.artworkIncomplete";
+  const artworkCounts = artworkProgress && {
+    completed: artworkProgress.settled,
+    total: artworkProgress.total,
+  };
+  // Reserve one phase for artwork before its roster exists, so the data fill is retained.
+  let artworkCompletion = 0;
+  if (artworkCounts) {
+    artworkCompletion =
+      artworkCounts.total === 0 ? 1 : artworkCounts.completed / artworkCounts.total;
+  }
+  const combined = counts && {
+    completed: counts.completed / counts.total + artworkCompletion,
+    total: 2,
+  };
+  const progressText = [
+    counts && t("entry.editorDataCompact", { completed: counts.completed, total: counts.total }),
+    artworkCounts && t("entry.artworkCompact", artworkCounts),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <AssetPreparationView
+      compact
+      mode="save"
+      saveDetail={t(detail)}
+      editorProgress={combined}
+      progressText={progressText}
+      onCancel={onCancel}
+      {...(artworkDecision ? { onContinue: artworkDecision.proceed } : {})}
+      continueLabel={t("entry.artworkContinue")}
+    >
+      {artworkDecision ? <ArtworkIssues result={artworkDecision.result} /> : null}
+    </AssetPreparationView>
+  );
+}
+
 function RunSaveContent({
   discovery,
   save,
   active,
+  prepared,
+  progress,
+  artworkProgress,
+  artworkDecision,
   onOpen,
   onCancel,
   onClose,
@@ -44,6 +149,10 @@ function RunSaveContent({
   readonly discovery: ReturnType<typeof useEnvironmentDiscovery>;
   readonly save: ReturnType<typeof useSaveSession>;
   readonly active: boolean;
+  readonly prepared: TauriEntrySnapshot | null;
+  readonly progress: TauriEntryProgress | null;
+  readonly artworkProgress: EntryArtworkProgress | null;
+  readonly artworkDecision: ArtworkDecision | null;
   readonly onOpen: (saveId: string) => void;
   readonly onCancel: (saveId: string) => void;
   readonly onClose: () => void;
@@ -53,9 +162,10 @@ function RunSaveContent({
   const openingId = save.openingSaveId;
   if (openingId !== null) {
     return (
-      <AssetPreparationView
-        mode="save"
-        saveDetail={t("entry.detail.readingSave")}
+      <OpeningSavePreparation
+        progress={progress}
+        artworkProgress={artworkProgress}
+        artworkDecision={artworkDecision}
         onCancel={() => onCancel(openingId)}
       />
     );
@@ -65,6 +175,7 @@ function RunSaveContent({
       <TauriWorkspace
         key={save.session.id}
         session={save.session}
+        prepared={prepared}
         active={active}
         onClose={onClose}
         onCanonical={save.enter}
@@ -92,8 +203,42 @@ function RunSaveContent({
 function DiscoveryPreview() {
   const [workspace, setWorkspace] = useState<"run-saves" | "cosmetics">("run-saves");
   const [healthEnabled, setHealthEnabled] = useState(false);
-  const save = useSaveSession(tauriReadApi.saves.open);
+  const [progress, setProgress] = useState<TauriEntryProgress | null>(null);
+  const [prepared, setPrepared] = useState<TauriEntrySnapshot | null>(null);
+  const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
+  const [artworkDecision, setArtworkDecision] = useState<ArtworkDecision | null>(null);
   const safety = useGameSafety(tauriReadApi.game.status);
+  const closingArtwork = useRef<Promise<void> | null>(null);
+  const save = useSaveSession(async (id, signal) => {
+    setProgress(null);
+    setArtworkProgress(null);
+    setArtworkDecision(null);
+    setPrepared(null);
+    if (closingArtwork.current) await closingArtwork.current;
+    signal.throwIfAborted();
+    const opened = await tauriReadApi.saves.open(id);
+    if (!opened.ok) return opened;
+    let keep = false;
+    try {
+      const entry = await prepareTauriEntry(
+        opened.data,
+        signal,
+        setProgress,
+        (status) => {
+          if (!signal.aborted) setArtworkProgress(status);
+        },
+        (result) => waitForArtworkDecision(result, signal, setArtworkDecision),
+      );
+      if (!entry.ok) return entry;
+      await safety.check();
+      signal.throwIfAborted();
+      setPrepared(entry.data);
+      keep = true;
+      return opened;
+    } finally {
+      if (!keep) await closeNativeArtwork(id);
+    }
+  });
   const opening = save.openingSaveId !== null;
   const discovery = useEnvironmentDiscovery(
     workspace === "run-saves" && save.session === null && !opening && !save.drainingOpen,
@@ -103,12 +248,12 @@ function DiscoveryPreview() {
   const content = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
   const navigationFocus = useRef<NavigationFocus | null>(null);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
+      cancelEntryArtwork();
       generation.current += 1;
-    },
-    [],
-  );
+    };
+  }, []);
   const safetyRequired = save.session !== null || opening || workspace === "cosmetics";
   const initialCheck = safetyRequired && safety.status === null;
   const blocked =
@@ -117,6 +262,32 @@ function DiscoveryPreview() {
       : null;
   const { isRefreshing, refreshRevision } = discovery;
   const inSave = save.session !== null;
+  useEffect(() => {
+    const revision = prepared?.artworkRevision;
+    if (!inSave || !revision) return;
+    let current = true;
+    let checking = false;
+    async function verifyArtworkSource() {
+      if (checking) return;
+      checking = true;
+      try {
+        const result = await tauriReadApi.maps.list("verify");
+        if (current && result.ok && result.data.entryArtworkRevision !== revision) {
+          clearEntryArtwork();
+        }
+      } finally {
+        checking = false;
+      }
+    }
+    function onFocus() {
+      void verifyArtworkSource();
+    }
+    window.addEventListener("focus", onFocus);
+    return () => {
+      current = false;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [inSave, prepared]);
   const focusPreparation =
     workspace === "run-saves" && opening && !initialCheck && blocked === null;
   const waitingForDiscovery = isRefreshing || save.drainingOpen;
@@ -174,14 +345,16 @@ function DiscoveryPreview() {
   }
   function cancelOpen(saveId: string) {
     generation.current += 1;
+    cancelEntryArtwork();
     focusDiscoveryAfterRefresh(saveId);
     save.cancelOpen();
   }
   function close() {
     generation.current += 1;
+    setPrepared(null);
     if (save.session !== null) {
       focusDiscoveryAfterRefresh(save.session.id);
-      void closeNativeArtwork(save.session.id);
+      closingArtwork.current = closeNativeArtwork(save.session.id);
     }
     save.close();
   }
@@ -204,32 +377,51 @@ function DiscoveryPreview() {
         inert={initialCheck || blocked !== null}
         tabIndex={-1}
       >
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-secondary">
+        <nav
+          aria-label={t("app.workspaces")}
+          className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3"
+        >
+          <div className="flex gap-2">
+            {(["run-saves", "cosmetics"] as const).map((item) => (
+              <button
+                key={item}
+                aria-current={workspace === item ? "page" : undefined}
+                className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${workspace === item ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"}`}
+                type="button"
+                onClick={() => {
+                  if (item === "cosmetics" && save.openingSaveId !== null)
+                    cancelOpen(save.openingSaveId);
+                  setWorkspace(item);
+                }}
+              >
+                {t(item === "run-saves" ? "app.runSaves" : "app.cosmetics")}
+              </button>
+            ))}
+          </div>
+          <p className="min-w-56 flex-1 text-sm text-secondary">
             {t(healthEnabled ? "health.testOnly" : "app.discoveryPreview")}
           </p>
-          <div className="flex gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <ThemeMenu />
             <LanguageMenu />
           </div>
-        </div>
-        <nav aria-label={t("app.workspaces")} className="mb-5 flex gap-2 border-b border-line pb-3">
-          {(["run-saves", "cosmetics"] as const).map((item) => (
-            <button
-              key={item}
-              aria-current={workspace === item ? "page" : undefined}
-              className={`ui-feedback rounded-sm px-4 py-2.5 text-sm font-semibold ${workspace === item ? "bg-accent text-accent-ink" : "text-secondary hover:bg-surface hover:text-ink"}`}
-              type="button"
-              onClick={() => setWorkspace(item)}
-            >
-              {t(item === "run-saves" ? "app.runSaves" : "app.cosmetics")}
-            </button>
-          ))}
         </nav>
         <div hidden={workspace !== "run-saves"}>
           <RunSaveContent
             discovery={discovery}
             save={save}
+            prepared={prepared}
+            progress={progress}
+            artworkProgress={artworkProgress}
+            artworkDecision={
+              artworkDecision && {
+                result: artworkDecision.result,
+                proceed: () => {
+                  setArtworkDecision(null);
+                  artworkDecision.proceed();
+                },
+              }
+            }
             active={workspace === "run-saves" && !initialCheck && blocked === null}
             onOpen={(id) => void open(id)}
             onCancel={cancelOpen}

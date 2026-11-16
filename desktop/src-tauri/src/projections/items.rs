@@ -90,6 +90,12 @@ pub struct Advanced {
 }
 
 impl Advanced {
+    pub(crate) fn upgrade_icons(&mut self) -> impl Iterator<Item = (&str, &mut Option<String>)> {
+        self.items
+            .iter_mut()
+            .filter_map(|item| Some((item.upgrade_visual_key.as_deref()?, &mut item.icon_token)))
+    }
+
     pub(crate) fn item_icons(&mut self) -> impl Iterator<Item = (String, &mut Option<String>)> {
         self.items.iter_mut().filter_map(|item| {
             // Unity's verified baked hash needs the name, delimiter and prefab within 191 bytes.

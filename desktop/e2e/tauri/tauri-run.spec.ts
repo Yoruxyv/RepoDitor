@@ -279,7 +279,14 @@ test("native Run validates malformed responses, recovers and keeps unknown game 
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(page.getByRole("textbox", { name: "Currency", exact: true })).toHaveValue("12");
     }
-    await writeFile(response, JSON.stringify({ ok: true, run: { ...fixture.run, stats: [] } }));
+    await writeFile(
+      response,
+      JSON.stringify({
+        ok: true,
+        fingerprint: fixture.opened.session.fingerprint,
+        run: { ...fixture.run, stats: [] },
+      }),
+    );
     await page.getByRole("button", { name: "Change save" }).click();
     await openRun(page);
     await expect(page.getByRole("textbox", { name: "Resume location" })).toHaveValue("Normal");

@@ -335,7 +335,7 @@ test("native Upgrades reject malformed DTOs and recover with fallback and game s
     }
     await writeFile(
       path.join(home, "players-list.json"),
-      JSON.stringify({ ok: true, players: [] }),
+      JSON.stringify({ ok: true, fingerprint: fixture.opened.session.fingerprint, players: [] }),
     );
     await page.getByRole("button", { name: "Change save" }).click();
     await openUpgrades(page);

@@ -19,6 +19,7 @@ import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
 import { OverviewView } from "./OverviewView";
 import { SaveHeader } from "./SaveHeader";
+import type { TauriEntrySnapshot } from "./tauriEntryPreparation";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -58,12 +59,14 @@ function WorkspacePreparationStatus({
 
 export function TauriWorkspace({
   session,
+  prepared,
   active = true,
   onClose,
   onCanonical = () => undefined,
   onHealthAvailability,
 }: {
   readonly session: SaveSession;
+  readonly prepared?: TauriEntrySnapshot | null;
   readonly active?: boolean;
   readonly onClose: () => void;
   readonly onCanonical?: (opened: SaveOpenResult) => void;
@@ -85,17 +88,31 @@ export function TauriWorkspace({
   }, [section]);
   const [initialHealthKnown, setInitialHealthKnown] = useState(false);
   const prepare = initialHealthKnown && active;
-  const players = usePlayers(session.id, null, tauriReadApi.players.list, initialHealthKnown);
+  const entry =
+    prepared?.session.id === session.id && prepared.session.fingerprint === session.fingerprint
+      ? prepared
+      : null;
+  const players = usePlayers(
+    session.id,
+    entry?.players ?? null,
+    tauriReadApi.players.list,
+    initialHealthKnown,
+  );
   const upgrades = useUpgrades(
     session.id,
-    null,
+    entry?.upgrades ?? null,
     tauriReadApi.upgrades.list,
     prepare,
     tauriReadApi.upgrades.prepare,
   );
   // Cold projections share the native worker with Save and its acknowledgement.
-  const run = useRunState(session.id, null, tauriReadApi.run.get, section === "run");
-  const items = useItems(session.id, null, tauriReadApi.advanced.get, section === "items");
+  const run = useRunState(session.id, entry?.run ?? null, tauriReadApi.run.get, section === "run");
+  const items = useItems(
+    session.id,
+    entry?.items ?? null,
+    tauriReadApi.advanced.get,
+    section === "items",
+  );
   const health = useTauriHealth(session, players.players, (projection) => {
     players.acceptSnapshot(projection.players);
     if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
@@ -107,7 +124,11 @@ export function TauriWorkspace({
     if (health.phase !== "checking") setInitialHealthKnown(true);
   }, [health.phase]);
   const canLoadMaps = health.phase !== "saving" && health.phase !== "reconciling";
-  const maps = useMaps(null, tauriReadApi.maps.list, canLoadMaps && section === "maps");
+  const maps = useMaps(
+    entry?.maps ?? null,
+    tauriReadApi.maps.list,
+    canLoadMaps && section === "maps",
+  );
   const restoredSelection = useRef<string | null>(null);
   const visiblePlayers = players.players;
   const selectPlayer = players.setSelectedPlayerId;
@@ -153,6 +174,7 @@ export function TauriWorkspace({
     session.id,
     players.selectedPlayerId,
     tauriReadApi.players.avatar,
+    entry?.avatarPrefetch,
   );
   const avatarUrls = avatars.avatarUrls;
   function selectTabWithFocus(next: Section) {
@@ -179,6 +201,24 @@ export function TauriWorkspace({
     >
       <SaveHeader session={currentSession} onClose={onClose} />
       <TauriHealthControls health={health} player={selectedPlayer} />
+      {entry &&
+      Object.values(entry.artwork).some(({ issues }) => Object.keys(issues).length > 0) ? (
+        <output className="mb-4 block border-l-2 border-accent bg-accent-muted px-4 py-3 text-sm text-secondary">
+          {(["upgrade", "item", "map"] as const)
+            .filter((scope) => Object.keys(entry.artwork[scope].issues).length > 0)
+            .map((scope) => (
+              <span className="block" key={scope}>
+                {t(`nav.${scope}s`)} ·{" "}
+                {t("entry.artworkDeferred", {
+                  count: Object.values(entry.artwork[scope].issues).reduce(
+                    (total, count) => total + count,
+                    0,
+                  ),
+                })}
+              </span>
+            ))}
+        </output>
+      ) : null}
       <nav className="overflow-x-auto border-b border-line" aria-label={t("workspace.sections")}>
         <div className="flex min-w-max gap-1 py-2" role="tablist">
           {SECTIONS.map((item, index) => (

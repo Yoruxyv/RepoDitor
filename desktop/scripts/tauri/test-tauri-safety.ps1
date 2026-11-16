@@ -150,11 +150,15 @@ try {
     $titles = @($native.suites.specs.title)
     foreach ($case in @(
         'ordinary packaged workspace preserves keyboard focus across navigation',
+        'ordinary packaged preparation rejects a changed save and retries with fresh projections',
+        'ordinary packaged preparation reports missing fingerprint evidence without claiming a save changed',
+        'ordinary packaged opening cancels before switching saves and can reopen the original',
         'ordinary packaged read-only states explain pending safety and recover Maps in place',
         'ordinary native upgrade artwork is scoped, validated, refreshed and read-only',
         'ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads',
         'ordinary native Item artwork displays beyond the upgrade budget and stays read-only',
-        'ordinary native Maps show scoped previews on demand and revoke old artwork',
+        'ordinary native upgrade artwork groups settle valid and missing images together',
+        'ordinary native Maps prepare scoped previews and revoke old artwork',
         'ordinary native Cosmetics load visible canonical icons without a Run save',
         'ordinary native Cosmetics revisit reads once and uses only current artwork',
         'final running: frozen Python blocks unsafe replacement',

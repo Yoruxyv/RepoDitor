@@ -203,20 +203,29 @@ def _revision(watches: list[dict[str, str]]) -> str:
 
 
 def decode_map_artwork(
-    *, family: str | None = None, expected_revision: str | None = None
+    *,
+    family: str | None = None,
+    expected_revision: str | None = None,
+    families: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Decode a finite installed-map batch in one process; optional sources fail soft."""
     try:
         catalog = discover_installed_maps()
         if catalog is None or not catalog.source_paths:
             return {}
-        return _decode(catalog, family=family, expected_revision=expected_revision)
+        return _decode(
+            catalog, family=family, expected_revision=expected_revision, families=families
+        )
     except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError, ImportError):
         return {}
 
 
 def _decode(
-    catalog: MapCatalog, *, family: str | None = None, expected_revision: str | None = None
+    catalog: MapCatalog,
+    *,
+    family: str | None = None,
+    expected_revision: str | None = None,
+    families: tuple[str, ...] = (),
 ) -> dict[str, object]:
     paths = artwork_sources(catalog)
     watches = _watches(catalog)
@@ -225,8 +234,9 @@ def _decode(
     identity = _revision(watches)
     if expected_revision is not None and identity != expected_revision:
         return {}
+    selected = (family,) if family is not None else families
     maps = tuple(
-        m for m in catalog.maps if m.loading_paths and (family is None or family == m.internal_name)
+        m for m in catalog.maps if m.loading_paths and (not selected or m.internal_name in selected)
     )
     if not maps or (family is not None and len(maps) != 1):
         return {}
@@ -261,7 +271,7 @@ def _decode(
                 for picture in env.file._cache.values():
                     picture.close()
                 env.file._cache.clear()
-            if family is not None and len(png) > MAX_NATIVE_PNG_BYTES:
+            if selected and len(png) > MAX_NATIVE_PNG_BYTES:
                 continue
             total += len(png)
             if total > 8 * 1024 * 1024:

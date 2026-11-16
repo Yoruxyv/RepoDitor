@@ -22,6 +22,7 @@ from repo_save_editor.services.saves.discovery import (
         ("environment", "discover_environment", (), ()),
         ("game-status", "get_game_status", (), ()),
         ("maps-list", "list_maps", (), ()),
+        ("maps-list", "list_maps", ("--entry-artwork-proof",), ()),
         ("icons-roots", "get_icon_roots", (), ()),
         ("cosmetics-get", "get_cosmetics", (), ()),
         ("saves-open", "open_save", ("save-id",), ("save-id",)),
@@ -45,10 +46,10 @@ def test_read_commands_preserve_names_arguments_and_one_json_result(
     arguments: tuple[str, ...],
     expected_call: tuple[str, ...],
 ) -> None:
-    calls: list[tuple[object, ...]] = []
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-    def fake(*args: object) -> dict[str, object]:
-        calls.append(args)
+    def fake(*args: object, **kwargs: object) -> dict[str, object]:
+        calls.append((args, kwargs))
         return {"ok": True, "command": command}
 
     monkeypatch.setattr(desktop_main, target, fake)
@@ -59,7 +60,10 @@ def test_read_commands_preserve_names_arguments_and_one_json_result(
     lines = capsys.readouterr().out.strip().splitlines()
     assert len(lines) == 1
     assert json.loads(lines[0]) == {"ok": True, "command": command}
-    assert calls == [expected_call]
+    metadata = {"include_fingerprint": True} if command in {"players-list", "run-get"} else {}
+    if command == "maps-list":
+        metadata = {"entry_proof": "--entry-artwork-proof" in arguments}
+    assert calls == [(expected_call, metadata)]
 
 
 def test_saves_write_cli_preserves_positional_payload_contract(monkeypatch, capsys) -> None:
@@ -83,6 +87,32 @@ def test_saves_write_cli_preserves_positional_payload_contract(monkeypatch, caps
     assert len(lines) == 1
     assert json.loads(lines[0]) == {"ok": True}
     assert calls == [("save-id", "f" * 64, changes)]
+
+
+def test_maps_entry_proof_verifies_save_last_without_returning_save_data(monkeypatch):
+    calls = []
+
+    def list_maps(*, entry_proof):
+        calls.append("maps")
+        assert entry_proof
+        return {"ok": True, "entryArtworkRevision": "a" * 64}
+
+    def open_save(save_id):
+        calls.append("save")
+        assert save_id == "save-id"
+        return {"ok": True, "session": {"id": save_id, "fingerprint": "b" * 64, "path": "private"}}
+
+    monkeypatch.setattr(desktop_main, "list_maps", list_maps)
+    monkeypatch.setattr(desktop_main, "open_save", open_save)
+    command = desktop_main._parser().parse_args(
+        ["maps-list", "--entry-artwork-proof", "--verify-save", "save-id"]
+    )
+    assert command.handler(command) == {
+        "ok": True,
+        "entryArtworkRevision": "a" * 64,
+        "entrySaveFingerprint": "b" * 64,
+    }
+    assert calls == ["maps", "save"]
 
 
 def test_saves_write_cli_passes_optional_recharge_evidence(monkeypatch, capsys) -> None:

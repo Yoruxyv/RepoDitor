@@ -1,4 +1,4 @@
-"""Bounded, Windows-user-protected presentation cache for native Cosmetics."""
+"""Bounded, Windows-user-protected native presentation storage."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager, suppress
 from pathlib import Path
 from time import perf_counter
-from typing import Final, Literal, TypedDict
+from typing import Final, Literal, NotRequired, TypedDict
 
 from repo_save_editor.services.cache_activity import cache_activity
 from repo_save_editor.services.environment.windows_paths import resolve_windows_local_app_data
@@ -31,7 +31,13 @@ DIAGNOSTICS_LIMIT: Final = 24 * 1024
 DIAGNOSTICS_RECORDS: Final = 48
 PUBLISH_LOCK: Final = "publish.lock"
 PUBLISH_TEMP: Final = "publish.tmp"
-Operation = Literal["initial_catalog", "catalog", "thumbnail"]
+EditorScope = Literal["upgrade", "item", "map"]
+EDITOR_CACHE_LIMITS: Final[dict[EditorScope, int]] = {
+    "upgrade": 4 * 1024 * 1024,
+    "item": 8 * 1024 * 1024,
+    "map": 8 * 1024 * 1024,
+}
+Operation = Literal["initial_catalog", "catalog", "thumbnail", "upgrade", "item", "map"]
 EVENTS: Final = frozenset(
     {
         "entry_missing",
@@ -50,6 +56,10 @@ EVENTS: Final = frozenset(
         "publication_busy",
         "publication_failed",
         "published",
+        "editor_hit",
+        "editor_unavailable_hit",
+        "editor_miss",
+        "editor_extracted",
     }
 )
 
@@ -58,6 +68,7 @@ class Observation(TypedDict):
     operation: Operation
     durationMs: int
     events: dict[str, int]
+    sourceValidationMs: NotRequired[int]
 
 
 def png_identity(header: bytes, slot: int) -> str | None:
@@ -68,7 +79,7 @@ def png_identity(header: bytes, slot: int) -> str | None:
     return None
 
 
-def cacheable_png(source: bytes) -> bytes | None:
+def cacheable_png(source: bytes, limit: int = PNG_LIMIT) -> bytes | None:
     """Keep the bounded truecolor PNG stream without persisting ancillary metadata."""
     signature = b"\x89PNG\r\n\x1a\n"
     if len(source) < 57 or not source.startswith(signature + b"\0\0\0\rIHDR"):
@@ -99,7 +110,7 @@ def cacheable_png(source: bytes) -> bytes | None:
         if (kind == b"IHDR" and offset != len(signature)) or (kind == b"IDAT" and after_idat):
             return None
         if kind in (b"IHDR", b"IDAT", b"IEND"):
-            if len(output) + end - offset > PNG_LIMIT:
+            if len(output) + end - offset > limit:
                 return None
             output.extend(data[offset:end])
         elif kind in (b"acTL", b"fcTL", b"fdAT") or (not kind[0] & 0x20 and kind != b"PLTE"):
@@ -155,6 +166,7 @@ class NativeArtworkCache:
         self.directory = directory
         self.root = root
         self.events: Counter[str] | None = None
+        self.source_validation_seconds = 0.0
 
     def note(self, event: str, count: int = 1) -> None:
         if self.events is not None and count > 0 and event in EVENTS:
@@ -264,6 +276,29 @@ class NativeArtworkCache:
             except (OSError, ValueError):
                 self.note("publication_failed")
 
+    def editor_frame(self, scope: EditorScope, revision: str) -> bytes | None:
+        limit = EDITOR_CACHE_LIMITS[scope]
+        frame = self._read(f"{scope}.bin", limit + SEAL_OVERHEAD)
+        if frame is not None:
+            try:
+                return _protect(frame, f"editor/{scope}/{revision}", limit, seal=False)
+            except (OSError, ValueError):
+                self.note("entry_protection_rejected")
+        return None
+
+    def publish_editor_frame(self, scope: EditorScope, revision: str, data: bytes) -> None:
+        limit = EDITOR_CACHE_LIMITS[scope]
+        if len(data) <= limit:
+            try:
+                sealed = _protect(
+                    data, f"editor/{scope}/{revision}", limit + SEAL_OVERHEAD, seal=True
+                )
+                self._write(f"{scope}.bin", sealed)
+            except (OSError, ValueError):
+                self.note("publication_failed")
+        else:
+            self.note("entry_oversized")
+
     def observations(self) -> list[Observation]:
         frame = self._read(DIAGNOSTICS_FILE, DIAGNOSTICS_LIMIT, observe=False)
         try:
@@ -282,6 +317,10 @@ class NativeArtworkCache:
             "durationMs": min(120_000, round((perf_counter() - started) * 1_000)),
             "events": dict(self.events),
         }
+        if operation in EDITOR_CACHE_LIMITS:
+            observation["sourceValidationMs"] = min(
+                120_000, round(1_000 * self.source_validation_seconds)
+            )
         with suppress(OSError), self.publication(create=True):
             rows = [*self.observations(), observation][-DIAGNOSTICS_RECORDS:]
             data = json.dumps(rows, separators=(",", ":")).encode("ascii")
@@ -294,7 +333,7 @@ def _observation(row: object) -> Observation | None:
         return None
     operation, duration, events = row.get("operation"), row.get("durationMs"), row.get("events")
     if (
-        operation not in ("initial_catalog", "catalog", "thumbnail")
+        operation not in ("initial_catalog", "catalog", "thumbnail", *EDITOR_CACHE_LIMITS)
         or type(duration) is not int
         or not 0 <= duration <= 120_000
         or not isinstance(events, dict)
@@ -304,10 +343,16 @@ def _observation(row: object) -> Observation | None:
         )
     ):
         return None
-    return {"operation": operation, "durationMs": duration, "events": dict(events)}
+    result: Observation = {"operation": operation, "durationMs": duration, "events": dict(events)}
+    if "sourceValidationMs" in row:
+        validation = row["sourceValidationMs"]
+        if type(validation) is not int or not 0 <= validation <= 120_000:
+            return None
+        result["sourceValidationMs"] = validation
+    return result
 
 
-def artwork_cache_root() -> Path | None:
+def artwork_cache_root(*, editor: bool = False) -> Path | None:
     if os.name != "nt":
         return None
     local: Path | None
@@ -318,7 +363,8 @@ def artwork_cache_root() -> Path | None:
         local = resolve_windows_local_app_data()
         profile = "io.github.yoruxyv.repoditor.preview"
     if local is not None and local.is_absolute() and ".." not in local.parts:
-        return local / profile / f"artwork-v{CACHE_VERSION}"
+        namespace = "editor-artwork" if editor else "artwork"
+        return local / profile / f"{namespace}-v{CACHE_VERSION}"
     return None
 
 
@@ -329,7 +375,7 @@ def _close_cache(directory: SaveDirectory) -> None:
 
 @contextmanager
 def native_artwork_cache(operation: Operation | None = None) -> Iterator[NativeArtworkCache | None]:
-    root = artwork_cache_root()
+    root = artwork_cache_root(editor=operation in EDITOR_CACHE_LIMITS)
     with ExitStack() as lifetime:
         cache = None
         # The native window owns and creates the app profile before this sidecar runs.

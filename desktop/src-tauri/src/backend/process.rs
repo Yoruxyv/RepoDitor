@@ -19,6 +19,7 @@ use windows_sys::Win32::System::JobObjects::*;
 use windows_sys::Win32::System::Threading::{BELOW_NORMAL_PRIORITY_CLASS, CREATE_NO_WINDOW};
 
 pub(crate) const STDOUT_LIMIT: usize = 2 * 1024 * 1024;
+pub(crate) const LARGE_ARTWORK_BATCH_STDOUT_LIMIT: usize = 8 * 1024 * 1024;
 
 struct Job(OwnedHandle);
 impl Job {
@@ -118,6 +119,14 @@ pub fn run(
     drop(sender);
     let mut output = Vec::new();
     let mut counts = [0usize; 2];
+    let stdout_limit = if matches!(
+        args.first().copied(),
+        Some("map-artwork-batch" | "item-artwork-batch")
+    ) {
+        LARGE_ARTWORK_BATCH_STDOUT_LIMIT
+    } else {
+        STDOUT_LIMIT
+    };
     let mut status = None;
     let result = loop {
         if cancelled.load(Ordering::SeqCst) {
@@ -129,7 +138,7 @@ pub fn run(
         match receiver.recv_timeout(Duration::from_millis(5)) {
             Ok((stream, Ok(bytes))) => {
                 counts[stream] += bytes.len();
-                if counts[stream] > [STDOUT_LIMIT, 64 * 1024][stream] {
+                if counts[stream] > [stdout_limit, 64 * 1024][stream] {
                     break Err(BackendError::Malformed);
                 }
                 if stream == 0 {

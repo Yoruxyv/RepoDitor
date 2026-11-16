@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from hashlib import sha256
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,14 +20,19 @@ if TYPE_CHECKING:
     from repo_save_editor.services.player.profiles import SteamAvatar
 
 
-def list_players(save_id: str, root: Path | None = None) -> dict[str, object]:
+def list_players(
+    save_id: str, root: Path | None = None, *, include_fingerprint: bool = False
+) -> dict[str, object]:
     """Return friendly player identity and current-health DTOs."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
-    return {"ok": True, "players": serialize_players(data)}
+    result: dict[str, object] = {"ok": True, "players": serialize_players(data)}
+    if include_fingerprint:
+        result["fingerprint"] = sha256(source).hexdigest()
+    return result
 
 
 def serialize_players(data: SaveData) -> list[dict[str, object]]:

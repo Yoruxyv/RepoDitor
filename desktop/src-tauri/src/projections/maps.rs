@@ -10,6 +10,10 @@ use std::collections::HashSet;
 pub struct InstalledMaps {
     available: bool,
     catalog_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    entry_artwork_revision: Option<String>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub entry_save_verified: Option<bool>,
     maps: Vec<InstalledMap>,
 }
 
@@ -56,6 +60,10 @@ pub fn parse(bytes: &[u8]) -> Result<InstalledMaps, BackendError> {
     if data.maps.len() > 128
         || (data.available && !data.catalog_path.as_deref().is_some_and(nonblank))
         || (!data.available && (data.catalog_path.is_some() || !data.maps.is_empty()))
+        || data
+            .entry_artwork_revision
+            .as_deref()
+            .is_some_and(|revision| !crate::backend::artwork::valid_revision(revision))
     {
         return Err(BackendError::Invalid);
     }

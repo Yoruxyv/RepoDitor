@@ -67,6 +67,7 @@ __all__ = ["_installation", "discover_baked_artwork", "owned_file"]
 MAX_CACHE_BYTES: Final = 1024 * 1024
 MAX_IDENTITIES: Final = 2_000
 MAX_NATIVE_PNG: Final = 1024 * 1024
+MAX_NATIVE_ITEM_BATCH: Final = 64
 SCHEMA: Final = 8
 _SOURCE_NAMES: Final = (
     "REPO_Data/Managed/Assembly-CSharp.dll",
@@ -382,36 +383,56 @@ def _read_owned_png(library: Path, path: Path, stamp: tuple[int, ...]) -> bytes 
     return png
 
 
-def read_baked_item_png(name: str) -> tuple[bytes, str] | None:
-    """Read one bounded PNG from the verified Item mapping and recheck its sources."""
-    index = discover_baked_artwork()
-    if index is None:
-        return None
-    root, entries, sources = index["root"], index["item"], index["sources"]
-    if not isinstance(root, str) or not isinstance(entries, dict) or not isinstance(sources, list):
-        return None
-    filename = entries.get(name)
-    if not (
-        isinstance(filename, str)
-        and len(filename) == 36
-        and filename.endswith(".png")
-        and all(c in "0123456789abcdef" for c in filename[:32])
-    ):
-        return None
+def read_baked_item_pngs(
+    names: tuple[str, ...], *, expected_root: Path | None = None
+) -> tuple[dict[str, tuple[bytes, str]], set[str], set[str]]:
+    """Validate the installed Item mapping once for a bounded group of PNG reads."""
+    if not 1 <= len(names) <= MAX_NATIVE_ITEM_BATCH:
+        return {}, set(), set()
     try:
-        game = Path(root)
-        library = game.parents[2]
-        path = game / "REPO_Data/StreamingAssets/BakedIcons/Items" / filename
-        stamp = _png_stamp(owned_file(library, path).stat())
-        png = _read_owned_png(library, path, stamp)
-        if png is None or any(_watch(library, Path(watch["path"])) != watch for watch in sources):
-            return None
-        identity = hashlib.sha256()
-        identity.update(json.dumps([sources, name, filename, stamp]).encode())
-        identity.update(png)
-        return png, identity.hexdigest()
+        reviewed = _reviewed_installation(None)
+        if reviewed is None:
+            return {}, set(), set()
+        root, library, build, assembly = reviewed
+        if expected_root is not None and root != expected_root:
+            return {}, set(), set()
+        paths = (build.manifest_path, *(root / name for name in _SOURCE_NAMES))
+        sources = [_watch(library, path) for path in paths]
+        if assembly not in sources:
+            return {}, set(), set()
+        keys = _supported_keys(_item_keys(root))
+        images = {}
+        deferred: set[str] = set()
+        missing: set[str] = set()
+        remaining = 5 * 1024 * 1024  # Reserve room for base64 and JSON in the 8 MiB frame.
+        for name in names:
+            key = keys.get(name)
+            if key is None:
+                missing.add(name)
+                continue
+            filename = unity_hash128(key) + ".png"
+            path = root / "REPO_Data/StreamingAssets/BakedIcons/Items" / filename
+            try:
+                stamp = _png_stamp(owned_file(library, path).stat())
+                if remaining < stamp[2] <= MAX_NATIVE_PNG:
+                    deferred.add(name)
+                    continue
+                png = _read_owned_png(library, path, stamp)
+            except FileNotFoundError:
+                missing.add(name)
+                continue
+            except (OSError, ValueError):
+                continue
+            if png is not None:
+                identity = hashlib.sha256(json.dumps([sources, name, filename, stamp]).encode())
+                identity.update(png)
+                images[name] = (png, identity.hexdigest())
+                remaining -= len(png)
+        if [_watch(library, path) for path in paths] == sources:
+            return images, deferred, missing
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
-        return None
+        return {}, set(), set()
+    return {}, set(), set()
 
 
 def _cosmetic_png(root: Path, key: str) -> Path:
@@ -456,6 +477,85 @@ def _change_time(path: Path, expected: tuple[int, ...] | None = None) -> int:
 
 def _png_revision(path: Path, stamp: tuple[int, ...]) -> str:
     return _digest([stamp, _change_time(path, stamp)])
+
+
+@lru_cache(maxsize=1)
+def _attribute_handles() -> tuple[Callable[..., int], Callable[..., int]]:
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    open_file = kernel.CreateFileW
+    open_file.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+    ]
+    open_file.restype = ctypes.c_void_p
+    close = kernel.CloseHandle
+    close.argtypes = [ctypes.c_void_p]
+    return open_file, close
+
+
+def _artwork_source_stamp(path: Path, expected: os.stat_result) -> tuple[object, ...]:
+    if os.name != "nt":
+        return (*_png_stamp(expected), expected.st_ctime_ns)
+    # Query metadata only. Opening hundreds of files for data can trigger cold AV scans.
+    open_file, close = _attribute_handles()
+    handle = open_file(str(path), 0x80, 7, None, 3, 0x02200000, None)
+    if handle in (None, ctypes.c_void_p(-1).value):
+        raise ctypes.WinError(ctypes.get_last_error())
+    info = (ctypes.c_longlong * 5)()
+    try:
+        if not _basic_info()(handle, 0, info, ctypes.sizeof(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if info[3] <= 0 or info[4] & 0x400 or _png_stamp(path.lstat()) != _png_stamp(expected):
+            raise ValueError("Artwork source identity changed.")
+        return (*_png_stamp(expected), info[3])
+    finally:
+        close(handle)
+
+
+def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
+    """Prove the installed inputs for warm Run artwork without opening Unity indexes."""
+    try:
+        reviewed = _reviewed_installation(None)
+        if reviewed is None:
+            return None
+        root, library, build, assembly = reviewed
+        if expected_root is not None and root != expected_root:
+            return None
+        manifest = owned_file(library, build.manifest_path)
+        manifest_revision = _artwork_source_stamp(manifest, manifest.stat())
+        data = root / "REPO_Data"
+        pending = [data]
+        identities: dict[str, object] = {}
+        while pending:
+            path = pending.pop()
+            # Upgrade stream references can target any owned descendant of REPO_Data.
+            # shortcut: use a complete bounded file roster until decoders expose dependency proofs.
+            if len(identities) >= 2048 or len(path.relative_to(data).parts) > 12:
+                return None
+            info = path.lstat()
+            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                return None
+            identities[str(path)] = _artwork_source_stamp(path, info)
+            if stat.S_ISDIR(info.st_mode):
+                with os.scandir(path) as entries:
+                    for entry in entries:
+                        if len(identities) + len(pending) >= 2047:
+                            return None
+                        pending.append(Path(entry.path))
+            elif not stat.S_ISREG(info.st_mode):
+                return None
+        if _watch(library, Path(assembly["path"])) != assembly:
+            return None
+        if _artwork_source_stamp(manifest, manifest.stat()) != manifest_revision:
+            return None
+        return _digest([build.build_id, manifest_revision, identities])
+    except (OSError, ValueError, OverflowError):
+        return None
 
 
 def _native_sources(

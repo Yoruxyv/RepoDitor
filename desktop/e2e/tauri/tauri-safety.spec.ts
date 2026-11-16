@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type TestInfo } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   createMetaSaveFixture,
   createRunSaveFixture,
@@ -83,6 +83,21 @@ async function exactBackup(source: string, before: Buffer) {
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
 
+async function holdFirstMapsRead(page: Page) {
+  await page.evaluate(() => {
+    const original = window.fetch.bind(window);
+    const gate = new Promise<void>((resolve) => {
+      window.addEventListener("repoditor-entry-release", () => resolve(), { once: true });
+    });
+    window.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.hostname === "ipc.localhost" && url.pathname === "/maps_list") await gate;
+      return original(input, init);
+    };
+  });
+  return () => page.evaluate(() => window.dispatchEvent(new Event("repoditor-entry-release")));
+}
+
 test("ordinary packaged workspace preserves keyboard focus across navigation", async ({
   browserName,
 }, info) => {
@@ -96,6 +111,7 @@ test("ordinary packaged workspace preserves keyboard focus across navigation", a
     await open.focus();
     await page.keyboard.press("Enter");
     const overview = page.getByRole("tab", { name: "Overview", selected: true });
+    await expect(overview).toBeVisible({ timeout: 15_000 });
     await expect(overview).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("tabpanel", { name: "Overview" })).toBeFocused();
@@ -121,6 +137,7 @@ test("ordinary packaged workspace preserves keyboard focus across navigation", a
     await expect(open).toBeFocused();
 
     await page.keyboard.press("Enter");
+    await expect(overview).toBeVisible({ timeout: 15_000 });
     await expect(overview).toBeFocused();
     await rename(f.source, `${f.source}.hidden`);
     try {
@@ -132,6 +149,159 @@ test("ordinary packaged workspace preserves keyboard focus across navigation", a
       await rename(`${f.source}.hidden`, f.source);
     }
     expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged preparation rejects a changed save and retries with fresh projections", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  // An independent valid ES3 container has a new IV and a different byte fingerprint.
+  const replacement = await readFile(await createRunSaveFixture(info.outputPath("replacement")));
+  expect(digest(replacement)).not.toBe(digest(f.before));
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    const reads: string[] = [];
+    page.on("request", (request) => {
+      const command = new URL(request.url()).pathname;
+      if (
+        ["/players_list", "/upgrades_list", "/run_get", "/advanced_get", "/maps_list"].includes(
+          command,
+        )
+      )
+        reads.push(command);
+    });
+    const releaseMaps = await holdFirstMapsRead(page);
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    await open.click();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading map data…");
+    await expect(page.getByText("Editor data 4/5")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("preparation-four-tasks.png") });
+    expect(await readFile(f.source)).toEqual(f.before);
+    await writeFile(f.source, replacement);
+    await releaseMaps();
+    await expect(page.getByRole("alert")).toHaveText(
+      "The save changed while it was opening. Reopen it to load the current version. No save files were changed.",
+    );
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    expect(await readFile(f.source)).toEqual(replacement);
+    await open.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      digest(replacement),
+      { timeout: 15_000 },
+    );
+    await expect(
+      native(page, "saves_open", { saveId: E2E_SAVE_ID, verifyFingerprint: digest(f.before) }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
+      await page.getByRole("tab", { name, exact: true }).click();
+      await expect(page.getByTestId(name.toLowerCase() + "-skeleton")).toHaveCount(0);
+    }
+    expect(reads).toEqual(
+      Array.from({ length: 2 }).flatMap(() => [
+        "/players_list",
+        "/upgrades_list",
+        "/run_get",
+        "/advanced_get",
+        "/maps_list",
+      ]),
+    );
+    expect(await readFile(f.source)).toEqual(replacement);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged preparation reports missing fingerprint evidence without claiming a save changed", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("entry-proof");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const players = path.join(home, "players-list.json");
+  const original = await readFile(players, "utf8");
+  const response = JSON.parse(original);
+  delete response.fingerprint;
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    for (const proof of [response, { ...response, fingerprint: "invalid" }]) {
+      await writeFile(players, JSON.stringify(proof));
+      await open.click();
+      await expect(page.getByRole("alert")).toHaveText(
+        "RepoDitor could not verify the save source. Rebuild or reinstall the complete preview and try again. No save files were changed.",
+      );
+      await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    }
+    await writeFile(players, original);
+    await open.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      f.opened.session.fingerprint,
+    );
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged opening cancels before switching saves and can reopen the original", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const alternateId = E2E_SAVE_ID.replace(/30$/, "31");
+  const alternate = path.join(
+    path.dirname(path.dirname(f.source)),
+    alternateId,
+    alternateId + ".es3",
+  );
+  const alternateBytes = await readFile(await createRunSaveFixture(info.outputPath("alternate")));
+  await mkdir(path.dirname(alternate), { recursive: true });
+  await writeFile(alternate, alternateBytes);
+  expect(digest(alternateBytes)).not.toBe(digest(f.before));
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    const releaseMaps = await holdFirstMapsRead(page);
+    const first = page.locator(`button[data-save-id="${E2E_SAVE_ID}"]`);
+    const other = page.locator(`button[data-save-id="${alternateId}"]`);
+    await first.click();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading map data…", {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Cancel opening" }).click();
+    await expect(other).toBeDisabled();
+    await releaseMaps();
+    await expect(other).toBeEnabled();
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await other.click();
+    const workspace = page.getByTestId("workspace");
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(alternateBytes), {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Change save" }).click();
+    await first.click();
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(f.before), {
+      timeout: 15_000,
+    });
+    const [otherPlayers, verified] = await Promise.all([
+      native(page, "players_list", { saveId: alternateId }),
+      native(page, "saves_open", { saveId: E2E_SAVE_ID, verifyFingerprint: digest(f.before) }),
+    ]);
+    expect(otherPlayers).toMatchObject({ ok: true });
+    expect(verified).toMatchObject({
+      ok: true,
+      data: { session: { fingerprint: digest(f.before) } },
+    });
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await readFile(alternate)).toEqual(alternateBytes);
   } finally {
     await close(app.child, app.browser);
   }
@@ -209,7 +379,7 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.getByRole("button", { name: /^Theme:/ }).click();
     await page.getByRole("option", { name: "Light" }).click();
-    await expect(opening.locator(".asset-preparation-sweep")).toHaveCSS("animation-name", "none");
+    await expect(progress.locator(".asset-preparation-sweep")).toHaveCount(0);
     await expect(opening.locator(".asset-preparation-crate")).toHaveCSS("animation-name", "none");
     await page.getByRole("button", { name: "Language: English" }).click();
     await page.getByRole("option", { name: "Bahasa Indonesia" }).click();
@@ -288,6 +458,84 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
     await expect(alert).toHaveText("MetaSave.es3 could not be found.");
     expect(await readFile(run)).toEqual(runBefore);
     expect(await readFile(meta)).toEqual(metaBefore);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged avatar prefetch supplies the first Players view", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-prefetch");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const timing = path.join(home, "timing");
+  await mkdir(timing);
+  const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
+  await writeFile(
+    path.join(home, "players-avatar.json"),
+    JSON.stringify({
+      ok: true,
+      avatar: { playerId: "111", avatarUrl, status: "available", retryAfterMs: null },
+    }),
+  );
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_TIMING_DIR: timing,
+  });
+  try {
+    const { page } = app;
+    await page.route(avatarUrl, (route) =>
+      route.fulfill({
+        contentType: "image/png",
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
+          "base64",
+        ),
+      }),
+    );
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+    const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    const records = await Promise.all(
+      (await readdir(timing)).map(
+        async (file) =>
+          JSON.parse(await readFile(path.join(timing, file), "utf8")) as {
+            operation: string;
+            started: number;
+            finished: number;
+          },
+      ),
+    );
+    const lookups = records.filter(({ operation }) => operation === "players-avatar");
+    expect(lookups).toHaveLength(1);
+    const lookup = lookups[0];
+    const playersRead = records.find(({ operation }) => operation === "players-list");
+    const mapsRead = records.find(({ operation }) => operation === "maps-list");
+    if (!lookup || !playersRead || !mapsRead)
+      throw new Error("Missing preparation process records");
+    expect(lookup.started).toBeGreaterThanOrEqual(playersRead.finished);
+    expect(lookup.started).toBeLessThan(mapsRead.finished);
+    await page.screenshot({ path: info.outputPath("first-player-avatar.png") });
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: { playerId: "222", avatarUrl: null, status: "transient", retryAfterMs: 60_000 },
+      }),
+    );
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    // A rate-limited lookup does not disable the selected player's editor projection.
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toBeVisible();
+    const timed = (await readdir(timing)).filter((file) => file.startsWith("players-avatar-"));
+    expect(timed).toHaveLength(2);
   } finally {
     await close(app.child, app.browser);
   }

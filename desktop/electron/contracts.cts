@@ -402,6 +402,7 @@ export type DesktopOperationErrorCode =
   | "save_decrypt_failed"
   | "save_unsupported"
   | "save_stale"
+  | "save_source_unverified"
   | "save_validation_failed"
   | "backup_failed"
   | "save_write_failed"

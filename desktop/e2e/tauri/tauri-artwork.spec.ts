@@ -364,7 +364,7 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
   }
 });
 
-test("ordinary native Maps show scoped previews on demand and revoke old artwork", async ({
+test("ordinary native Maps prepare scoped previews and revoke old artwork", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -386,6 +386,7 @@ test("ordinary native Maps show scoped previews on demand and revoke old artwork
   const artwork = path.join(home, "map-artwork.json");
   await writeFile(artwork, JSON.stringify({ ok: true, artwork: image }));
   const marker = path.join(home, "map-started.txt");
+  await writeFile(marker, "");
   const app = await launch(fixture.executable, home, {
     ...fixture.environment,
     REPODITOR_TEST_STARTED_FILE: marker,
@@ -394,7 +395,8 @@ test("ordinary native Maps show scoped previews on demand and revoke old artwork
   try {
     const { page } = app;
     await page.getByRole("button", { name: /Open workspace/ }).click();
-    await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect.poll(() => readFile(marker, "utf8")).toBe("map-artwork");
+    await expect(page.getByRole("tab", { name: "Maps", selected: true })).toHaveCount(0);
     await page.getByRole("tab", { name: "Maps", exact: true }).click();
     const icon = page.getByTestId(`map-artwork-${map.internalName}`);
     await expect(icon).toHaveAttribute("data-artwork-revision", image.sourceIdentity!);
@@ -553,6 +555,144 @@ test("ordinary native upgrade artwork is scoped, validated, refreshed and read-o
   }
 });
 
+test("ordinary native upgrade artwork groups settle valid and missing images together", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("upgrade-artwork-group");
+  const fixture = await stageSyntheticBackend(
+    home,
+    prepared("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const first = fixture.upgrades[0];
+  const missing = { ...first, key: "playerUpgradeUnknown", label: "Unknown" };
+  await writeFile(
+    path.join(home, "upgrades-list.json"),
+    JSON.stringify({
+      ok: true,
+      fingerprint: fixture.opened.session.fingerprint,
+      upgrades: [first, missing],
+    }),
+  );
+  const batch = path.join(home, "upgrade-artwork-batch.json");
+  const maps = path.join(home, "maps-list.json");
+  async function setSource(revision: string) {
+    await writeFile(
+      maps,
+      JSON.stringify({
+        ok: true,
+        ...fixture.maps,
+        entryArtworkRevision: revision,
+      }),
+    );
+  }
+  async function setArtwork(revision: string) {
+    await writeFile(
+      batch,
+      JSON.stringify({
+        ok: true,
+        artworks: [
+          {
+            upgradeKey: first.key,
+            sourceIdentity: revision,
+            width: 1,
+            height: 1,
+            pngBase64:
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+          },
+          null,
+        ],
+      }),
+    );
+  }
+  await setArtwork("a".repeat(64));
+  await setSource("1".repeat(64));
+  const app = await launch(fixture.executable, home, fixture.environment);
+  try {
+    const { page } = app;
+    const calls: number[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/upgrade_artwork_get") {
+        const payload = request.postDataJSON();
+        calls.push(payload.tokens?.length ?? 1);
+      }
+    });
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    expect(calls).toEqual([2]);
+    const tab = page.getByRole("tab", { name: "Upgrades", exact: true });
+    const image = page.getByTestId(`upgrade-icon-${first.key}`);
+    const fallback = page.getByTestId(`upgrade-icon-${missing.key}`);
+    await tab.click();
+    expect(await image.getAttribute("aria-busy")).toBe("false");
+    await expect(image.locator("img.opacity-100")).toBeVisible();
+    await expect(fallback).toHaveAttribute("data-icon-source", /category|specific|fallback/);
+    expect(calls).toEqual([2]);
+
+    const focusProof = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/maps_list" &&
+        response.request().postDataJSON()?.validateOnly === true,
+    );
+    await page.evaluate(() => {
+      window.dispatchEvent(new FocusEvent("blur"));
+      window.dispatchEvent(new FocusEvent("focus"));
+    });
+    await focusProof;
+    await page.getByRole("tab", { name: "Overview", exact: true }).click();
+    await tab.click();
+    await expect(image).toHaveAttribute("data-artwork-revision", "a".repeat(64));
+    await expect
+      .poll(() =>
+        image.locator("img.opacity-100").evaluate((node) => {
+          const png = node as HTMLImageElement;
+          return png.complete && png.naturalWidth > 0;
+        }),
+      )
+      .toBe(true);
+    await expect(fallback).toHaveAttribute("data-icon-source", /category|specific|fallback/);
+    expect(calls).toEqual([2]);
+
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    const closeEditor = () => page.getByRole("button", { name: "Change save" }).click();
+    await closeEditor();
+    await expect(open).toBeVisible();
+    await expect(image).toHaveCount(0);
+    await open.click();
+    await tab.click();
+    await expect(image).toHaveAttribute("data-artwork-revision", "a".repeat(64));
+    expect(calls).toEqual([2]);
+    await closeEditor();
+
+    await setSource("2".repeat(64));
+    await setArtwork("b".repeat(64));
+    await open.click();
+    await tab.click();
+    await expect(image).toHaveAttribute("data-artwork-revision", "b".repeat(64));
+    expect(calls).toEqual([2, 2]);
+    await closeEditor();
+
+    await setSource("3".repeat(64));
+    await writeFile(batch, JSON.stringify({ ok: true, artworks: [] }));
+    await open.click();
+    await expect(
+      page.getByText("Upgrades · 2 previews could not be extracted or validated"),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("artwork-defer-choice.png") });
+    await setArtwork("b".repeat(64));
+    await page.getByRole("button", { name: "Continue without remaining artwork" }).click();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    await expect(page.getByText(/2 artwork previews deferred/)).toBeVisible();
+    await tab.click();
+    await expect(image).toHaveAttribute("data-artwork-revision", "b".repeat(64));
+    expect(calls).toEqual([2, 2, 2, 2]);
+    await expect(native(page, "test_health_write", { request: {} })).rejects.toBeDefined();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary frozen upgrade artwork rejects unreviewed sources without affecting save reads", async ({
   browserName,
 }, info) => {
@@ -632,20 +772,27 @@ test("ordinary native Item artwork displays beyond the upgrade budget and stays 
     pngBase64: png,
   };
   await writeFile(response, JSON.stringify({ ok: true, artwork: image }));
+  await writeFile(
+    path.join(home, "item-artwork-batch.json"),
+    JSON.stringify({ ok: true, artworks: items.map((_, index) => (index === 23 ? image : null)) }),
+  );
   const app = await launch(fixture.executable, home, fixture.environment);
   try {
     const page = app.page;
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await page.getByRole("tab", { name: "Items", exact: true }).click();
+    const search = page.getByRole("searchbox", { name: "Search items" });
+    await search.fill("Tool 23");
     const icon = page.getByTestId("item-icon-Item Tool 23/1");
     await icon.scrollIntoViewIfNeeded();
     await expect(icon).toHaveAttribute("data-artwork-revision", image.sourceIdentity);
     await expect
       .poll(() => icon.locator("img").evaluate((node) => (node as HTMLImageElement).naturalWidth))
       .toBe(1);
+    await search.fill("Tool 00");
     const missing = page.getByTestId("item-icon-Item Tool 00/1");
-    await missing.scrollIntoViewIfNeeded();
-    await expect(missing).not.toHaveAttribute("data-icon-source", "local");
+    await page.getByTestId("item-group-Tool 00").scrollIntoViewIfNeeded();
+    await expect(missing).toHaveAttribute("data-icon-source", /category|specific|fallback/);
     const current = await native<{
       ok: boolean;
       data: { items: Array<{ name: string; iconToken: string }> };

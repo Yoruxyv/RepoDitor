@@ -206,7 +206,11 @@ export async function stageSyntheticBackend(
     ],
     unlinkedChargeEntryCount: 0,
   };
-  await writeFile(path.join(home, "advanced-get.json"), JSON.stringify({ ok: true, advanced }));
+  const fingerprint = opened.session.fingerprint;
+  await writeFile(
+    path.join(home, "advanced-get.json"),
+    JSON.stringify({ ok: true, fingerprint, advanced }),
+  );
   const run = {
     stats: [
       { key: "level", label: "Level", value: 5 },
@@ -214,7 +218,7 @@ export async function stageSyntheticBackend(
     ],
     resumeLocation: { value: "Normal", options: ["Normal", "Shop / Service Station"] },
   };
-  await writeFile(path.join(home, "run-get.json"), JSON.stringify({ ok: true, run }));
+  await writeFile(path.join(home, "run-get.json"), JSON.stringify({ ok: true, fingerprint, run }));
   const upgrades = [
     {
       key: "playerUpgradeStrength",
@@ -236,6 +240,7 @@ export async function stageSyntheticBackend(
     path.join(home, "players-list.json"),
     JSON.stringify({
       ok: true,
+      fingerprint,
       players: [
         { id: "111", name: "Alpha", health: 80, maxHealth: 100 },
         { id: "222", name: "Beta", health: 0, maxHealth: 100 },

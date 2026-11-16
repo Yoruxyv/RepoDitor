@@ -1,4 +1,4 @@
-"""Repository-only Windows CLI for the native Cosmetics cache."""
+"""Repository-only Windows CLI for the native artwork caches."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from repo_save_editor.services.native_artwork_cache import (
     CATALOG_LIMIT,
     DIAGNOSTICS_FILE,
     DIAGNOSTICS_LIMIT,
+    EDITOR_CACHE_LIMITS,
     PNG_LIMIT,
     PNG_SLOTS,
     PUBLISH_LOCK,
@@ -41,7 +42,15 @@ ENTRIES = {
     PUBLISH_TEMP: ("publication", 0, max(CATALOG_LIMIT, PNG_LIMIT + 4) + SEAL_OVERHEAD),
     PUBLISH_LOCK: ("publication", 0, 0),
 }
-MAX_BYTES = sum(maximum for _, _, maximum in ENTRIES.values())
+EDITOR_ENTRIES = {
+    **{
+        f"{scope}.bin": (scope, 1, maximum + SEAL_OVERHEAD)
+        for scope, maximum in EDITOR_CACHE_LIMITS.items()
+    },
+    DIAGNOSTICS_FILE: ("diagnostics", 1, DIAGNOSTICS_LIMIT),
+    PUBLISH_TEMP: ("publication", 0, max(EDITOR_CACHE_LIMITS.values()) + SEAL_OVERHEAD),
+    PUBLISH_LOCK: ("publication", 0, 0),
+}
 
 
 @contextmanager
@@ -97,11 +106,13 @@ def _names(cache: NativeArtworkCache) -> set[str]:
     return set(islice(cache.directory.names(), 4097))
 
 
-def _inventory(cache: NativeArtworkCache | None) -> dict[str, Any]:
+def _inventory(
+    cache: NativeArtworkCache | None, entries: dict[str, tuple[str, int, int]]
+) -> dict[str, Any]:
     states = ("present_unverified", "missing", "malformed", "unsafe_or_inaccessible")
-    counts = {category: dict.fromkeys(states, 0) for category, _, _ in ENTRIES.values()}
+    counts = {category: dict.fromkeys(states, 0) for category, _, _ in entries.values()}
     total = 0
-    for name, (category, minimum, maximum) in ENTRIES.items():
+    for name, (category, minimum, maximum) in entries.items():
         state, size = _entry(cache, name, minimum, maximum) if cache else ("missing", 0)
         counts[category][state] += 1
         total += size
@@ -110,9 +121,9 @@ def _inventory(cache: NativeArtworkCache | None) -> dict[str, Any]:
         "exists": cache is not None,
         "schemaVersion": CACHE_VERSION,
         "recognizedFileBytes": total,
-        "maxPublishedBytes": MAX_BYTES,
+        "maxPublishedBytes": sum(maximum for _, _, maximum in entries.values()),
         "entries": counts,
-        "otherEntries": sum(name not in ENTRIES for name in names),
+        "otherEntries": sum(name not in entries for name in names),
         "inventoryTruncated": len(names) > 4096,
         "activity": _activity(),
         "publicationLock": _publication(cache) if cache else "missing",
@@ -120,9 +131,9 @@ def _inventory(cache: NativeArtworkCache | None) -> dict[str, Any]:
     }
 
 
-def inspect_cache(root: Path, *, diagnostics: bool) -> dict[str, Any]:
+def inspect_cache(root: Path, *, diagnostics: bool, editor: bool = False) -> dict[str, Any]:
     with _existing(root) as cache:
-        inventory = _inventory(cache)
+        inventory = _inventory(cache, EDITOR_ENTRIES if editor else ENTRIES)
         if not diagnostics:
             return {"directory": str(root), **inventory}
         records = cache.observations() if cache else []
@@ -147,30 +158,36 @@ def _require_closed() -> None:
             raise CacheBusyError("Close RepoDitor and its background processes before clearing.")
 
 
-def clear_cache(root: Path, removed: list[str]) -> None:
+def clear_cache(root: Path, removed: list[str], editor_root: Path | None = None) -> None:
     with offline_cache():
         _require_closed()
-        with _existing(root) as cache:
-            if cache is None:
-                return
-            present = _names(cache)
-            if len(present) > 4096 or any(
-                name not in ENTRIES and name.lower() in ENTRIES for name in present
-            ):
-                raise OSError("Cache names could not be safely identified.")
-            with cache.publication(create=True):
-                names = [
-                    name
-                    for name in ENTRIES
-                    if name != PUBLISH_LOCK
-                    and name in present
-                    and cache.directory.exists(root / name)
-                ]
-                for name in names:
-                    cache.directory.remove(root / name)
-                    removed.append(name)
-                if any(cache.directory.exists(root / name) for name in names):
-                    raise OSError("Cache entries could not be verified as removed.")
+        _clear_namespace(root, ENTRIES, removed)
+        if editor_root is not None:
+            _clear_namespace(editor_root, EDITOR_ENTRIES, removed, prefix=f"{editor_root.name}/")
+
+
+def _clear_namespace(
+    root: Path, entries: dict[str, tuple[str, int, int]], removed: list[str], *, prefix: str = ""
+) -> None:
+    with _existing(root) as cache:
+        if cache is None:
+            return
+        present = _names(cache)
+        if len(present) > 4096 or any(
+            name not in entries and name.lower() in entries for name in present
+        ):
+            raise OSError("Cache names could not be safely identified.")
+        with cache.publication(create=True):
+            names = [
+                name
+                for name in entries
+                if name != PUBLISH_LOCK and name in present and cache.directory.exists(root / name)
+            ]
+            for name in names:
+                cache.directory.remove(root / name)
+                removed.append(prefix + name)
+            if any(cache.directory.exists(root / name) for name in names):
+                raise OSError("Cache entries could not be verified as removed.")
 
 
 def main() -> int:
@@ -181,14 +198,17 @@ def main() -> int:
     commands.add_parser("clear", allow_abbrev=False).add_argument("--yes", action="store_true")
     args = parser.parse_args()
     root = artwork_cache_root()
-    if root is None:
+    editor_root = artwork_cache_root(editor=True)
+    if root is None or editor_root is None:
         parser.error("The Windows artwork cache directory is unavailable.")
     if os.environ.get("REPODITOR_E2E") == "1":
         build = Path(__file__).resolve().parents[2] / "build"
         if not root.is_relative_to(build) or root.parts[-4:-2] != ("AppData", "Local"):
             parser.error("The isolated test profile must be under desktop/build.")
     if args.command == "clear" and not args.yes:
-        sys.stderr.write(f"Clear artwork entries under {root}? Type CLEAR to continue: ")
+        sys.stderr.write(
+            f"Clear artwork entries under {root} and {editor_root}? Type CLEAR to continue: "
+        )
         if not sys.stdin.isatty() or sys.stdin.readline().strip() != "CLEAR":
             sys.stderr.write(
                 "Cache clear canceled. Use --yes for intentional noninteractive use.\n"
@@ -197,10 +217,15 @@ def main() -> int:
     removed: list[str] = []
     try:
         if args.command == "clear":
-            clear_cache(root, removed)
+            clear_cache(root, removed, editor_root)
             result = {"result": "cleared", "count": len(removed), "removed": removed}
         else:
-            result = inspect_cache(root, diagnostics=args.command == "diagnostics")
+            diagnostics = args.command == "diagnostics"
+            result = {
+                **inspect_cache(root, diagnostics=diagnostics),
+                "category": "cosmetics",
+                "editorArtwork": inspect_cache(editor_root, diagnostics=diagnostics, editor=True),
+            }
     except KeyboardInterrupt:
         sys.stderr.write(json.dumps({"result": "interrupted", "removed": removed}) + "\n")
         return 130

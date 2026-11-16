@@ -33,6 +33,7 @@ from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     ObjectRecord,
+    ResourceManagerEntryMissingError,
     UnityMetadataError,
     find_resource_manager_pointer,
 )
@@ -105,6 +106,7 @@ class UpgradeTextureBatchResult:
     build_verified: bool
     assets_ready: bool
     textures: tuple[tuple[str, DecodedUpgradeTexture | None], ...]
+    missing: frozenset[str] = frozenset()
 
 
 PreparationStageCallback = Callable[[UpgradePreparationStage, bool, bool], None]
@@ -586,6 +588,7 @@ def _resolve_upgrade_batch(
     resources: ArtworkFileIndex,
     data_root: Path,
     resolved: PreparationTextureCallback,
+    missing: set[str],
 ) -> tuple[dict[str, DecodedUpgradeTexture | None], list[tuple[str, _ResolvedUpgradeVisual]]]:
     outcomes: dict[str, DecodedUpgradeTexture | None] = {}
     pending: list[tuple[str, _ResolvedUpgradeVisual]] = []
@@ -597,7 +600,9 @@ def _resolve_upgrade_batch(
                 _candidate_prefab_names(key),
                 data_root=data_root,
             )
-        except (OSError, UnityMetadataError, UpgradeTextureError, ValueError):
+        except (OSError, UnityMetadataError, UpgradeTextureError, ValueError) as error:
+            if isinstance(error, ResourceManagerEntryMissingError):
+                missing.add(key)
             outcomes[key] = None
             resolved(key, None)
             continue
@@ -680,6 +685,7 @@ def prepare_installed_upgrade_textures(
             on_texture(key, texture)
 
     stage(UpgradePreparationStage.INDEXING)
+    missing: set[str] = set()
     try:
         admission_watches = tuple(
             _watch(path)
@@ -705,7 +711,7 @@ def prepare_installed_upgrade_textures(
         ):
             stage(UpgradePreparationStage.RESOLVING)
             outcomes, pending = _resolve_upgrade_batch(
-                upgrade_keys, managers, resources, data_root, resolved
+                upgrade_keys, managers, resources, data_root, resolved, missing
             )
 
             stage(UpgradePreparationStage.DECODING)
@@ -732,6 +738,7 @@ def prepare_installed_upgrade_textures(
         True,
         True,
         tuple((key, outcomes.get(key)) for key in upgrade_keys),
+        frozenset(missing),
     )
 
 

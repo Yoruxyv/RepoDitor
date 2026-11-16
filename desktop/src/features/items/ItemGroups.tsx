@@ -227,6 +227,7 @@ export function ItemGroups({
                     fallbackSource={itemIcon.source}
                     testId={`item-icon-${group.items[0]!.saveKey}`}
                     token={group.items[0]!.iconToken}
+                    upgradeItem={group.items[0]!.isUpgrade}
                     variant="item"
                   />
                   <h4 className="min-w-0 flex-1 wrap-break-word text-base font-semibold text-ink">

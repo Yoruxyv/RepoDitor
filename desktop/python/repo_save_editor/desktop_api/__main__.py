@@ -21,7 +21,11 @@ from repo_save_editor.desktop_api.cosmetic_preparation import (
 )
 from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.desktop_api.discovery.environment import discover_environment
-from repo_save_editor.desktop_api.discovery.maps import get_native_map_artwork, list_maps
+from repo_save_editor.desktop_api.discovery.maps import (
+    get_native_map_artwork,
+    get_native_map_artwork_batch,
+    list_maps,
+)
 from repo_save_editor.desktop_api.game_assets import (
     prepare_game_assets,
     read_upgrade_keys_stdin,
@@ -37,7 +41,9 @@ from repo_save_editor.desktop_api.icons import (
     get_baked_artwork,
     get_icon_roots,
     get_native_item_artwork,
+    get_native_item_artwork_batch,
     get_native_upgrade_artwork,
+    get_native_upgrade_artwork_batch,
     get_upgrade_texture,
 )
 from repo_save_editor.desktop_api.items import get_advanced_save
@@ -63,8 +69,25 @@ def _open_save(args: argparse.Namespace) -> dict[str, object]:
     return _missing_save() if args.save_id is None else open_save(args.save_id)
 
 
+def _list_maps(args: argparse.Namespace) -> dict[str, object]:
+    catalog = list_maps(entry_proof=args.entry_artwork_proof)
+    if not catalog["ok"] or args.verify_save is None:
+        return catalog
+    opened = open_save(args.verify_save)
+    if not opened["ok"]:
+        return opened
+    session = opened.get("session")
+    if isinstance(session, dict) and session.get("id") == args.verify_save:
+        catalog["entrySaveFingerprint"] = session.get("fingerprint")
+    return catalog
+
+
 def _list_players(args: argparse.Namespace) -> dict[str, object]:
-    return _missing_save() if args.save_id is None else list_players(args.save_id)
+    return (
+        _missing_save()
+        if args.save_id is None
+        else list_players(args.save_id, include_fingerprint=True)
+    )
 
 
 def _player_avatar(args: argparse.Namespace) -> dict[str, object]:
@@ -84,7 +107,9 @@ def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _native_upgrade_artwork(args: argparse.Namespace) -> dict[str, object]:
-    return get_native_upgrade_artwork(args.save_id, args.fingerprint, args.upgrade_key)
+    return get_native_upgrade_artwork(
+        args.save_id, args.fingerprint, args.upgrade_key, persistent=True
+    )
 
 
 def _cosmetic_artwork(args: argparse.Namespace) -> dict[str, object]:
@@ -132,7 +157,11 @@ def _prepare_assets(_args: argparse.Namespace) -> None:
 
 
 def _run_state(args: argparse.Namespace) -> dict[str, object]:
-    return _missing_save() if args.save_id is None else get_run_state(args.save_id)
+    return (
+        _missing_save()
+        if args.save_id is None
+        else get_run_state(args.save_id, include_fingerprint=True)
+    )
 
 
 def _advanced_save(args: argparse.Namespace) -> dict[str, object]:
@@ -287,7 +316,10 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("environment").set_defaults(handler=lambda _args: discover_environment())
     commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())
-    commands.add_parser("maps-list").set_defaults(handler=lambda _args: list_maps())
+    maps_list = commands.add_parser("maps-list")
+    maps_list.add_argument("--entry-artwork-proof", action="store_true")
+    maps_list.add_argument("--verify-save")
+    maps_list.set_defaults(handler=_list_maps)
     commands.add_parser("maps-artwork").set_defaults(
         handler=lambda _args: {"ok": True, "artworks": decode_map_artwork()}
     )
@@ -295,7 +327,15 @@ def _parser() -> argparse.ArgumentParser:
     map_artwork.add_argument("revision")
     map_artwork.add_argument("family")
     map_artwork.set_defaults(
-        handler=lambda args: get_native_map_artwork(args.revision, args.family)
+        handler=lambda args: get_native_map_artwork(args.revision, args.family, persistent=True)
+    )
+    map_batch = commands.add_parser("map-artwork-batch")
+    map_batch.add_argument("revision")
+    map_batch.add_argument("families", nargs="+")
+    map_batch.set_defaults(
+        handler=lambda args: get_native_map_artwork_batch(
+            args.revision, args.families, persistent=True
+        )
     )
     commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
     commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
@@ -419,12 +459,33 @@ def _parser() -> argparse.ArgumentParser:
     native_artwork.add_argument("upgrade_key")
     native_artwork.set_defaults(handler=_native_upgrade_artwork)
 
+    upgrade_batch = commands.add_parser("upgrade-artwork-batch")
+    upgrade_batch.add_argument("save_id")
+    upgrade_batch.add_argument("fingerprint")
+    upgrade_batch.add_argument("keys", nargs="+")
+    upgrade_batch.set_defaults(
+        handler=lambda args: get_native_upgrade_artwork_batch(
+            args.save_id, args.fingerprint, args.keys, persistent=True
+        )
+    )
+
     item_artwork = commands.add_parser("item-artwork")
     item_artwork.add_argument("save_id")
     item_artwork.add_argument("fingerprint")
     item_artwork.add_argument("item_name")
     item_artwork.set_defaults(
-        handler=lambda args: get_native_item_artwork(args.save_id, args.fingerprint, args.item_name)
+        handler=lambda args: get_native_item_artwork(
+            args.save_id, args.fingerprint, args.item_name, persistent=True
+        )
+    )
+    item_batch = commands.add_parser("item-artwork-batch")
+    item_batch.add_argument("save_id")
+    item_batch.add_argument("fingerprint")
+    item_batch.add_argument("names", nargs="+")
+    item_batch.set_defaults(
+        handler=lambda args: get_native_item_artwork_batch(
+            args.save_id, args.fingerprint, args.names, persistent=True
+        )
     )
 
     assets_prepare = commands.add_parser("assets-prepare")

@@ -65,10 +65,36 @@ async fn environment_detect(app: tauri::AppHandle) -> Outcome<discovery::Environ
     backend::request(app, Operation::Discovery, discovery::parse).await
 }
 
+fn check_entry_fingerprint(
+    actual: Option<&str>,
+    expected: Option<&str>,
+) -> Result<(), BackendError> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    if !saves::valid_fingerprint(expected) {
+        return Err(BackendError::Request);
+    }
+    let actual = actual
+        .filter(|value| saves::valid_fingerprint(value))
+        .ok_or(BackendError::Domain {
+            code: "save_source_unverified",
+            message: "The preview backend did not provide a valid source fingerprint.",
+        })?;
+    if actual != expected {
+        return Err(BackendError::Domain {
+            code: "save_stale",
+            message: "The selected save changed during editor preparation. Open it again.",
+        });
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn saves_open(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
+    verify_fingerprint: Option<String>,
 ) -> Outcome<saves::SaveOpenResult> {
     let Some(id) = save_id
         .as_ref()
@@ -79,9 +105,30 @@ async fn saves_open(
         return Outcome::for_service(Err(BackendError::Request), Service::Save);
     };
     let state = app.state::<Arc<HostState>>().inner().clone();
-    state.artwork.lock().unwrap().clear();
+    let generation = {
+        let mut registry = state.artwork.lock().unwrap();
+        if let Some(expected) = verify_fingerprint.as_deref() {
+            if !registry
+                .session_preparation(&id)
+                .is_some_and(|(fingerprint, _)| fingerprint == expected)
+            {
+                return Outcome::for_service(Err(BackendError::Request), Service::Save);
+            }
+        } else {
+            registry.clear();
+        }
+        registry.generation(&id)
+    };
     backend::request(app, Operation::Open(id.clone()), move |bytes| {
         let opened = saves::parse(bytes, &id)?;
+        if let Some(expected) = verify_fingerprint.as_deref() {
+            let registry = state.artwork.lock().unwrap();
+            if registry.generation(&id) != generation {
+                return Err(BackendError::Request);
+            }
+            check_entry_fingerprint(Some(opened.fingerprint()), Some(expected))?;
+            return Ok(opened);
+        }
         state
             .artwork
             .lock()
@@ -103,6 +150,7 @@ async fn game_status(app: tauri::AppHandle) -> Outcome<game::GameState> {
 async fn players_list(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
+    prepare_fingerprint: Option<String>,
 ) -> Outcome<Vec<players::Player>> {
     let Some(id) = save_id
         .as_ref()
@@ -112,7 +160,14 @@ async fn players_list(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Player);
     };
-    backend::request(app, Operation::Players(id), players::parse).await
+    backend::request(app, Operation::Players(id), move |bytes| {
+        let values = players::parse(bytes)?;
+        if let Some(expected) = prepare_fingerprint.as_deref() {
+            check_entry_fingerprint(error::json(bytes)?["fingerprint"].as_str(), Some(expected))?;
+        }
+        Ok(values)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -148,6 +203,7 @@ async fn upgrades_list(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
     background: Option<bool>,
+    prepare_fingerprint: Option<String>,
 ) -> Outcome<Vec<upgrades::Upgrade>> {
     let Some(id) = save_id
         .as_ref()
@@ -183,14 +239,8 @@ async fn upgrades_list(
             if preparing && registry.generation(&id) != generation {
                 return Err(BackendError::Failed);
             }
-            if let Some(expected) = fingerprint.as_deref() {
-                if raw["fingerprint"].as_str() != Some(expected) {
-                    return Err(BackendError::Domain {
-                        code: "save_stale",
-                        message: "The selected save changed. Open it again to prepare upgrades.",
-                    });
-                }
-            }
+            check_entry_fingerprint(raw["fingerprint"].as_str(), fingerprint.as_deref())?;
+            check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
             registry.register(&id, generation, raw["fingerprint"].as_str(), &mut values);
             Ok(values)
         },
@@ -202,24 +252,34 @@ async fn upgrades_list(
 async fn upgrade_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
-) -> Outcome<Option<artwork::Image>> {
-    get_artwork(app, token, artwork::Scope::Upgrade, Service::Upgrade).await
+    tokens: Option<Vec<String>>,
+) -> ArtworkOutcome {
+    get_artwork_response(
+        app,
+        token,
+        tokens,
+        artwork::Scope::Upgrade,
+        Service::Upgrade,
+    )
+    .await
 }
 
 #[tauri::command]
 async fn item_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
-) -> Outcome<Option<artwork::Image>> {
-    get_artwork(app, token, artwork::Scope::Item, Service::Items).await
+    tokens: Option<Vec<String>>,
+) -> ArtworkOutcome {
+    get_artwork_response(app, token, tokens, artwork::Scope::Item, Service::Items).await
 }
 
 #[tauri::command]
 async fn map_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
-) -> Outcome<Option<artwork::Image>> {
-    get_artwork(app, token, artwork::Scope::Map, Service::Maps).await
+    tokens: Option<Vec<String>>,
+) -> ArtworkOutcome {
+    get_artwork_response(app, token, tokens, artwork::Scope::Map, Service::Maps).await
 }
 
 #[tauri::command]
@@ -227,41 +287,61 @@ async fn cosmetic_artwork_get(
     app: tauri::AppHandle,
     token: Option<serde_json::Value>,
     tokens: Option<Vec<String>>,
-) -> CosmeticArtworkOutcome {
+) -> ArtworkOutcome {
+    get_artwork_response(
+        app,
+        token,
+        tokens,
+        artwork::Scope::Cosmetic,
+        Service::Cosmetics,
+    )
+    .await
+}
+
+async fn get_artwork_response(
+    app: tauri::AppHandle,
+    token: Option<serde_json::Value>,
+    tokens: Option<Vec<String>>,
+    scope: artwork::Scope,
+    service: Service,
+) -> ArtworkOutcome {
     match (token, tokens) {
         (None, Some(tokens)) => {
-            CosmeticArtworkOutcome::Batch(get_cosmetic_batch(app, tokens).await)
+            ArtworkOutcome::Batch(get_artwork_batch(app, tokens, scope, service).await)
         }
-        (token, None) => CosmeticArtworkOutcome::Single(
-            get_artwork(app, token, artwork::Scope::Cosmetic, Service::Cosmetics).await,
-        ),
-        (Some(_), Some(_)) => CosmeticArtworkOutcome::Single(Outcome::for_service(
-            Err(BackendError::Request),
-            Service::Cosmetics,
-        )),
+        (token, None) => ArtworkOutcome::Single(get_artwork(app, token, scope, service).await),
+        (Some(_), Some(_)) => {
+            ArtworkOutcome::Single(Outcome::for_service(Err(BackendError::Request), service))
+        }
     }
 }
 
 #[derive(serde::Serialize)]
 #[serde(untagged)]
-enum CosmeticArtworkOutcome {
+enum ArtworkOutcome {
     Single(Outcome<Option<artwork::Image>>),
     Batch(Outcome<Vec<artwork::BatchImage>>),
 }
 
-async fn get_cosmetic_batch(
+async fn get_artwork_batch(
     app: tauri::AppHandle,
     tokens: Vec<String>,
+    scope: artwork::Scope,
+    service: Service,
 ) -> Outcome<Vec<artwork::BatchImage>> {
     let state = app.state::<Arc<HostState>>().inner().clone();
-    let admission = state.artwork.lock().unwrap().begin_cosmetic_batch(tokens);
+    let admission = state
+        .artwork
+        .lock()
+        .unwrap()
+        .begin_artwork_batch(scope, tokens);
     let batch = match admission {
         Ok(batch) => batch,
-        Err(error) => return Outcome::for_service(Err(error), Service::Cosmetics),
+        Err(error) => return Outcome::for_service(Err(error), service),
     };
     let parser = batch.clone();
     let mut response =
-        backend::request(app, Operation::CosmeticBatch(batch.clone()), move |bytes| {
+        backend::request(app, Operation::ArtworkBatch(batch.clone()), move |bytes| {
             parser.parse(bytes)
         })
         .await;
@@ -273,7 +353,7 @@ async fn get_cosmetic_batch(
         .artwork
         .lock()
         .unwrap()
-        .finish_cosmetic_batch(&batch, images);
+        .finish_artwork_batch(&batch, images);
     response
 }
 
@@ -397,13 +477,53 @@ async fn cosmetics_get(app: tauri::AppHandle) -> Outcome<cosmetics::Cosmetics> {
 }
 
 #[tauri::command]
-async fn maps_list(app: tauri::AppHandle) -> Outcome<maps::InstalledMaps> {
+async fn maps_list(
+    app: tauri::AppHandle,
+    entry_proof: Option<bool>,
+    validate_only: Option<bool>,
+    verify_save_id: Option<String>,
+    verify_fingerprint: Option<String>,
+) -> Outcome<maps::InstalledMaps> {
     let state = app.state::<Arc<HostState>>().inner().clone();
-    backend::request(app, Operation::Maps, move |bytes| {
-        let mut data = maps::parse(bytes)?;
-        state.artwork.lock().unwrap().register_maps(&mut data);
-        Ok(data)
-    })
+    let proof = entry_proof == Some(true);
+    let save_proof = match (verify_save_id, verify_fingerprint) {
+        (None, None) => None,
+        (Some(id), Some(fingerprint)) if proof && saves::valid_id(&id) => {
+            let registry = state.artwork.lock().unwrap();
+            if !registry
+                .session_preparation(&id)
+                .is_some_and(|(current, _)| current == fingerprint)
+            {
+                return Outcome::for_service(Err(BackendError::Request), Service::Maps);
+            }
+            let generation = registry.generation(&id);
+            Some((id, fingerprint, generation))
+        }
+        _ => return Outcome::for_service(Err(BackendError::Request), Service::Maps),
+    };
+    backend::request(
+        app,
+        Operation::Maps(proof, save_proof.as_ref().map(|(id, _, _)| id.clone())),
+        move |bytes| {
+            let mut data = maps::parse(bytes)?;
+            let mut registry = state.artwork.lock().unwrap();
+            if let Some((id, expected, generation)) = save_proof {
+                if registry.generation(&id) != generation {
+                    return Err(BackendError::Request);
+                }
+                let raw = error::json(bytes)?;
+                // Older fixture sidecars omit the combined proof. The caller still verifies separately.
+                if let Some(actual) = raw.get("entrySaveFingerprint") {
+                    check_entry_fingerprint(actual.as_str(), Some(&expected))?;
+                    data.entry_save_verified = Some(true);
+                }
+            }
+            if validate_only != Some(true) {
+                registry.register_maps(&mut data);
+            }
+            Ok(data)
+        },
+    )
     .await
 }
 
@@ -411,6 +531,7 @@ async fn maps_list(app: tauri::AppHandle) -> Outcome<maps::InstalledMaps> {
 async fn run_get(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
+    prepare_fingerprint: Option<String>,
 ) -> Outcome<run::RunState> {
     let Some(id) = save_id
         .as_ref()
@@ -420,13 +541,21 @@ async fn run_get(
     else {
         return Outcome::for_service(Err(BackendError::Request), Service::Run);
     };
-    backend::request(app, Operation::Run(id), run::parse).await
+    backend::request(app, Operation::Run(id), move |bytes| {
+        let value = run::parse(bytes)?;
+        if let Some(expected) = prepare_fingerprint.as_deref() {
+            check_entry_fingerprint(error::json(bytes)?["fingerprint"].as_str(), Some(expected))?;
+        }
+        Ok(value)
+    })
+    .await
 }
 
 #[tauri::command]
 async fn advanced_get(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
+    prepare_fingerprint: Option<String>,
 ) -> Outcome<items::Advanced> {
     let Some(id) = save_id
         .as_ref()
@@ -441,6 +570,7 @@ async fn advanced_get(
     backend::request(app, Operation::Items(id.clone()), move |bytes| {
         let mut values = items::parse(bytes)?;
         let raw = error::json(bytes)?;
+        check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
         state.artwork.lock().unwrap().register_items(
             &id,
             generation,
