@@ -94,6 +94,23 @@ def test_upgrade_batch_preserves_valid_images_when_other_keys_are_unavailable(na
     assert save.read_bytes() == before
 
 
+def test_upgrade_preparation_caches_only_confirmed_prefab_absence(native_artwork):
+    _, _, _, data = native_artwork
+    installation = icons.artwork_installation(None)
+    assert installation is not None
+    build = installed_build.validated_installed_artwork_build(installation)
+    assert build is not None
+    health, other = "playerUpgradeHealth", "playerUpgradeOther"
+    entry = ("items/item upgrade player health", 1, 1)
+    _write_resource_manager(data / "globalgamemanagers", entry, entry)
+
+    batch = icons.prepare_installed_upgrade_textures((health, other), installation, build)
+
+    assert batch.assets_ready
+    assert batch.textures == ((health, None), (other, None))
+    assert batch.missing == frozenset({other})
+
+
 def test_map_batch_returns_only_requested_members_without_source_watches(monkeypatch):
     revision = "a" * 64
     image = {"sourceIdentity": revision, "pngBase64": "AQID", "width": 1, "height": 1}

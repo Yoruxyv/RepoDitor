@@ -32,10 +32,12 @@ from repo_save_editor.services.texture_codec import (
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
+    MAX_RESOURCE_MANAGER_BYTES,
+    RESOURCE_MANAGER_CLASS_ID,
     ObjectRecord,
-    ResourceManagerEntryMissingError,
     UnityMetadataError,
-    find_resource_manager_pointer,
+    _normalize_resource_keys,
+    _resource_key_matches,
 )
 from repo_save_editor.services.unity_textures import (
     MeshVertexData,
@@ -64,6 +66,10 @@ MAX_BATCH_PNG_BYTES: Final = 16 * 1024 * 1024
 
 class UpgradeTextureError(ValueError):
     """Unsupported or malformed optional installed visual metadata."""
+
+
+class _UpgradePrefabMissingError(UnityMetadataError):
+    """An admitted ResourceManager has no entry for this Upgrade."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,8 +233,21 @@ def _find_prefab(
     resources: ArtworkFileIndex,
     names: tuple[str, ...],
 ) -> ObjectRecord:
-    resource_keys = tuple(f"items/{name}".casefold() for name in names)
-    matched_key, pointer = find_resource_manager_pointer(managers, resource_keys)
+    keys = _normalize_resource_keys(f"items/{name}".casefold() for name in names)
+    records = tuple(managers.iter_records(frozenset({RESOURCE_MANAGER_CLASS_ID})))
+    if len(records) != 1 or not 0 < records[0].byte_size <= MAX_RESOURCE_MANAGER_BYTES:
+        raise UnityMetadataError("Upgrade ResourceManager is missing, ambiguous or oversized.")
+    # Classify only a confirmed lookup miss as an unavailable image for the editor cache.
+    matches = [
+        match
+        for key, raw in keys
+        for match in _resource_key_matches(managers, records[0], key, raw)
+    ]
+    if not matches:
+        raise _UpgradePrefabMissingError("ResourceManager prefab entry is missing or ambiguous.")
+    if len(matches) != 1:
+        raise UnityMetadataError("ResourceManager prefab entry is missing or ambiguous.")
+    matched_key, pointer = matches[0]
     external_names = {name.casefold() for name in managers.external_names(pointer.file_id)}
     if external_names != {RESOURCES_RELATIVE_PATH.name.casefold()}:
         raise UnityMetadataError("ResourceManager prefab pointer targets an unsupported file.")
@@ -601,7 +620,7 @@ def _resolve_upgrade_batch(
                 data_root=data_root,
             )
         except (OSError, UnityMetadataError, UpgradeTextureError, ValueError) as error:
-            if isinstance(error, ResourceManagerEntryMissingError):
+            if isinstance(error, _UpgradePrefabMissingError):
                 missing.add(key)
             outcomes[key] = None
             resolved(key, None)

@@ -37,13 +37,32 @@ describe("typed native read capabilities", () => {
       .mockResolvedValueOnce(failure)
       .mockRejectedValueOnce(new Error("private path"));
     expect(await tauriReadApi.maps.list()).toEqual({ ok: true, data: maps });
-    expect(invoke).toHaveBeenNthCalledWith(1, "maps_list");
+    expect(invoke).toHaveBeenNthCalledWith(1, "maps_list", {
+      entryProof: false,
+      validateOnly: false,
+    });
     expect(await tauriReadApi.maps.list()).toEqual(failure);
     expect(await tauriReadApi.maps.list()).toEqual({
       ok: false,
       error: { code: "internal_error", message: "The desktop maps bridge failed unexpectedly." },
     });
     expect(Object.keys(tauriReadApi.maps)).toEqual(["list"]);
+  });
+  it("uses Maps source proof without forwarding renderer paths", async () => {
+    const fingerprint = "a".repeat(64);
+    vi.mocked(invoke).mockResolvedValue({ ok: true, data: maps });
+    await tauriReadApi.maps.list("entry", { id: saveId, fingerprint });
+    expect(invoke).toHaveBeenNthCalledWith(1, "maps_list", {
+      entryProof: true,
+      validateOnly: false,
+      verifySaveId: saveId,
+      verifyFingerprint: fingerprint,
+    });
+    await tauriReadApi.maps.list("verify");
+    expect(invoke).toHaveBeenNthCalledWith(2, "maps_list", {
+      entryProof: true,
+      validateOnly: true,
+    });
   });
   it("exposes only the named Items read, preserves failures and sanitizes transport errors", async () => {
     const failure = { ok: false, error: { code: "save_missing", message: "Missing" } };

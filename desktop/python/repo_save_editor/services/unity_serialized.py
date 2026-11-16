@@ -574,10 +574,6 @@ def _resource_key_matches(
     return matches
 
 
-class ResourceManagerEntryMissingError(UnityMetadataError):
-    """An admitted ResourceManager yielded no match for the requested keys."""
-
-
 def find_resource_manager_pointer(
     index: SerializedFileIndex,
     resource_keys: Iterable[str],
@@ -602,10 +598,6 @@ def find_resource_manager_pointer(
         match for key, raw in keys for match in _resource_key_matches(index, record, key, raw)
     ]
 
-    if not matches:
-        raise ResourceManagerEntryMissingError(
-            "ResourceManager prefab entry is missing or ambiguous."
-        )
     if len(matches) != 1:
         raise UnityMetadataError("ResourceManager prefab entry is missing or ambiguous.")
     return matches[0]

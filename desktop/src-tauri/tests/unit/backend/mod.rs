@@ -325,7 +325,12 @@ fn maps_has_fixed_arguments_and_uses_the_bounded_domain_queue() {
     let held = state.domain_worker.lock().unwrap();
     assert_eq!(
         Operation::Maps(true, Some("save".into())).arguments(),
-        ["maps-list", "--entry-artwork-proof", "--verify-save", "save"]
+        [
+            "maps-list",
+            "--entry-artwork-proof",
+            "--verify-save",
+            "save"
+        ]
     );
     let request = Request::reserve(state.clone(), Operation::Maps(false, None).slot()).unwrap();
     assert!(Request::reserve(state.clone(), Operation::Maps(true, None).slot()).is_err());
