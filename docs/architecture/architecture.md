@@ -159,9 +159,8 @@ Electron preparation starts one optional lookup for the first player returned by
 the Players projection, concurrently with Maps and other unfinished domains. Its
 promise passes to the shared avatar hook without a duplicate request or a sixth
 preparation task. Cached editor entry starts a fresh session lookup; pending
-promises are not retained in the projection cache. Tauri already starts its
-selected-player lookup as soon as Players resolves alongside its other initial
-reads. Neither host waits for Steam before opening the editor.
+promises are not retained in the projection cache. Tauri starts its selected-player
+lookup after entering the editor. Neither host waits for Steam before opening it.
 
 The shared avatar hook loads only the selected player. It serializes lookups, caches by player within
 the open save session, and permits at most one automatic retry for a classified
@@ -200,15 +199,52 @@ recovery disables editing. Read-loading, sanitized error/retry and empty states
 remain available. The canonical upgrade snapshot supersedes older pending reads
 and refreshes values while retaining optional presentation metadata. The separate
 test-only `test_upgrades_write` command adds no production mutation permission.
-Tauri shows the shared editor preparation panel while the save-open read is
-pending. The bridge returns one result, so the panel uses indeterminate progress.
-Cancel returns to discovery and discards the result. The next open is available
-after the bounded native read settles. Overview uses the opened snapshot as soon
-as the game-status gate allows entry. Players and Upgrades can continue in the
-background. In the read-only host, one below-normal-priority Upgrade preparation
-can run alongside Players without holding the foreground worker. Closing or
-switching saves cancels that preparation, and the host rejects results from an
-old session generation. Run, Items, Maps and artwork load on demand.
+Tauri shows indeterminate progress while the save-open read is pending. It then
+prepares Players, Upgrades, Run, Items and Maps through the existing read commands,
+with one outstanding projection on the shared native domain worker. The panel
+counts terminal results and identifies unavailable projections separately. The
+save-derived results must match the opened fingerprint, and admission rereads
+the save before publishing the session snapshot. Workspace hooks consume these
+results on first visit. A projection that omits its source fingerprint blocks
+entry with a preview verification error. A different valid fingerprint reports
+a change to the save. Other failed projections retain their localized retry states.
+Cancel discards the snapshot and stops submitting reads. A later open waits for
+the current bounded read to drain before starting.
+
+Artwork preparation runs after the five projection reads. The progress bar
+keeps the completed data segments and fills the artwork segments from checked
+results across all three domains. Tauri prepares the required Upgrade textures,
+up to 64 distinct regular Item artwork tokens in default sort order, and all five previews
+for the reviewed Map roster. Matching Upgrade items reuse artwork admitted for
+that save and fingerprint. The shared artwork lane allows one native batch at a
+time. The Item batch validates one installed Unity index and reads up to 5 MiB
+of source PNGs. Item and Map batches use an 8 MiB response limit. Upgrade batches
+carry up to 16 tokens in a 2 MiB frame. Every image keeps its own source and PNG
+checks. The first player lookup starts after the Players read and can finish
+while the editor prepares. Its network result never gates entry.
+The browser decodes the prepared images. Tabs reuse the active session's artwork
+and known fallbacks. Items outside the prepared set load on demand. Catalog
+refresh issues new tokens and later reads validate their sources. Closing the
+workspace clears its active artwork. Returning focus checks the installed
+source proof for a prepared session and clears artwork if that proof changed.
+
+Tauri retains one complete preparation in memory, bounded to 16 MiB of data URL
+characters. Reopening reads the save and all five projections again. The native
+Maps read optionally supplies a proof of the reviewed Steam installation and
+every input under its data directory because an Upgrade texture or mesh can
+reference a nested stream. A cold preparation verifies that proof again before
+retaining results. Same-session reuse requires a matching save fingerprint,
+source proof, and artwork roster. It binds images to newly issued native tokens.
+The proof uses file identity and Windows change times. Reparse points, failures
+and directory rosters beyond 2,048 entries disable reuse. The persistent editor
+cache can restore images after a process restart with fresh source validation.
+The persistent Cosmetics cache has a separate key scheme, scope and storage budget.
+Unsupported artwork settles to its local fallback. A token, memory, response
+or 45-second preparation limit, or a failed artwork request, leaves an explicit
+per-workspace count and reason. The user can cancel or choose to continue with
+those previews deferred. Browsing can retry them on demand. The final save
+fingerprint check runs before entry in either case. Cosmetics begins in its
+own workspace.
 Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
@@ -226,7 +262,14 @@ using the already locked PNG library before returning a PNG data URL.
 
 One independent, cancellable backend lane has the existing 30-second deadline
 and 2 MiB stdout bound. Each PNG is at most 1 MiB, each dimension at most 2048,
-and total pixels at most 1,048,576. The renderer deduplicates in-flight tokens,
+and total pixels at most 1,048,576. Upgrades, Maps, and Items group up to four
+queued tokens from the same save or catalog revision. The
+sidecar admits the sources once per group, then validates and returns each image
+separately. Item reads resolve only the reviewed Item mapping and leave the
+Cosmetics catalog untouched.
+A missing image falls back without hiding valid neighbors. A valid image that
+exceeds the remaining response budget uses the single-image read. The renderer
+deduplicates in-flight tokens,
 bounds the queue and cancels abandoned work without delaying save/status
 lanes. There is no persistent pixel cache: every acquisition revalidates sources,
 and completed native tokens do not populate the Electron loaded-image cache.
@@ -810,9 +853,9 @@ output/time limits and child cleanup on shutdown.
 `GameIcon` confines image loading to the thumbnail box and falls back on null/error.
 
 Tauri retains the active Run save's Players, Upgrades, Run, Items and Maps
-projections while navigating between tabs. Overview renders from the opened
-snapshot. Players and Upgrades prepare independently, while Run, Items and Maps
-load on demand. Closing the workspace disposes its projections.
+projections while navigating between tabs. Editor Preparation loads them from
+the opened snapshot before showing Overview. Closing the workspace disposes its
+projections.
 
 The separate Cosmetics workspace revalidates MetaSave and installed artwork
 sources on entry, refresh and game-safety recovery. A successful catalog read
@@ -850,12 +893,12 @@ MetaSave read and compatibility checks still run on entry.
 
 #### Windows loading acceptance
 
-W7 accepts functional loading parity with the differences below. Both hosts
-launch one-shot Python subprocesses. Electron prepares the major Run projections
-before showing Overview. Tauri shows Overview after save and game-status
-validation, then prepares Players and Upgrades in the background and reads Run,
-Items and Maps on first use. Revisits use the open session's projections. Reopen
-the save to see external edits after a projection has completed.
+These measurements record the original W7 loading acceptance before Tauri began
+waiting for prepared workspaces and artwork. Both hosts launched one-shot Python
+subprocesses. Electron prepared the major Run projections before showing
+Overview. Tauri showed Overview after save and game-status validation, then
+prepared Players and Upgrades in the background and read Run, Items and Maps on
+first use. Revisits used the open session's projections.
 
 The figures are medians in seconds, with observed ranges in parentheses. Each
 build had three packaged samples on the same Windows machine, using disposable
@@ -929,6 +972,33 @@ An empty log means observations are unavailable. It cannot reconstruct past
 requests. Live renderer counters and click-to-image durations are unavailable
 in the CLI. Exported diagnostics omit paths, identifiers, cache payloads and
 credentials.
+
+The Windows editor cache lives alongside Cosmetics at
+`%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview\editor-artwork-v1`.
+It holds three DPAPI-protected files, one each for Upgrade, Item and Map artwork.
+Their payload limits are 4, 8 and 8 MiB respectively, with at most 64 hashed
+artwork identities per file. Each image is limited to 1 MiB before base64
+encoding. Including seal overhead, the atomic publication file and the opt-in
+diagnostic log, the namespace publishes at most 28.04 MiB. Entries contain
+validated PNGs and their source bindings or a confirmed unavailable result.
+The cache contains no save contents, save identifier, player data, or paths.
+An ambiguous or failed extraction is retried.
+
+The sidecar checks the installed build and a bounded roster of source identities
+before and after serving cached artwork. The roster includes file identity,
+size, write time and NTFS change time. A change invalidates reuse for all three
+categories. Missing or damaged cache files rebuild from the installed source.
+The host continues to validate the response and bind it to the current session's
+artwork tokens. Entry also verifies the save fingerprint after source proof.
+The final Maps call can carry both checks in one sidecar launch.
+
+The existing cache commands include the editor namespace under `editorArtwork`.
+`tauri:cache:clear` clears recognized entries in both namespaces while the
+application is closed. In editor diagnostics, `editor_hit` counts reused images,
+`editor_unavailable_hit` counts reused fallbacks, and `editor_extracted` counts
+fresh image payloads. `sourceValidationMs` measures the installed-source proof
+inside the sidecar. The cache inventory reports file presence separately from
+installed-source validation.
 
 Canonical filename derivation, source reconciliation, native decoder resources and
 reader isolation are documented in [installed artwork](../reverse-engineering/truck_artwork.md).
