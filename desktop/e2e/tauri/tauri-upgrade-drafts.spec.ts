@@ -190,6 +190,12 @@ for (const phase of ["before_replace", "after_replace"]) {
     });
     try {
       await openUpgrades(app);
+      const { upgradeSession } = await native<{ upgradeSession: string }>(
+        app.page,
+        "test_health_state",
+        { saveId: E2E_SAVE_ID },
+      );
+      expect(upgradeSession).toBeTruthy();
       await app.page.getByRole("spinbutton", { name: "Strength for Alpha" }).fill("3");
       await app.page.getByRole("button", { name: "Save Changes", exact: true }).click();
       const pid = await phaseStarted(marker, phase);
@@ -211,6 +217,7 @@ for (const phase of ["before_replace", "after_replace"]) {
           request: {
             saveId: E2E_SAVE_ID,
             fingerprint,
+            session: upgradeSession,
             playerId: "111",
             health: 17,
             operationId: "c".repeat(32),
@@ -385,7 +392,7 @@ test("final unknown game state blocks the entire upgrade batch with recovery evi
   }
 });
 
-test("upgrade drafts block partial health Save until explicitly reverted", async ({
+test("reverting an upgrade from a mixed draft leaves only the Health edit to save", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -403,9 +410,7 @@ test("upgrade drafts block partial health Save until explicitly reverted", async
     await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
       "2 pending changes",
     );
-    await expect(
-      app.page.getByRole("button", { name: "Save Changes", exact: true }),
-    ).toBeDisabled();
+    await expect(app.page.getByRole("button", { name: "Save Changes", exact: true })).toBeEnabled();
     expect(await readFile(f.source)).toEqual(f.before);
     await app.page.getByRole("tab", { name: "Upgrades", exact: true }).click();
     await app.page.getByRole("button", { name: "Revert upgrade drafts", exact: true }).click();

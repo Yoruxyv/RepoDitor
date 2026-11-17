@@ -23,7 +23,7 @@ fn invoke(
     timeout: Duration,
     cancelled: Arc<AtomicBool>,
 ) -> Result<Vec<u8>, BackendError> {
-    run(fixture(), &[mode], timeout, cancelled, None, false)
+    run(fixture(), &[mode], timeout, cancelled, None, false, spawn)
 }
 #[test]
 fn success_is_repeatable_and_failed_exit_is_sanitized() {
@@ -49,6 +49,7 @@ fn startup_failure_is_public_and_not_a_raw_path() {
             Arc::default(),
             None,
             false,
+            spawn,
         )
         .unwrap_err(),
         BackendError::Unavailable
@@ -102,6 +103,7 @@ fn closing_job_kills_descendants_and_releases_inherited_pipes() {
             cancelled,
             None,
             false,
+            spawn,
         )
     });
     let deadline = Instant::now() + Duration::from_secs(5);

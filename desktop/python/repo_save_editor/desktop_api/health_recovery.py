@@ -42,6 +42,7 @@ from repo_save_editor.storage.health_recovery import (
     health_lock,
     inspect_pending,
     valid_health_batch_intent,
+    valid_mixed_intent,
     valid_operation,
     valid_refill_intent,
     valid_run_intent,
@@ -152,6 +153,26 @@ def _upgrade_changes(data: SaveData, changes: object) -> list[dict[str, object]]
     return result
 
 
+def _mixed_changes(
+    data: SaveData, changes: object, loader: RechargeCapabilityLoader
+) -> tuple[list[dict[str, object]], Mapping[str, ItemRechargeCapability]]:
+    groups = cast(dict[str, list[object]], changes)
+    edits = [
+        edit
+        for key, validate in (
+            ("health", _health_changes),
+            ("upgrades", _upgrade_changes),
+            ("run", _run_changes),
+        )
+        if groups[key]
+        for edit in validate(data, groups[key])
+    ]
+    if groups["refillToFull"]:
+        refills, capabilities = _refill_changes(data, groups["refillToFull"], loader)
+        return edits + refills, capabilities
+    return edits, {}
+
+
 @bounded_save_operation
 def prepare_health(
     save_id: str,
@@ -166,16 +187,18 @@ def prepare_health(
     health_batch: bool = False,
     upgrade_batch: bool = False,
     run_batch: bool = False,
+    mixed_batch: bool = False,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
-    single = not (refill_batch or health_batch or upgrade_batch or run_batch)
+    single = not (refill_batch or health_batch or upgrade_batch or run_batch or mixed_batch)
     valid = _valid_changes(
         changes,
         refill_batch=refill_batch,
         health_batch=health_batch,
         upgrade_batch=upgrade_batch,
         run_batch=run_batch,
+        mixed_batch=mixed_batch,
     )
     if not valid_operation(operation) or not valid:
         return _outcome(operation, "rejected", "invalid_request")
@@ -186,7 +209,7 @@ def prepare_health(
             transaction.admit()
             require_game_closed(game_status_loader)
             identity = None
-            if single:
+            if single or mixed_batch:
                 current, identity = _snapshot(path, directory)
                 if current != fingerprint:
                     return _outcome(operation, "rejected", "save_stale")
@@ -195,7 +218,12 @@ def prepare_health(
                 return _outcome(operation, "rejected", "save_stale")
             engine_changes: object
             capabilities: Mapping[str, ItemRechargeCapability] = {}
-            if refill_batch:
+            if mixed_batch:
+                intent = {"mixed": changes}
+                engine_changes, capabilities = _mixed_changes(
+                    data, changes, recharge_capability_loader
+                )
+            elif refill_batch:
                 intent = {"refillToFull": changes}
                 engine_changes, capabilities = _refill_changes(
                     data, changes, recharge_capability_loader
@@ -219,7 +247,7 @@ def prepare_health(
                 engine_changes = changes
             apply_run_save_changes(data, engine_changes, capabilities)
             require_game_closed(game_status_loader)
-            if remember_intent or refill_batch or health_batch or upgrade_batch or run_batch:
+            if remember_intent or not single:
                 transaction = HealthTransaction(
                     path,
                     operation,
@@ -236,9 +264,7 @@ def prepare_health(
         return _outcome(
             operation,
             "rejected",
-            "save_validation_failed"
-            if refill_batch or health_batch or upgrade_batch or run_batch
-            else "backend_unavailable",
+            "backend_unavailable" if single else "save_validation_failed",
         )
     except OSError as exc:
         return _outcome(operation, "rejected", _reason(exc, "backend_unavailable", single=single))
@@ -256,16 +282,24 @@ def _health_change(changes: object) -> bool:
 
 
 def _valid_changes(
-    changes: object, *, refill_batch: bool, health_batch: bool, upgrade_batch: bool, run_batch: bool
+    changes: object,
+    *,
+    refill_batch: bool,
+    health_batch: bool,
+    upgrade_batch: bool,
+    run_batch: bool,
+    mixed_batch: bool,
 ) -> bool:
-    if sum((refill_batch, health_batch, upgrade_batch, run_batch)) > 1:
+    if sum((refill_batch, health_batch, upgrade_batch, run_batch, mixed_batch)) > 1:
         return False
+    if mixed_batch:
+        return valid_mixed_intent({"mixed": changes})
     if refill_batch:
         return valid_refill_intent({"refillToFull": changes})
     if health_batch:
         return valid_health_batch_intent({"health": changes})
     if run_batch:
-        return not upgrade_batch and valid_run_intent({"run": changes})
+        return valid_run_intent({"run": changes})
     if upgrade_batch:
         return valid_upgrade_intent({"upgrades": changes})
     return _health_change(changes)
@@ -285,12 +319,13 @@ def write_health(
     health_batch: bool = False,
     upgrade_batch: bool = False,
     run_batch: bool = False,
+    mixed_batch: bool = False,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Delegate one typed domain intent, recording ambiguous completion explicitly."""
-    single = not (refill_batch or health_batch or upgrade_batch or run_batch)
+    single = not (refill_batch or health_batch or upgrade_batch or run_batch or mixed_batch)
     transaction: HealthTransaction | None = None
-    if not valid_operation(operation):
+    if not valid_operation(operation) or (mixed_batch and not reserved):
         return _outcome(operation, "rejected", "invalid_request")
     valid = _valid_changes(
         changes,
@@ -298,6 +333,7 @@ def write_health(
         health_batch=health_batch,
         upgrade_batch=upgrade_batch,
         run_batch=run_batch,
+        mixed_batch=mixed_batch,
     )
     if not valid:
         return _outcome(operation, "rejected", "invalid_request")
@@ -308,7 +344,9 @@ def write_health(
                 path,
                 operation,
                 directory=directory,
-                intent={"refillToFull": changes}
+                intent={"mixed": changes}
+                if mixed_batch
+                else {"refillToFull": changes}
                 if refill_batch
                 else {"health": changes}
                 if health_batch
@@ -319,32 +357,26 @@ def write_health(
                 else None,
             )
             if reserved:
+                requested = transaction.intent
                 transaction.resume()
-                change = cast(list[dict[str, object]], changes)[0]
-                mismatch = (
-                    transaction.intent != {"refillToFull": changes}
-                    if refill_batch
-                    else transaction.intent != {"health": changes}
-                    if health_batch
-                    else transaction.intent != {"run": changes}
-                    if run_batch
-                    else transaction.intent != {"upgrades": changes}
-                    if upgrade_batch
-                    else transaction.intent is not None
-                    and (
+                mismatch = transaction.intent != requested
+                if single and transaction.intent is not None:
+                    change = cast(list[dict[str, object]], changes)[0]
+                    mismatch = (
                         "playerId" not in transaction.intent
                         or transaction.intent["playerId"] != change["entity"]
                         or transaction.intent["health"] != change["after"]
                     )
-                )
                 if mismatch:
                     return _outcome(operation, "uncertain", "invalid_request")
             else:
                 transaction.admit()
-            if refill_batch or health_batch or run_batch or upgrade_batch:
+            if not single:
                 _, data, _ = load_discovered_save(save_id, root, directory=directory)
                 changes = (
-                    _refill_changes(data, changes, recharge_capability_loader)[0]
+                    _mixed_changes(data, changes, recharge_capability_loader)[0]
+                    if mixed_batch
+                    else _refill_changes(data, changes, recharge_capability_loader)[0]
                     if refill_batch
                     else _health_changes(data, changes)
                     if health_batch
@@ -360,7 +392,9 @@ def write_health(
                 game_status_loader=game_status_loader,
                 recharge_capability_loader=recharge_capability_loader,
                 health_transaction=transaction,
-                verify_replacement=transaction.verify_before_replace if single else None,
+                verify_replacement=transaction.verify_before_replace
+                if single or mixed_batch
+                else None,
             )
             if result["ok"] is not True:
                 error = cast(dict[str, object], result["error"])
@@ -438,7 +472,11 @@ def _canonical(
         "upgrades": serialize_upgrades(data),
         "run": serialize_run(data),
     }
-    if valid_refill_intent(intent):
+    if valid_refill_intent(intent) or (
+        intent is not None
+        and valid_mixed_intent(intent)
+        and cast(dict[str, object], intent["mixed"])["refillToFull"]
+    ):
         advanced = serialize_advanced_save(data)
         if advanced.get("ok") is not True:
             raise DesktopSaveError("save_unsupported", "Canonical item state is unavailable.")

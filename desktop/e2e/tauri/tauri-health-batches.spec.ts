@@ -133,7 +133,7 @@ function killWriter(pid: number) {
   );
 }
 
-test("Health batch Save persists both players with one exact backup and no mixed-domain write", async ({
+test("Health batch Save persists both players with one exact backup after reverting an upgrade draft", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -170,9 +170,7 @@ test("Health batch Save persists both players with one exact backup and no mixed
     await stageBoth(app);
     await app.page.getByRole("tab", { name: "Upgrades", exact: true }).click();
     await app.page.getByRole("spinbutton", { name: "Strength for Beta" }).fill("3");
-    await expect(
-      app.page.getByRole("button", { name: "Save Changes", exact: true }),
-    ).toBeDisabled();
+    await expect(app.page.getByRole("button", { name: "Save Changes", exact: true })).toBeEnabled();
     expect(await readFile(f.source)).toEqual(f.before);
     await noEvidence(f.source);
     await app.page.getByRole("button", { name: "Revert upgrade drafts", exact: true }).click();
@@ -227,6 +225,7 @@ for (const phase of ["before_replace", "after_replace"]) {
       REPODITOR_RECOVERY_PHASE_FILE: marker,
     });
     let second: App | undefined;
+    let secondSession: string | undefined;
     try {
       await openPlayers(app);
       if (phase === "before_replace") {
@@ -241,6 +240,11 @@ for (const phase of ["before_replace", "after_replace"]) {
           REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
         });
         await openPlayers(second);
+        const state = await native<{ upgradeSession: string }>(second.page, "test_health_state", {
+          saveId: E2E_SAVE_ID,
+        });
+        secondSession = state.upgradeSession;
+        expect(secondSession).toBeTruthy();
       }
       await stageBoth(app);
       await app.page.getByRole("button", { name: "Save Changes", exact: true }).click();
@@ -255,6 +259,7 @@ for (const phase of ["before_replace", "after_replace"]) {
             request: {
               saveId: E2E_SAVE_ID,
               fingerprint: createHash("sha256").update(f.before).digest("hex"),
+              session: secondSession,
               playerId: "111",
               health: 21,
               operationId: "d".repeat(32),

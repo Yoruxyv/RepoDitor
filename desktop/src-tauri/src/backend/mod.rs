@@ -37,12 +37,29 @@ pub struct HostState {
     #[cfg(feature = "synthetic-health-recovery")]
     pub meta_session: Mutex<crate::synthetic::meta::Session>,
 }
+#[cfg(feature = "synthetic-health-recovery")]
+#[derive(Clone)]
+pub struct EditorWrite {
+    pub save: String,
+    pub fingerprint: String,
+    pub token: String,
+}
+
 impl HostState {
     #[cfg(feature = "synthetic-health-recovery")]
     pub fn open_editor(&self, save: &str, fingerprint: &str) {
         let mut session = self.editor_session.lock().unwrap();
         session.0 += 1;
         session.1 = Some((save.into(), fingerprint.into()));
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn close_editor(&self, save: &str) {
+        if let Ok(mut session) = self.editor_session.lock() {
+            if session.1.as_ref().is_some_and(|(id, _)| id == save) {
+                session.0 += 1;
+                session.1 = None;
+            }
+        }
     }
     #[cfg(feature = "synthetic-health-recovery")]
     pub fn upgrade_session(&self, save: &str) -> Option<String> {
@@ -54,6 +71,15 @@ impl HostState {
         let Ok(session) = self.editor_session.lock() else {
             return false;
         };
+        Self::editor_matches(&session, save, fingerprint, token)
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    fn editor_matches(
+        session: &(u64, Option<(String, String)>),
+        save: &str,
+        fingerprint: &str,
+        token: &str,
+    ) -> bool {
         session
             .1
             .as_ref()
@@ -61,11 +87,29 @@ impl HostState {
             && token == format!("{}-{}", std::process::id(), session.0)
     }
     #[cfg(feature = "synthetic-health-recovery")]
-    pub fn update_editor(&self, save: &str, fingerprint: &str) {
+    fn launch_editor_write<T>(
+        &self,
+        editor: &EditorWrite,
+        spawn: impl FnOnce() -> Result<T, BackendError>,
+    ) -> Result<T, BackendError> {
+        let session = self
+            .editor_session
+            .lock()
+            .map_err(|_| BackendError::Request)?;
+        if !Self::editor_matches(&session, &editor.save, &editor.fingerprint, &editor.token) {
+            return Err(BackendError::Request);
+        }
+        // Close and open share this lock through process creation, then the writer owns recovery.
+        spawn()
+    }
+    #[cfg(feature = "synthetic-health-recovery")]
+    pub fn update_editor(&self, save: &str, fingerprint: &str, token: &str) {
         if let Ok(mut session) = self.editor_session.lock() {
-            if let Some((id, fp)) = &mut session.1 {
-                if id == save {
-                    *fp = fingerprint.into();
+            if token == format!("{}-{}", std::process::id(), session.0) {
+                if let Some((id, fp)) = &mut session.1 {
+                    if id == save {
+                        *fp = fingerprint.into();
+                    }
                 }
             }
         }
@@ -80,7 +124,13 @@ impl HostState {
             .all(|slot| !slot.load(Ordering::SeqCst))
     }
 }
-struct Request(Arc<HostState>, usize, Arc<AtomicBool>, bool);
+struct Request(
+    Arc<HostState>,
+    usize,
+    Arc<AtomicBool>,
+    bool,
+    #[cfg(feature = "synthetic-health-recovery")] Option<EditorWrite>,
+);
 impl Request {
     fn reserve(state: Arc<HostState>, slot: usize) -> Result<Self, BackendError> {
         if state.closing.load(Ordering::SeqCst) {
@@ -90,7 +140,14 @@ impl Request {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .map_err(|_| BackendError::Failed)?;
         let cancelled = state.closing.clone();
-        Ok(Self(state, slot, cancelled, false))
+        Ok(Self(
+            state,
+            slot,
+            cancelled,
+            false,
+            #[cfg(feature = "synthetic-health-recovery")]
+            None,
+        ))
     }
 }
 impl Drop for Request {
@@ -139,6 +196,10 @@ pub enum Operation {
     #[cfg(feature = "synthetic-health-recovery")]
     TestRunPrepare(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
+    TestMixed(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
+    TestMixedPrepare(String, String, String, String, Instant),
+    #[cfg(feature = "synthetic-health-recovery")]
     TestHealthRecover(String, String, bool, bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthState(String),
@@ -177,7 +238,9 @@ impl Operation {
             | Self::TestUpgrades(..)
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
-            | Self::TestRunPrepare(..) => 9,
+            | Self::TestRunPrepare(..)
+            | Self::TestMixed(..)
+            | Self::TestMixedPrepare(..) => 9,
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthRecover(..) | Self::TestMetaRecover(..) => 10,
             #[cfg(feature = "synthetic-health-recovery")]
@@ -214,6 +277,8 @@ impl Operation {
             | Self::TestUpgradesPrepare(..)
             | Self::TestRun(..)
             | Self::TestRunPrepare(..)
+            | Self::TestMixed(..)
+            | Self::TestMixedPrepare(..)
             | Self::TestHealthRecover(..)
             | Self::TestHealthState(..) => Service::Save,
         }
@@ -354,6 +419,19 @@ impl Operation {
                 vec!["run-prepare", id, fingerprint, payload, operation]
             }
             #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMixed(id, fingerprint, payload, operation, _) => vec![
+                "saves-write",
+                id,
+                fingerprint,
+                payload,
+                "--mixed-operation",
+                operation,
+            ],
+            #[cfg(feature = "synthetic-health-recovery")]
+            Self::TestMixedPrepare(id, fingerprint, payload, operation, _) => {
+                vec!["mixed-prepare", id, fingerprint, payload, operation]
+            }
+            #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthRecover(id, operation, canonical, acknowledge) => {
                 let mut args = vec!["health-recover", id, operation];
                 if *canonical {
@@ -448,6 +526,13 @@ fn execute(
         request.2.clone(),
         cosmetic_key,
         request.3,
+        |command| {
+            #[cfg(feature = "synthetic-health-recovery")]
+            if let Some(editor) = &request.4 {
+                return state.launch_editor_write(editor, || process::spawn(command));
+            }
+            process::spawn(command)
+        },
     );
     #[cfg(feature = "synthetic-health-recovery")]
     if request.1 == 9
@@ -460,11 +545,12 @@ fn execute(
                     | &"refill-prepare"
                     | &"upgrade-prepare"
                     | &"run-prepare"
+                    | &"mixed-prepare"
             )
         )
     {
         return result.map_err(|error| {
-            if error == BackendError::Unavailable {
+            if matches!(error, BackendError::Unavailable | BackendError::Request) {
                 error
             } else {
                 BackendError::WriteUncertain
@@ -491,6 +577,26 @@ where
     T: Serialize + Send + 'static,
     F: FnOnce(&[u8]) -> Result<T, BackendError> + Send + 'static,
 {
+    request_with_editor(
+        app,
+        operation,
+        parse,
+        #[cfg(feature = "synthetic-health-recovery")]
+        None,
+    )
+    .await
+}
+
+pub async fn request_with_editor<T, F>(
+    app: tauri::AppHandle,
+    operation: Operation,
+    parse: F,
+    #[cfg(feature = "synthetic-health-recovery")] editor: Option<EditorWrite>,
+) -> Outcome<T>
+where
+    T: Serialize + Send + 'static,
+    F: FnOnce(&[u8]) -> Result<T, BackendError> + Send + 'static,
+{
     let service = operation.service();
     #[cfg(feature = "synthetic-health-recovery")]
     let started = match &operation {
@@ -505,7 +611,9 @@ where
         | Operation::TestUpgrades(.., started)
         | Operation::TestUpgradesPrepare(.., started)
         | Operation::TestRun(.., started)
-        | Operation::TestRunPrepare(.., started) => *started,
+        | Operation::TestRunPrepare(.., started)
+        | Operation::TestMixed(.., started)
+        | Operation::TestMixedPrepare(.., started) => *started,
         _ => Instant::now(),
     };
     #[cfg(not(feature = "synthetic-health-recovery"))]
@@ -515,6 +623,10 @@ where
         Ok(request) => request,
         Err(error) => return Outcome::for_service(Err(error), service),
     };
+    #[cfg(feature = "synthetic-health-recovery")]
+    {
+        request.4 = editor;
+    }
     match &operation {
         Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
         Operation::ArtworkBatch(batch) => request.2 = batch.cancelled.clone(),
@@ -533,6 +645,7 @@ where
             | Operation::TestRefill(..)
             | Operation::TestUpgrades(..)
             | Operation::TestRun(..)
+            | Operation::TestMixed(..)
     );
     let result = tauri::async_runtime::spawn_blocking(move || {
         let root = if cfg!(debug_assertions) {

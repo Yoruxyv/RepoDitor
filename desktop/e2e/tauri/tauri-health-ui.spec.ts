@@ -12,7 +12,13 @@ import {
   getPythonExecutable,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
-import { close, launch, native } from "../support/tauriHarness";
+import {
+  close,
+  launch,
+  native,
+  openRunWorkspace,
+  stageFrozenBackend,
+} from "../support/tauriHarness";
 
 const BASE = "build/recovery-checkpoint/health-ui";
 const UI = process.env["REPODITOR_HEALTH_UI_EXECUTABLE"];
@@ -30,10 +36,9 @@ async function fixture(info: TestInfo, phase = "") {
   const gameRoot = await createGameFixture(home);
   const executable = path.join(home, "repoditor-preview.exe");
   await cp(path.resolve(DESKTOP_ROOT, UI), executable);
-  await cp(
-    path.join(DESKTOP_ROOT, BASE, "fault-backend/repoditor-backend"),
-    path.join(home, "backend"),
-    { recursive: true },
+  await stageFrozenBackend(
+    home,
+    process.env["REPODITOR_RECOVERY_BACKEND"] ?? path.join(BASE, "fault-backend/repoditor-backend"),
   );
   const before = await readFile(source);
   return {
@@ -50,8 +55,7 @@ async function fixture(info: TestInfo, phase = "") {
 }
 
 async function openWorkspace(app: App) {
-  await app.page.getByRole("button", { name: /Open workspace/ }).click();
-  await expect(app.page.getByTestId("workspace")).toBeVisible();
+  await openRunWorkspace(app.page);
 }
 async function openPlayers(app: App, editable = true) {
   await openWorkspace(app);
@@ -573,7 +577,21 @@ test("running and unknown game status reject native writes", async ({ browserNam
     await once(game, "spawn");
     await app.page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(app.page.getByRole("dialog")).toBeVisible();
-    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+    const writeHealth = async () => {
+      await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
+      const { upgradeSession } = await native<{ upgradeSession: string }>(
+        app.page,
+        "test_health_state",
+        { saveId: E2E_SAVE_ID },
+      );
+      expect(upgradeSession).toBeTruthy();
+      return native(
+        app.page,
+        "test_health_write",
+        request(digest(f.before), { session: upgradeSession }),
+      );
+    };
+    expect(await writeHealth()).toMatchObject({
       status: "rejected",
       reason: "game_running",
     });
@@ -589,7 +607,7 @@ test("running and unknown game status reject native writes", async ({ browserNam
     closed = false;
     await openWorkspace(app);
     await expect(app.page.getByRole("dialog")).toBeVisible();
-    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+    expect(await writeHealth()).toMatchObject({
       status: "rejected",
       reason: "game_status_unknown",
     });

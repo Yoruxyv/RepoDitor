@@ -28,6 +28,7 @@ import {
   close,
   launch,
   native,
+  openRunWorkspace,
   stageFrozenBackend,
   stageSyntheticBackend,
 } from "../support/tauriHarness";
@@ -63,6 +64,16 @@ async function fixture(info: TestInfo, host = "REPODITOR_RECOVERY_EXECUTABLE", p
 }
 function request(fingerprint: string, operationId = OP, health = 17) {
   return { request: { saveId: E2E_SAVE_ID, fingerprint, playerId: "111", health, operationId } };
+}
+async function workspaceHealthWrite(page: Page, fingerprint: string) {
+  await expect(page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
+  const { upgradeSession } = await native<{ upgradeSession: string }>(page, "test_health_state", {
+    saveId: E2E_SAVE_ID,
+  });
+  expect(upgradeSession).toBeTruthy();
+  return native(page, "test_health_write", {
+    request: { ...request(fingerprint).request, session: upgradeSession },
+  });
 }
 function recovery() {
   return { request: { saveId: E2E_SAVE_ID, operationId: OP } };
@@ -792,7 +803,7 @@ test("explicit synthetic UI retains its authorized health and recovery behavior"
     await expect(app.page.locator("#native-players-pending")).toHaveCount(0);
     expect(await playersTab.getAttribute("aria-describedby")).toBeNull();
     expect(await readFile(f.source)).toEqual(f.before);
-    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+    expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
       status: "applied",
       backupAvailable: true,
     });
@@ -987,7 +998,8 @@ test("offline recovery preserves conflict evidence and restores exact backup byt
     `.${path.basename(f.source)}.health-pending.json`,
   );
   try {
-    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+    await openRunWorkspace(app.page);
+    expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
       status: "applied",
     });
     // A fresh encryption of the fixture gives conflicting bytes; no pending intent is replayed.
@@ -1058,7 +1070,8 @@ for (const version of [1, 2]) {
       `.${path.basename(f.source)}.health-pending.json`,
     );
     try {
-      expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+      await openRunWorkspace(app.page);
+      expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
         status: "applied",
       });
       const raw = JSON.parse(await readFile(receiptPath, "utf8")) as Record<string, unknown>;

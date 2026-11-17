@@ -129,11 +129,8 @@ async fn saves_open(
             check_entry_fingerprint(Some(opened.fingerprint()), Some(expected))?;
             return Ok(opened);
         }
-        state
-            .artwork
-            .lock()
-            .unwrap()
-            .open(&id, opened.fingerprint());
+        let mut registry = state.artwork.lock().unwrap();
+        registry.open(&id, opened.fingerprint());
         #[cfg(feature = "synthetic-health-recovery")]
         state.open_editor(&id, opened.fingerprint());
         Ok(opened)
@@ -413,12 +410,14 @@ fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id:
         .filter(|token| artwork::Scope::Upgrade.accepts(token))
     {
         registry.cancel(token);
-    } else if token.is_none()
-        && save_id
-            .as_deref()
-            .is_some_and(|id| saves::valid_id(id) && registry.generation(id).is_some())
-    {
-        registry.clear();
+    } else if token.is_none() {
+        if let Some(id) = save_id.as_deref().filter(|id| saves::valid_id(id)) {
+            #[cfg(feature = "synthetic-health-recovery")]
+            state.close_editor(id);
+            if registry.generation(id).is_some() {
+                registry.clear();
+            }
+        }
     }
 }
 

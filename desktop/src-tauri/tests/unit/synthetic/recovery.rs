@@ -1,6 +1,37 @@
 use super::*;
 const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
 #[test]
+fn mixed_receipts_require_multiple_valid_domains_and_the_exact_bounded_shape() {
+    let valid = json!({
+        "health": [{"playerId":"111","before":80,"value":17}],
+        "upgrades": [{"playerId":"111","key":"playerUpgradeStrength","before":2,"value":3}],
+        "run": [{"field":"currency","before":12,"value":-19}],
+        "refillToFull": [{"saveKey":"Item Tool/1","before":99}]
+    });
+    assert!(valid_mixed_intent(&MixedIntent {
+        mixed: valid.clone()
+    }));
+    for (group, bad) in [
+        ("health", json!({})),
+        ("upgrades", json!([valid["health"][0]])),
+        (
+            "run",
+            json!([{"field":"currency","before":12,"value":true}]),
+        ),
+        ("refillToFull", json!([{"saveKey":"../file","before":99}])),
+    ] {
+        let mut mixed = valid.clone();
+        mixed[group] = bad;
+        assert!(!valid_mixed_intent(&MixedIntent { mixed }));
+    }
+    assert!(!valid_mixed_intent(&MixedIntent {
+        mixed: json!({"health":valid["health"],"upgrades":[],"run":[],"refillToFull":[]})
+    }));
+    let state = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":{"mixed":valid}}});
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_ok());
+}
+
+#[test]
 fn refill_intents_bind_exact_keys_and_never_accept_numeric_writes() {
     let raw = json!({"refillToFull":[{"saveKey":"Item Tool/1","before":99},{"saveKey":"Item Tool/2","before":-2}]});
     assert!(valid_refill_intent(

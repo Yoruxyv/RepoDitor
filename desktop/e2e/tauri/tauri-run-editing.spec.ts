@@ -183,7 +183,7 @@ for (const phase of ["before_replace", "after_replace"]) {
         .getByTestId("workspace")
         .getAttribute("data-session-fingerprint");
       for (const [command, changes] of [
-        ["test_health_write", { playerId: "111", health: 17 }],
+        ["test_health_write", { session: state.upgradeSession, playerId: "111", health: 17 }],
         [
           "test_upgrades_write",
           {
@@ -384,33 +384,10 @@ for (const final of ["running", "unknown"]) {
   });
 }
 
-test("Run mixed drafts block partial Save and ordinary hosts retain read-only authority", async ({
+test("Ordinary hosts deny Run and mixed writes and retain read-only authority", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
-  const f = await fixture(info);
-  const app = await launch(f.executable, f.home, {
-    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
-  });
-  try {
-    await openRun(app);
-    await app.page.getByRole("spinbutton", { name: "Currency", exact: true }).fill("-19");
-    await app.page.getByRole("tab", { name: "Upgrades", exact: true }).click();
-    await app.page.getByRole("spinbutton", { name: "Strength for Alpha" }).fill("3");
-    await app.page.getByRole("tab", { name: "Players", exact: true }).click();
-    await app.page.getByRole("spinbutton", { name: "Current health", exact: true }).fill("17");
-    await app.page.getByRole("spinbutton", { name: "Current health", exact: true }).press("Tab");
-    await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
-      "3 pending changes",
-    );
-    await expect(
-      app.page.getByRole("button", { name: "Save Changes", exact: true }),
-    ).toBeDisabled();
-    await expect(app.page.getByText(/Save one group at a time/)).toBeVisible();
-    expect(await readFile(f.source)).toEqual(f.before);
-  } finally {
-    await close(app.child, app.browser);
-  }
   const ordinary = await fixture(info, true);
   const control = await launch(ordinary.executable, ordinary.home, {
     REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
@@ -429,6 +406,23 @@ test("Run mixed drafts block partial Save and ordinary hosts retain read-only au
       (error: unknown) => String(error),
     );
     expect(denied).toMatch(/not found|not allowed|not permitted|denied/i);
+    const mixedDenied = await native(control.page, "test_health_write", {
+      request: {
+        saveId: E2E_SAVE_ID,
+        operationId: "a".repeat(32),
+        fingerprint: await control.page
+          .getByTestId("workspace")
+          .getAttribute("data-session-fingerprint"),
+        session: "synthetic-session",
+        mixed: {
+          health: [{ playerId: "111", before: 80, value: 17 }],
+          upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+          run: [{ field: "currency", before: 12, value: -19 }],
+          refillToFull: [{ saveKey: "Item Melee Inflatable Hammer/1", before: 99 }],
+        },
+      },
+    }).catch((error: unknown) => String(error));
+    expect(mixedDenied).toMatch(/not found|not allowed|not permitted|denied/i);
     expect(await readFile(ordinary.source)).toEqual(ordinary.before);
   } finally {
     await close(control.child, control.browser);

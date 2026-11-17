@@ -13,6 +13,7 @@ import {
   upgrades,
 } from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
+import { cancelEntryArtwork, closeNativeWorkspace } from "@/app/tauriArtwork";
 import { TauriDiscovery } from "./TauriDiscovery";
 
 vi.mock("@/app/tauriReadApi", () => ({
@@ -30,9 +31,20 @@ vi.mock("@/app/tauriReadApi", () => ({
   closeTauriPreview: vi.fn(),
 }));
 
+vi.mock("@/app/tauriArtwork", async (importOriginal) => {
+  const artwork = await importOriginal<typeof import("@/app/tauriArtwork")>();
+  return {
+    ...artwork,
+    cancelEntryArtwork: vi.fn(artwork.cancelEntryArtwork),
+    closeNativeWorkspace: vi.fn(),
+  };
+});
+
 describe("read-only native discovery", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.mocked(cancelEntryArtwork).mockClear();
+    vi.mocked(closeNativeWorkspace).mockReset().mockResolvedValue(true);
     vi.mocked(tauriReadApi.cosmetics.get)
       .mockReset()
       .mockResolvedValue({ ok: true, data: cosmetics });
@@ -89,6 +101,28 @@ describe("read-only native discovery", () => {
     vi.mocked(tauriReadApi.environment.detect).mockReturnValue(new Promise(() => undefined));
     render(<TauriDiscovery />);
     expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
+  });
+  it("leaves the workspace only after native revocation succeeds", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    let finishClose!: (closed: boolean) => void;
+    vi.mocked(closeNativeWorkspace).mockImplementationOnce(
+      () => new Promise((resolve) => (finishClose = resolve)),
+    );
+    const user = userEvent.setup();
+    render(<TauriDiscovery />);
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    const changeSave = await screen.findByRole("button", { name: "Change save" });
+    await user.click(changeSave);
+    await user.click(changeSave);
+    expect(closeNativeWorkspace).toHaveBeenCalledExactlyOnceWith(session.id);
+    expect(cancelEntryArtwork).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Open workspace/ })).toBeNull();
+    await act(() => finishClose(false));
+    expect(cancelEntryArtwork).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe("The desktop service is unavailable.");
+    await user.click(changeSave);
+    expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
+    expect(cancelEntryArtwork).toHaveBeenCalledTimes(1);
   });
   it("holds opening until the five projections settle, then reuses them in the workspaces", async () => {
     let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;

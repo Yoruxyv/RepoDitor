@@ -10,7 +10,7 @@ import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import {
   cancelEntryArtwork,
   clearEntryArtwork,
-  closeNativeArtwork,
+  closeNativeWorkspace,
   ENTRY_ARTWORK_SCOPES,
   type EntryArtworkProgress,
   type EntryArtworkResults,
@@ -208,13 +208,13 @@ function DiscoveryPreview() {
   const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
   const [artworkDecision, setArtworkDecision] = useState<ArtworkDecision | null>(null);
   const safety = useGameSafety(tauriReadApi.game.status);
-  const closingArtwork = useRef<Promise<void> | null>(null);
+  const closingWorkspace = useRef(false);
+  const [closeFailed, setCloseFailed] = useState(false);
   const save = useSaveSession(async (id, signal) => {
     setProgress(null);
     setArtworkProgress(null);
     setArtworkDecision(null);
     setPrepared(null);
-    if (closingArtwork.current) await closingArtwork.current;
     signal.throwIfAborted();
     const opened = await tauriReadApi.saves.open(id);
     if (!opened.ok) return opened;
@@ -236,7 +236,10 @@ function DiscoveryPreview() {
       keep = true;
       return opened;
     } finally {
-      if (!keep) await closeNativeArtwork(id);
+      if (!keep) {
+        cancelEntryArtwork();
+        await closeNativeWorkspace(id);
+      }
     }
   });
   const opening = save.openingSaveId !== null;
@@ -262,6 +265,9 @@ function DiscoveryPreview() {
       : null;
   const { isRefreshing, refreshRevision } = discovery;
   const inSave = save.session !== null;
+  useEffect(() => {
+    if (inSave) return cancelEntryArtwork;
+  }, [inSave]);
   useEffect(() => {
     const revision = prepared?.artworkRevision;
     if (!inSave || !revision) return;
@@ -349,13 +355,20 @@ function DiscoveryPreview() {
     focusDiscoveryAfterRefresh(saveId);
     save.cancelOpen();
   }
-  function close() {
+  async function close() {
+    const id = save.session?.id;
+    if (!id || closingWorkspace.current) return;
+    closingWorkspace.current = true;
+    setCloseFailed(false);
+    const closed = await closeNativeWorkspace(id);
+    closingWorkspace.current = false;
+    if (!closed) {
+      setCloseFailed(true);
+      return;
+    }
     generation.current += 1;
     setPrepared(null);
-    if (save.session !== null) {
-      focusDiscoveryAfterRefresh(save.session.id);
-      closingArtwork.current = closeNativeArtwork(save.session.id);
-    }
+    focusDiscoveryAfterRefresh(id);
     save.close();
   }
   const { t } = usePreferences();
@@ -407,6 +420,7 @@ function DiscoveryPreview() {
           </div>
         </nav>
         <div hidden={workspace !== "run-saves"}>
+          {closeFailed ? <p role="alert">{t("error.service")}</p> : null}
           <RunSaveContent
             discovery={discovery}
             save={save}
@@ -425,7 +439,7 @@ function DiscoveryPreview() {
             active={workspace === "run-saves" && !initialCheck && blocked === null}
             onOpen={(id) => void open(id)}
             onCancel={cancelOpen}
-            onClose={close}
+            onClose={() => void close()}
             onHealthAvailability={setHealthEnabled}
           />
         </div>

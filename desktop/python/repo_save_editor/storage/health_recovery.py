@@ -310,6 +310,7 @@ class HealthTransaction:
             or valid_upgrade_intent(intent)
             or valid_run_intent(intent)
             or valid_meta_intent(intent)
+            or valid_mixed_intent(intent)
         ):
             raise RecoveryError("invalid_request")
         if intent is not None and (path.name == "MetaSave.es3") != valid_meta_intent(intent):
@@ -349,10 +350,10 @@ class HealthTransaction:
             value = Receipt(**raw)
             if (
                 type(value.version) is not int
-                or value.version not in {1, 2, 3, 4, 5, 6, 7, 8}
+                or value.version not in {1, 2, 3, 4, 5, 6, 7, 8, 9}
                 or ((value.version == 8) != (self.path.name == "MetaSave.es3"))
                 or (
-                    value.version == 8
+                    value.version in {8, 9}
                     and (
                         not isinstance(value.namespace, str)
                         or _HASH.fullmatch(value.namespace) is None
@@ -360,7 +361,7 @@ class HealthTransaction:
                 )
                 or (value.version == 2 and not valid_intent(value.intent))
                 or (
-                    value.version in {4, 5, 6, 7, 8}
+                    value.version in {4, 5, 6, 7, 8, 9}
                     and (
                         not (
                             valid_upgrade_intent(value.intent)
@@ -372,6 +373,8 @@ class HealthTransaction:
                             else valid_refill_intent(value.intent)
                             if value.version == 7
                             else valid_meta_intent(value.intent)
+                            if value.version == 8
+                            else valid_mixed_intent(value.intent)
                         )
                         or (
                             value.namespace is not None and _HASH.fullmatch(value.namespace) is None
@@ -471,7 +474,9 @@ class HealthTransaction:
                 os.getpid(),
                 self.process_started,
                 version=(
-                    8
+                    9
+                    if valid_mixed_intent(self.intent)
+                    else 8
                     if valid_meta_intent(self.intent)
                     else 7
                     if valid_refill_intent(self.intent)
@@ -488,7 +493,7 @@ class HealthTransaction:
                     else 1
                 ),
                 namespace=self.namespace()
-                if valid_meta_intent(self.intent)
+                if valid_meta_intent(self.intent) or valid_mixed_intent(self.intent)
                 else self.directory.identity
                 if self.directory is not None
                 else None,
@@ -507,7 +512,7 @@ class HealthTransaction:
         ).hexdigest()
 
     def _require_namespace(self, receipt: Receipt) -> None:
-        if receipt.version == 8 and receipt.namespace != self.namespace():
+        if receipt.version in {8, 9} and receipt.namespace != self.namespace():
             raise RecoveryError("write_conflict")
         if self.directory is not None and receipt.namespace != self.directory.identity:
             raise RecoveryError("write_conflict")
@@ -740,7 +745,7 @@ class HealthTransaction:
             return self._result("rejected", _hash(self.path, directory=self.directory), False)
         receipt = self._read(self.pending if active else self.archive)
         self._require_namespace(receipt)
-        if receipt.version == 7:
+        if receipt.version in {7, 9}:
             self.intent = receipt.intent
         if (
             active
@@ -951,6 +956,29 @@ def valid_run_intent(value: object) -> bool:
         return (
             len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
             <= RUN_INTENT_LIMIT
+        )
+    except UnicodeEncodeError:
+        return False
+
+
+def valid_mixed_intent(value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != {"mixed"}:
+        return False
+    groups = value["mixed"]
+    validators = {
+        "health": valid_health_batch_intent,
+        "upgrades": valid_upgrade_intent,
+        "run": valid_run_intent,
+        "refillToFull": valid_refill_intent,
+    }
+    if not isinstance(groups, dict) or groups.keys() != validators.keys():
+        return False
+    if sum(isinstance(edits, list) and bool(edits) for edits in groups.values()) < 2:
+        return False
+    try:
+        return (
+            all(edits == [] or validators[key]({key: edits}) for key, edits in groups.items())
+            and len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()) <= 2048
         )
     except UnicodeEncodeError:
         return False

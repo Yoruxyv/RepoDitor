@@ -182,14 +182,16 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
     changes = _parse_changes(args.payload)
     if changes is _INVALID_JSON:
         return _invalid_request("The pending changes payload is invalid.")
+    mixed_operation = getattr(args, "mixed_operation", None)
     if (
         args.health_operation is not None
         or args.refill_operation is not None
         or args.health_batch_operation is not None
         or args.upgrade_operation is not None
         or args.run_operation is not None
+        or mixed_operation is not None
     ):
-        root = _recovery_test_root()
+        root = _recovery_test_root(mixed=mixed_operation is not None)
         if root is None:
             return _invalid_request("Experimental recovery requires an isolated test root.")
         return write_health(
@@ -200,6 +202,7 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
             or args.health_batch_operation
             or args.run_operation
             or args.upgrade_operation
+            or mixed_operation
             or args.health_operation,
             root,
             reserved=True,
@@ -207,6 +210,7 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
             health_batch=args.health_batch_operation is not None,
             upgrade_batch=args.upgrade_operation is not None,
             run_batch=args.run_operation is not None,
+            mixed_batch=mixed_operation is not None,
         )
     if args.recharge_evidence is None:
         return save_changes(args.save_id, args.fingerprint, changes)
@@ -221,11 +225,23 @@ def _save_changes(args: argparse.Namespace) -> dict[str, object]:
     )
 
 
-def _recovery_test_root() -> Path | None:
+def _recovery_test_root(*, mixed: bool = False) -> Path | None:
     low = os.environ.get("REPODITOR_E2E_LOCAL_APP_DATA_LOW", "")
     if os.environ.get("REPODITOR_E2E") != "1" or not low or not Path(low).is_absolute():
         return None
-    return Path(low) / "semiwork" / "Repo" / "saves"
+    profile = Path(low)
+    if mixed:
+        try:
+            resolved = profile.resolve(strict=True)
+        except (OSError, ValueError):
+            return None
+        if profile != resolved or not any(
+            tuple(part.casefold() for part in parent.parts[-3:])
+            == ("desktop", "build", "recovery-checkpoint")
+            for parent in resolved.parents
+        ):
+            return None
+    return profile / "semiwork" / "Repo" / "saves"
 
 
 def _recover_health(args: argparse.Namespace) -> dict[str, object]:
@@ -249,7 +265,8 @@ def _health_state(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
-    root = _recovery_test_root()
+    mixed = getattr(args, "mixed_batch", False)
+    root = _recovery_test_root(mixed=mixed)
     changes = _parse_changes(args.payload)
     if root is None or changes is _INVALID_JSON:
         return _invalid_request("Experimental recovery requires an isolated test request.")
@@ -264,6 +281,7 @@ def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
         health_batch=getattr(args, "health_batch", False),
         upgrade_batch=getattr(args, "upgrade_batch", False),
         run_batch=getattr(args, "run_batch", False),
+        mixed_batch=mixed,
     )
 
 
@@ -387,6 +405,7 @@ def _parser() -> argparse.ArgumentParser:
     transaction.add_argument("--refill-operation")
     transaction.add_argument("--upgrade-operation")
     transaction.add_argument("--run-operation")
+    transaction.add_argument("--mixed-operation")
     saves_write.set_defaults(handler=_save_changes)
 
     health_recover = commands.add_parser("health-recover")
@@ -431,6 +450,13 @@ def _parser() -> argparse.ArgumentParser:
     run_prepare.add_argument("payload")
     run_prepare.add_argument("operation")
     run_prepare.set_defaults(handler=_prepare_health, run_batch=True, intent=True)
+
+    mixed_prepare = commands.add_parser("mixed-prepare")
+    mixed_prepare.add_argument("save_id")
+    mixed_prepare.add_argument("fingerprint")
+    mixed_prepare.add_argument("payload")
+    mixed_prepare.add_argument("operation")
+    mixed_prepare.set_defaults(handler=_prepare_health, mixed_batch=True, intent=True)
 
     health_status = commands.add_parser("health-state")
     health_status.add_argument("save_id")

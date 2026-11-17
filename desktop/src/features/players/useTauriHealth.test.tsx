@@ -44,8 +44,12 @@ function transaction(
     canonical: projection,
   };
 }
-function setup() {
+function setup(mixed = false) {
+  const writeMixed = vi
+    .fn<typeof tauriHealthApi.writeMixed>()
+    .mockImplementation(async (request) => transaction(request.operationId, "applied"));
   const api = {
+    ...(mixed ? { writeMixed } : {}),
     writeRefills: vi
       .fn<typeof tauriHealthApi.writeRefills>()
       .mockImplementation(async (request) => transaction(request.operationId, "applied")),
@@ -67,7 +71,7 @@ function setup() {
   };
   const accept = vi.fn();
   const hook = renderHook(() => useTauriHealth(session, players, accept, api));
-  return { ...hook, api, accept };
+  return { ...hook, api, accept, writeMixed };
 }
 async function ready(subject: ReturnType<typeof setup>) {
   await waitFor(() => expect(subject.result.current.phase).toBe("editing"));
@@ -209,6 +213,62 @@ describe("synthetic health ownership", () => {
       },
     };
   }
+  it("holds all mixed drafts when one domain disagrees with independently recovered values", async () => {
+    const subject = setup(true);
+    await ready(subject);
+    stage(subject);
+    act(() => subject.result.current.editRun(runEdit));
+    await act(() => subject.result.current.save());
+    expect(subject.writeMixed).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        mixed: {
+          health: [{ playerId: "111", before: 80, value: 17 }],
+          upgrades: [],
+          run: [{ field: "currency", before: 12, value: -19 }],
+          refillToFull: [],
+        },
+      }),
+    );
+    expect(subject.api.writeHealthBatch).not.toHaveBeenCalled();
+    expect(subject.api.writeRun).not.toHaveBeenCalled();
+    expect(subject.api.recover.mock.calls.map((call) => call[2])).toEqual([false]);
+    expect(subject.result.current.phase).toBe("conflict");
+    expect(subject.result.current.healthEdits).toHaveLength(1);
+    expect(subject.result.current.runEdits).toHaveLength(1);
+  });
+  it("restores every domain from one pending mixed receipt without launching a writer", async () => {
+    const subject = setup(true);
+    await ready(subject);
+    const operationId = "a".repeat(32);
+    subject.api.state.mockResolvedValue({
+      ...idle(),
+      state: "pending",
+      canonical: null,
+      pending: {
+        operationId,
+        fingerprint: session.fingerprint,
+        intent: {
+          mixed: {
+            health: [{ playerId: "111", before: 80, value: 17 }],
+            upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+            run: [{ field: "currency", before: 12, value: -19 }],
+            refillToFull: [{ saveKey: advanced.items[0]!.saveKey, before: 99 }],
+          },
+        },
+      },
+    });
+    act(() => subject.result.current.refresh());
+    await waitFor(() => expect(subject.result.current.phase).toBe("recovery"));
+    const recovered = subject.result.current;
+    expect(recovered.pendingOperationId).toBe(operationId);
+    expect(recovered.healthEdits).toMatchObject([{ entity: "111", after: 17 }]);
+    expect(recovered.upgradeEdits).toMatchObject([{ field: "playerUpgradeStrength", after: 3 }]);
+    expect(recovered.runEdits).toMatchObject([{ field: "currency", after: -19 }]);
+    expect(recovered.refillEdits).toMatchObject([
+      { entity: advanced.items[0]!.saveKey, after: true },
+    ]);
+    expect(subject.writeMixed).not.toHaveBeenCalled();
+  });
   it.each(["lost", "mismatch", "rejected"] as const)(
     "retains Run intent after %s and never clears an unconfirmed draft",
     async (outcome) => {

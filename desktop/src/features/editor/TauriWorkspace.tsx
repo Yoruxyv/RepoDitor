@@ -29,7 +29,7 @@ function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
   const run = health.runEdits.length > 0;
   const refills = health.refillEdits.length > 0;
   if (Number(health.healthEdits.length > 0) + Number(upgrades) + Number(run) + Number(refills) > 1)
-    return "run.mixedDrafts";
+    return health.mixedSaveAvailable ? null : "run.mixedDrafts";
   if (refills && !health.refillSaveAvailable) return "items.saveUnavailable";
   if (health.healthEdits.length > 0 && (!health.upgradeSession || !health.healthBatchFits))
     return "health.saveUnavailable";

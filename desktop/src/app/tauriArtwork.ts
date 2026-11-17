@@ -138,12 +138,12 @@ export function restoreEntryArtwork(key: string | null, plan: EntryArtworkPlan) 
   return previous.results;
 }
 
-export async function closeNativeArtwork(saveId: string): Promise<void> {
-  cancelEntryArtwork();
+export async function closeNativeWorkspace(saveId: string): Promise<boolean> {
   try {
     await invoke<void>("upgrade_artwork_cancel", { saveId });
+    return true;
   } catch {
-    // The local preparation is revoked even if the window is closing.
+    return false;
   }
 }
 

@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -76,8 +76,13 @@ p.write_bytes(encrypt_save(d))`,
   );
   return { home, source, executable, before: await readFile(source) };
 }
-async function openItems(app: App, recovery = false) {
-  await openRunWorkspace(app.page);
+async function openItems(app: App, recovery = false, saveId?: string) {
+  if (saveId) {
+    await app.page.locator(`button[data-save-id="${saveId}"]`).click();
+    await expect(app.page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+  } else await openRunWorkspace(app.page);
   await expect(app.page.getByTestId("health-status")).toHaveAttribute(
     "data-phase",
     recovery ? "recovery" : "editing",
@@ -128,6 +133,195 @@ async function phaseStarted(marker: string, phase: string) {
     .toBe(phase);
   expect(Number.isSafeInteger(pid) && pid > 0).toBe(true);
   return pid;
+}
+
+const mixed = {
+  health: [{ playerId: "111", before: 80, value: 17 }],
+  upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+  run: [{ field: "currency", before: 12, value: -19 }],
+  refillToFull: edits(),
+};
+
+for (const [title, phase, closeBeforeRecovery] of [
+  ["Synthetic mixed Save commits all four domains through one recoverable receipt", "", false],
+  ["Synthetic mixed Save independently reconciles an interrupted writer", "before_replace", false],
+  ["Synthetic mixed Save independently reconciles a lost response", "after_replace", false],
+  [
+    "Synthetic mixed Save reconciles twice after workspace close and response loss",
+    "after_replace",
+    true,
+  ],
+] as const) {
+  test(title, async ({ browserName }, info) => {
+    expect(browserName).toBe("chromium");
+    const f = await fixture(info);
+    const original = data(f.source);
+    const alternateId = E2E_SAVE_ID.replace(/30$/, "31");
+    const alternate = path.join(
+      path.dirname(path.dirname(f.source)),
+      alternateId,
+      alternateId + ".es3",
+    );
+    if (!phase) {
+      await mkdir(path.dirname(alternate), { recursive: true });
+      await writeFile(alternate, f.before);
+    }
+    const marker = path.join(f.home, "mixed-phase.json");
+    const app = await launch(f.executable, f.home, {
+      REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+      REPODITOR_RECOVERY_PHASE: phase,
+      REPODITOR_RECOVERY_PHASE_FILE: marker,
+    });
+    const page = app.page;
+    const tab = (name: string) => page.getByRole("tab", { name, exact: true }).click();
+    const health = page.getByRole("spinbutton", { name: "Current health", exact: true });
+    const strength = page.getByRole("spinbutton", { name: "Strength for Alpha" });
+    const currency = page.getByRole("spinbutton", { name: "Currency", exact: true });
+    const item = page.getByTestId(`item-instance-${KEY}`);
+    try {
+      await openItems(app, false, phase ? undefined : E2E_SAVE_ID);
+      if (!phase) {
+        const state = await native<{ upgradeSession: string }>(page, "test_health_state", {
+          saveId: E2E_SAVE_ID,
+        });
+        const request = {
+          saveId: E2E_SAVE_ID,
+          operationId: "a".repeat(32),
+          fingerprint: digest(f.before),
+        };
+        const changeSave = page.getByRole("button", { name: "Change save", exact: true });
+        const assertRevoked = async () => {
+          expect(
+            await native(page, "test_health_write", {
+              request: { ...request, session: state.upgradeSession, mixed },
+            }),
+          ).toMatchObject({ status: "rejected", reason: "invalid_request" });
+          expect(await readFile(f.source)).toEqual(f.before);
+          await noEvidence(f.source);
+        };
+        await changeSave.click();
+        await expect(page.locator(`button[data-save-id="${E2E_SAVE_ID}"]`)).toBeVisible();
+        await assertRevoked();
+        expect(
+          await native(page, "test_health_write", {
+            request: { ...request, playerId: "111", health: 17 },
+          }),
+        ).toMatchObject({ status: "rejected", reason: "invalid_request" });
+        await openItems(app, false, alternateId);
+        await assertRevoked();
+        expect(await readFile(alternate)).toEqual(f.before);
+        await noEvidence(alternate);
+        await changeSave.click();
+        await openItems(app, false, E2E_SAVE_ID);
+        await assertRevoked();
+      }
+      await stage(app);
+      await tab("Players");
+      await health.fill("17");
+      await health.press("Tab");
+      await tab("Upgrades");
+      await strength.fill("3");
+      await tab("Run");
+      await currency.fill("-19");
+      await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText(
+        "4 pending changes",
+      );
+      expect(await readFile(f.source)).toEqual(f.before);
+      await noEvidence(f.source);
+      await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+      if (phase) {
+        const pid = await phaseStarted(marker, phase);
+        if (closeBeforeRecovery) {
+          const operationId = await page
+            .getByTestId("health-status")
+            .getAttribute("data-operation-id");
+          await page.getByRole("button", { name: "Change save", exact: true }).click();
+          await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
+          killWriter(pid);
+          const request = { saveId: E2E_SAVE_ID, operationId, acknowledge: true };
+          const recover = () =>
+            native<{ status: string }>(page, "test_health_recover", { request });
+          await expect.poll(async () => (await recover()).status).toBe("applied");
+          const settled = await recover();
+          expect(settled).toMatchObject({
+            status: "applied",
+            backupAvailable: true,
+            canonical: {
+              advanced: {
+                items: expect.arrayContaining([
+                  expect.objectContaining({
+                    saveKey: KEY,
+                    chargeState: "default_full",
+                  }),
+                ]),
+              },
+            },
+          });
+          expect(await recover()).toEqual(settled);
+          await openItems(app);
+          await tab("Run");
+        } else {
+          killWriter(pid);
+          await expect(page.getByTestId("health-status")).toHaveAttribute("data-phase", "recovery");
+          const state = await native<{ pending: unknown }>(page, "test_health_state", {
+            saveId: E2E_SAVE_ID,
+          });
+          expect(state.pending).toMatchObject({ intent: { mixed } });
+          await page.getByRole("button", { name: "Reconcile changes", exact: true }).click();
+        }
+      }
+      if (phase === "before_replace") {
+        await expect(page.getByTestId("health-status")).toHaveAttribute("data-phase", "unchanged");
+        await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText(
+          "4 pending changes",
+        );
+        await backup(f.source, f.before);
+        expect(await readFile(f.source)).toEqual(f.before);
+        return;
+      }
+      await expect(page.getByTestId("health-status")).toHaveAttribute(
+        "data-phase",
+        closeBeforeRecovery ? "editing" : "saved",
+      );
+      await backup(f.source, f.before);
+      await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText(
+        "No pending changes",
+      );
+      const changed = expected(original);
+      const values = (
+        changed["dictionaryOfDictionaries"] as {
+          value: Record<string, Record<string, number>>;
+        }
+      ).value;
+      values["playerHealth"]["111"] = 17;
+      values["playerUpgradeStrength"]["111"] = 3;
+      values["runStats"]["currency"] = -19;
+      expect(data(f.source)).toEqual(changed);
+      const receipts = (await readdir(path.dirname(f.source))).filter((name) =>
+        name.endsWith(".json"),
+      );
+      expect(receipts).toHaveLength(1);
+      expect(receipts[0]).not.toContain("pending");
+      const after = digest(await readFile(f.source));
+      expect(
+        JSON.parse(await readFile(path.join(path.dirname(f.source), receipts[0]), "utf8")),
+      ).toMatchObject({ version: 9, after, intent: { mixed } });
+      await expect(page.getByTestId("workspace")).toHaveAttribute(
+        "data-session-fingerprint",
+        after,
+      );
+      await expect(currency).toHaveValue("-19");
+      await tab("Players");
+      await expect(health).toHaveValue("17");
+      await tab("Upgrades");
+      await expect(strength).toHaveValue("3");
+      await tab("Items");
+      await expect(item).toContainText("Full");
+      await expect(item.getByRole("button", { name: /Recharge/ })).toHaveCount(0);
+    } finally {
+      await close(app.child, app.browser);
+    }
+  });
 }
 function killWriter(pid: number) {
   execFileSync(
@@ -200,9 +394,7 @@ test("synthetic refill Save removes only the selected charge leaf and preserves 
     await stage(app);
     await app.page.getByRole("tab", { name: "Run", exact: true }).click();
     await app.page.getByRole("spinbutton", { name: "Currency", exact: true }).fill("4");
-    await expect(
-      app.page.getByRole("button", { name: "Save Changes", exact: true }),
-    ).toBeDisabled();
+    await expect(app.page.getByRole("button", { name: "Save Changes", exact: true })).toBeEnabled();
     expect(await readFile(f.source)).toEqual(f.before);
     await noEvidence(f.source);
     await app.page.getByRole("button", { name: "Revert", exact: true }).click();

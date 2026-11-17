@@ -137,7 +137,9 @@ fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admis
     let current = host.upgrade_session(save).unwrap();
     assert_ne!(first, current);
     assert!(!host.accepts_upgrade(save, &"a".repeat(64), &first));
-    host.update_editor(save, &"b".repeat(64));
+    host.update_editor(save, &"b".repeat(64), &first);
+    assert!(host.accepts_upgrade(save, &"a".repeat(64), &current));
+    host.update_editor(save, &"b".repeat(64), &current);
     assert!(host.accepts_upgrade(save, &"b".repeat(64), &current));
     assert!(!host.accepts_upgrade("REPO_SAVE_2026_08_08_10_20_31", &"b".repeat(64), &current));
     let upgrade = Operation::TestUpgrades(
@@ -239,6 +241,94 @@ fn upgrade_requests_are_bound_to_the_current_open_session_and_share_health_admis
     assert!(Request::reserve(host.clone(), upgrade.slot()).is_err());
     drop(run_held);
     assert!(Request::reserve(host, health.slot()).is_ok());
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[test]
+fn revoked_session_cannot_spawn_a_queued_writer() {
+    let state = Arc::new(HostState::default());
+    let save = "REPO_SAVE_2026_08_08_10_20_30";
+    let fingerprint = "a".repeat(64);
+    state.open_editor(save, &fingerprint);
+    let editor = EditorWrite {
+        save: save.into(),
+        fingerprint,
+        token: state.upgrade_session(save).unwrap(),
+    };
+    let held = state.domain_worker.lock().unwrap();
+    let mut request = Request::reserve(state.clone(), 9).unwrap();
+    request.4 = Some(editor);
+    let (ready, queued) = std::sync::mpsc::sync_channel(0);
+    let writer = thread::spawn(move || {
+        ready.send(()).unwrap();
+        // A missing executable would report Unavailable if execution reached spawn.
+        execute(
+            &request,
+            &process::tests::fixture().with_file_name("absent-queued-writer.exe"),
+            &["saves-write"],
+            Instant::now(),
+            Duration::from_secs(5),
+        )
+    });
+    queued.recv_timeout(Duration::from_secs(5)).unwrap();
+    state.close_editor(save);
+    drop(held);
+    assert_eq!(writer.join().unwrap().unwrap_err(), BackendError::Request);
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+#[test]
+fn editor_close_and_spawn_share_the_authoritative_lock() {
+    let state = Arc::new(HostState::default());
+    let save = "REPO_SAVE_2026_08_08_10_20_30";
+    let fingerprint = "a".repeat(64);
+    state.open_editor(save, &fingerprint);
+    let editor = EditorWrite {
+        save: save.into(),
+        fingerprint,
+        token: state.upgrade_session(save).unwrap(),
+    };
+    let (at_launch, launch_ready) = std::sync::mpsc::sync_channel(0);
+    let (start, may_spawn) = std::sync::mpsc::sync_channel(0);
+    let launching = state.clone();
+    let granted = editor.clone();
+    let writer = thread::spawn(move || {
+        launching.launch_editor_write(&granted, || {
+            at_launch.send(()).unwrap();
+            may_spawn.recv_timeout(Duration::from_secs(5)).unwrap();
+            Ok(())
+        })
+    });
+    launch_ready.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(matches!(
+        state.editor_session.try_lock(),
+        Err(std::sync::TryLockError::WouldBlock)
+    ));
+    let closing = state.clone();
+    let (entered, close_attempted) = std::sync::mpsc::sync_channel(0);
+    let closer = thread::spawn(move || {
+        entered.send(()).unwrap();
+        closing.close_editor(save);
+    });
+    close_attempted
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap();
+    start.send(()).unwrap();
+    assert_eq!(writer.join().unwrap(), Ok(()));
+    closer.join().unwrap();
+    assert_eq!(
+        state.launch_editor_write(&editor, || panic!("revoked session reached spawn")),
+        Err::<(), _>(BackendError::Request)
+    );
+    state.open_editor("REPO_SAVE_2026_08_08_10_20_31", &editor.fingerprint);
+    assert!(!state.accepts_upgrade(save, &editor.fingerprint, &editor.token));
+    state.open_editor(save, &editor.fingerprint);
+    assert!(!state.accepts_upgrade(save, &editor.fingerprint, &editor.token));
+    assert!(state.accepts_upgrade(
+        save,
+        &editor.fingerprint,
+        &state.upgrade_session(save).unwrap()
+    ));
 }
 #[cfg(feature = "synthetic-health-recovery")]
 #[test]

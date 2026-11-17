@@ -189,11 +189,10 @@ the native host registers its own opaque upgrade artwork tokens. Missing artwork
 retains the Phosphor fallback. In an admitted `synthetic-health-ui` fixture,
 the native binding reuses the existing numeric inputs for per-player drafts,
 pending review, field Revert and global Revert. Drafts survive section/player
-navigation. An explicit Save persists one coherent upgrade batch through Python's
-existing typed upgrade mutation and encrypted repository pipeline. Health and
-upgrade drafts save separately: a mixed pending set disables Save with an
-explanation, rather than silently applying a subset. Invalid inputs and batches
-exceeding the durable-intent budget also block Save. Unsubmitted drafts are discarded
+navigation. An explicit Save persists the complete pending set through Python's
+typed mutation and encrypted repository pipeline, including Health, Run and eligible
+Item refills when present. Invalid inputs and batches exceeding the durable-intent
+budget block Save. Unsubmitted drafts are discarded
 on workspace close; submitted intent survives in the receipt. Busy/conflicting
 recovery disables editing. Read-loading, sanitized error/retry and empty states
 remain available. The canonical upgrade snapshot supersedes older pending reads
@@ -434,20 +433,24 @@ mode and a canonical LocalLow root inside the checkout's `build/recovery-checkpo
 The separate `synthetic-health-ui` feature includes the recovery feature and enables
 multi-player Health, bounded upgrade-batch, Run editing and Items refill with the same
 test permissions and runtime fence. Protocol-only builds keep the UI read-only and
-reject Health-batch, upgrade, Run and Items writes; default builds have no mutation
+reject Health-batch, upgrade, Run, Items and mixed writes. Default builds have no mutation
 commands. No general mutation bridge or production write permission is provided.
 The typed transports retain the legacy one-player Health request and admit a
-Health-only batch, an upgrade-only batch or
-a Run-only batch or an exact-instance refill-only batch. Mixed Health/Upgrades/Run/Items drafts block Save and identify the
-groups to revert; there is no partial-save or mixed-domain protocol.
-Health-batch, upgrade, Run and refill requests bind the save ID, fingerprint and current native open-session token.
-Reopening a save rotates that token; stale/cross-session requests are rejected.
-The host rechecks session admission between reservation and writer launch. Python
+Health-only batch, an upgrade-only batch, a Run-only batch, an exact-instance
+refill-only batch or a bounded mixed batch through the existing test-only Health
+command. These requests bind the save ID, fingerprint and current native open-session token.
+Closing a workspace revokes its token before discovery is shown, and reopening
+issues a new generation. The synthetic UI requires this token for every Run-save
+write, including the legacy single-player Health form. The protocol-only recovery
+harness retains its non-workspace form. The host checks the current generation
+under the same lock used by open and close, holding the lock through sidecar
+process creation for both reservation and writing. A revocation leaves an
+already-started writer and its independent receipt recovery intact. Python
 validates player/key membership against the loaded save, exact previous values,
 integer bounds, duplicate targets and operation identity; presentation metadata
 never grants authority.
 
-For the single-player fixture transport, reservation binds the encrypted source
+For the single-player and mixed fixture transports, reservation binds the encrypted source
 and observed file identity. Immediately before publication the writer checks the
 verified receipt, rereads the exact encrypted backup, and compares the current
 source hash and file identity again. A confirmed sharing violation is reported
@@ -497,7 +500,7 @@ source denies additional writers/deletion through verification and replacement;
 write-through file handles and explicit buffer flushes preserve publication ordering
 across process termination. Physical power-loss durability requires separate evidence.
 
-Windows schema-3/4/5/6/7 receipts include a fingerprint of the admitted ancestry's volume
+Windows schema-3/4/5/6/7/9 receipts include a fingerprint of the admitted ancestry's volume
 and file IDs and admitted absolute parent name. The separate reservation, writer and recovery
 processes independently acquire the namespace and require that fingerprint to match
 before claiming or settling a receipt. Schema 4 durably stores an upgrade-only
@@ -541,8 +544,7 @@ needs 33 compact bytes, admitting no more than 60 records; four whitespace bytes
 per record and the conservative 811-byte metadata envelope keep the complete
 receipt at most 3,103 bytes. The checked 4,096-byte receipt ceiling still fails closed
 for excessive metadata. Schemas 1–6 retain their validation and byte encoding.
-Only a validated schema-7 intent is exposed during recovery to select its Items
-canonical projection; classification, namespace binding, locks and cleanup are unchanged.
+A validated schema-7 or schema-9 refill intent selects the Items canonical projection.
 Python independently discovers installed recharge capability during preparation
 and writing, rather than accepting renderer-supplied capability or filesystem
 evidence. It requires an existing item, positive recharge capability, an existing
@@ -557,6 +559,12 @@ acknowledgement. Missing or unsupported canonical state keeps the receipt pendin
 The Items view stages per-instance or all eligible refills, supports individual
 and global Revert, and rejects stale read responses after accepting canonical state.
 This adds neither production permissions nor arbitrary numeric charge editing.
+Schema 9 binds at least two of the four domain groups to one namespace and one
+operation. Each populated group retains its original validator. The full mixed
+intent is limited to 2,048 compact UTF-8 bytes and validates before reservation.
+One exact backup and one staged replacement cover the full intent. Independent
+reconciliation verifies every affected domain from the same fingerprint-checked
+snapshot before the editor acknowledges success.
 Recovery classifies authoritative bytes without replaying the intent.
 The legacy health filenames/lock are shared deliberately, so unresolved Health,
 Upgrade, Run and refill transactions exclude each other and ordinary cooperating writers. Matching

@@ -1,6 +1,6 @@
 //! Feature-only synthetic transport; never compiled into the normal preview.
 use crate::{
-    backend::{self, Operation},
+    backend::{self, EditorWrite, Operation},
     error::{BackendError, Outcome},
     projections::{items, players, run, saves, upgrades},
 };
@@ -82,6 +82,47 @@ pub enum Intent {
     Upgrades(UpgradeIntent),
     Run(RunIntent),
     Refill(RefillIntent),
+    Mixed(MixedIntent),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MixedIntent {
+    mixed: Value,
+}
+
+fn valid_mixed_intent(intent: &MixedIntent) -> bool {
+    let Some(groups) = intent.mixed.as_object() else {
+        return false;
+    };
+    if groups.len() != 4 || !serde_json::to_vec(intent).is_ok_and(|bytes| bytes.len() <= 2048) {
+        return false;
+    }
+    let mut populated = 0;
+    for field in ["health", "upgrades", "run", "refillToFull"] {
+        let Some(edits) = groups.get(field).and_then(Value::as_array) else {
+            return false;
+        };
+        if edits.is_empty() {
+            continue;
+        }
+        populated += 1;
+        let group = json!({(field): edits});
+        let valid = match field {
+            "health" => serde_json::from_value::<HealthBatchIntent>(group)
+                .is_ok_and(|i| valid_health_batch_intent(&i)),
+            "upgrades" => serde_json::from_value::<UpgradeIntent>(group)
+                .is_ok_and(|i| valid_upgrade_intent(&i)),
+            "run" => serde_json::from_value::<RunIntent>(group).is_ok_and(|i| valid_run_intent(&i)),
+            _ => {
+                serde_json::from_value::<RefillIntent>(group).is_ok_and(|i| valid_refill_intent(&i))
+            }
+        };
+        if !valid {
+            return false;
+        }
+    }
+    populated >= 2
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -266,6 +307,7 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
                     Intent::Upgrades(i) => !valid_upgrade_intent(i),
                     Intent::Run(i) => !valid_run_intent(i),
                     Intent::Refill(i) => !valid_refill_intent(i),
+                    Intent::Mixed(i) => !valid_mixed_intent(i),
                 })
             {
                 return Err(BackendError::Invalid);
@@ -288,16 +330,18 @@ pub async fn state(app: tauri::AppHandle, save: String) -> HealthState {
     let expected = save.clone();
     let host = app.state::<Arc<backend::HostState>>().inner().clone();
     let session_save = save.clone();
+    let session = host.upgrade_session(&save);
     match backend::request(app, Operation::TestHealthState(save), move |bytes| {
         parse_state(bytes, &expected)
     })
     .await
     {
         Outcome::Success { mut data, .. } => {
-            if let Some(projection) = &data.canonical {
-                host.update_editor(&session_save, projection.opened.fingerprint());
+            if let (Some(projection), Some(token)) = (&data.canonical, &session) {
+                host.update_editor(&session_save, projection.opened.fingerprint(), token);
             }
-            data.upgrade_session = host.upgrade_session(&session_save);
+            data.upgrade_session =
+                session.filter(|token| host.upgrade_session(&session_save).as_ref() == Some(token));
             data
         }
         Outcome::Failure { .. } => unavailable(true, "blocked"),
@@ -341,6 +385,17 @@ fn identity(raw: &Value) -> Option<(&str, &str)> {
         .filter(|id| saves::valid_id(id))?;
     let operation = raw.get("operationId")?.as_str().filter(|id| hex(id, 32))?;
     Some((save, operation))
+}
+
+fn editor_write(app: &tauri::AppHandle, save: &str, raw: &Value) -> Option<EditorWrite> {
+    let fingerprint = raw["fingerprint"].as_str()?;
+    let token = raw["session"].as_str()?;
+    let host = app.state::<Arc<backend::HostState>>();
+    (hex(fingerprint, 64) && host.accepts_upgrade(save, fingerprint, token)).then(|| EditorWrite {
+        save: save.into(),
+        fingerprint: fingerprint.into(),
+        token: token.into(),
+    })
 }
 
 fn parse(bytes: &[u8], operation: &str, save: &str) -> Result<Transaction, BackendError> {
@@ -411,10 +466,18 @@ async fn dispatch(
     id: String,
     write: bool,
     save: &str,
+    editor: Option<EditorWrite>,
 ) -> Transaction {
     let expected = id.clone();
     let save = save.to_owned();
-    match backend::request(app, operation, move |bytes| parse(bytes, &expected, &save)).await {
+    match backend::request_with_editor(
+        app,
+        operation,
+        move |bytes| parse(bytes, &expected, &save),
+        editor,
+    )
+    .await
+    {
         Outcome::Success { data, .. } => data,
         Outcome::Failure { error, .. } => failure(
             &id,
@@ -431,13 +494,27 @@ async fn dispatch(
 }
 
 pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
+    if raw.get("mixed").is_some() {
+        return write_batch(app, raw, Batch::Mixed).await;
+    }
     if raw["health"].is_array() {
         return write_batch(app, raw, Batch::Health).await;
     }
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "rejected", "invalid_request");
     };
-    let valid = raw.as_object().is_some_and(|r| r.len() == 5)
+    // The protocol-only recovery harness still exercises legacy, non-workspace transactions.
+    let editor = if cfg!(feature = "synthetic-health-ui") {
+        let Some(editor) = editor_write(&app, save, &raw) else {
+            return failure(operation, "rejected", "invalid_request");
+        };
+        Some(editor)
+    } else {
+        None
+    };
+    let valid = raw
+        .as_object()
+        .is_some_and(|r| r.len() == 5 + usize::from(editor.is_some()))
         && raw
             .get("fingerprint")
             .and_then(Value::as_str)
@@ -467,6 +544,7 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
         operation.into(),
         true,
         save,
+        editor.clone(),
     )
     .await;
     if prepared.status != "prepared" {
@@ -479,7 +557,7 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
         operation.into(),
         started,
     );
-    dispatch(app, command, operation.into(), true, save).await
+    dispatch(app, command, operation.into(), true, save, editor).await
 }
 
 pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
@@ -500,6 +578,7 @@ enum Batch {
     Upgrades,
     Run,
     Refill,
+    Mixed,
 }
 
 async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transaction {
@@ -511,6 +590,7 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
         Batch::Upgrades => "upgrades",
         Batch::Run => "run",
         Batch::Refill => "refillToFull",
+        Batch::Mixed => "mixed",
     };
     let valid_intent = match batch {
         Batch::Refill => serde_json::from_value::<RefillIntent>(json!({"refillToFull":raw[field]}))
@@ -521,23 +601,22 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
             .is_ok_and(|i| valid_run_intent(&i)),
         Batch::Upgrades => serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw[field]}))
             .is_ok_and(|i| valid_upgrade_intent(&i)),
+        Batch::Mixed => valid_mixed_intent(&MixedIntent {
+            mixed: raw[field].clone(),
+        }),
     };
-    let host = app.state::<Arc<backend::HostState>>().inner().clone();
-    let valid = cfg!(feature = "synthetic-health-ui")
-        && test_root()
-        && raw.as_object().is_some_and(|r| r.len() == 5)
-        && raw["fingerprint"].as_str().is_some_and(|fp| {
-            hex(fp, 64)
-                && raw["session"]
-                    .as_str()
-                    .is_some_and(|session| host.accepts_upgrade(save, fp, session))
-        })
-        && valid_intent;
-    if !valid {
+    if !cfg!(feature = "synthetic-health-ui")
+        || !test_root()
+        || !raw.as_object().is_some_and(|r| r.len() == 5)
+        || !valid_intent
+    {
         return failure(operation, "rejected", "invalid_request");
     }
+    let Some(editor) = editor_write(&app, save, &raw) else {
+        return failure(operation, "rejected", "invalid_request");
+    };
     let payload = raw[field].to_string();
-    let fingerprint = raw["fingerprint"].as_str().unwrap();
+    let fingerprint = &editor.fingerprint;
     let started = Instant::now();
     let prepared = dispatch(
         app.clone(),
@@ -570,17 +649,22 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
                 operation.into(),
                 started,
             ),
+            Batch::Mixed => Operation::TestMixedPrepare(
+                save.into(),
+                fingerprint.into(),
+                payload.clone(),
+                operation.into(),
+                started,
+            ),
         },
         operation.into(),
         true,
         save,
+        Some(editor.clone()),
     )
     .await;
     if prepared.status != "prepared" {
         return prepared;
-    }
-    if !host.accepts_upgrade(save, fingerprint, raw["session"].as_str().unwrap()) {
-        return failure(operation, "uncertain", "invalid_request");
     }
     dispatch(
         app,
@@ -613,10 +697,18 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
                 operation.into(),
                 started,
             ),
+            Batch::Mixed => Operation::TestMixed(
+                save.into(),
+                fingerprint.into(),
+                payload,
+                operation.into(),
+                started,
+            ),
         },
         operation.into(),
         true,
         save,
+        Some(editor),
     )
     .await
 }
@@ -638,16 +730,18 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Transaction {
         return failure(operation, "conflict", "invalid_request");
     }
     let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let token = host.upgrade_session(save);
     let result = dispatch(
         app,
         Operation::TestHealthRecover(save.into(), operation.into(), canonical, acknowledge),
         operation.into(),
         false,
         save,
+        None,
     )
     .await;
-    if let Some(projection) = &result.canonical {
-        host.update_editor(save, projection.opened.fingerprint());
+    if let (Some(projection), Some(token)) = (&result.canonical, token) {
+        host.update_editor(save, projection.opened.fingerprint(), &token);
     }
     result
 }

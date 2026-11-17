@@ -7,6 +7,7 @@ from hashlib import sha256
 
 import pytest
 
+from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability as Capability
@@ -54,6 +55,108 @@ def fixture(tmp_path, sample_save, monkeypatch):
 
 def edits():
     return [{"saveKey": KEY, "before": 99}, {"saveKey": OTHER, "before": -2}]
+
+
+def mixed_edits():
+    return {
+        "health": [{"playerId": "111", "before": 80, "value": 17}],
+        "upgrades": [{"playerId": "111", "key": "playerUpgradeStrength", "before": 2, "value": 3}],
+        "run": [{"field": "currency", "before": 12, "value": -19}],
+        "refillToFull": edits()[:1],
+    }
+
+
+def mixed(handler, fixture, changes, **kwargs):
+    root, _path, before, _data = fixture
+    return handler(
+        SAVE,
+        sha256(before).hexdigest(),
+        changes,
+        OP,
+        root,
+        mixed_batch=True,
+        game_status_loader=lambda: GameProcessStatus.NOT_RUNNING,
+        recharge_capability_loader=capabilities,
+        **kwargs,
+    )["transaction"]
+
+
+def test_mixed_intent_has_one_backup_one_receipt_and_one_canonical_version(fixture):
+    root, path, before, original = fixture
+    changes = mixed_edits()
+    assert mixed(api.prepare_health, fixture, changes)["status"] == "prepared"
+    tx = storage.HealthTransaction(path, OP)
+    assert not tx.backup.exists()
+    assert mixed(api.write_health, fixture, changes, reserved=True)["status"] == "applied"
+    expected = deepcopy(original)
+    values = expected["dictionaryOfDictionaries"]["value"]
+    values["playerHealth"]["111"] = 17
+    values["playerUpgradeStrength"]["111"] = 3
+    values["runStats"]["currency"] = -19
+    del values["itemStatBattery"][KEY]
+    assert SaveRepository.load(path) == expected
+    assert list(path.parent.glob("*.bak-*")) == [tx.backup]
+    assert tx.backup.read_bytes() == before
+    assert json.loads(tx.pending.read_bytes())["version"] == 9
+    assert api.health_state(SAVE, root)["pending"]["intent"] == {"mixed": changes}
+
+    result = api.recover_health(SAVE, OP, root, canonical=True, acknowledge=False)["transaction"]
+    assert result["status"] == "applied"
+    assert result["backupAvailable"] is True
+    assert result["fingerprint"] == sha256(path.read_bytes()).hexdigest()
+    view = result["canonical"]
+    assert view["opened"]["session"]["fingerprint"] == result["fingerprint"]
+    assert next(p for p in view["players"] if p["id"] == "111")["health"] == 17
+    strength = next(u for u in view["upgrades"] if u["key"] == "playerUpgradeStrength")
+    assert {"playerId": "111", "value": 3} in strength["values"]
+    assert next(stat for stat in view["run"]["stats"] if stat["key"] == "currency")["value"] == -19
+    assert (
+        next(item for item in view["advanced"]["items"] if item["saveKey"] == KEY)["chargeState"]
+        == "default_full"
+    )
+    assert tx.pending.is_file()
+    for _ in range(2):
+        assert api.recover_health(SAVE, OP, root, canonical=True)["transaction"] == result
+    assert list(path.parent.glob("*.json")) == [tx.archive]
+
+
+def test_mixed_rejects_an_ineligible_domain_and_a_changed_reservation(fixture):
+    _root, path, before, _original = fixture
+    invalid = mixed_edits()
+    invalid["refillToFull"] = [{"saveKey": INELIGIBLE, "before": 13}]
+    assert mixed(api.prepare_health, fixture, invalid)["reason"] == "save_validation_failed"
+    assert list(path.parent.glob("*.json")) == []
+    valid = mixed_edits()
+    assert mixed(api.prepare_health, fixture, valid)["status"] == "prepared"
+    invalid = deepcopy(valid)
+    invalid["run"][0]["value"] = 45
+    assert mixed(api.write_health, fixture, invalid, reserved=True)["reason"] == "invalid_request"
+    assert path.read_bytes() == before
+    assert list(path.parent.glob("*.bak-*")) == []
+    assert storage.HealthTransaction(path, OP).pending.is_file()
+
+
+def test_mixed_stale_after_staging_preserves_external_bytes_and_the_exact_backup(
+    fixture, monkeypatch
+):
+    root, path, before, original = fixture
+    changes = mixed_edits()
+    assert mixed(api.prepare_health, fixture, changes)["status"] == "prepared"
+    external = deepcopy(original)
+    external["dictionaryOfDictionaries"]["value"]["runStats"]["lives"] = 6
+    external_bytes = encrypt_save(external)
+    verify = SaveRepository._verify_staged
+
+    def verify_then_change(repository, staging, data, directory):
+        verify(repository, staging, data, directory)
+        path.write_bytes(external_bytes)
+
+    monkeypatch.setattr(SaveRepository, "_verify_staged", verify_then_change)
+    assert mixed(api.write_health, fixture, changes, reserved=True)["reason"] == "save_stale"
+    assert path.read_bytes() == external_bytes
+    tx = storage.HealthTransaction(path, OP)
+    assert tx.backup.read_bytes() == before
+    assert api.recover_health(SAVE, OP, root, canonical=True)["transaction"]["status"] == "conflict"
 
 
 def invoke(handler, fixture, changes=None, **kwargs):

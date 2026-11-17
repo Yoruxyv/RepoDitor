@@ -7,7 +7,7 @@ use std::{
         process::CommandExt,
     },
     path::Path,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
@@ -46,6 +46,10 @@ impl Job {
     }
 }
 
+pub(super) fn spawn(command: &mut Command) -> Result<Child, BackendError> {
+    command.spawn().map_err(|_| BackendError::Unavailable)
+}
+
 pub fn run(
     executable: &Path,
     args: &[&str],
@@ -53,6 +57,7 @@ pub fn run(
     cancelled: Arc<AtomicBool>,
     cosmetic_key: Option<&str>,
     background: bool,
+    launch: impl FnOnce(&mut Command) -> Result<Child, BackendError>,
 ) -> Result<Vec<u8>, BackendError> {
     if cancelled.load(Ordering::SeqCst) {
         return Err(BackendError::Failed);
@@ -80,7 +85,7 @@ pub fn run(
     if let Some(key) = cosmetic_key {
         command.env("REPODITOR_NATIVE_COSMETIC_KEY", key);
     }
-    let mut child = command.spawn().map_err(|_| BackendError::Unavailable)?;
+    let mut child = launch(&mut command)?;
     unsafe {
         if AssignProcessToJobObject(job.0.as_raw_handle(), child.as_raw_handle()) == 0 {
             let _ = child.kill();

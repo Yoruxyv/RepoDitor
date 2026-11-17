@@ -8,6 +8,8 @@ import type {
 } from "@electron/contracts";
 import {
   tauriHealthApi,
+  mixedIntentFits,
+  type MixedEdits,
   type HealthCanonical,
   type HealthState,
   type HealthTransaction,
@@ -78,67 +80,71 @@ const LOCKED: readonly HealthPhase[] = [
 
 function restorePending(current: State, operation: NonNullable<HealthState["pending"]>): State {
   const { intent, operationId } = operation;
-  const hasDraft =
-    current.healthEdits.length > 0 ||
-    current.refillEdits.length > 0 ||
-    current.upgradeEdits.length > 0 ||
-    current.runEdits.length > 0;
+  const hasDraft = [
+    current.healthEdits,
+    current.refillEdits,
+    current.upgradeEdits,
+    current.runEdits,
+  ].some((edits) => edits.length > 0);
   let healthEdits = current.healthEdits;
   let refillEdits = current.refillEdits;
   let upgradeEdits = current.upgradeEdits;
   let runEdits = current.runEdits;
   let restoredPlayerId: string | null = null;
-  if (!hasDraft && intent) {
-    if ("refillToFull" in intent) {
-      refillEdits = intent.refillToFull.map((edit) => ({
-        feature: "advanced",
-        entity: edit.saveKey,
-        field: "refillToFull",
-        after: true,
-        before: edit.before,
-        label: "Stored charge",
-        subject: edit.saveKey,
-      }));
-    } else if ("upgrades" in intent) {
-      upgradeEdits = intent.upgrades.map((edit) => ({
-        feature: "upgrades",
-        entity: edit.playerId,
-        field: edit.key,
-        before: edit.before,
-        after: edit.value,
-        label: edit.key,
-        subject: edit.playerId,
-      }));
-      restoredPlayerId = intent.upgrades[0]?.playerId ?? null;
-    } else if ("run" in intent) {
-      runEdits = intent.run.map(
-        (edit) =>
-          ({
-            feature: "run",
-            entity: "run",
-            field: edit.field,
-            before: edit.before,
-            after: edit.value,
-            label: edit.field,
-            subject: "Run",
-          }) as RunStatEdit,
-      );
-    } else {
-      const edits =
-        "playerId" in intent
-          ? [{ playerId: intent.playerId, before: intent.before, value: intent.health }]
-          : intent.health;
-      healthEdits = edits.map((edit) => ({
-        feature: "players",
-        entity: edit.playerId,
-        field: "health",
-        before: edit.before,
-        after: edit.value,
-        label: "Health",
-        subject: edit.playerId,
-      }));
-      restoredPlayerId = edits[0]?.playerId ?? null;
-    }
+  const pending = hasDraft ? null : intent;
+  const draft = pending && "mixed" in pending ? pending.mixed : pending;
+  if (draft && "refillToFull" in draft) {
+    refillEdits = draft.refillToFull.map((edit) => ({
+      feature: "advanced",
+      entity: edit.saveKey,
+      field: "refillToFull",
+      after: true,
+      before: edit.before,
+      label: "Stored charge",
+      subject: edit.saveKey,
+    }));
+  }
+  if (draft && "upgrades" in draft) {
+    upgradeEdits = draft.upgrades.map((edit) => ({
+      feature: "upgrades",
+      entity: edit.playerId,
+      field: edit.key,
+      before: edit.before,
+      after: edit.value,
+      label: edit.key,
+      subject: edit.playerId,
+    }));
+    restoredPlayerId = draft.upgrades[0]?.playerId ?? null;
+  }
+  if (draft && "run" in draft) {
+    runEdits = draft.run.map(
+      (edit) =>
+        ({
+          feature: "run",
+          entity: "run",
+          field: edit.field,
+          before: edit.before,
+          after: edit.value,
+          label: edit.field,
+          subject: "Run",
+        }) as RunStatEdit,
+    );
+  }
+  if (draft && "health" in draft) {
+    const edits =
+      "playerId" in draft
+        ? [{ playerId: draft.playerId, before: draft.before, value: draft.health }]
+        : draft.health;
+    healthEdits = edits.map((edit) => ({
+      feature: "players",
+      entity: edit.playerId,
+      field: "health",
+      before: edit.before,
+      after: edit.value,
+      label: "Health",
+      subject: edit.playerId,
+    }));
+    restoredPlayerId = edits[0]?.playerId ?? restoredPlayerId;
   }
   return {
     ...current,
@@ -156,53 +162,56 @@ function restorePending(current: State, operation: NonNullable<HealthState["pend
   };
 }
 
+function mixedEdits(state: State): MixedEdits {
+  return {
+    health: healthIntent(state.healthEdits),
+    upgrades: state.upgradeEdits.map((edit) => ({
+      playerId: edit.entity,
+      key: edit.field,
+      before: edit.before,
+      value: edit.after,
+    })),
+    run: runIntent(state.runEdits),
+    refillToFull: refillIntent(state.refillEdits),
+  };
+}
+
+function domainCount(draft: MixedEdits): number {
+  return Object.values(draft).filter((group) => group.length > 0).length;
+}
+
 function validDraft(
   state: State,
   players: PlayerDto[],
   api: Partial<typeof tauriHealthApi>,
 ): boolean {
+  const draft = mixedEdits(state);
+  const count = domainCount(draft);
+  const mixed = count > 1;
   if (
-    Number(state.healthEdits.length > 0) +
-      Number(state.refillEdits.length > 0) +
-      Number(state.upgradeEdits.length > 0) +
-      Number(state.runEdits.length > 0) !==
-    1
+    !state.upgradeSession ||
+    count === 0 ||
+    (mixed && (!api.writeMixed || !mixedIntentFits(draft)))
   )
     return false;
-  if (state.refillEdits.length > 0)
-    return (
-      !!api.writeRefills &&
-      !!state.upgradeSession &&
-      refillIntentFits(refillIntent(state.refillEdits)) &&
-      (!state.canonical?.advanced ||
-        state.refillEdits.every((edit) => {
-          const item = refillValue(state.canonical!, edit);
-          return item?.canRefillToFull && item.storedCharge === edit.before;
-        }))
-    );
-  if (state.runEdits.length > 0)
-    return !!api.writeRun && !!state.upgradeSession && runIntentFits(runIntent(state.runEdits));
-  if (state.healthEdits.length > 0) {
-    return (
-      !!state.upgradeSession &&
-      healthIntentFits(healthIntent(state.healthEdits)) &&
-      state.healthEdits.every((edit) => {
-        const player = (state.canonical?.players ?? players).find((p) => p.id === edit.entity);
-        return !!player && edit.after <= player.maxHealth;
-      })
-    );
-  }
   return (
-    !!api.writeUpgrades &&
-    !!state.upgradeSession &&
-    upgradeIntentFits(
-      state.upgradeEdits.map((edit) => ({
-        playerId: edit.entity,
-        key: edit.field,
-        before: edit.before,
-        value: edit.after,
-      })),
-    )
+    (draft.refillToFull.length === 0 ||
+      ((mixed || !!api.writeRefills) &&
+        refillIntentFits(draft.refillToFull) &&
+        (!state.canonical?.advanced ||
+          state.refillEdits.every((edit) => {
+            const item = refillValue(state.canonical!, edit);
+            return item?.canRefillToFull && item.storedCharge === edit.before;
+          })))) &&
+    (draft.run.length === 0 || ((mixed || !!api.writeRun) && runIntentFits(draft.run))) &&
+    (draft.health.length === 0 ||
+      (healthIntentFits(draft.health) &&
+        state.healthEdits.every((edit) => {
+          const player = (state.canonical?.players ?? players).find((p) => p.id === edit.entity);
+          return !!player && edit.after <= player.maxHealth;
+        }))) &&
+    (draft.upgrades.length === 0 ||
+      ((mixed || !!api.writeUpgrades) && upgradeIntentFits(draft.upgrades)))
   );
 }
 
@@ -295,7 +304,7 @@ export function useTauriHealth(
   onCanonical: (projection: HealthCanonical) => void,
   api: Pick<typeof tauriHealthApi, "state" | "writeHealthBatch" | "recover"> &
     Partial<
-      Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun" | "writeRefills">
+      Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun" | "writeRefills" | "writeMixed">
     > = tauriHealthApi,
 ) {
   const [state, setState] = useState<State>(INITIAL);
@@ -761,15 +770,8 @@ export function useTauriHealth(
       !validDraft(state, players, api)
     )
       return;
-    const health = healthIntent(state.healthEdits);
-    const upgrades = state.upgradeEdits.map((edit) => ({
-      playerId: edit.entity,
-      key: edit.field,
-      before: edit.before,
-      value: edit.after,
-    }));
-    const run = runIntent(state.runEdits);
-    const refillToFull = refillIntent(state.refillEdits);
+    const draft = mixedEdits(state);
+    const { health, upgrades, run, refillToFull } = draft;
     inFlight.current = true;
     try {
       if (state.phase === "unchanged" && state.operationId) {
@@ -790,7 +792,15 @@ export function useTauriHealth(
         backupVerified: false,
       }));
       let result: HealthTransaction;
-      if (refillToFull.length > 0) {
+      if (domainCount(draft) > 1) {
+        result = await api.writeMixed!({
+          saveId: session.id,
+          fingerprint: base.current.fingerprint,
+          operationId,
+          session: state.upgradeSession!,
+          mixed: draft,
+        });
+      } else if (refillToFull.length > 0) {
         result = await api.writeRefills!({
           saveId: session.id,
           fingerprint: base.current.fingerprint,
@@ -920,6 +930,7 @@ export function useTauriHealth(
     stageRefills,
     revertRefill,
     refillSaveAvailable: state.refillEdits.length === 0 || validDraft(state, players, api),
+    mixedSaveAvailable: !!api.writeMixed && validDraft(state, players, api),
     setUpgradeInvalid,
     editRun,
     revertRun,

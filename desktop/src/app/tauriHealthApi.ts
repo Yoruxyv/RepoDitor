@@ -47,7 +47,17 @@ export type HealthIntent =
   | { health: HealthIntentEdit[] }
   | { upgrades: UpgradeIntentEdit[] }
   | { run: RunIntentEdit[] }
+  | { mixed: MixedEdits }
   | RefillIntent;
+export interface MixedEdits {
+  health: HealthIntentEdit[];
+  upgrades: UpgradeIntentEdit[];
+  run: RunIntentEdit[];
+  refillToFull: RefillIntentEdit[];
+}
+export function mixedIntentFits(mixed: MixedEdits): boolean {
+  return new TextEncoder().encode(JSON.stringify({ mixed })).length <= 2048;
+}
 export type RefillIntent = { refillToFull: RefillIntentEdit[] };
 export const REFILL_INTENT_LIMIT = 2048;
 export function refillIntentFits(refillToFull: readonly RefillIntentEdit[]): boolean {
@@ -133,6 +143,7 @@ export interface RefillWrite {
   session: string;
   refillToFull: RefillIntentEdit[];
 }
+export type MixedWrite = Omit<HealthBatchWrite, "health"> & { mixed: MixedEdits };
 
 function unresolved(operationId: string, status: "uncertain" | "conflict"): HealthTransaction {
   return {
@@ -146,6 +157,13 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
+  async writeMixed(request: MixedWrite): Promise<HealthTransaction> {
+    try {
+      return await invoke<HealthTransaction>("test_health_write", { request });
+    } catch {
+      return unresolved(request.operationId, "uncertain");
+    }
+  },
   async writeRefills(request: RefillWrite): Promise<HealthTransaction> {
     try {
       return await invoke<HealthTransaction>("test_items_refill", { request });
