@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
@@ -68,7 +69,10 @@ def test_save_changes_writes_multiple_players_with_one_exact_backup(tmp_path: Pa
     assert SaveRepository.load(path) == expected
 
 
-def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, sample_save):
+@pytest.mark.parametrize("source_changed", [False, True], ids=["applied", "stale-after-staging"])
+def test_mixed_save_changes_publish_all_or_none(
+    tmp_path: Path, sample_save, monkeypatch, source_changed
+):
     sample_save["futureField"] = {"value": "preserve me"}
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
     dictionaries["item"] = {
@@ -84,6 +88,26 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
     dictionaries["itemsPurchasedTotal"] = {"Item Gun Tranq": 1}
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
+
+    expected = deepcopy(sample_save)
+    changed = expected["dictionaryOfDictionaries"]["value"]
+    changed["playerHealth"]["222"] = 100
+    changed["playerUpgradeStrength"]["222"] = 3
+    changed["runStats"].update({"currency": 20, "save level": 1})
+    del changed["itemStatBattery"]["Item Gun Tranq/1"]
+
+    if source_changed:
+        external = deepcopy(sample_save)
+        set_run_stat(external, "lives", 6)
+        external_bytes = encrypt_save(external)
+        verify_staged = SaveRepository._verify_staged
+
+        def verify_then_change(repository, staging, data, directory):
+            verify_staged(repository, staging, data, directory)
+            assert data == expected
+            path.write_bytes(external_bytes)
+
+        monkeypatch.setattr(SaveRepository, "_verify_staged", verify_then_change)
 
     result = save_changes(
         path.parent.name,
@@ -115,8 +139,20 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
         recharge_capability_loader=_rechargeable,
     )
 
+    backups = list(path.parent.glob(f"{path.name}.bak-*"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == original
+    assert not list(path.parent.glob("*.tmp"))
+    if source_changed:
+        assert result["ok"] is False
+        assert result["error"]["code"] == "save_stale"
+        assert "result" not in result
+        assert path.read_bytes() == external_bytes
+        return
+
     assert result["ok"] is True
     canonical = result["result"]["canonical"]
+    assert canonical["fingerprint"] == sha256(path.read_bytes()).hexdigest()
     assert canonical["fingerprint"] == result["result"]["session"]["fingerprint"]
     assert canonical["players"] == [{"id": "222", "health": 100}]
     assert canonical["upgrades"] == [
@@ -139,22 +175,8 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
         "currentChargeEntryCount": 1,
     }
     backup = Path(result["result"]["backupPath"])
-    assert backup.read_bytes() == original
-    reopened = SaveRepository.load(path)
-    dictionaries = reopened["dictionaryOfDictionaries"]["value"]
-    assert dictionaries["playerHealth"]["222"] == 100
-    assert dictionaries["playerUpgradeStrength"]["222"] == 3
-    assert dictionaries["runStats"]["currency"] == 20
-    assert dictionaries["runStats"]["save level"] == 1
-    assert dictionaries["item"] == {
-        "Item Gun Tranq/1": 15,
-        "Item Melee Inflatable Hammer/2": 21,
-    }
-    assert dictionaries["itemStatBattery"] == {"Item Melee Inflatable Hammer/2": 20}
-    assert dictionaries["itemBatteryUpgrades"] == {}
-    assert dictionaries["itemsPurchased"] == {"Item Gun Tranq": 1}
-    assert dictionaries["itemsPurchasedTotal"] == {"Item Gun Tranq": 1}
-    assert reopened["futureField"] == {"value": "preserve me"}
+    assert backup == backups[0]
+    assert SaveRepository.load(path) == expected
     assert result["result"]["session"]["fingerprint"] != _fingerprint_from_bytes(original)
 
 

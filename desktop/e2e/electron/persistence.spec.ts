@@ -88,6 +88,8 @@ test("preserves safe writes, exact backups, and stale-save rejection", async () 
     const itemSearch = page.getByRole("searchbox", { name: "Search items" });
     await itemSearch.fill("hammer");
     await page.getByRole("button", { name: "Recharge Melee Inflatable Hammer, tool 1" }).click();
+    await expect(page.getByTestId("workspace-pending-edit-count")).toHaveText("4 pending changes");
+    expect((await readFile(savePath)).equals(sourceBefore)).toBe(true);
     await page.getByRole("button", { name: "Save Changes" }).click();
 
     await waitForSafeSave(page, "workspace");
@@ -108,18 +110,23 @@ test("preserves safe writes, exact backups, and stale-save rejection", async () 
     ).toBe(true);
     expect((await readFile(savePath)).equals(sourceBefore)).toBe(false);
 
+    async function expectCommittedRunValues() {
+      await page.getByRole("tab", { name: "Players" }).click();
+      await page.getByRole("button", { name: /Beta/ }).click();
+      await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
+      await page.getByRole("tab", { name: "Upgrades" }).click();
+      await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
+      await page.getByRole("tab", { name: "Run" }).click();
+      await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+    }
+
+    await expectCommittedRunValues();
     await page.getByRole("button", { name: "Change save" }).click();
     await waitForDiscoveredSave(page);
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await waitForWorkspaceOrContinue(page);
 
-    await page.getByRole("tab", { name: "Players" }).click();
-    await page.getByRole("button", { name: /Beta/ }).click();
-    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("100");
-    await page.getByRole("tab", { name: "Upgrades" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("3");
-    await page.getByRole("tab", { name: "Run" }).click();
-    await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("20");
+    await expectCommittedRunValues();
     await page.getByRole("tab", { name: "Items" }).click();
     await expect(
       page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }),
