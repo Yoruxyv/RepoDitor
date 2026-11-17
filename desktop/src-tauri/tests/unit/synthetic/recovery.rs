@@ -260,3 +260,19 @@ fn rejects_forged_outcome_and_private_reason() {
         .is_err());
     }
 }
+
+#[test]
+fn sharing_conflicts_and_unavailable_verification_remain_distinct() {
+    let op = "a".repeat(32);
+    for reason in ["save_in_use", "save_verification_unavailable"] {
+        let raw = json!({"ok":true,"transaction":{"operationId":op,"status":"rejected","fingerprint":null,"backupAvailable":false,"reason":reason}});
+        let transaction = parse(
+            &serde_json::to_vec(&raw).unwrap(),
+            &op,
+            "REPO_SAVE_2026_08_08_10_20_30",
+        )
+        .unwrap();
+        assert_eq!(transaction.status, "rejected");
+        assert_eq!(transaction.reason.as_deref(), Some(reason));
+    }
+}

@@ -24,14 +24,17 @@ SAVE = "REPO_SAVE_2026_08_08_10_20_30"
 OP = "a" * 32
 NEXT = "b" * 32
 STOPPED = GameProcessStatus.NOT_RUNNING
+BUILD = "1" * 64
 
 
 def closed():
     return STOPPED
 
 
-def service(root, status=closed, **options):
-    return FixtureHealthTransaction(lambda: root, status, **options)
+def service(root, status=closed, *, verified_fixture_build=lambda: BUILD, **options):
+    return FixtureHealthTransaction(
+        lambda: root, status, verified_fixture_build=verified_fixture_build, **options
+    )
 
 
 def digest(source):
@@ -203,7 +206,9 @@ def test_stale_open_fingerprint_is_rejected_at_confirmation(save):
 def test_confirmation_binds_source_and_fixture(save, sample_save, change):
     path, before, root = save
     selected = [root]
-    writer = FixtureHealthTransaction(lambda: selected[0], closed)
+    writer = FixtureHealthTransaction(
+        lambda: selected[0], closed, verified_fixture_build=lambda: BUILD
+    )
     token = writer.confirm(SAVE, digest(before), "111", 17, OP)
     if change == "fingerprint":
         sample_save["dictionaryOfDictionaries"]["value"]["playerHealth"]["111"] = 81
@@ -323,6 +328,51 @@ def test_final_binding_and_backup_validation_precede_last_game_query(save, monke
     assert checks == ["game", "game"]
     assert path.read_bytes() == (foreign if change == "modified_source" else before)
     assert inspect_pending(path) is not None
+
+
+@pytest.mark.parametrize("phase", ["admission", "commit", "final"])
+def test_verified_fixture_build_binds_grant(save, phase):
+    path, before, root = save
+    evidence = iter(
+        {
+            "admission": [None],
+            "commit": [BUILD, "2" * 64],
+            "final": [BUILD, BUILD, "2" * 64],
+        }[phase]
+    )
+    writer = service(root, verified_fixture_build=lambda: next(evidence))
+    if phase == "admission":
+        with pytest.raises(RecoveryError, match="save_unsupported"):
+            writer.confirm(SAVE, digest(before), "111", 17, OP)
+    else:
+        token = writer.confirm(SAVE, digest(before), "111", 17, OP)
+        result = writer.commit(token)
+        assert (result.status, result.reason) == (
+            "uncertain" if phase == "final" else "rejected",
+            "save_stale",
+        )
+        assert writer.commit(token).reason == "invalid_session"
+    assert path.read_bytes() == before
+    tx = HealthTransaction(path, OP)
+    assert tx.pending.exists() == tx.backup.exists() == (phase == "final")
+    if phase == "final":
+        assert tx.backup.read_bytes() == before
+
+
+def test_fixture_build_inspection_failure_is_sanitized(save):
+    path, before, root = save
+
+    def unavailable():
+        error = OSError("private diagnostic")
+        error.winerror = 32  # Sharing failure on a build input, not on the save.
+        raise error
+
+    writer = service(root, verified_fixture_build=unavailable)
+    with pytest.raises(RecoveryError) as error:
+        writer.confirm(SAVE, digest(before), "111", 17, OP)
+    assert str(error.value) == "save_verification_unavailable"
+    assert not HealthTransaction(path, OP).pending.exists()
+    assert path.read_bytes() == before
 
 
 def test_wrong_operation_and_other_domain_pending_evidence_survive(save):

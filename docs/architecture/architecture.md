@@ -447,6 +447,17 @@ validates player/key membership against the loaded save, exact previous values,
 integer bounds, duplicate targets and operation identity; presentation metadata
 never grants authority.
 
+For the single-player fixture transport, reservation binds the encrypted source
+and observed file identity. Immediately before publication the writer checks the
+verified receipt, rereads the exact encrypted backup, and compares the current
+source hash and file identity again. A confirmed sharing violation is reported
+separately from unavailable access or identity verification. The in-process
+disposable admission harness also binds its one-use confirmation to a trusted
+fixture caller's verified build digest and checks that digest again during the
+write. These fixtures supply no installed-game build approval. See the
+[proposed consumer live-editing exception](../release-checklist.md#proposed-consumer-live-editing-exception)
+for the future approval requirements and the remaining late-writer race.
+
 Python's opt-in health transaction reuses `save_changes` and repository verification.
 Before launching the mutating process, the host requires a Python-owned reservation
 acknowledgement. That first process validates the typed request and persists the

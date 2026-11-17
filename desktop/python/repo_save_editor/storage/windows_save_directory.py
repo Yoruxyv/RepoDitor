@@ -68,6 +68,10 @@ class SaveNamespaceError(OSError):
     """An object does not belong to the admitted ordinary save namespace."""
 
 
+class SaveNamespaceConflictError(SaveNamespaceError):
+    """A handle identifies a nonordinary or multiply linked save-owned file."""
+
+
 class SaveDirectory:
     """Keep ordinary ancestry pinned and perform single-leaf operations relative to it."""
 
@@ -292,7 +296,7 @@ class SaveDirectory:
                 or info.st_nlink != 1
                 or info.st_file_attributes & 0x400
             ):
-                raise SaveNamespaceError("Nonordinary save-owned file")
+                raise SaveNamespaceConflictError("Nonordinary save-owned file")
             yield stream
 
     def read(self, path: Path) -> bytes:

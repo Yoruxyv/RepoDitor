@@ -377,6 +377,8 @@ fn parse(bytes: &[u8], operation: &str, save: &str) -> Result<Transaction, Backe
                     | "save_decrypt_failed"
                     | "save_unsupported"
                     | "save_stale"
+                    | "save_in_use"
+                    | "save_verification_unavailable"
                     | "save_validation_failed"
                     | "game_running"
                     | "game_status_unknown"

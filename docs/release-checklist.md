@@ -557,6 +557,40 @@ supported Windows/filesystem validation, remote CI confirmation and ordinary
 release/installer acceptance. These prerequisites
 cannot be replaced by the synthetic recovery drill or a successful read-only open.
 
+### Proposed consumer live-editing exception
+
+A consumer release may use the following bounded policy only after separate
+production approval explicitly replaces strict exclusion for the approved scope.
+Current Tauri write authorization remains limited to the synthetic fixture fence.
+
+1. Verify that R.E.P.O. is closed at admission and again before publication.
+   Unknown status or failed inspection blocks the write.
+2. Require reviewed evidence for the installed build and editing domain. Bind
+   the authorized intent to the opened save, its identity and encrypted SHA-256.
+   Recheck the source under the per-slot writer lock. Reject ambiguous namespaces,
+   unsupported storage and unresolved or conflicting recovery evidence.
+3. Keep an exact encrypted backup and read it back independently. Validate the
+   staged ciphertext and intended fields before handle-relative atomic replacement.
+   Preserve durable evidence when publication cannot be confirmed. Require an
+   independent reconciliation of save identity, fingerprint and backup before
+   acknowledging success in the editor. Retry only after uncertainty is resolved.
+
+A compatible read is admitted normally. A filesystem sharing violation establishes
+an access conflict for the attempted operation. Access denied, unavailable
+identity and failed inspection do not identify a competing writer. Ask the user
+to close the game only on confirmed running status. On source drift, ask the user
+to reopen and review the source. On uncertainty, keep the evidence and require
+reconciliation before another write.
+
+Tell users to close the game and other editors and let Steam Cloud finish before
+editing. An older editor, a newly launched game or a synchronization client can
+still write after the last check or overwrite the result later. Atomic replacement
+avoids publishing a partial file. The backup preserves the version RepoDitor
+admitted, so it may not contain an external edit made after the last check.
+The disposable late-writer regression deliberately demonstrates this gap.
+Approval requires build-specific compatibility evidence from game-generated
+disposable saves and validation of the proposed release behavior.
+
 ## Manual security and safety review
 
 - `contextIsolation` remains enabled; Node integration remains disabled; the

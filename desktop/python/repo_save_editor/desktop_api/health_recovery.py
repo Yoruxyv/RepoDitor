@@ -14,7 +14,7 @@ from repo_save_editor.desktop_api.game_status import GameSafetyError, require_ga
 from repo_save_editor.desktop_api.items import RechargeCapabilityLoader, serialize_advanced_save
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.player.upgrades import serialize_upgrades
-from repo_save_editor.desktop_api.protocol import DesktopSaveError
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, save_access_reason
 from repo_save_editor.desktop_api.run import serialize_run
 from repo_save_editor.desktop_api.run_save_changes import (
     apply_run_save_changes,
@@ -38,6 +38,7 @@ from repo_save_editor.services.saves.discovery import discover_saves
 from repo_save_editor.storage.health_recovery import (
     HealthTransaction,
     RecoveryError,
+    _snapshot,
     health_lock,
     inspect_pending,
     valid_health_batch_intent,
@@ -60,6 +61,12 @@ def _outcome(operation: str, status: str, reason: str | None = None) -> dict[str
             "reason": reason,
         },
     }
+
+
+def _reason(error: Exception, fallback: str, *, single: bool) -> str:
+    if single and fallback not in {"write_busy", "game_status_unknown"}:
+        return save_access_reason(error) or fallback
+    return fallback
 
 
 def _path(save_id: str, root: Path) -> Path:
@@ -162,6 +169,7 @@ def prepare_health(
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
+    single = not (refill_batch or health_batch or upgrade_batch or run_batch)
     valid = _valid_changes(
         changes,
         refill_batch=refill_batch,
@@ -177,6 +185,11 @@ def prepare_health(
             transaction = HealthTransaction(path, operation, directory=directory)
             transaction.admit()
             require_game_closed(game_status_loader)
+            identity = None
+            if single:
+                current, identity = _snapshot(path, directory)
+                if current != fingerprint:
+                    return _outcome(operation, "rejected", "save_stale")
             _save, data, source = load_discovered_save(save_id, root, directory=directory)
             if sha256(source).hexdigest() != fingerprint:
                 return _outcome(operation, "rejected", "save_stale")
@@ -213,10 +226,10 @@ def prepare_health(
                     directory=directory,
                     intent=intent,
                 )
-            transaction.prepare(source)
+            transaction.prepare(source, expected_identity=identity)
             return _outcome(operation, "prepared")
     except (RecoveryError, DesktopSaveError, GameSafetyError) as exc:
-        return _outcome(operation, "rejected", exc.code)
+        return _outcome(operation, "rejected", _reason(exc, exc.code, single=single))
     except SaveResourceError:
         return _outcome(operation, "rejected", "save_unsupported")
     except (ValueError, TypeError):
@@ -227,8 +240,8 @@ def prepare_health(
             if refill_batch or health_batch or upgrade_batch or run_batch
             else "backend_unavailable",
         )
-    except OSError:
-        return _outcome(operation, "rejected", "backend_unavailable")
+    except OSError as exc:
+        return _outcome(operation, "rejected", _reason(exc, "backend_unavailable", single=single))
 
 
 def _health_change(changes: object) -> bool:
@@ -275,6 +288,7 @@ def write_health(
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Delegate one typed domain intent, recording ambiguous completion explicitly."""
+    single = not (refill_batch or health_batch or upgrade_batch or run_batch)
     transaction: HealthTransaction | None = None
     if not valid_operation(operation):
         return _outcome(operation, "rejected", "invalid_request")
@@ -346,6 +360,7 @@ def write_health(
                 game_status_loader=game_status_loader,
                 recharge_capability_loader=recharge_capability_loader,
                 health_transaction=transaction,
+                verify_replacement=transaction.verify_before_replace if single else None,
             )
             if result["ok"] is not True:
                 error = cast(dict[str, object], result["error"])
@@ -358,23 +373,20 @@ def write_health(
                 "ok": True,
                 "transaction": {**transaction.recover(own_completion=True), "reason": None},
             }
-    except DesktopSaveError as exc:
+    except (DesktopSaveError, RecoveryError) as exc:
         return _outcome(
             operation,
             "uncertain" if transaction is not None and transaction.started else "rejected",
-            exc.code,
+            _reason(exc, exc.code, single=single),
         )
-    except RecoveryError as exc:
-        status = "uncertain" if transaction is not None and transaction.started else "rejected"
-        return _outcome(operation, status, exc.code)
     except SaveResourceError:
         status = "uncertain" if transaction is not None and transaction.started else "rejected"
         return _outcome(operation, status, "save_unsupported")
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as exc:
         return _outcome(
             operation,
             "uncertain" if transaction is not None and transaction.started else "rejected",
-            "backend_unavailable",
+            _reason(exc, "backend_unavailable", single=single),
         )
 
 

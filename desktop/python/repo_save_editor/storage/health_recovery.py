@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from repo_save_editor.core.save_resources import (
+    SaveResourceError,
     bounded_save_operation,
     check_encrypted,
     hash_encrypted,
@@ -439,7 +440,7 @@ class HealthTransaction:
             raise RecoveryError("write_conflict")
 
     @bounded_save_operation
-    def prepare(self, source: bytes) -> None:
+    def prepare(self, source: bytes, *, expected_identity: list[int] | None = None) -> None:
         check_encrypted(source)
         if self.resumed:
             receipt = self._read(self.pending)
@@ -457,7 +458,9 @@ class HealthTransaction:
         current, identity = _snapshot(self.path, directory=self.directory)
         before = sha256(source).hexdigest()
         if current != before:
-            raise RecoveryError("write_conflict")
+            raise RecoveryError("save_stale" if expected_identity is not None else "write_conflict")
+        if expected_identity is not None and identity != expected_identity:
+            raise RecoveryError("save_stale")
         self.started = True
         self._write(
             Receipt(
@@ -555,6 +558,28 @@ class HealthTransaction:
         self._write(
             replace(receipt, after=after, after_identity=identity, phase="verified"), self.pending
         )
+
+    def verify_before_replace(self) -> None:
+        """Verify the durable backup and admitted file immediately before publication."""
+        receipt = self._read(self.pending)
+        self._require_namespace(receipt)
+        if receipt.phase != "verified" or (receipt.owner_pid, receipt.owner_started) != (
+            os.getpid(),
+            self.process_started,
+        ):
+            raise RecoveryError("write_recovery_required")
+        try:
+            backup = _hash(self.backup, directory=self.directory)
+        except (FileNotFoundError, SaveResourceError) as exc:
+            raise RecoveryError("backup_failed") from exc
+        if backup != receipt.before:
+            raise RecoveryError("backup_failed")
+        try:
+            current = _snapshot(self.path, directory=self.directory)
+        except FileNotFoundError as exc:
+            raise RecoveryError("save_stale") from exc
+        if current != (receipt.before, receipt.before_identity):
+            raise RecoveryError("save_stale")
 
     def _adopt_preparing(self) -> bool:
         candidates = self._receipt_temps()

@@ -18,7 +18,7 @@ from repo_save_editor.core.save_resources import (
 )
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
-from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure, save_access_reason
 from repo_save_editor.desktop_api.run_save_changes import (
     apply_run_save_changes,
     requested_refill_item_types,
@@ -54,7 +54,6 @@ from repo_save_editor.storage.repository import (
     SaveRepository,
     SaveStaleError,
     SaveVerificationError,
-    SaveWriteError,
     read_save_bytes,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
@@ -258,6 +257,7 @@ def save_changes(
     recharge_evidence: object | None = None,
     recharge_evidence_verifier: RechargeEvidenceVerifier = verify_recharge_evidence,
     health_transaction: HealthTransaction | None = None,
+    verify_replacement: Callable[[], None] | None = None,
 ) -> dict[str, object]:
     """Validate and safely persist one typed set of pending changes.
 
@@ -315,13 +315,27 @@ def save_changes(
                 recharge_capabilities = {}
             apply_run_save_changes(data, changes, recharge_capabilities)
             require_game_closed(game_status_loader)
+
+            def before_replace() -> None:
+                if verify_replacement is not None:
+                    try:
+                        verify_replacement()
+                    except RecoveryError as exc:
+                        raise DesktopSaveError(exc.code, "Save verification failed.") from exc
+                    except OSError as exc:
+                        raise DesktopSaveError(
+                            save_access_reason(exc) or "save_verification_unavailable",
+                            "Save access could not be verified.",
+                        ) from exc
+                require_game_closed(game_status_loader)
+
             backup, written = SaveRepository(save.path.parent).overwrite(
                 save.path,
                 data,
                 expected_source=source,
                 health_transaction=health_transaction,
                 directory=directory,
-                before_replace=lambda: require_game_closed(game_status_loader),
+                before_replace=before_replace,
             )
             try:
                 metadata = directory.stat(save.path) if directory is not None else save.path.stat()
@@ -344,34 +358,47 @@ def save_changes(
                     recharge_capabilities,
                 ),
             }
-    except GameSafetyError as exc:
+    except (
+        GameSafetyError,
+        DesktopSaveError,
+        SaveCryptoError,
+        ValueError,
+        TypeError,
+        OSError,
+    ) as exc:
+        return _save_changes_failure(exc, verify_access=verify_replacement is not None)
+
+    return {"ok": True, "result": result}
+
+
+def _save_changes_failure(exc: Exception, *, verify_access: bool) -> dict[str, object]:
+    if isinstance(exc, GameSafetyError):
         return _failure(exc.code, exc.message)
-    except DesktopSaveError as exc:
+    if verify_access and (reason := save_access_reason(exc)):
+        return _failure(reason, "Save access could not be verified.")
+    if isinstance(exc, DesktopSaveError):
         return _failure(exc.code, exc.message)
-    except SaveCryptoError:
+    if isinstance(exc, SaveCryptoError):
         return _failure("save_write_failed", "The edited save could not be encrypted safely.")
-    except (ValueError, TypeError) as exc:
+    if isinstance(exc, (ValueError, TypeError)):
         return _failure(
             "save_unsupported" if isinstance(exc, SaveResourceError) else "save_validation_failed",
             str(exc),
         )
-    except SaveBackupError:
+    if isinstance(exc, SaveBackupError):
         return _failure(
             "backup_failed", "The original save could not be backed up. Nothing was written."
         )
-    except (SaveStaleError, RecoveryError):
+    if isinstance(exc, (SaveStaleError, RecoveryError)):
         return _failure(
             "save_stale",
             "The save changed or is busy. Reopen it before saving edits.",
         )
-    except SaveVerificationError:
+    if isinstance(exc, SaveVerificationError):
         return _failure(
             "save_verification_failed",
             "The staged save could not be verified. The original was preserved.",
         )
-    except FileNotFoundError:
+    if isinstance(exc, FileNotFoundError):
         return _failure("save_missing", "The selected save no longer exists.")
-    except (SaveWriteError, OSError):
-        return _failure("save_write_failed", "The edited save could not be written safely.")
-
-    return {"ok": True, "result": result}
+    return _failure("save_write_failed", "The edited save could not be written safely.")

@@ -18,7 +18,7 @@ from repo_save_editor.core.save_resources import SaveResourceError, bounded_save
 from repo_save_editor.core.schema import SAVE_INT32_MAX, get_dictionaries, get_typed_value
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
-from repo_save_editor.desktop_api.protocol import DesktopSaveError
+from repo_save_editor.desktop_api.protocol import DesktopSaveError, save_access_reason
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.player.state import set_player_health
 from repo_save_editor.services.saves.discovery import SAVE_SLOT_PATTERN, SAVE_SLOT_TIMESTAMP_FORMAT
@@ -62,6 +62,7 @@ class _Grant:
     namespace: str
     fingerprint: str
     identity: list[int]
+    build: str
     player: str
     before: int
     health: int
@@ -98,7 +99,14 @@ def _load(path: Path, directory: SaveDirectory | None, fingerprint: str) -> tupl
 
 
 def _reason(exc: Exception) -> str:
-    if isinstance(exc, (RecoveryError, GameSafetyError, DesktopSaveError)):
+    if isinstance(exc, GameSafetyError) or (
+        isinstance(exc, RecoveryError)
+        and exc.code in {"write_busy", "save_verification_unavailable"}
+    ):
+        return exc.code
+    if reason := save_access_reason(exc):
+        return reason
+    if isinstance(exc, (RecoveryError, DesktopSaveError)):
         return exc.code
     if isinstance(exc, (SaveResourceError, SaveCryptoError)):
         return "save_unsupported"
@@ -121,13 +129,27 @@ class FixtureHealthTransaction:
         resolve_fixture_root: Callable[[], Path | None],
         game_status: Callable[[], GameProcessStatus],
         *,
+        verified_fixture_build: Callable[[], str | None],
         clock: Callable[[], float] = monotonic,
     ) -> None:
         self._resolve_fixture_root = resolve_fixture_root
         self._game_status = game_status
+        self._verified_fixture_build = verified_fixture_build
         self._clock = clock
         self._grant: _Grant | None = None
         self._guard = Lock()
+
+    def _build(self) -> str:
+        """The trusted fixture caller supplies a freshly verified, supported build digest."""
+        try:
+            build = self._verified_fixture_build()
+        except OSError as exc:
+            raise RecoveryError("save_verification_unavailable") from exc
+        if build is None:
+            raise RecoveryError("save_unsupported")
+        if not isinstance(build, str) or fullmatch(r"[0-9a-f]{64}", build) is None:
+            raise RecoveryError("save_verification_unavailable")
+        return build
 
     def _path(self, save: str) -> Path:
         slot = (
@@ -170,6 +192,7 @@ class FixtureHealthTransaction:
             try:
                 require_game_closed(self._game_status)
                 path = self._path(save)
+                build = self._build()
                 with health_lock(path) as directory:
                     tx = HealthTransaction(path, operation, directory=directory)
                     tx.admit()
@@ -195,6 +218,7 @@ class FixtureHealthTransaction:
                         tx.namespace(),
                         fingerprint,
                         identity,
+                        build,
                         player,
                         before,
                         health,
@@ -237,6 +261,8 @@ class FixtureHealthTransaction:
                 def check_binding() -> None:
                     if self._clock() >= grant.expires:
                         raise RecoveryError("admission_expired")
+                    if self._build() != grant.build:
+                        raise RecoveryError("save_stale")
                     if (
                         self._path(grant.save) != path
                         or tx.namespace() != grant.namespace
@@ -252,12 +278,16 @@ class FixtureHealthTransaction:
 
                 def before_replace() -> None:
                     try:
-                        if _snapshot(tx.backup, directory)[0] != grant.fingerprint:
-                            raise RecoveryError("backup_failed")
+                        tx.verify_before_replace()
                         check_binding()
-                    except RecoveryError as exc:
+                    except OSError as exc:
                         # Repository I/O errors are translated before they cross this boundary.
-                        raise DesktopSaveError(exc.code, "Health admission changed.") from exc
+                        reason = (
+                            exc.code
+                            if isinstance(exc, RecoveryError)
+                            else save_access_reason(exc) or "save_verification_unavailable"
+                        )
+                        raise DesktopSaveError(reason, "Health admission changed.") from exc
                     require_game_closed(self._game_status)
                     if self._clock() >= grant.expires:
                         raise DesktopSaveError("admission_expired", "Health confirmation expired.")

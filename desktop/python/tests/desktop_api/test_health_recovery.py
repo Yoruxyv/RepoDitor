@@ -20,6 +20,10 @@ from repo_save_editor.desktop_api.health_recovery import (
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as storage
 from repo_save_editor.storage.repository import SaveRepository
+from repo_save_editor.storage.windows_save_directory import SaveDirectory, SaveNamespaceError
+
+if os.name == "nt":
+    import _winapi
 
 ID = "REPO_SAVE_2026_08_08_10_20_30"
 OP = "a" * 32
@@ -91,6 +95,173 @@ def write(root, before, operation=OP, value=17):
         root,
         game_status_loader=lambda: GameProcessStatus.NOT_RUNNING,
     )["transaction"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Exercises Windows share modes")
+@pytest.mark.parametrize("share", [0, 7], ids=["sharing-conflict", "compatible-reader"])
+def test_reservation_uses_actual_sharing_evidence(tmp_path, sample_save, share):
+    path, before, root = prepare(tmp_path, sample_save)
+    reader = _winapi.CreateFile(str(path), 0x80000000, share, 0, 3, 0x80, 0)
+    try:
+        result = prepare_health(
+            ID,
+            sha256(before).hexdigest(),
+            change(),
+            OP,
+            root,
+            game_status_loader=lambda: GameProcessStatus.NOT_RUNNING,
+        )["transaction"]
+        expected = ("prepared", None) if share else ("rejected", "save_in_use")
+        assert (result["status"], result["reason"]) == expected
+    finally:
+        _winapi.CloseHandle(reader)
+    tx = storage.HealthTransaction(path, OP)
+    assert path.read_bytes() == before
+    assert tx.pending.exists() == bool(share)
+    assert not tx.backup.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Exercises Windows namespace validation")
+def test_unsupported_storage_cannot_reserve_or_write(tmp_path, sample_save, monkeypatch):
+    path, before, root = prepare(tmp_path, sample_save)
+
+    def unsupported(_directory, _handle):
+        raise SaveNamespaceError("private storage detail")
+
+    monkeypatch.setattr(SaveDirectory, "_require_local_ntfs", unsupported)
+    for handler in (prepare_health, write_health):
+        result = handler(
+            ID,
+            sha256(before).hexdigest(),
+            change(),
+            OP,
+            root,
+            game_status_loader=lambda: GameProcessStatus.NOT_RUNNING,
+        )["transaction"]
+        assert (result["status"], result["reason"]) == ("rejected", "save_verification_unavailable")
+    assert path.read_bytes() == before
+    assert list(path.parent.iterdir()) == [path]
+
+
+def test_reservation_rejects_identical_leaf_replacement_before_receipt(tmp_path, sample_save):
+    path, before, root = prepare(tmp_path, sample_save)
+    sibling = path.with_name("external.es3")
+    sibling.write_bytes(before)
+    stamp = path.stat().st_mtime_ns
+    os.utime(sibling, ns=(stamp, stamp))
+    identity = sibling.stat().st_ino
+    checks = 0
+
+    def closed():
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            sibling.replace(path)
+        return GameProcessStatus.NOT_RUNNING
+
+    result = prepare_health(
+        ID, sha256(before).hexdigest(), change(), OP, root, game_status_loader=closed
+    )["transaction"]
+    assert (result["status"], result["reason"]) == ("rejected", "save_stale")
+    assert path.read_bytes() == before
+    assert path.stat().st_ino == identity
+    tx = storage.HealthTransaction(path, OP)
+    assert not tx.pending.exists()
+    assert not tx.backup.exists()
+
+
+@pytest.mark.parametrize("failure", ["identity", "source", "backup", "unavailable"])
+def test_final_verification_preserves_conflicts(tmp_path, sample_save, monkeypatch, failure):
+    path, before, root = prepare(tmp_path, sample_save)
+    after = deepcopy(sample_save)
+    after["futureField"] = {"value": "External edit"}
+    sibling = path.with_name("external.es3")
+    if failure == "source":
+        SaveRepository(root).save_as(sibling, after)
+    else:
+        sibling.write_bytes(before)
+        stamp = path.stat().st_mtime_ns
+        os.utime(sibling, ns=(stamp, stamp))
+    external = sibling.read_bytes()
+    external_identity = sibling.stat().st_ino
+    verified = storage.HealthTransaction.verified
+
+    def interfere(tx, written):
+        verified(tx, written)
+        if failure in {"source", "identity"}:
+            sibling.replace(path)
+        elif failure == "backup":
+            tx.backup.write_bytes(before[:-1])
+        else:
+            original = storage._snapshot
+
+            def inaccessible(target, directory=None):
+                if target == path:
+                    raise PermissionError("private diagnostic")
+                return original(target, directory)
+
+            monkeypatch.setattr(storage, "_snapshot", inaccessible)
+
+    monkeypatch.setattr(storage.HealthTransaction, "verified", interfere)
+    result = write(root, before)
+    assert result["status"] == "uncertain"
+    assert (
+        result["reason"]
+        == {
+            "identity": "save_stale",
+            "source": "save_stale",
+            "backup": "backup_failed",
+            "unavailable": "save_verification_unavailable",
+        }[failure]
+    )
+    assert result["backupAvailable"] is False
+    tx = storage.HealthTransaction(path, OP)
+    assert tx.pending.exists()
+    assert tx.backup.read_bytes() == (before[:-1] if failure == "backup" else before)
+    assert path.read_bytes() == (external if failure == "source" else before)
+    if failure == "identity":
+        assert path.stat().st_ino == external_identity
+    assert write(root, before, NEXT)["reason"] == "write_recovery_required"
+
+
+def test_noncooperating_writer_after_final_check_remains_a_known_race(tmp_path, sample_save):
+    path, before, root = prepare(tmp_path, sample_save)
+    edited = deepcopy(sample_save)
+    edited["futureField"] = {"value": "Late external edit"}
+    external = path.with_name("external.es3")
+    SaveRepository(root).save_as(external, edited)
+    checks = 0
+
+    def closed():
+        nonlocal checks
+        checks += 1
+        if checks == 3:
+            subprocess.run(  # noqa: S603 -- fixed script and interpreter with disposable test paths.
+                [
+                    PYTHON,
+                    "-B",
+                    "-c",
+                    "from pathlib import Path; import sys; "
+                    "Path(sys.argv[1]).write_bytes(Path(sys.argv[2]).read_bytes())",
+                    str(path),
+                    str(external),
+                ],
+                check=True,
+                timeout=10,
+            )
+            assert path.read_bytes() == external.read_bytes()
+        return GameProcessStatus.NOT_RUNNING
+
+    result = write_health(
+        ID, sha256(before).hexdigest(), change(), OP, root, game_status_loader=closed
+    )["transaction"]
+    assert checks == 3
+    assert result["status"] == "applied"
+    assert path.read_bytes() != external.read_bytes()
+    tx = storage.HealthTransaction(path, OP)
+    assert tx.pending.exists()
+    assert tx.backup.read_bytes() == before
+    assert recover_health(ID, OP, root)["transaction"]["status"] == "busy"
 
 
 def start(home, before, phase, *, recover=False, wait_phase=True, value=17):
