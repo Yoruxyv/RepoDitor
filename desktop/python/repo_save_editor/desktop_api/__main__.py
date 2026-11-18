@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from functools import partial
 from pathlib import Path
 
 from repo_save_editor.core.save_resources import bounded_save_operation
@@ -55,6 +56,13 @@ from repo_save_editor.desktop_api.production_meta import production_meta
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.map_artwork import decode_map_artwork
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_item_metadata,
+    discover_installed_item_metadata_with_evidence,
+)
+from repo_save_editor.services.player.installed_upgrades import (
+    discover_installed_upgrade_presentations,
+)
 
 _INVALID_JSON = object()
 
@@ -99,7 +107,17 @@ def _player_avatar(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
-    return _missing_save() if args.save_id is None else list_upgrades(args.save_id)
+    if args.save_id is None:
+        return _missing_save()
+    if not args.reuse_installed_metadata:
+        return list_upgrades(args.save_id)
+    return list_upgrades(
+        args.save_id,
+        presentation_loader=partial(
+            discover_installed_upgrade_presentations,
+            metadata_loader=partial(discover_installed_item_metadata, reuse_native_metadata=True),
+        ),
+    )
 
 
 def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
@@ -167,7 +185,16 @@ def _run_state(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _advanced_save(args: argparse.Namespace) -> dict[str, object]:
-    return _missing_save() if args.save_id is None else get_advanced_save(args.save_id)
+    if args.save_id is None:
+        return _missing_save()
+    if not args.reuse_installed_metadata:
+        return get_advanced_save(args.save_id)
+    return get_advanced_save(
+        args.save_id,
+        metadata_evidence_loader=partial(
+            discover_installed_item_metadata_with_evidence, reuse_native_metadata=True
+        ),
+    )
 
 
 def _parse_changes(payload: str) -> object:
@@ -504,6 +531,7 @@ def _parser() -> argparse.ArgumentParser:
     players_avatar.set_defaults(handler=_player_avatar)
 
     upgrades = commands.add_parser("upgrades-list")
+    upgrades.add_argument("--reuse-installed-metadata", action="store_true")
     upgrades.add_argument("save_id", nargs="?")
     upgrades.set_defaults(handler=_list_upgrades)
 
@@ -554,6 +582,7 @@ def _parser() -> argparse.ArgumentParser:
     run.set_defaults(handler=_run_state)
 
     advanced = commands.add_parser("advanced-get")
+    advanced.add_argument("--reuse-installed-metadata", action="store_true")
     advanced.add_argument("save_id", nargs="?")
     advanced.set_defaults(handler=_advanced_save)
 

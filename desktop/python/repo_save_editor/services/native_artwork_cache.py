@@ -32,12 +32,14 @@ DIAGNOSTICS_RECORDS: Final = 48
 PUBLISH_LOCK: Final = "publish.lock"
 PUBLISH_TEMP: Final = "publish.tmp"
 EditorScope = Literal["upgrade", "item", "map"]
-EDITOR_CACHE_LIMITS: Final[dict[EditorScope, int]] = {
+EditorFrame = Literal["upgrade", "item", "map", "metadata"]
+EDITOR_CACHE_LIMITS: Final[dict[EditorFrame, int]] = {
     "upgrade": 4 * 1024 * 1024,
     "item": 8 * 1024 * 1024,
     "map": 8 * 1024 * 1024,
+    "metadata": 256 * 1024,
 }
-Operation = Literal["initial_catalog", "catalog", "thumbnail", "upgrade", "item", "map"]
+Operation = Literal["initial_catalog", "catalog", "thumbnail", "upgrade", "item", "map", "metadata"]
 EVENTS: Final = frozenset(
     {
         "entry_missing",
@@ -276,7 +278,7 @@ class NativeArtworkCache:
             except (OSError, ValueError):
                 self.note("publication_failed")
 
-    def editor_frame(self, scope: EditorScope, revision: str) -> bytes | None:
+    def editor_frame(self, scope: EditorFrame, revision: str) -> bytes | None:
         limit = EDITOR_CACHE_LIMITS[scope]
         frame = self._read(f"{scope}.bin", limit + SEAL_OVERHEAD)
         if frame is not None:
@@ -286,7 +288,7 @@ class NativeArtworkCache:
                 self.note("entry_protection_rejected")
         return None
 
-    def publish_editor_frame(self, scope: EditorScope, revision: str, data: bytes) -> None:
+    def publish_editor_frame(self, scope: EditorFrame, revision: str, data: bytes) -> None:
         limit = EDITOR_CACHE_LIMITS[scope]
         if len(data) <= limit:
             try:
@@ -352,11 +354,11 @@ def _observation(row: object) -> Observation | None:
     return result
 
 
-def artwork_cache_root(*, editor: bool = False) -> Path | None:
+def artwork_cache_root(*, editor: bool = False, isolated: bool = False) -> Path | None:
     if os.name != "nt":
         return None
     local: Path | None
-    if os.environ.get("REPODITOR_E2E") == "1":
+    if isolated or os.environ.get("REPODITOR_E2E") == "1":
         local = Path(os.environ.get("LOCALAPPDATA", ""))
         profile = "RepoDitorPreview"
     else:
@@ -374,8 +376,10 @@ def _close_cache(directory: SaveDirectory) -> None:
 
 
 @contextmanager
-def native_artwork_cache(operation: Operation | None = None) -> Iterator[NativeArtworkCache | None]:
-    root = artwork_cache_root(editor=operation in EDITOR_CACHE_LIMITS)
+def native_artwork_cache(
+    operation: Operation | None = None, *, isolated: bool = False
+) -> Iterator[NativeArtworkCache | None]:
+    root = artwork_cache_root(editor=operation in EDITOR_CACHE_LIMITS, isolated=isolated)
     with ExitStack() as lifetime:
         cache = None
         # The native window owns and creates the app profile before this sidecar runs.

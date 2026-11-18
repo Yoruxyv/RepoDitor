@@ -20,12 +20,7 @@ interface OverviewViewProps {
   readonly readOnly?: boolean;
 }
 
-export function OverviewView({
-  session,
-  onNavigate,
-  availableDestinations,
-  readOnly = false,
-}: OverviewViewProps) {
+export function RunSnapshot({ session }: { readonly session: SaveSession }) {
   const { locale, t } = usePreferences();
   const metrics = [
     { icon: ArrowUpIcon, label: t("overview.level"), value: session.level },
@@ -37,15 +32,8 @@ export function OverviewView({
     { icon: UserIcon, label: t("overview.players"), value: session.playerCount },
     { icon: MapPinIcon, label: t("overview.resumeAt"), value: session.resumeLocation },
   ];
-  const destinations = [
-    { destination: "players", descriptionKey: "overview.playersDescription", icon: UserIcon },
-    { destination: "upgrades", descriptionKey: "overview.upgradesDescription", icon: ArrowUpIcon },
-    { destination: "run", descriptionKey: "overview.runDescription", icon: PersonSimpleRunIcon },
-    { destination: "items", descriptionKey: "overview.itemsDescription", icon: PackageIcon },
-  ] as const;
-
   return (
-    <section aria-labelledby="overview-title">
+    <>
       <h2 className="text-2xl font-semibold text-ink" id="overview-title">
         {t("nav.overview")}
       </h2>
@@ -74,7 +62,27 @@ export function OverviewView({
           ))}
         </dl>
       </section>
+    </>
+  );
+}
 
+export function OverviewView({
+  session,
+  onNavigate,
+  availableDestinations,
+  readOnly = false,
+}: OverviewViewProps) {
+  const { t } = usePreferences();
+  const destinations = [
+    { destination: "players", descriptionKey: "overview.playersDescription", icon: UserIcon },
+    { destination: "upgrades", descriptionKey: "overview.upgradesDescription", icon: ArrowUpIcon },
+    { destination: "run", descriptionKey: "overview.runDescription", icon: PersonSimpleRunIcon },
+    { destination: "items", descriptionKey: "overview.itemsDescription", icon: PackageIcon },
+  ] as const;
+
+  return (
+    <section aria-labelledby="overview-title">
+      <RunSnapshot session={session} />
       <section aria-labelledby="edit-save-title" className="mt-8">
         <h3 className="text-lg font-semibold text-ink" id="edit-save-title">
           {t(readOnly ? "overview.browseSave" : "overview.editSave")}

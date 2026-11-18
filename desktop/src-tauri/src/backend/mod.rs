@@ -382,9 +382,9 @@ impl Operation {
                 }
                 args
             }
-            Self::Upgrades(id, _) => vec!["upgrades-list", id],
+            Self::Upgrades(id, _) => vec!["upgrades-list", id, "--reuse-installed-metadata"],
             Self::Run(id) => vec!["run-get", id],
-            Self::Items(id, _) => vec!["advanced-get", id],
+            Self::Items(id, _) => vec!["advanced-get", id, "--reuse-installed-metadata"],
             Self::Maps(proof, save) => {
                 let mut args = vec!["maps-list"];
                 if *proof {

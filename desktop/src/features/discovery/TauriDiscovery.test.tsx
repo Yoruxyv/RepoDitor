@@ -124,7 +124,7 @@ describe("read-only native discovery", () => {
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
     expect(cancelEntryArtwork).toHaveBeenCalledTimes(1);
   });
-  it("holds opening until the five projections settle, then reuses them in the workspaces", async () => {
+  it("shows the verified snapshot and holds editing until the projections settle", async () => {
     let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     vi.mocked(tauriReadApi.saves.open).mockReturnValueOnce(
@@ -157,11 +157,15 @@ describe("read-only native discovery", () => {
     expect(screen.getByText("Editor data 3/5")).toBeTruthy();
     expect(screen.queryByText("Items · Running")).toBeNull();
     expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(session.id, players[0]!.id);
+    const snapshot = screen.getByTestId("opening-overview");
+    expect(within(snapshot).getByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(within(snapshot).queryByRole("button")).toBeNull();
     expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
     expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
     await act(() => finishItems({ ok: true, data: advanced }));
     expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
     expect(await screen.findByText(/Read-only preview/)).toBeTruthy();
+    expect(screen.queryByTestId("opening-overview")).toBeNull();
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
     const user = userEvent.setup();
     for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
@@ -296,6 +300,8 @@ describe("read-only native discovery", () => {
     expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole("button", { name: "Cancel opening" }));
+    expect(closeNativeWorkspace).toHaveBeenCalledExactlyOnceWith(opened.data.session.id);
+    expect(screen.queryByTestId("opening-overview")).toBeNull();
     expect(screen.getByRole<HTMLButtonElement>("button", { name: /Earlier save/ }).disabled).toBe(
       true,
     );

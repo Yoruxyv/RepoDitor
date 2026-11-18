@@ -498,7 +498,8 @@ def _attribute_handles() -> tuple[Callable[..., int], Callable[..., int]]:
     return open_file, close
 
 
-def _artwork_source_stamp(path: Path, expected: os.stat_result) -> tuple[object, ...]:
+def installed_source_stamp(path: Path, expected: os.stat_result) -> tuple[object, ...]:
+    """Read the physical identity and change time of one admitted installed source."""
     if os.name != "nt":
         return (*_png_stamp(expected), expected.st_ctime_ns)
     # Query metadata only. Opening hundreds of files for data can trigger cold AV scans.
@@ -527,7 +528,7 @@ def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
         if expected_root is not None and root != expected_root:
             return None
         manifest = owned_file(library, build.manifest_path)
-        manifest_revision = _artwork_source_stamp(manifest, manifest.stat())
+        manifest_revision = installed_source_stamp(manifest, manifest.stat())
         data = root / "REPO_Data"
         pending = [data]
         identities: dict[str, object] = {}
@@ -540,7 +541,7 @@ def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
             info = path.lstat()
             if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
                 return None
-            identities[str(path)] = _artwork_source_stamp(path, info)
+            identities[str(path)] = installed_source_stamp(path, info)
             if stat.S_ISDIR(info.st_mode):
                 with os.scandir(path) as entries:
                     for entry in entries:
@@ -551,7 +552,7 @@ def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
                 return None
         if _watch(library, Path(assembly["path"])) != assembly:
             return None
-        if _artwork_source_stamp(manifest, manifest.stat()) != manifest_revision:
+        if installed_source_stamp(manifest, manifest.stat()) != manifest_revision:
             return None
         return _digest([build.build_id, manifest_revision, identities])
     except (OSError, ValueError, OverflowError):

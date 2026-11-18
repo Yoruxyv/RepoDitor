@@ -1,5 +1,7 @@
 /** Existing discovery presentation running against the opt-in native adapter. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import type { SaveSession } from "@electron/contracts";
 import { AppShell } from "@/app/AppShell";
 import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -16,6 +18,7 @@ import {
   type EntryArtworkResults,
 } from "@/app/tauriArtwork";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
+import { RunSnapshot } from "@/features/editor/OverviewView";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
@@ -161,6 +164,7 @@ function RunSaveContent({
   save,
   active,
   prepared,
+  openingSnapshot,
   progress,
   artworkProgress,
   artworkDecision,
@@ -173,6 +177,7 @@ function RunSaveContent({
   readonly save: ReturnType<typeof useSaveSession>;
   readonly active: boolean;
   readonly prepared: TauriEntrySnapshot | null;
+  readonly openingSnapshot: SaveSession | null;
   readonly progress: TauriEntryProgress | null;
   readonly artworkProgress: EntryArtworkProgress | null;
   readonly artworkDecision: ArtworkDecision | null;
@@ -185,12 +190,19 @@ function RunSaveContent({
   const openingId = save.openingSaveId;
   if (openingId !== null) {
     return (
-      <OpeningSavePreparation
-        progress={progress}
-        artworkProgress={artworkProgress}
-        artworkDecision={artworkDecision}
-        onCancel={() => onCancel(openingId)}
-      />
+      <>
+        {openingSnapshot?.id === openingId ? (
+          <section aria-labelledby="overview-title" className="mb-6" data-testid="opening-overview">
+            <RunSnapshot session={openingSnapshot} />
+          </section>
+        ) : null}
+        <OpeningSavePreparation
+          progress={progress}
+          artworkProgress={artworkProgress}
+          artworkDecision={artworkDecision}
+          onCancel={() => onCancel(openingId)}
+        />
+      </>
     );
   }
   if (save.session !== null) {
@@ -229,6 +241,7 @@ function DiscoveryPreview() {
   const [cosmeticsEditing, setCosmeticsEditing] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<TauriEntryProgress | null>(null);
   const [prepared, setPrepared] = useState<TauriEntrySnapshot | null>(null);
+  const [openingSnapshot, setOpeningSnapshot] = useState<SaveSession | null>(null);
   const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
   const [artworkDecision, setArtworkDecision] = useState<ArtworkDecision | null>(null);
   const safety = useGameSafety(tauriReadApi.game.status);
@@ -239,11 +252,14 @@ function DiscoveryPreview() {
     setArtworkProgress(null);
     setArtworkDecision(null);
     setPrepared(null);
+    setOpeningSnapshot(null);
     signal.throwIfAborted();
     const opened = await tauriReadApi.saves.open(id);
     if (!opened.ok) return opened;
     let keep = false;
     try {
+      signal.throwIfAborted();
+      setOpeningSnapshot(opened.data.session);
       const entry = await prepareTauriEntry(
         opened.data,
         signal,
@@ -378,6 +394,9 @@ function DiscoveryPreview() {
     cancelEntryArtwork();
     focusDiscoveryAfterRefresh(saveId);
     save.cancelOpen();
+    // End cancellable native reads now. The opening callback also cleans up if the
+    // initial save read completed after this cancellation.
+    void closeNativeWorkspace(saveId);
   }
   async function close() {
     const id = save.session?.id;
@@ -453,6 +472,7 @@ function DiscoveryPreview() {
             discovery={discovery}
             save={save}
             prepared={prepared}
+            openingSnapshot={openingSnapshot}
             progress={progress}
             artworkProgress={artworkProgress}
             artworkDecision={
