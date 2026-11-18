@@ -52,10 +52,12 @@ normal user profile.
 ### Optional native discovery preview
 
 Electron remains the default application and release package. A Windows-only
-Tauri host supports discovery, save opening, read-only Overview/Players/Upgrades/Run/Items/Maps/Cosmetics and Python-backed
+Tauri host supports discovery, save opening, installed artwork, and Python-backed
 game-status checks using the existing React components and desktop contracts.
-Editing/saving, other workspace features, artwork and production installation
-are not implemented in this host.
+The ordinary preview is read-only. The private Windows candidate supports
+qualified Run and MetaSave editing. See the
+[Tauri release acceptance checklist](../docs/release-checklist.md#v030-tauri-release-acceptance)
+for the verified scope and remaining release gates.
 The existing C# WebView2 installer and React UI remain the required installer;
 native payload integration has not been implemented or lifecycle-validated.
 

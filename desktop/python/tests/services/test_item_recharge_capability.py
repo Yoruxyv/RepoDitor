@@ -15,16 +15,24 @@ from repo_save_editor.services.items.installed_metadata import (
     _parse_game_object,
     _read_game_object_name,
     discover_installed_item_catalog,
-    discover_installed_item_metadata,
     discover_item_recharge_capabilities,
+)
+from repo_save_editor.services.items.installed_metadata import (
+    discover_installed_item_metadata as discover_reviewed_item_metadata,
 )
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
     discover_installed_item_metadata_with_evidence,
     discover_installed_recharge_capabilities,
 )
+from repo_save_editor.services.items.runtime_metadata import discover_installed_item_metadata
 from repo_save_editor.services.native_artwork_cache import artwork_cache_root
-from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
+from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
+from repo_save_editor.services.unity_serialized import (
+    UNITY_VERSION,
+    SerializedFileIndex,
+    UnityMetadataError,
+)
 from tests.unity_serialized_fixture import (
     aligned_string as _aligned_string,
 )
@@ -68,6 +76,7 @@ def _build_assets(
     root: Path,
     *,
     prefix_objects: Iterable[tuple[int, int, bytes]] = (),
+    unity_version: str = UNITY_VERSION,
 ) -> tuple[Path, Path]:
     resources = root / "resources.assets"
     globals_ = root / "globalgamemanagers.assets"
@@ -78,6 +87,7 @@ def _build_assets(
             (1001, 115, _mono_script("Item", "Item")),
             (1002, 115, _mono_script("ItemBattery", "ItemBattery")),
         ],
+        unity_version=unity_version,
     )
     _write_serialized_file(
         resources,
@@ -107,8 +117,40 @@ def _build_assets(
             (5, 1, _game_object("Item Conflict", ())),
         ],
         externals=(("", "globalgamemanagers.assets"),),
+        unity_version=unity_version,
     )
     return resources, globals_
+
+
+def test_private_item_reader_requires_the_exact_reviewed_version_for_both_sources(
+    tmp_path: Path,
+) -> None:
+    resources, managers = _build_assets(tmp_path, unity_version=SUNSTONE_UNITY_VERSION)
+    name = "Item Rechargeable"
+    for version, expected in (
+        (None, ItemRechargeCapability.UNKNOWN),
+        (UNITY_VERSION, ItemRechargeCapability.UNKNOWN),
+        (SUNSTONE_UNITY_VERSION, ItemRechargeCapability.RECHARGEABLE),
+    ):
+        result = discover_installed_item_metadata(
+            resources, managers, (name,), unity_version=version
+        )
+        assert result[name].recharge_capability is expected
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    _, wrong_managers = _build_assets(legacy)
+    result = discover_installed_item_metadata(
+        resources, wrong_managers, (name,), unity_version=SUNSTONE_UNITY_VERSION
+    )
+    assert result[name].recharge_capability is ItemRechargeCapability.UNKNOWN
+
+
+def test_runtime_and_evidence_readers_agree_on_legacy_item_metadata(tmp_path: Path) -> None:
+    resources, managers = _build_assets(tmp_path)
+    names = ("Item Rechargeable", "Item Not Rechargeable", "Item Conflict", "Missing")
+    assert discover_installed_item_metadata(resources, managers, names) == (
+        discover_reviewed_item_metadata(resources, managers, names)
+    )
 
 
 def test_dynamic_mapping_classifies_rechargeable_not_rechargeable_and_exceptional_unknown(

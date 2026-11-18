@@ -120,7 +120,7 @@ fn stalled_child_times_out_and_can_be_cancelled_in_flight() {
     });
     assert_eq!(
         invoke("hang", Duration::from_secs(5), cancel).unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
     waiter.join().unwrap();
 }
@@ -148,7 +148,7 @@ fn closing_job_kills_descendants_and_releases_inherited_pipes() {
         thread::sleep(Duration::from_millis(5));
     }
     signal.store(true, Ordering::SeqCst);
-    assert_eq!(worker.join().unwrap().unwrap_err(), BackendError::Failed);
+    assert_eq!(worker.join().unwrap().unwrap_err(), BackendError::Cancelled);
     let pid = std::fs::read_to_string(&pid_file)
         .unwrap()
         .parse::<u32>()

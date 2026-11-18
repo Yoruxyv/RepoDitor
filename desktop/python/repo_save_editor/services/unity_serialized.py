@@ -34,7 +34,6 @@ MAX_TYPETREE_STRINGS: Final = 64 * 1024 * 1024
 MAX_RESOURCE_MANAGER_BYTES: Final = 128 * 1024 * 1024
 MAX_RESOURCE_KEY_OCCURRENCES: Final = 16
 _OBJECT_RECORD = struct.Struct("<qqIi")
-PPTR_SIZE: Final = struct.calcsize("<iq")
 
 
 class UnityMetadataError(ValueError):
@@ -117,9 +116,7 @@ class _Reader:
         return self._data[start : start + size]
 
     def skip(self, size: int) -> None:
-        if not 0 <= size <= self.remaining:
-            raise UnityMetadataError("Serialized data is truncated.")
-        self.pos += size
+        self._take(size)
 
     def align4(self) -> None:
         aligned = (self.pos + 3) & ~3
@@ -128,10 +125,8 @@ class _Reader:
         self.pos = aligned
 
     def unpack(self, fmt: str) -> tuple[object, ...]:
-        format_code = self.endian + fmt
-        start = self.pos
-        self.skip(struct.calcsize(format_code))
-        return struct.unpack_from(format_code, self._data, start)
+        parser = struct.Struct(self.endian + fmt)
+        return parser.unpack(self._take(parser.size))
 
     def u8(self) -> int:
         return self._take(1)[0]
@@ -187,9 +182,8 @@ class SerializedFileIndex:
     the meaning of resolved objects; this class only provides bounded structure.
     """
 
-    def __init__(self, path: Path, *, unity_version: str = UNITY_VERSION) -> None:
+    def __init__(self, path: Path) -> None:
         self.path = path
-        self._unity_version = unity_version
         self._path_ids_sorted: bool | None = None
         self._handle = path.open("rb")
         try:
@@ -291,7 +285,7 @@ class SerializedFileIndex:
 
     def _parse_types(self, reader: _Reader) -> None:
         unity_version = reader.cstring(maximum=64)
-        if unity_version != self._unity_version:
+        if unity_version != UNITY_VERSION:
             raise UnityMetadataError(f"Unsupported Unity version {unity_version!r}.")
         target_platform = reader.i32()
         if target_platform != TARGET_PLATFORM:
@@ -453,8 +447,6 @@ class SerializedFileIndex:
         offset = self.object_table_offset
         data_len = len(self._data)
         types = self.types
-        previous: int | None = None
-        sorted_ids = True
         for _ in range(self.object_count):
             path_id, relative_start, byte_size, type_id = _OBJECT_RECORD.unpack_from(
                 self._data, offset
@@ -468,14 +460,9 @@ class SerializedFileIndex:
                 raise UnityMetadataError(
                     "Serialized object data is outside the declared file bounds."
                 )
-            if previous is not None and path_id <= previous:
-                sorted_ids = False
-            previous = path_id
             class_id = types[type_id]
             if class_ids is None or class_id in class_ids:
                 yield ObjectRecord(path_id, byte_start, byte_size, class_id)
-        # Only exhaustion proves that the entire table is valid and sorted.
-        self._path_ids_sorted = sorted_ids
 
     def object_reader(self, record: ObjectRecord) -> _Reader:
         """Return a bounds-checked reader restricted to one object record."""
@@ -619,8 +606,7 @@ def find_resource_manager_pointer(
 def read_pptr(reader: _Reader) -> PPtr:
     """Read one Unity 2022.3 PPtr from the current bounded object cursor."""
 
-    file_id, path_id = cast(tuple[int, int], reader.unpack("iq"))
-    return PPtr(file_id, path_id)
+    return PPtr(reader.i32(), reader.i64())
 
 
 def parse_mono_behaviour_prefix(

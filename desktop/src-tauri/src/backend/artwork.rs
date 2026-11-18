@@ -67,6 +67,7 @@ pub struct BatchMember {
 
 #[derive(Default)]
 pub struct Registry {
+    pending_open: Option<(String, Arc<AtomicBool>)>,
     session: Option<(String, Uuid, String, Arc<AtomicBool>)>,
     fingerprint: String,
     entries: HashMap<String, Entry>,
@@ -81,6 +82,9 @@ pub struct Registry {
 }
 impl Registry {
     pub fn clear_all(&mut self) {
+        if let Some((_, cancelled)) = &self.pending_open {
+            cancelled.store(true, Ordering::SeqCst);
+        }
         self.clear();
         revoke(&mut self.maps);
         self.revoke_cosmetics();
@@ -95,6 +99,28 @@ impl Registry {
         }
         self.fingerprint.clear();
         self.item_fingerprint.clear();
+    }
+    pub fn begin_open(&mut self, save: &str) -> Result<Arc<AtomicBool>, BackendError> {
+        if self.pending_open.is_some() {
+            return Err(BackendError::Failed);
+        }
+        self.clear();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        self.pending_open = Some((save.into(), cancelled.clone()));
+        Ok(cancelled)
+    }
+    pub fn finish_open(&mut self) {
+        self.pending_open = None;
+    }
+    pub fn cancel_save(&mut self, save: &str) {
+        if let Some((id, cancelled)) = &self.pending_open {
+            if id == save {
+                cancelled.store(true, Ordering::SeqCst);
+            }
+        }
+        if self.generation(save).is_some() {
+            self.clear();
+        }
     }
     pub fn open(&mut self, save: &str, fingerprint: &str) {
         self.clear();

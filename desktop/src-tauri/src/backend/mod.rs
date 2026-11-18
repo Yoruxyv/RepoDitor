@@ -138,7 +138,7 @@ struct Request(
 impl Request {
     fn reserve(state: Arc<HostState>, slot: usize) -> Result<Self, BackendError> {
         if state.closing.load(Ordering::SeqCst) {
-            return Err(BackendError::Failed);
+            return Err(BackendError::Cancelled);
         }
         state.requests[slot]
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -164,7 +164,7 @@ impl Drop for Request {
 
 pub enum Operation {
     Discovery,
-    Open(String, Option<String>),
+    Open(String, Option<String>, Arc<AtomicBool>),
     Entry(String, String, Arc<AtomicBool>),
     Game,
     Players(String),
@@ -179,7 +179,7 @@ pub enum Operation {
     ArtworkBatch(Arc<artwork::ArtworkBatch>),
     Upgrades(String, Option<Arc<AtomicBool>>),
     Run(String),
-    Items(String, Option<Arc<AtomicBool>>),
+    Items(String, Option<Arc<AtomicBool>>, bool),
     Maps(bool, Option<String>),
     Cosmetics(bool),
     #[cfg(feature = "production-health")]
@@ -336,7 +336,7 @@ impl Operation {
                 ]
             }
             Self::Discovery => vec!["environment"],
-            Self::Open(id, revision) => {
+            Self::Open(id, revision, _) => {
                 let mut args = vec!["saves-open", id];
                 if !cfg!(feature = "synthetic-health-recovery") {
                     args.push("--native");
@@ -396,7 +396,7 @@ impl Operation {
             }
             Self::Upgrades(id, _) => vec!["upgrades-list", id, "--reuse-installed-metadata"],
             Self::Run(id) => vec!["run-get", id],
-            Self::Items(id, _) => vec!["advanced-get", id, "--reuse-installed-metadata"],
+            Self::Items(id, ..) => vec!["advanced-get", id, "--reuse-installed-metadata"],
             Self::Maps(proof, save) => {
                 let mut args = vec!["maps-list"];
                 if *proof {
@@ -577,7 +577,7 @@ fn execute(
     } else {
         Some(loop {
             if state.closing.load(Ordering::SeqCst) || request.2.load(Ordering::SeqCst) {
-                return Err(BackendError::Failed);
+                return Err(BackendError::Cancelled);
             }
             if started.elapsed() >= deadline {
                 return Err(BackendError::Timeout);
@@ -589,8 +589,8 @@ fn execute(
             }
         })
     };
-    if state.closing.load(Ordering::SeqCst) {
-        return Err(BackendError::Failed);
+    if state.closing.load(Ordering::SeqCst) || request.2.load(Ordering::SeqCst) {
+        return Err(BackendError::Cancelled);
     }
     let remaining = deadline
         .checked_sub(started.elapsed())
@@ -759,8 +759,14 @@ where
     match &operation {
         Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
         Operation::ArtworkBatch(batch) => request.2 = batch.cancelled.clone(),
-        Operation::Entry(_, _, cancelled) => request.2 = cancelled.clone(),
-        Operation::Upgrades(_, Some(cancelled)) | Operation::Items(_, Some(cancelled)) => {
+        Operation::Entry(_, _, cancelled) | Operation::Open(_, _, cancelled) => {
+            request.2 = cancelled.clone();
+        }
+        Operation::Items(_, Some(cancelled), background) => {
+            request.2 = cancelled.clone();
+            request.3 = *background;
+        }
+        Operation::Upgrades(_, Some(cancelled)) => {
             request.2 = cancelled.clone();
             request.3 = true;
         }

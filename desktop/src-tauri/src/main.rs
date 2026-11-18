@@ -129,51 +129,67 @@ async fn saves_open(
     } else {
         None
     };
-    let generation = {
+    let (generation, cancelled) = {
         let mut registry = state.artwork.lock().unwrap();
-        if let Some(expected) = verify_fingerprint.as_deref() {
-            if !registry
+        let cancelled = if let Some(expected) = verify_fingerprint.as_deref() {
+            let Some((_, cancelled)) = registry
                 .session_preparation(&id)
-                .is_some_and(|(fingerprint, _)| fingerprint == expected)
-            {
+                .filter(|(fingerprint, _)| fingerprint == expected)
+            else {
                 return Outcome::for_service(Err(BackendError::Request), Service::Save);
-            }
+            };
+            cancelled
         } else {
-            registry.clear();
-        }
-        registry.generation(&id)
+            match registry.begin_open(&id) {
+                Ok(cancelled) => cancelled,
+                Err(error) => return Outcome::for_service(Err(error), Service::Save),
+            }
+        };
+        (registry.generation(&id), cancelled)
     };
     let revision = cached.as_ref().map(|entry| entry.revision.clone());
+    let initial_open = verify_fingerprint.is_none();
+    let host = state.clone();
     let handle = app.clone();
-    backend::request(app, Operation::Open(id.clone(), revision), move |bytes| {
-        let opened = saves::parse(bytes, &id)?;
-        if let Some(expected) = verify_fingerprint.as_deref() {
-            let registry = state.artwork.lock().unwrap();
-            if registry.generation(&id) != generation {
-                return Err(BackendError::Request);
+    let result = backend::request(
+        app,
+        Operation::Open(id.clone(), revision, cancelled.clone()),
+        move |bytes| {
+            let opened = saves::parse(bytes, &id)?;
+            let mut registry = host.artwork.lock().unwrap();
+            if cancelled.load(Ordering::SeqCst) {
+                return Err(BackendError::Cancelled);
             }
-            check_entry_fingerprint(Some(opened.fingerprint()), Some(expected))?;
-            return Ok(opened);
-        }
-        let mut registry = state.artwork.lock().unwrap();
-        registry.open(&id, opened.fingerprint());
-        let cache = handle.state::<Mutex<EntryCache>>();
-        let mut cache = cache.lock().unwrap();
-        cache.verified = cached
-            .filter(|entry| {
-                opened.fingerprint() == entry.fingerprint
-                    && opened.verified_entry_revision.as_ref() == Some(&entry.revision)
-                    && cache
-                        .snapshot
-                        .as_ref()
-                        .is_some_and(|current| Arc::ptr_eq(entry, current))
-            })
-            .and_then(|_| registry.generation(&id));
-        #[cfg(feature = "health-transport")]
-        state.open_editor(&id, opened.fingerprint());
-        Ok(opened)
-    })
-    .await
+            if let Some(expected) = verify_fingerprint.as_deref() {
+                if registry.generation(&id) != generation {
+                    return Err(BackendError::Request);
+                }
+                check_entry_fingerprint(Some(opened.fingerprint()), Some(expected))?;
+                return Ok(opened);
+            }
+            registry.open(&id, opened.fingerprint());
+            let cache = handle.state::<Mutex<EntryCache>>();
+            let mut cache = cache.lock().unwrap();
+            cache.verified = cached
+                .filter(|entry| {
+                    opened.fingerprint() == entry.fingerprint
+                        && opened.verified_entry_revision.as_ref() == Some(&entry.revision)
+                        && cache
+                            .snapshot
+                            .as_ref()
+                            .is_some_and(|current| Arc::ptr_eq(entry, current))
+                })
+                .and_then(|_| registry.generation(&id));
+            #[cfg(feature = "health-transport")]
+            host.open_editor(&id, opened.fingerprint());
+            Ok(opened)
+        },
+    )
+    .await;
+    if initial_open {
+        state.artwork.lock().unwrap().finish_open();
+    }
+    result
 }
 
 #[tauri::command]
@@ -422,7 +438,7 @@ async fn upgrades_list(
             let raw = error::json(bytes)?;
             let mut registry = state.artwork.lock().unwrap();
             if preparing && registry.generation(&id) != generation {
-                return Err(BackendError::Failed);
+                return Err(BackendError::Cancelled);
             }
             check_entry_fingerprint(raw["fingerprint"].as_str(), fingerprint.as_deref())?;
             check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
@@ -585,7 +601,7 @@ async fn get_artwork(
         }
         response
     } else {
-        Outcome::for_service(Err(BackendError::Failed), service)
+        Outcome::for_service(Err(BackendError::Cancelled), service)
     }
 }
 
@@ -602,9 +618,7 @@ fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id:
         if let Some(id) = save_id.as_deref().filter(|id| saves::valid_id(id)) {
             #[cfg(feature = "health-transport")]
             state.close_editor(id);
-            if registry.generation(id).is_some() {
-                registry.clear();
-            }
+            registry.cancel_save(id);
         }
     }
 }
@@ -757,26 +771,29 @@ async fn advanced_get(
     let refreshing = !cfg!(feature = "synthetic-health-recovery") && background == Some(true);
     let (generation, cancelled) = {
         let registry = state.artwork.lock().unwrap();
-        let cancelled = refreshing
-            .then(|| registry.session_preparation(&id))
-            .flatten()
+        let cancelled = registry
+            .session_preparation(&id)
             .map(|(_, cancelled)| cancelled);
         (registry.generation(&id), cancelled)
     };
     if refreshing && (cancelled.is_none() || prepare_fingerprint.is_none()) {
         return Outcome::for_service(Err(BackendError::Request), Service::Items);
     }
-    backend::request(app, Operation::Items(id.clone(), cancelled), move |bytes| {
-        let mut values = items::parse(bytes)?;
-        let raw = error::json(bytes)?;
-        check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
-        let mut registry = state.artwork.lock().unwrap();
-        if refreshing && registry.generation(&id) != generation {
-            return Err(BackendError::Failed);
-        }
-        registry.register_items(&id, generation, raw["fingerprint"].as_str(), &mut values);
-        Ok(values)
-    })
+    backend::request(
+        app,
+        Operation::Items(id.clone(), cancelled, refreshing),
+        move |bytes| {
+            let mut values = items::parse(bytes)?;
+            let raw = error::json(bytes)?;
+            let mut registry = state.artwork.lock().unwrap();
+            if generation.is_some() && registry.generation(&id) != generation {
+                return Err(BackendError::Cancelled);
+            }
+            check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
+            registry.register_items(&id, generation, raw["fingerprint"].as_str(), &mut values);
+            Ok(values)
+        },
+    )
     .await
 }
 

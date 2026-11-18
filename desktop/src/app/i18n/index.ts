@@ -48,6 +48,7 @@ export const TRANSLATIONS: Record<Locale, Record<TranslationKey, string>> = {
 const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   python_unavailable: ERROR_TRANSLATION_KEY.service,
   process_failed: ERROR_TRANSLATION_KEY.service,
+  process_cancelled: "error.requestCancelled",
   process_timeout: ERROR_TRANSLATION_KEY.service,
   empty_response: ERROR_TRANSLATION_KEY.service,
   malformed_response: ERROR_TRANSLATION_KEY.service,

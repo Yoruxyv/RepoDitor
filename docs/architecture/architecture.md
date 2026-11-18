@@ -717,6 +717,10 @@ and timeouts. Assignment follows creation of the trusted bundled executable;
 this does not claim containment of hostile code substituted by a compromised
 local account before job assignment.
 
+Cancel Opening revokes the pending native save read. Change Save revokes the
+closed session and its in-flight Items reads. Both release the worker after
+process-tree cleanup. Canceled reads return `process_cancelled` through native IPC.
+
 Game-status inspection does not wait for an expensive Maps/Items/domain read. The
 renderer adapter coalesces overlapping status checks while direct duplicate native
 requests are rejected. The existing safety hook still marks a recheck busy and

@@ -389,6 +389,7 @@ export interface EnvironmentDiscovery {
 export type DesktopOperationErrorCode =
   | "python_unavailable"
   | "process_failed"
+  | "process_cancelled"
   | "process_timeout"
   | "empty_response"
   | "malformed_response"

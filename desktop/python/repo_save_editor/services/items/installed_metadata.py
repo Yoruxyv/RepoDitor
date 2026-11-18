@@ -13,7 +13,6 @@ from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRe
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MONO_BEHAVIOUR_CLASS_ID,
-    PPTR_SIZE,
     MonoBehaviourPrefix,
     MonoScriptData,
     ObjectRecord,
@@ -66,7 +65,7 @@ def _read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> 
 
     Empty names are valid for unrelated installed GameObjects. Structural corruption
     still raises so variant completeness never depends on silently skipping unreadable
-    records. Component PPtr byte ranges are checked, and links are decoded only once a
+    records. Component PPtrs are consumed but not semantically validated until a
     requested prefab identity is matched.
     """
     if record.class_id != GAME_OBJECT_CLASS_ID:
@@ -75,7 +74,9 @@ def _read_game_object_name(index: SerializedFileIndex, record: ObjectRecord) -> 
     component_count = reader.i32()
     if not 0 <= component_count <= MAX_COMPONENTS:
         raise UnityMetadataError("GameObject component count is outside the supported bound.")
-    reader.skip(component_count * PPTR_SIZE + 4)  # m_Component and m_Layer
+    for _ in range(component_count):
+        read_pptr(reader)
+    reader.i32()  # m_Layer
     return reader.aligned_string()
 
 
@@ -169,18 +170,14 @@ def _resolve_mono_scripts(
     prefixes: Iterable[MonoBehaviourPrefix],
 ) -> dict[int, MonoScriptData]:
     script_ids: set[int] = set()
-    validated_external_files: set[int] = set()
     for prefix in prefixes:
-        file_id, path_id = prefix.script.file_id, prefix.script.path_id
-        if path_id == 0:
+        if prefix.script.path_id == 0:
             raise UnityMetadataError("MonoBehaviour contains a null script pointer.")
-        if file_id not in validated_external_files:
-            if resources.external_name(file_id).casefold() != GLOBAL_MANAGERS_NAME:
-                raise UnityMetadataError(
-                    "MonoBehaviour script pointer targets an unsupported external file."
-                )
-            validated_external_files.add(file_id)
-        script_ids.add(path_id)
+        if resources.external_name(prefix.script.file_id).casefold() != GLOBAL_MANAGERS_NAME:
+            raise UnityMetadataError(
+                "MonoBehaviour script pointer targets an unsupported external file."
+            )
+        script_ids.add(prefix.script.path_id)
     script_records = globals_.find_records(script_ids)
     return {
         path_id: parse_mono_script(globals_, record) for path_id, record in script_records.items()
@@ -340,29 +337,18 @@ def _discover_installed_item_metadata(
     global_managers_path: Path,
     names: tuple[str, ...],
     by_identity: dict[str, str],
-    *,
-    unity_version: str | None = None,
 ) -> dict[str, InstalledItemMetadata]:
     """Read installed item metadata, propagating parser-wide failures."""
     unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
 
-    options = {"unity_version": unity_version} if unity_version is not None else {}
     with (
-        SerializedFileIndex(resources_path, **options) as resources,
-        SerializedFileIndex(global_managers_path, **options) as globals_,
+        SerializedFileIndex(resources_path) as resources,
+        SerializedFileIndex(global_managers_path) as globals_,
     ):
         candidate_definitions: dict[str, list[tuple[ObjectRecord, MonoBehaviourPrefix]]] = {
             identity: [] for identity in by_identity
         }
-        variants: dict[str, list[ObjectRecord]] = {name: [] for name in names}
-        for record in resources.iter_records(
-            frozenset({MONO_BEHAVIOUR_CLASS_ID, GAME_OBJECT_CLASS_ID})
-        ):
-            if record.class_id == GAME_OBJECT_CLASS_ID:
-                identity = _read_game_object_name(resources, record).casefold()
-                if identity in by_identity:
-                    variants[by_identity[identity]].append(record)
-                continue
+        for record in resources.iter_records(frozenset({MONO_BEHAVIOUR_CLASS_ID})):
             prefix = parse_mono_behaviour_prefix(resources, record)
             identity = prefix.name.casefold()
             if identity in candidate_definitions:
@@ -393,6 +379,21 @@ def _discover_installed_item_metadata(
                     presentation = ItemPresentation(definition_name, None, None)
                 verified_definitions[identity] = presentation
 
+        variants: dict[str, list[ObjectRecord]] = {name: [] for name in names}
+        for record in resources.iter_records(frozenset({GAME_OBJECT_CLASS_ID})):
+            name = _read_game_object_name(resources, record)
+            if not name:
+                continue
+            identity = name.casefold()
+            if identity not in verified_definitions:
+                continue
+            game_object = _parse_game_object(resources, record)
+            if game_object.name.casefold() != identity:
+                raise UnityMetadataError(
+                    "Matched prefab GameObject identity changed during discovery."
+                )
+            variants[by_identity[identity]].append(record)
+
         ready = {
             name: tuple(records)
             for name, records in variants.items()
@@ -407,8 +408,6 @@ def discover_installed_item_metadata(
     resources_path: Path,
     global_managers_path: Path,
     item_names: Iterable[str],
-    *,
-    unity_version: str | None = None,
 ) -> dict[str, InstalledItemMetadata]:
     """Read optional icon and recharge metadata from installed item prefabs."""
     try:
@@ -421,7 +420,7 @@ def discover_installed_item_metadata(
     unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
     try:
         return _discover_installed_item_metadata(
-            resources_path, global_managers_path, names, by_identity, unity_version=unity_version
+            resources_path, global_managers_path, names, by_identity
         )
     except (OSError, UnityMetadataError, struct.error, OverflowError, ValueError):
         return unknown

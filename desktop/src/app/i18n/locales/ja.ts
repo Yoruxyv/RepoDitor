@@ -391,6 +391,7 @@ export const ja: Record<keyof typeof en, string> = {
   "safety.exit": "RepoDitor を終了",
   "error.service": "デスクトップサービスを利用できません。",
   "error.invalidRequest": "リクエストを処理できませんでした。",
+  "error.requestCancelled": "リクエストはキャンセルされました。",
   "error.gameRunning": "セーブ編集前に R.E.P.O. を終了してください。",
   "error.gameUnknown": "R.E.P.O. が終了していることを確認できません。",
   "error.saveMissing": "選択したセーブが見つかりません。",

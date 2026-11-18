@@ -391,6 +391,7 @@ export const en = {
   "safety.exit": "Exit RepoDitor",
   "error.service": "The desktop service is unavailable.",
   "error.invalidRequest": "RepoDitor could not process that request.",
+  "error.requestCancelled": "The request was canceled.",
   "error.gameRunning": "Close R.E.P.O. before editing saves.",
   "error.gameUnknown": "RepoDitor could not verify that R.E.P.O. is closed.",
   "error.saveMissing": "The selected save could not be found.",

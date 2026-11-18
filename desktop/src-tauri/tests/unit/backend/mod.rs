@@ -43,7 +43,7 @@ fn background_upgrades_are_bounded_separately_and_cancel_when_the_save_closes() 
         std::fs::remove_file(marker).unwrap();
     }
     assert!(ready, "background fixture never started: {result:?}");
-    assert_eq!(result, Err(BackendError::Failed));
+    assert_eq!(result, Err(BackendError::Cancelled));
     drop(request);
     drop(held);
     assert!(state.idle());
@@ -116,7 +116,7 @@ fn artwork_has_one_independent_cancellable_lane() {
             Duration::from_secs(5)
         )
         .unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
     assert!(cancellation.join().unwrap());
     drop(request);
@@ -496,7 +496,7 @@ fn maps_has_fixed_arguments_and_uses_the_bounded_domain_queue() {
             DEADLINE
         )
         .unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
     drop(held);
     drop(request);
@@ -558,7 +558,7 @@ fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
             DEADLINE
         )
         .unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
     drop(request);
     assert!(state.idle());
@@ -567,8 +567,11 @@ fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
 fn queued_requests_observe_cancellation_and_original_deadline() {
     let state = Arc::new(HostState::default());
     let _held = state.domain_worker.lock().unwrap();
-    let request =
-        Request::reserve(state.clone(), Operation::Open(String::new(), None).slot()).unwrap();
+    let request = Request::reserve(
+        state.clone(),
+        Operation::Open(String::new(), None, Arc::default()).slot(),
+    )
+    .unwrap();
     let path = Path::new("must-never-spawn.exe");
     assert_eq!(
         execute(
@@ -585,7 +588,7 @@ fn queued_requests_observe_cancellation_and_original_deadline() {
     assert!(Request::reserve(state.clone(), Operation::Run(String::new()).slot()).is_err());
     assert_eq!(
         execute(&request, path, &[], Instant::now(), DEADLINE).unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
 }
 
@@ -624,7 +627,7 @@ fn status_checks_original_deadline_and_close_before_spawning() {
     state.closing.store(true, Ordering::SeqCst);
     assert_eq!(
         execute(&request, missing, &[], Instant::now(), DEADLINE).unwrap_err(),
-        BackendError::Failed
+        BackendError::Cancelled
     );
 }
 

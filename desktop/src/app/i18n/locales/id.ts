@@ -395,6 +395,7 @@ export const id: Record<keyof typeof en, string> = {
   "safety.exit": "Keluar dari RepoDitor",
   "error.service": "Layanan desktop tidak tersedia.",
   "error.invalidRequest": "RepoDitor tidak dapat memproses permintaan tersebut.",
+  "error.requestCancelled": "Permintaan dibatalkan.",
   "error.gameRunning": "Tutup R.E.P.O. sebelum mengedit save.",
   "error.gameUnknown": "RepoDitor tidak dapat memastikan bahwa R.E.P.O. sudah ditutup.",
   "error.saveMissing": "Save terpilih tidak ditemukan.",

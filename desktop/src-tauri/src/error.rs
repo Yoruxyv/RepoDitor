@@ -5,6 +5,7 @@ use serde::Serialize;
 pub enum BackendError {
     Unavailable,
     Failed,
+    Cancelled,
     Timeout,
     Empty,
     Malformed,
@@ -83,6 +84,9 @@ impl<T> Outcome<T> {
                         "process_failed",
                         format!("The Python {name} service failed."),
                     ),
+                    BackendError::Cancelled => {
+                        ("process_cancelled", "The request was canceled.".into())
+                    }
                     BackendError::Timeout => (
                         "process_timeout",
                         format!("The Python {name} service timed out."),

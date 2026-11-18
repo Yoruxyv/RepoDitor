@@ -94,7 +94,7 @@ async function exactBackup(source: string, before: Buffer) {
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
 
-async function holdFirstMapsRead(page: Page) {
+async function holdEditorEntry(page: Page) {
   await page.evaluate(() => {
     const original = window.fetch.bind(window);
     const gate = new Promise<void>((resolve) => {
@@ -102,7 +102,7 @@ async function holdFirstMapsRead(page: Page) {
     });
     window.fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-      if (url.hostname === "ipc.localhost" && url.pathname === "/maps_list") await gate;
+      if (url.hostname === "ipc.localhost" && url.pathname === "/editor_entry") await gate;
       return original(input, init);
     };
   });
@@ -176,26 +176,20 @@ test("ordinary packaged preparation rejects a changed save and retries with fres
   const app = await launch(f.executable, f.home);
   try {
     const { page } = app;
-    const reads: string[] = [];
+    let entryReads = 0;
     page.on("request", (request) => {
-      const command = new URL(request.url()).pathname;
-      if (
-        ["/players_list", "/upgrades_list", "/run_get", "/advanced_get", "/maps_list"].includes(
-          command,
-        )
-      )
-        reads.push(command);
+      if (new URL(request.url()).pathname === "/editor_entry") entryReads += 1;
     });
-    const releaseMaps = await holdFirstMapsRead(page);
+    const releaseEntry = await holdEditorEntry(page);
     const open = page.getByRole("button", { name: /Open workspace/ });
     await open.click();
-    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading map data…");
-    await expect(page.getByText("Editor data 4/5")).toBeVisible();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading upgrade data…");
+    await expect(page.getByText("Editor data 0/5")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
-    await page.screenshot({ path: info.outputPath("preparation-four-tasks.png") });
+    await page.screenshot({ path: info.outputPath("preparation-waiting-for-data.png") });
     expect(await readFile(f.source)).toEqual(f.before);
     await writeFile(f.source, replacement);
-    await releaseMaps();
+    await releaseEntry();
     await expect(page.getByRole("alert")).toHaveText(
       "The save changed while it was opening. Reopen it to load the current version. No save files were changed.",
     );
@@ -214,15 +208,7 @@ test("ordinary packaged preparation rejects a changed save and retries with fres
       await page.getByRole("tab", { name, exact: true }).click();
       await expect(page.getByTestId(name.toLowerCase() + "-skeleton")).toHaveCount(0);
     }
-    expect(reads).toEqual(
-      Array.from({ length: 2 }).flatMap(() => [
-        "/players_list",
-        "/upgrades_list",
-        "/run_get",
-        "/advanced_get",
-        "/maps_list",
-      ]),
-    );
+    expect(entryReads).toBe(2);
     expect(await readFile(f.source)).toEqual(replacement);
   } finally {
     await close(app.child, app.browser);
@@ -280,16 +266,16 @@ test("ordinary packaged opening cancels before switching saves and can reopen th
   const app = await launch(f.executable, f.home);
   try {
     const { page } = app;
-    const releaseMaps = await holdFirstMapsRead(page);
+    const releaseEntry = await holdEditorEntry(page);
     const first = page.locator(`button[data-save-id="${E2E_SAVE_ID}"]`);
     const other = page.locator(`button[data-save-id="${alternateId}"]`);
     await first.click();
-    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading map data…", {
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading upgrade data…", {
       timeout: 15_000,
     });
     await page.getByRole("button", { name: "Cancel opening" }).click();
     await expect(other).toBeDisabled();
-    await releaseMaps();
+    await releaseEntry();
     await expect(other).toBeEnabled();
     await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
     await other.click();

@@ -391,6 +391,7 @@ export const ko: Record<keyof typeof en, string> = {
   "safety.exit": "RepoDitor 종료",
   "error.service": "데스크톱 서비스를 사용할 수 없습니다.",
   "error.invalidRequest": "RepoDitor가 요청을 처리할 수 없습니다.",
+  "error.requestCancelled": "요청이 취소되었습니다.",
   "error.gameRunning": "세이브를 편집하기 전에 R.E.P.O.를 종료하세요.",
   "error.gameUnknown": "RepoDitor가 R.E.P.O. 종료 여부를 확인할 수 없습니다.",
   "error.saveMissing": "선택한 세이브를 찾을 수 없습니다.",

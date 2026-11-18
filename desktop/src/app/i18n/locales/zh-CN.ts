@@ -368,6 +368,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "safety.exit": "退出 RepoDitor",
   "error.service": "桌面服务不可用。",
   "error.invalidRequest": "RepoDitor 无法处理该请求。",
+  "error.requestCancelled": "请求已取消。",
   "error.gameRunning": "请先关闭 R.E.P.O. 再编辑存档。",
   "error.gameUnknown": "RepoDitor 无法确认 R.E.P.O. 已关闭。",
   "error.saveMissing": "找不到所选存档。",

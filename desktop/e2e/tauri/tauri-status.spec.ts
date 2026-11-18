@@ -48,6 +48,88 @@ async function reaped(ids: number[]) {
     .toBe(true);
 }
 
+for (const command of ["saves-open", "advanced-get"] as const) {
+  test(`closing a save cancels an in-flight ${command} and permits reopening`, async ({
+    browserName,
+  }, info) => {
+    expect(browserName).toBe("chromium");
+    const home = info.outputPath("cancelled-read");
+    const fixture = await stageSyntheticBackend(home);
+    const response = path.join(home, `${command}.json`);
+    const healthy = await readFile(response, "utf8");
+    const pidDir = path.join(home, "pids");
+    await mkdir(pidDir);
+    const { child, browser, page } = await launch(fixture.executable, home, {
+      ...fixture.environment,
+      REPODITOR_TEST_PID_DIR: pidDir,
+    });
+    try {
+      const opening = command === "saves-open";
+      if (!opening) await openItems(page);
+      await writeFile(response, "hang");
+      const read = opening ? null : native(page, "advanced_get", { saveId: E2E_SAVE_ID });
+      const open = page.getByRole("button", { name: /Open workspace/ });
+      if (opening) await open.click();
+      const ids = await pids(pidDir, command);
+      await page.getByRole("button", { name: opening ? "Cancel opening" : "Change save" }).click();
+      await writeFile(response, healthy);
+      await reaped(ids);
+      if (read) {
+        expect(await read).toMatchObject({ ok: false, error: { code: "process_cancelled" } });
+      }
+      await expect(page.getByRole("tab", { name: "Overview", exact: true })).toHaveCount(0);
+      expect(
+        await native(page, "saves_open", {
+          saveId: E2E_SAVE_ID,
+          verifyFingerprint: fixture.opened.session.fingerprint,
+        }),
+      ).toMatchObject({ ok: false, error: { code: "invalid_request" } });
+      await open.click();
+      await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible();
+    } finally {
+      await close(child, browser);
+    }
+  });
+}
+
+test("artwork cancellation is distinct from a sidecar failure and permits retry", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("cancelled-artwork");
+  const fixture = await stageSyntheticBackend(home);
+  const pidDir = path.join(home, "pids");
+  await mkdir(pidDir);
+  const { child, browser, page } = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_PID_DIR: pidDir,
+  });
+  try {
+    await openItems(page);
+    const updates = await native<{ data: Array<{ iconToken: string }> }>(page, "upgrades_list", {
+      saveId: E2E_SAVE_ID,
+    });
+    const token = updates.data[0].iconToken;
+    expect(token).toMatch(/^upgrade-artwork:/);
+    const response = path.join(home, "upgrade-artwork.json");
+    await writeFile(response, "hang");
+    const read = native(page, "upgrade_artwork_get", { token });
+    const ids = await pids(pidDir, "upgrade-artwork");
+    await native(page, "upgrade_artwork_cancel", { token });
+    expect(await read).toMatchObject({ ok: false, error: { code: "process_cancelled" } });
+    await reaped(ids);
+    await writeFile(response, "exit7");
+    expect(await native(page, "upgrade_artwork_get", { token })).toMatchObject({
+      ok: false,
+      error: { code: "process_failed" },
+    });
+    await writeFile(response, JSON.stringify({ ok: true, artwork: null }));
+    expect(await native(page, "upgrade_artwork_get", { token })).toEqual({ ok: true, data: null });
+  } finally {
+    await close(child, browser);
+  }
+});
+
 async function probe(info: TestInfo, independent: boolean, executable?: string) {
   const home = info.outputPath(independent ? "after" : "before");
   const fixture = await stageSyntheticBackend(home);

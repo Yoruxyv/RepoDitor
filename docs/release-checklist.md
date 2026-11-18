@@ -630,8 +630,58 @@ capabilities and the public build policy is independent.
 The private package uses the existing Item eligibility classifier with the
 pinned installed Unity version. Item creation, deletion and duplication are
 outside Electron's supported operations. Cosmetics still uses the intersection
-of installed IDs and Electron's reviewed mutation IDs. The independent
-gameplay round-trip determines whether this build persists edits in-game.
+of installed IDs and Electron's reviewed mutation IDs.
+
+### v0.3.0 Tauri release acceptance
+
+The private Windows candidate supports direct Health, Upgrades, Run and resume
+location editing, eligible Item refills, and a single mixed Run transaction.
+Cosmetics uses a separate MetaSave transaction. Packaged tests on disposable data
+cover review, revert, reopen, exact backups, atomic replacement, session revocation,
+and independent recovery. The maintainer reported loading a Tauri-edited save in
+R.E.P.O. on Steam build `26407089`. A normal game resave, reload, and restoration
+with recorded results by editing domain are still required for public approval.
+
+Editor entry batches projections and reuses source-validated metadata and artwork.
+Run writes reuse preflight work and still wait for independent verification and
+canonical refresh. The W8 Windows benchmark used five runs per host and a matched
+disposable fixture. Values are medians in seconds from those packaged builds.
+
+| Workflow            | Electron v0.2.1 | Earlier Tauri | Optimized Tauri |
+| ------------------- | --------------: | ------------: | --------------: |
+| Launch to discovery |            1.32 |          0.95 |            0.76 |
+| Cold editing ready  |            8.12 |         13.84 |           12.70 |
+| Warm editing ready  |            0.92 |          2.94 |            1.96 |
+| Health Save Changes |            0.88 |          2.40 |            1.92 |
+
+Tauri classified all eight fixture Item types. Electron reported all eight as
+unknown. The benchmark predates the reliability and parser-pin fixes.
+
+The measured portable candidate is **88.53 MiB**, including the full **77.97 MiB**
+Python backend, in `desktop/build/desktop-reliability/closeout/candidate`. The unpacked
+Electron v0.2.1 folder was **377.92 MiB**, a reduction of **289.39 MiB (76.57%)**.
+The **99.15 MiB** Electron installer is a separate download measurement. The
+measured Tauri candidate had no installer or portable archive. These are sums
+of file lengths, and the portable Tauri folder uses the system WebView2 runtime.
+
+Remaining release gates:
+
+- Complete and review build-specific gameplay evidence for each intended public
+  write domain. Approve the bounded live-editing policy and populate reviewed
+  build authorizations. The ordinary host remains read-only.
+- Run the full [capability alignment gate](maintenance/game-update-capabilities.md#review-and-ci)
+  on the release candidate. Recharge snapshot generation uses the reviewed
+  build `23363152` reader. Desktop save workspaces share its classifier and use
+  a separate runtime scan for the private candidate's reviewed Unity version.
+- Align package, native executable, and visible app versions to `0.3.0`. The
+  measured private executable still identifies itself as `0.2.1`.
+- Integrate the Tauri payload into the official Windows packaging path and verify
+  the final artifact, WebView2 setup, signatures and checksums. Run the full
+  Quality and [installer acceptance gates](#installer-acceptance-gate) on that
+  release candidate.
+- Record the disposition of the earlier unexplained preview-window disappearance.
+  Focused packaged cancellation and retry checks did not reproduce it. Retain
+  startup and process-exit diagnostics if it recurs.
 
 ### Proposed consumer live-editing exception
 

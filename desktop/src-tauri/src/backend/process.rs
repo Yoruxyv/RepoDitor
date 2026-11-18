@@ -62,7 +62,7 @@ pub fn run(
     launch: impl FnOnce(&mut Command) -> Result<Child, BackendError>,
 ) -> Result<Vec<u8>, BackendError> {
     if cancelled.load(Ordering::SeqCst) {
-        return Err(BackendError::Failed);
+        return Err(BackendError::Cancelled);
     }
     let job = Job::new()?;
     let started = Instant::now();
@@ -146,7 +146,7 @@ pub fn run(
     let mut ready_ms = None;
     let result = loop {
         if cancelled.load(Ordering::SeqCst) {
-            break Err(BackendError::Failed);
+            break Err(BackendError::Cancelled);
         }
         if started.elapsed() >= timeout {
             break Err(BackendError::Timeout);
