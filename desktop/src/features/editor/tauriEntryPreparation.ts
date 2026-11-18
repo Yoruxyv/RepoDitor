@@ -86,13 +86,8 @@ async function verifyEntrySources(
   if (revision !== undefined) {
     const verified = await tauriReadApi.maps.list("verify", save);
     signal.throwIfAborted();
-    if (
-      !verified.ok &&
-      (verified.error.code === "save_stale" || verified.error.code === "save_source_unverified")
-    ) {
-      return verified;
-    }
-    if (!verified.ok || verified.data.entryArtworkRevision !== revision)
+    if (!verified.ok) return verified;
+    if (verified.data.entryArtworkRevision !== revision)
       return {
         ok: false,
         error: {
@@ -149,13 +144,14 @@ export async function prepareTauriEntry(
   }
 
   try {
-    // These projections share the native domain worker. Keep at most one submitted
-    // so cancellation never leaves a queue of abandoned reads ahead of the next open.
     const players = await load("players", () => tauriReadApi.players.list(id, fingerprint));
     const avatarPrefetch = prefetchInitialAvatar(id, players, tauriReadApi.players.avatar);
+    // Item artwork can reference tokens registered by the Upgrade read.
     const upgrades = await load("upgrades", () => tauriReadApi.upgrades.list(id, fingerprint));
-    const run = await load("run", () => tauriReadApi.run.get(id, fingerprint));
-    const items = await load("items", () => tauriReadApi.advanced.get(id, fingerprint));
+    const [run, items] = await Promise.all([
+      load("run", () => tauriReadApi.run.get(id, fingerprint)),
+      load("items", () => tauriReadApi.advanced.get(id, fingerprint, true)),
+    ]);
     const maps = await load(
       "maps",
       () => tauriReadApi.maps.list("entry", saveProof),

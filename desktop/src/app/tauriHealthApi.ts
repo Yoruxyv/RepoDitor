@@ -1,4 +1,4 @@
-/** Narrow synthetic-only save transports; the native host owns authority. */
+/** Typed Run-save transports; the native host owns authority. */
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AdvancedSaveDto,
@@ -91,7 +91,12 @@ export function upgradeIntentFits(upgrades: readonly UpgradeIntentEdit[]): boole
   );
 }
 
+export type RunEditDomain = keyof MixedEdits;
+
 export interface HealthState {
+  domains?: RunEditDomain[];
+  draftOnly?: boolean;
+  production?: boolean;
   enabled: boolean;
   state: "disabled" | "idle" | "pending" | "busy" | "blocked";
   pending: { operationId: string; fingerprint: string; intent: HealthIntent | null } | null;
@@ -157,37 +162,55 @@ function unresolved(operationId: string, status: "uncertain" | "conflict"): Heal
 }
 
 export const tauriHealthApi = {
-  async writeMixed(request: MixedWrite): Promise<HealthTransaction> {
+  async writeMixed(request: MixedWrite, production = false): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_health_write", { request });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_write" : "test_health_write",
+        { request },
+      );
     } catch {
       return unresolved(request.operationId, "uncertain");
     }
   },
-  async writeRefills(request: RefillWrite): Promise<HealthTransaction> {
+  async writeRefills(request: RefillWrite, production = false): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_items_refill", { request });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_write" : "test_items_refill",
+        { request },
+      );
     } catch {
       return unresolved(request.operationId, "uncertain");
     }
   },
-  async writeHealthBatch(request: HealthBatchWrite): Promise<HealthTransaction> {
+  async writeHealthBatch(
+    request: HealthBatchWrite,
+    production = false,
+  ): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_health_write", { request });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_write" : "test_health_write",
+        { request },
+      );
     } catch {
       return unresolved(request.operationId, "uncertain");
     }
   },
-  async writeRun(request: RunWrite): Promise<HealthTransaction> {
+  async writeRun(request: RunWrite, production = false): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_run_write", { request });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_write" : "test_run_write",
+        { request },
+      );
     } catch {
       return unresolved(request.operationId, "uncertain");
     }
   },
-  async writeUpgrades(request: UpgradesWrite): Promise<HealthTransaction> {
+  async writeUpgrades(request: UpgradesWrite, production = false): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_upgrades_write", { request });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_write" : "test_upgrades_write",
+        { request },
+      );
     } catch {
       return unresolved(request.operationId, "uncertain");
     }
@@ -198,6 +221,12 @@ export const tauriHealthApi = {
       if (result?.enabled === true) return result;
     } catch {
       // A normal host has no synthetic health capability.
+    }
+    try {
+      const result = await invoke<HealthState>("production_health_state", { saveId });
+      if (result?.enabled === true) return { ...result, production: true };
+    } catch {
+      // The release host does not expose this candidate command.
     }
     return { enabled: false, state: "disabled", pending: null, canonical: null };
   },
@@ -212,11 +241,15 @@ export const tauriHealthApi = {
     saveId: string,
     operationId: string,
     acknowledge = false,
+    production = false,
   ): Promise<HealthTransaction> {
     try {
-      return await invoke<HealthTransaction>("test_health_recover", {
-        request: { saveId, operationId, acknowledge },
-      });
+      return await invoke<HealthTransaction>(
+        production ? "production_health_recover" : "test_health_recover",
+        {
+          request: { saveId, operationId, acknowledge },
+        },
+      );
     } catch {
       return unresolved(operationId, "conflict");
     }

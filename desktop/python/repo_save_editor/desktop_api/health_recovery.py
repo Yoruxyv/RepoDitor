@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
-from repo_save_editor.core.schema import get_dictionaries
+from repo_save_editor.core.schema import SAVE_INT32_MAX, get_dictionaries
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.items import RechargeCapabilityLoader, serialize_advanced_save
@@ -35,6 +35,7 @@ from repo_save_editor.services.player.state import get_player_health, get_player
 from repo_save_editor.services.player.upgrades import discover_player_upgrades, get_player_upgrade
 from repo_save_editor.services.run import get_available_run_stats, get_resume_location_label
 from repo_save_editor.services.saves.discovery import discover_saves
+from repo_save_editor.services.saves.private_health import Approval
 from repo_save_editor.storage.health_recovery import (
     HealthTransaction,
     RecoveryError,
@@ -96,13 +97,20 @@ def _refill_changes(
     return engine, capabilities
 
 
-def _health_changes(data: SaveData, changes: object) -> list[dict[str, object]]:
+def _health_changes(
+    data: SaveData, changes: object, *, require_existing: bool = False
+) -> list[dict[str, object]]:
     players = {player.player_id for player in get_players(data)}
     result = []
     for edit in cast(list[dict[str, Any]], changes):
         player = edit["playerId"]
         if player not in players:
             raise DesktopSaveError("save_validation_failed", "The player is unavailable.")
+        if require_existing:
+            values = get_dictionaries(data).get("playerHealth")
+            raw_health = values.get(player) if isinstance(values, dict) else None
+            if type(raw_health) is not int or not 0 <= raw_health <= SAVE_INT32_MAX:
+                raise DesktopSaveError("save_validation_failed", "The Health field is unsupported.")
         if get_player_health(data, player) != edit["before"]:
             raise DesktopSaveError("save_stale", "The player's Health changed after it was opened.")
         result.append(
@@ -154,19 +162,16 @@ def _upgrade_changes(data: SaveData, changes: object) -> list[dict[str, object]]
 
 
 def _mixed_changes(
-    data: SaveData, changes: object, loader: RechargeCapabilityLoader
+    data: SaveData,
+    changes: object,
+    loader: RechargeCapabilityLoader,
+    *,
+    require_existing_health: bool = False,
 ) -> tuple[list[dict[str, object]], Mapping[str, ItemRechargeCapability]]:
     groups = cast(dict[str, list[object]], changes)
-    edits = [
-        edit
-        for key, validate in (
-            ("health", _health_changes),
-            ("upgrades", _upgrade_changes),
-            ("run", _run_changes),
-        )
-        if groups[key]
-        for edit in validate(data, groups[key])
-    ]
+    edits = _health_changes(data, groups["health"], require_existing=require_existing_health)
+    edits.extend(_upgrade_changes(data, groups["upgrades"]))
+    edits.extend(_run_changes(data, groups["run"]))
     if groups["refillToFull"]:
         refills, capabilities = _refill_changes(data, groups["refillToFull"], loader)
         return edits + refills, capabilities
@@ -188,6 +193,8 @@ def prepare_health(
     upgrade_batch: bool = False,
     run_batch: bool = False,
     mixed_batch: bool = False,
+    verify_source_identity: bool = False,
+    approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
@@ -209,9 +216,15 @@ def prepare_health(
             transaction.admit()
             require_game_closed(game_status_loader)
             identity = None
-            if single or mixed_batch:
+            if single or mixed_batch or verify_source_identity or approval is not None:
                 current, identity = _snapshot(path, directory)
-                if current != fingerprint:
+                if current != fingerprint or (
+                    approval is not None
+                    and (
+                        (current, identity) != approval.original
+                        or transaction.namespace() != approval.namespace
+                    )
+                ):
                     return _outcome(operation, "rejected", "save_stale")
             _save, data, source = load_discovered_save(save_id, root, directory=directory)
             if sha256(source).hexdigest() != fingerprint:
@@ -221,7 +234,10 @@ def prepare_health(
             if mixed_batch:
                 intent = {"mixed": changes}
                 engine_changes, capabilities = _mixed_changes(
-                    data, changes, recharge_capability_loader
+                    data,
+                    changes,
+                    recharge_capability_loader,
+                    require_existing_health=verify_source_identity,
                 )
             elif refill_batch:
                 intent = {"refillToFull": changes}
@@ -230,7 +246,9 @@ def prepare_health(
                 )
             elif health_batch:
                 intent = {"health": changes}
-                engine_changes = _health_changes(data, changes)
+                engine_changes = _health_changes(
+                    data, changes, require_existing=verify_source_identity
+                )
             elif run_batch:
                 intent = {"run": changes}
                 engine_changes = _run_changes(data, changes)
@@ -257,7 +275,9 @@ def prepare_health(
             transaction.prepare(source, expected_identity=identity)
             return _outcome(operation, "prepared")
     except (RecoveryError, DesktopSaveError, GameSafetyError) as exc:
-        return _outcome(operation, "rejected", _reason(exc, exc.code, single=single))
+        return _outcome(
+            operation, "rejected", _reason(exc, exc.code, single=single or verify_source_identity)
+        )
     except SaveResourceError:
         return _outcome(operation, "rejected", "save_unsupported")
     except (ValueError, TypeError):
@@ -267,7 +287,11 @@ def prepare_health(
             "backend_unavailable" if single else "save_validation_failed",
         )
     except OSError as exc:
-        return _outcome(operation, "rejected", _reason(exc, "backend_unavailable", single=single))
+        return _outcome(
+            operation,
+            "rejected",
+            _reason(exc, "backend_unavailable", single=single or verify_source_identity),
+        )
 
 
 def _health_change(changes: object) -> bool:
@@ -320,6 +344,8 @@ def write_health(
     upgrade_batch: bool = False,
     run_batch: bool = False,
     mixed_batch: bool = False,
+    verify_source_identity: bool = False,
+    approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
     """Delegate one typed domain intent, recording ambiguous completion explicitly."""
@@ -356,6 +382,11 @@ def write_health(
                 if upgrade_batch
                 else None,
             )
+            if approval is not None and (
+                _snapshot(path, directory) != approval.original
+                or transaction.namespace() != approval.namespace
+            ):
+                raise RecoveryError("save_stale")
             if reserved:
                 requested = transaction.intent
                 transaction.resume()
@@ -374,11 +405,16 @@ def write_health(
             if not single:
                 _, data, _ = load_discovered_save(save_id, root, directory=directory)
                 changes = (
-                    _mixed_changes(data, changes, recharge_capability_loader)[0]
+                    _mixed_changes(
+                        data,
+                        changes,
+                        recharge_capability_loader,
+                        require_existing_health=verify_source_identity,
+                    )[0]
                     if mixed_batch
                     else _refill_changes(data, changes, recharge_capability_loader)[0]
                     if refill_batch
-                    else _health_changes(data, changes)
+                    else _health_changes(data, changes, require_existing=verify_source_identity)
                     if health_batch
                     else _run_changes(data, changes)
                     if run_batch
@@ -393,7 +429,7 @@ def write_health(
                 recharge_capability_loader=recharge_capability_loader,
                 health_transaction=transaction,
                 verify_replacement=transaction.verify_before_replace
-                if single or mixed_batch
+                if single or mixed_batch or verify_source_identity
                 else None,
             )
             if result["ok"] is not True:
@@ -411,7 +447,7 @@ def write_health(
         return _outcome(
             operation,
             "uncertain" if transaction is not None and transaction.started else "rejected",
-            _reason(exc, exc.code, single=single),
+            _reason(exc, exc.code, single=single or verify_source_identity),
         )
     except SaveResourceError:
         status = "uncertain" if transaction is not None and transaction.started else "rejected"
@@ -420,13 +456,20 @@ def write_health(
         return _outcome(
             operation,
             "uncertain" if transaction is not None and transaction.started else "rejected",
-            _reason(exc, "backend_unavailable", single=single),
+            _reason(exc, "backend_unavailable", single=single or verify_source_identity),
         )
 
 
 @bounded_save_operation
 def recover_health(
-    save_id: str, operation: str, root: Path, *, canonical: bool = False, acknowledge: bool = True
+    save_id: str,
+    operation: str,
+    root: Path,
+    *,
+    canonical: bool = False,
+    acknowledge: bool = True,
+    intent_allowed: Callable[[object], bool] | None = None,
+    approval: Approval | None = None,
 ) -> dict[str, object]:
     """Inspect authoritative bytes under the exited-owner lock; never apply pending intent."""
     if not valid_operation(operation):
@@ -435,6 +478,13 @@ def recover_health(
         path = _path(save_id, root)
         with health_lock(path) as directory:
             transaction = HealthTransaction(path, operation, directory=directory)
+            if approval is not None and transaction.namespace() != approval.namespace:
+                raise RecoveryError("write_conflict")
+            original = approval.original if approval is not None else None
+            if intent_allowed is not None and not intent_allowed(
+                transaction.inspect_intent(original)
+            ):
+                raise RecoveryError("save_unsupported")
             if canonical:
                 # Preflight decoding before recovery can settle receipts or clean staging.
                 load_discovered_save(save_id, root, directory=directory)
@@ -485,18 +535,39 @@ def _canonical(
 
 
 @bounded_save_operation
-def health_state(save_id: str, root: Path) -> dict[str, object]:
+def health_state(
+    save_id: str,
+    root: Path,
+    *,
+    intent_allowed: Callable[[object], bool] | None = None,
+    approval: Approval | None = None,
+) -> dict[str, object]:
     """Rediscover pending identity/intent without acknowledging or replaying an operation."""
     try:
         path = _path(save_id, root)
         with health_lock(path) as directory:
             receipt = inspect_pending(path, directory)
+            if approval is not None:
+                if (
+                    HealthTransaction(path, "0" * 32, directory=directory).namespace()
+                    != approval.namespace
+                ):
+                    raise RecoveryError("write_conflict")
+                if receipt is None and _snapshot(path, directory) != approval.original:
+                    return {"ok": True, "state": "disabled"}
+                if (
+                    receipt is not None
+                    and (receipt.before, receipt.before_identity) != approval.original
+                ):
+                    raise RecoveryError("write_conflict")
             if receipt is None:
                 return {
                     "ok": True,
                     "state": "idle",
                     "canonical": _canonical(save_id, root, directory=directory),
                 }
+            if intent_allowed is not None and not intent_allowed(receipt.intent):
+                return {"ok": True, "state": "blocked"}
             return {
                 "ok": True,
                 "state": "pending",

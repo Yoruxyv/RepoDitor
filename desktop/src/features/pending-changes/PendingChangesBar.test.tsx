@@ -136,6 +136,39 @@ describe("PendingChangesBar", () => {
     expect(onSave).toHaveBeenCalledOnce();
   });
 
+  it("opens required review from Save and waits for a separate confirmation", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const reviewPath = "C:\\fixture\\save.es3";
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          backupPath={null}
+          edits={[edit]}
+          error={null}
+          saving={false}
+          reviewPath={reviewPath}
+          onRevert={vi.fn()}
+          onSave={onSave}
+        />
+      </PreferencesProvider>,
+    );
+
+    const save = screen.getByRole("button", { name: "Save Changes" });
+    const review = screen.getByRole("button", { name: "Review" });
+    await user.dblClick(save);
+    expect(screen.getByText(/Source .*save\.es3/)).toBeTruthy();
+    expect(review.getAttribute("aria-expanded")).toBe("true");
+    expect(onSave).not.toHaveBeenCalled();
+
+    review.focus();
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).toBe(save);
+    await user.keyboard("{Enter}");
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
   it("closes review automatically when pending edits reach zero", async () => {
     const user = userEvent.setup();
     const props = {

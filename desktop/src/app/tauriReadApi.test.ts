@@ -82,6 +82,18 @@ describe("typed native read capabilities", () => {
     });
     expect(Object.keys(tauriReadApi.advanced)).toEqual(["get"]);
   });
+  it("marks only the explicitly requested Items artwork refresh as background", async () => {
+    const prepareFingerprint = "b".repeat(64);
+    vi.mocked(invoke).mockResolvedValue({ ok: true, data: advanced });
+    await tauriReadApi.advanced.get(saveId, prepareFingerprint);
+    await tauriReadApi.advanced.get(saveId, prepareFingerprint, true);
+    expect(invoke).toHaveBeenNthCalledWith(1, "advanced_get", { saveId, prepareFingerprint });
+    expect(invoke).toHaveBeenNthCalledWith(2, "advanced_get", {
+      saveId,
+      prepareFingerprint,
+      background: true,
+    });
+  });
   it("exposes only the named Run read, preserves failures and sanitizes transport errors", async () => {
     const failure = { ok: false, error: { code: "save_missing", message: "Missing" } };
     vi.mocked(invoke)
@@ -113,6 +125,17 @@ describe("typed native read capabilities", () => {
     });
     expect(await tauriReadApi.upgrades.prepare(saveId)).toEqual({ ok: true, data: upgrades });
     expect(invoke).toHaveBeenNthCalledWith(3, "upgrades_list", { saveId, background: true });
+    const fingerprint = "a".repeat(64);
+    vi.mocked(invoke).mockResolvedValueOnce({ ok: true, data: upgrades });
+    expect(await tauriReadApi.upgrades.list(saveId, fingerprint)).toEqual({
+      ok: true,
+      data: upgrades,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(4, "upgrades_list", {
+      saveId,
+      background: true,
+      prepareFingerprint: fingerprint,
+    });
     expect(Object.keys(tauriReadApi.upgrades)).toEqual(["list", "prepare"]);
   });
   it("lists players through one named read command and sanitizes transport rejection", async () => {

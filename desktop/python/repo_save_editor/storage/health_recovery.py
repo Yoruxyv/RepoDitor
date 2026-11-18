@@ -689,18 +689,23 @@ class HealthTransaction:
             raise RecoveryError("write_conflict")
         return sha256(json.dumps([self.namespace(), records], sort_keys=True).encode()).hexdigest()
 
-    def inspect_single_health(self) -> dict[str, object]:
-        """Read only the single-player Health intent attributed to this operation."""
+    def inspect_intent(self, original: tuple[str, list[int]] | None = None) -> dict[str, object]:
+        """Read the pending or archived intent attributed to this operation."""
         pending = inspect_pending(self.path, self.directory)
         receipt = pending if pending is not None else self._read(self.archive)
-        if (
-            receipt.operation != self.operation
-            or receipt.intent is None
-            or not valid_intent(receipt.intent)
-        ):
+        if receipt.operation != self.operation or receipt.intent is None:
             raise RecoveryError("write_conflict")
         self._require_namespace(receipt)
+        if original is not None and (receipt.before, receipt.before_identity) != original:
+            raise RecoveryError("write_conflict")
         return receipt.intent
+
+    def inspect_single_health(self) -> dict[str, object]:
+        """Read only the single-player Health intent attributed to this operation."""
+        intent = self.inspect_intent()
+        if not valid_intent(intent):
+            raise RecoveryError("write_conflict")
+        return intent
 
     @bounded_save_operation
     def inspect(self) -> dict[str, object]:

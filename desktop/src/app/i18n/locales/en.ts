@@ -180,8 +180,7 @@ export const en = {
   "upgrades.empty": "This save contains no player upgrades.",
   "upgrades.input": "{upgrade} for {player}",
   "upgrades.error": "Upgrade value must be between 0 and 2,147,483,647.",
-  "upgrades.draftOnly":
-    "Review your upgrade drafts, then Save to persist them to this synthetic save. Revert discards unsaved changes.",
+  "upgrades.reviewDrafts": "Review pending upgrade changes before saving.",
   "upgrades.revertDrafts": "Revert upgrade drafts",
   "upgrades.saveUnavailable":
     "Save health and upgrades separately. Revert one group or reduce a large upgrade batch before saving.",
@@ -193,6 +192,8 @@ export const en = {
     "Adjust the friendly values below in memory. The selected save is not written yet.",
   "run.levelError": "Level must be between 1 and 2,147,483,648.",
   "run.valueError": "{label} must be between -2,147,483,648 and 2,147,483,647.",
+  "run.currencyOverflow":
+    "R.E.P.O. may show a wrapped balance when it converts this value from thousands to whole dollars.",
   "run.resumeLocation": "Resume location",
   "run.lives": "Lives",
   "run.totalHaul": "Total haul",
@@ -403,12 +404,14 @@ export const en = {
   "error.metaMissing": "MetaSave.es3 could not be found.",
   "error.saveInvalid": "The selected save could not be safely read or validated.",
   "error.saveStale": "The save changed on disk. Reopen it before saving edits.",
+  "error.saveOpenTimeout": "Opening the save timed out. Try opening it again.",
   "error.saveOpenStale":
     "The save changed while it was opening. Reopen it to load the current version.",
   "error.saveSourceUnverified":
     "RepoDitor could not verify the save source. Rebuild or reinstall the complete preview and try again.",
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
+  "health.draftOnly": "This preview supports Health drafts and review. Saving is disabled.",
   "health.testOnly":
     "Synthetic test: Health, Upgrades, Run and item refills. Production builds remain read-only.",
   "items.saveUnavailable":
@@ -425,6 +428,9 @@ export const en = {
     "Another save operation needs reconciliation. Your pending edits will be retained.",
   "health.conflict":
     "Recovery evidence could not be reconciled. Editing is blocked; recheck the evidence or seek manual recovery.",
+  "health.fileInUse": "Another process is using the save file.",
+  "health.verificationUnavailable": "RepoDitor could not verify the save or installed game.",
+  "health.unsupportedBuild": "This game build is not approved for Health edits.",
   "health.status": "Save status",
   "health.persisted": "On disk: {name} · {health} / {max}",
   "health.backupVerified": "Original backup verified.",

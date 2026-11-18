@@ -1,4 +1,4 @@
-/** Independent synthetic MetaSave drafts and durable, operation-bound reconciliation. */
+/** Independent MetaSave drafts and durable, operation-bound reconciliation. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CosmeticsViewDto } from "@electron/contracts";
 import {
@@ -97,11 +97,15 @@ function projected(
   };
 }
 
-function canonicalResult(result: MetaResult): boolean {
+function appliedResult(result: MetaResult, operationId: string): boolean {
   const fingerprint = result.fingerprint;
   const view = result.view;
   if (!view || fingerprint === null) return false;
-  return view.fingerprint === fingerprint;
+  return (
+    result.operationId === operationId &&
+    result.status === "applied" &&
+    view.fingerprint === fingerprint
+  );
 }
 
 function settledState(result: MetaResult, operationId: string): MetaState | undefined {
@@ -126,7 +130,12 @@ function retargetIntent(intent: MetaIntent | null, admission: MetaState["admissi
     : intent;
 }
 
-export function useTauriCosmetics(active: boolean, recoveryGeneration: number, api = tauriMetaApi) {
+export function useTauriCosmetics(
+  active: boolean,
+  recoveryGeneration: number,
+  api: Omit<typeof tauriMetaApi, "close"> &
+    Partial<Pick<typeof tauriMetaApi, "close">> = tauriMetaApi,
+) {
   const visit = useMemo(
     () => (active ? { recoveryGeneration } : null),
     [active, recoveryGeneration],
@@ -177,7 +186,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     return pending;
   }, [api]);
   useEffect(() => {
-    if (!visit || visit === checkedVisit || intent) return;
+    if (!visit || visit === checkedVisit || (intent && !state.production)) return;
     let cancelled = false;
     async function checkVisit() {
       // An earlier visit may still be inspecting MetaSave, but cannot authorize this visit.
@@ -190,8 +199,20 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     return () => {
       cancelled = true;
     };
-  }, [visit, checkedVisit, intent, reload]);
-  const locked = loading || saving || recovering || state.state !== "idle";
+  }, [visit, checkedVisit, intent, reload, state.production]);
+  useEffect(() => {
+    if (!active) return;
+    return () => {
+      void api.close?.();
+    };
+  }, [active, api]);
+  const locked =
+    !active ||
+    loading ||
+    saving ||
+    recovering ||
+    state.state !== "idle" ||
+    (state.production === true && visit !== checkedVisit);
   const lockAllBlockedReason =
     state.view?.cosmetics.find(
       (c) => c.known && c.mutationEligible && c.owned && c.removalBlockedReason,
@@ -254,17 +275,20 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
         recoverySession = inspected.recoverySession;
       }
       const id = operation.current;
-      const result = await api.recover(id, recoverySession);
+      const production = inspected?.production ?? state.production;
+      const result = production
+        ? await api.recover(id, recoverySession, true)
+        : await api.recover(id, recoverySession);
       if (!mounted.current) return;
       const fresh = settledState(result, id);
       if (!fresh) {
-        if (inspected) setState(inspected);
+        setState((previous) => inspected ?? previous);
         setError(CONFLICT);
         return;
       }
       operation.current = null;
       setRecovering(false);
-      setState(fresh);
+      setState(production ? { ...fresh, production: true } : fresh);
       const retained = intent ?? inspected?.pending?.intent ?? null;
       const next = result.status === "unchanged" ? retained : null;
       setIntent(retargetIntent(next, fresh.admission));
@@ -283,33 +307,36 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     operation.current = id;
     setRecovering(true);
     let delivered: MetaResult | undefined;
+    let rejected = false;
     try {
-      const result = await api.write({
+      const request = {
         operationId: id,
         session: state.session,
         fingerprint: state.view.fingerprint,
         intent,
-      });
-      if (result.operationId === id && result.status === "applied" && canonicalResult(result)) {
+      };
+      const result = state.production ? await api.write(request, true) : await api.write(request);
+      if (appliedResult(result, id)) {
         delivered = result;
       }
-      if (mounted.current) {
-        if (result.status === "rejected") {
-          operation.current = null;
-          setRecovering(false);
-          setError(REJECTED);
-        } else {
-          setState((current) => ({ ...current, state: "pending" }));
-          setError(result.status === "applied" ? null : CONFLICT);
-        }
+      if (!mounted.current) return;
+      if (result.status === "rejected") {
+        rejected = true;
+        operation.current = null;
+        setRecovering(false);
+        setError(REJECTED);
+      } else {
+        setState((current) => ({ ...current, state: "pending" }));
+        setError(result.status === "applied" ? null : CONFLICT);
       }
     } finally {
       inFlight.current = false;
       if (mounted.current) setSaving(false);
     }
     // A positive write still requires canonical reconciliation and explicit acknowledgement.
-    if (mounted.current && operation.current && delivered)
-      await reconcile(delivered.recoverySession);
+    if (!mounted.current) return;
+    if (operation.current && delivered) await reconcile(delivered.recoverySession);
+    if (rejected && state.production) await reload();
   }
   function revert() {
     if (locked || inFlight.current) return;
@@ -337,6 +364,7 @@ export function useTauriCosmetics(active: boolean, recoveryGeneration: number, a
     pendingEdits: cosmeticEdits(state.view, intent),
     recovery: recovering || state.state === "pending",
     enabled: state.state !== "disabled",
+    authorizationPending: visit !== null && visit !== checkedVisit,
     readOnlyReady: visit !== null && visit === checkedVisit && state.state === "disabled",
   };
 }

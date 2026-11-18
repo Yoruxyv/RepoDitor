@@ -50,6 +50,8 @@ from repo_save_editor.desktop_api.items import get_advanced_save
 from repo_save_editor.desktop_api.meta_transactions import meta_recover, meta_state, meta_write
 from repo_save_editor.desktop_api.player.players import get_player_avatar, list_players
 from repo_save_editor.desktop_api.player.upgrades import list_upgrades
+from repo_save_editor.desktop_api.production_health import production_health
+from repo_save_editor.desktop_api.production_meta import production_meta
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.map_artwork import decode_map_artwork
@@ -244,6 +246,16 @@ def _recovery_test_root(*, mixed: bool = False) -> Path | None:
     return profile / "semiwork" / "Repo" / "saves"
 
 
+def _production_health(args: argparse.Namespace) -> dict[str, object]:
+    return production_health(
+        args.action,
+        args.save_id,
+        args.operation,
+        args.fingerprint,
+        _parse_changes(args.payload),
+    )
+
+
 def _recover_health(args: argparse.Namespace) -> dict[str, object]:
     root = _recovery_test_root()
     if root is None or args.save_id is None or args.operation is None:
@@ -295,6 +307,15 @@ def _save_cosmetics(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _meta_transaction(args: argparse.Namespace) -> dict[str, object]:
+    if args.command.startswith("production-meta-"):
+        return production_meta(
+            args.command.removeprefix("production-meta-"),
+            args.operation,
+            proof=getattr(args, "proof", ""),
+            fingerprint=getattr(args, "fingerprint", ""),
+            intent=_parse_changes(args.payload) if hasattr(args, "payload") else None,
+            namespace=getattr(args, "namespace", ""),
+        )
     root = _recovery_test_root()
     if root is None:
         return _invalid_request("Synthetic MetaSave requires an isolated test root.")
@@ -317,20 +338,21 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="repo_save_editor.desktop_api")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    meta_status = commands.add_parser("meta-state")
-    meta_status.add_argument("operation", nargs="?")
-    meta_status.set_defaults(handler=_meta_transaction)
-    for name in ("meta-prepare", "meta-write"):
-        meta = commands.add_parser(name)
-        meta.add_argument("operation")
-        meta.add_argument("fingerprint")
-        meta.add_argument("payload")
-        meta.add_argument("namespace")
-        meta.set_defaults(handler=_meta_transaction)
-    meta_recovery = commands.add_parser("meta-recover")
-    meta_recovery.add_argument("operation")
-    meta_recovery.add_argument("proof")
-    meta_recovery.set_defaults(handler=_meta_transaction)
+    for prefix in ("", "production-"):
+        meta_status = commands.add_parser(prefix + "meta-state")
+        meta_status.add_argument("operation", nargs="?")
+        meta_status.set_defaults(handler=_meta_transaction)
+        for name in ("meta-prepare", "meta-write"):
+            meta = commands.add_parser(prefix + name)
+            meta.add_argument("operation")
+            meta.add_argument("fingerprint")
+            meta.add_argument("payload")
+            meta.add_argument("namespace")
+            meta.set_defaults(handler=_meta_transaction)
+        meta_recovery = commands.add_parser(prefix + "meta-recover")
+        meta_recovery.add_argument("operation")
+        meta_recovery.add_argument("proof")
+        meta_recovery.set_defaults(handler=_meta_transaction)
 
     commands.add_parser("environment").set_defaults(handler=lambda _args: discover_environment())
     commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())
@@ -407,6 +429,16 @@ def _parser() -> argparse.ArgumentParser:
     transaction.add_argument("--run-operation")
     transaction.add_argument("--mixed-operation")
     saves_write.set_defaults(handler=_save_changes)
+
+    production = commands.add_parser("production-health")
+    production.add_argument(
+        "action", choices=("state", "prepare", "write", "inspect", "acknowledge")
+    )
+    production.add_argument("save_id")
+    production.add_argument("operation", nargs="?", default="")
+    production.add_argument("fingerprint", nargs="?", default="")
+    production.add_argument("payload", nargs="?", default="null")
+    production.set_defaults(handler=_production_health)
 
     health_recover = commands.add_parser("health-recover")
     health_recover.add_argument("save_id", nargs="?")

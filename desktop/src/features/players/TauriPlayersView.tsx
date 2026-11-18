@@ -1,4 +1,4 @@
-/** Bind the existing Players presentation to synthetic health authority. */
+/** Bind the existing Players presentation to native Health authority. */
 import { PlayersView } from "./PlayersView";
 import type { usePlayers } from "./usePlayers";
 import type { useTauriHealth } from "./useTauriHealth";
@@ -14,7 +14,7 @@ export function TauriPlayersView({
   readonly avatarUrls: Record<string, string | null>;
   readonly onRejectAvatar: (playerId: string) => void;
 }) {
-  const canEdit = health.enabled;
+  const canEdit = health.healthEnabled;
   return (
     <PlayersView
       avatarUrls={avatarUrls}

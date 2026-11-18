@@ -9,8 +9,13 @@ from pathlib import Path
 from typing import Final
 
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.game.installed_build import validated_installed_build
+from repo_save_editor.services.game.installed_build import (
+    installed_build_identity,
+    owned_file,
+    validated_installed_build,
+)
 from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.saves.private_health import private_bundle
 
 RECHARGE_EVIDENCE_VERSION: Final = 1
 RESOURCES_RELATIVE_PATH: Final = Path("REPO_Data/resources.assets")
@@ -43,6 +48,7 @@ class RechargeSourceContext:
     resources: InstalledFileIdentity
     global_managers_path: Path
     global_managers: InstalledFileIdentity
+    unity_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,12 +90,24 @@ def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSou
     installation = discovery.installation
     if installation is None:
         return None
-    build = validated_installed_build(installation)
-    if build is None:
+    bundle = private_bundle()
+    private = bundle is not None and bundle.session and bundle.item_unity is not None
+    build = (
+        installed_build_identity(installation)
+        if private
+        else validated_installed_build(installation)
+    )
+    if build is None or (private and bundle is not None and build.build_id != bundle.build):
         return None
 
     resources_path = installation.root / RESOURCES_RELATIVE_PATH
     global_managers_path = installation.root / GLOBAL_MANAGERS_RELATIVE_PATH
+    if private:
+        try:
+            owned_file(installation.root, resources_path)
+            owned_file(installation.root, global_managers_path)
+        except (OSError, ValueError):
+            return None
     resources = _source_identity(resources_path)
     global_managers = _source_identity(global_managers_path)
     if resources is None or global_managers is None:
@@ -103,6 +121,7 @@ def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSou
         resources=resources,
         global_managers_path=global_managers_path,
         global_managers=global_managers,
+        unity_version=bundle.item_unity if private and bundle is not None else None,
     )
 
 

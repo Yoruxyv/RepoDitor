@@ -181,8 +181,7 @@ export const id: Record<keyof typeof en, string> = {
   "upgrades.empty": "Save ini tidak berisi upgrade pemain.",
   "upgrades.input": "{upgrade} untuk {player}",
   "upgrades.error": "Nilai upgrade harus antara 0 dan 2.147.483.647.",
-  "upgrades.draftOnly":
-    "Tinjau draf upgrade, lalu Simpan untuk menerapkannya ke save sintetis ini. Batalkan untuk membuang perubahan yang belum disimpan.",
+  "upgrades.reviewDrafts": "Tinjau perubahan upgrade sebelum menyimpan.",
   "upgrades.revertDrafts": "Batalkan draf upgrade",
   "upgrades.saveUnavailable":
     "Simpan kesehatan dan upgrade secara terpisah. Batalkan salah satu kelompok atau kurangi draf upgrade yang terlalu besar sebelum menyimpan.",
@@ -194,6 +193,8 @@ export const id: Record<keyof typeof en, string> = {
     "Ubah nilai yang mudah dipahami di bawah ini dalam memori. Save terpilih belum ditulis.",
   "run.levelError": "Level harus antara 1 dan 2.147.483.648.",
   "run.valueError": "{label} harus antara -2.147.483.648 dan 2.147.483.647.",
+  "run.currencyOverflow":
+    "Saldo R.E.P.O. dapat meluap saat nilai ini dikonversi dari ribuan ke dolar penuh.",
   "run.resumeLocation": "Lokasi lanjutan",
   "run.lives": "Nyawa",
   "run.totalHaul": "Total hasil",
@@ -407,11 +408,14 @@ export const id: Record<keyof typeof en, string> = {
   "error.metaMissing": "File MetaSave.es3 tidak ditemukan.",
   "error.saveInvalid": "Save terpilih tidak dapat dibaca atau divalidasi dengan aman.",
   "error.saveStale": "Save berubah di disk. Buka ulang sebelum menyimpan perubahan.",
+  "error.saveOpenTimeout": "Waktu membuka save habis. Coba buka kembali.",
   "error.saveOpenStale": "Save berubah saat dibuka. Buka kembali untuk memuat versi terbaru.",
   "error.saveSourceUnverified":
     "RepoDitor tidak dapat memverifikasi sumber save. Bangun ulang atau instal ulang preview lengkap, lalu coba lagi.",
   "error.write": "RepoDitor tidak dapat menulis save dengan aman. Tidak ada file yang diganti.",
   "error.copyPath": "Path tidak dapat disalin",
+  "health.draftOnly":
+    "Pratinjau ini mendukung draf dan peninjauan Health. Penyimpanan dinonaktifkan.",
   "health.testOnly":
     "Pengujian sintetis: Health, Upgrades, Run, dan isi ulang item. Build produksi tetap hanya baca.",
   "items.saveUnavailable":
@@ -429,6 +433,9 @@ export const id: Record<keyof typeof en, string> = {
     "Operasi penyimpanan lain perlu direkonsiliasi. Perubahan tertunda Anda tetap dipertahankan.",
   "health.conflict":
     "Bukti pemulihan tidak dapat dicocokkan. Pengeditan diblokir; periksa kembali atau lakukan pemulihan manual.",
+  "health.fileInUse": "Proses lain sedang menggunakan file save.",
+  "health.verificationUnavailable": "RepoDitor tidak dapat memverifikasi save atau instalasi game.",
+  "health.unsupportedBuild": "Build game ini belum disetujui untuk mengubah Health.",
   "health.status": "Status penyimpanan",
   "health.persisted": "Di berkas: {name} · {health} / {max}",
   "health.backupVerified": "Cadangan asli terverifikasi.",

@@ -1,4 +1,4 @@
-/** Bind the existing upgrade presentation to the synthetic transaction controller. */
+/** Bind the existing upgrade presentation to the native transaction controller. */
 import { usePreferences } from "@/app/preferences";
 import type { usePlayers } from "@/features/players/usePlayers";
 import type { useTauriHealth } from "@/features/players/useTauriHealth";
@@ -31,7 +31,7 @@ export function TauriUpgradesView({
     <>
       {enabled ? (
         <div className="mb-5 border-l-2 border-accent pl-3 text-sm">
-          <p id="upgrade-draft-notice">{t("upgrades.draftOnly")}</p>
+          <p id="upgrade-draft-notice">{t("upgrades.reviewDrafts")}</p>
           <button
             className="ui-feedback mt-2 rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:opacity-50"
             disabled={locked}

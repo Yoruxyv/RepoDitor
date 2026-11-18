@@ -1,4 +1,4 @@
-/** Native workspace with shared synthetic Health/Upgrades/Run recovery. */
+/** Native workspace with shared Run-save recovery. */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
@@ -25,6 +25,7 @@ const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as 
 type Section = (typeof SECTIONS)[number];
 
 function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
+  if (health.draftOnly) return "health.draftOnly";
   const upgrades = health.upgradeEdits.length > 0;
   const run = health.runEdits.length > 0;
   const refills = health.refillEdits.length > 0;
@@ -70,7 +71,7 @@ export function TauriWorkspace({
   readonly active?: boolean;
   readonly onClose: () => void;
   readonly onCanonical?: (opened: SaveOpenResult) => void;
-  readonly onHealthAvailability?: (enabled: boolean) => void;
+  readonly onHealthAvailability?: (mode: "checking" | "readonly" | "test" | "production") => void;
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
@@ -144,19 +145,41 @@ export function TauriWorkspace({
     }
   }, [health.operationId, health.restoredPlayerId, visiblePlayers, selectPlayer]);
   useEffect(() => {
-    onHealthAvailability?.(health.enabled);
-    return () => onHealthAvailability?.(false);
-  }, [health.enabled, onHealthAvailability]);
+    const activeMode = health.production ? "production" : "test";
+    const mode = health.enabled ? activeMode : "readonly";
+    onHealthAvailability?.(health.phase === "checking" ? "checking" : mode);
+    return () => onHealthAvailability?.("checking");
+  }, [health.enabled, health.phase, health.production, onHealthAvailability]);
   const currentSession = health.canonical?.opened.session ?? session;
-  const artworkFingerprint = useRef(session.fingerprint);
+  const artworkFingerprint = useRef({ upgrades: session.fingerprint, items: session.fingerprint });
   const refreshUpgrades = upgrades.refreshArtwork;
+  const refreshItems = items.refreshArtwork;
+  const hasCanonicalItems = health.canonical?.advanced != null;
   useEffect(() => {
-    // The list read shares a worker with the final transaction acknowledgement.
-    if (!health.locked && artworkFingerprint.current !== currentSession.fingerprint) {
-      artworkFingerprint.current = currentSession.fingerprint;
+    if (health.locked) return;
+    if (
+      section === "upgrades" &&
+      artworkFingerprint.current.upgrades !== currentSession.fingerprint
+    ) {
+      artworkFingerprint.current.upgrades = currentSession.fingerprint;
       void refreshUpgrades();
     }
-  }, [currentSession.fingerprint, health.locked, refreshUpgrades]);
+    if (
+      section === "items" &&
+      hasCanonicalItems &&
+      artworkFingerprint.current.items !== currentSession.fingerprint
+    ) {
+      artworkFingerprint.current.items = currentSession.fingerprint;
+      void refreshItems(currentSession.fingerprint);
+    }
+  }, [
+    currentSession.fingerprint,
+    hasCanonicalItems,
+    health.locked,
+    refreshItems,
+    refreshUpgrades,
+    section,
+  ]);
   const selectedPlayer =
     visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const pendingSections: Partial<Record<Section, number>> = {
@@ -268,7 +291,7 @@ export function TauriWorkspace({
                 upgradesLoading={upgrades.loading}
               />
               <OverviewView
-                readOnly={!health.enabled}
+                readOnly={!health.healthEnabled}
                 session={currentSession}
                 availableDestinations={["players", "upgrades", "run", "items"]}
                 onNavigate={selectTabWithFocus}
@@ -289,15 +312,22 @@ export function TauriWorkspace({
               onRejectAvatar={avatars.rejectAvatar}
               players={players}
               upgrades={upgrades}
-              enabled={health.enabled}
+              enabled={health.upgradesEnabled}
               locked={health.locked}
               resetVersion={health.resetVersion}
               onRevertAll={revertUpgrades}
-              transaction={health}
+              transaction={{ ...health, enabled: health.upgradesEnabled }}
             />
           ) : null}
-          {section === "items" ? <TauriItemsView items={items} transaction={health} /> : null}
-          {section === "run" ? <TauriRunView run={run} transaction={health} /> : null}
+          {section === "items" ? (
+            <TauriItemsView
+              items={items}
+              transaction={{ ...health, enabled: health.refillsEnabled }}
+            />
+          ) : null}
+          {section === "run" ? (
+            <TauriRunView run={run} transaction={{ ...health, enabled: health.runEnabled }} />
+          ) : null}
           {section === "maps" ? (
             <MapsView
               artworkAttempt={maps.artworkAttempt}
@@ -323,6 +353,7 @@ export function TauriWorkspace({
           blocked={health.locked}
           invalid={health.invalid}
           saveUnavailableReason={saveUnavailableReason}
+          reviewPath={health.reviewPath}
           onRevert={() => {
             void health.revert();
           }}

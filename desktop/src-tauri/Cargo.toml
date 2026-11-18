@@ -6,7 +6,10 @@ publish = false
 
 [features]
 native-ui-test = []
-synthetic-health-recovery = []
+health-transport = []
+production-health = ["health-transport"]
+private-editing = ["production-health"]
+synthetic-health-recovery = ["health-transport"]
 synthetic-health-ui = ["synthetic-health-recovery"]
 
 [build-dependencies]

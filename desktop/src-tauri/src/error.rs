@@ -10,7 +10,7 @@ pub enum BackendError {
     Malformed,
     Invalid,
     Request,
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     WriteUncertain,
     Domain {
         code: &'static str,
@@ -70,7 +70,7 @@ impl<T> Outcome<T> {
             Err(error) => {
                 let name = service.name();
                 let (code, message) = match error {
-                    #[cfg(feature = "synthetic-health-recovery")]
+                    #[cfg(feature = "health-transport")]
                     BackendError::WriteUncertain => (
                         "write_uncertain",
                         "The write outcome requires explicit recovery before another write.".into(),

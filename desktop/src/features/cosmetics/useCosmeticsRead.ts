@@ -9,13 +9,14 @@ export function useCosmeticsRead(
   active: boolean,
   recoveryGeneration: number,
   get: RepoDitorApi["cosmetics"]["get"],
+  sourceFingerprint?: string,
 ) {
   const { t } = usePreferences();
   const [refresh, setRefresh] = useState(0);
   // Hide retained tokens in the commit that precedes the read which revokes them.
   const request = useMemo(
-    () => ({ active, recoveryGeneration, refresh, get }),
-    [active, recoveryGeneration, refresh, get],
+    () => ({ active, recoveryGeneration, refresh, get, sourceFingerprint }),
+    [active, recoveryGeneration, refresh, get, sourceFingerprint],
   );
   const [state, setState] = useState<{
     request: typeof request;

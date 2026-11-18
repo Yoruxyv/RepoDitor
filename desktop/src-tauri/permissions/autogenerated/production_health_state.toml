@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-production-health-state"
+description = "Enables the production_health_state command without any pre-configured scope."
+commands.allow = ["production_health_state"]
+
+[[permission]]
+identifier = "deny-production-health-state"
+description = "Denies the production_health_state command without any pre-configured scope."
+commands.deny = ["production_health_state"]

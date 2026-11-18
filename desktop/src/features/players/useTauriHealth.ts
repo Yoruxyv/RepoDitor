@@ -1,4 +1,4 @@
-/** Shared synthetic domain drafts; durable identity and reconciliation remain Python-owned. */
+/** Shared Run-save drafts; durable identity and reconciliation remain Python-owned. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AdvancedItemDto,
@@ -39,6 +39,9 @@ export type HealthPhase =
   | "conflict";
 interface State {
   enabled: boolean;
+  draftOnly: boolean;
+  production: boolean;
+  domains: HealthState["domains"];
   phase: HealthPhase;
   healthEdits: PlayerHealthEdit[];
   refillEdits: AdvancedRefillEdit[];
@@ -55,6 +58,9 @@ interface State {
 }
 const INITIAL: State = {
   enabled: false,
+  draftOnly: false,
+  production: false,
+  domains: undefined,
   phase: "checking",
   healthEdits: [],
   refillEdits: [],
@@ -180,6 +186,10 @@ function domainCount(draft: MixedEdits): number {
   return Object.values(draft).filter((group) => group.length > 0).length;
 }
 
+function domainEnabled(state: State, domain: keyof MixedEdits): boolean {
+  return state.enabled && (!state.production || state.domains?.includes(domain) === true);
+}
+
 function validDraft(
   state: State,
   players: PlayerDto[],
@@ -189,8 +199,12 @@ function validDraft(
   const count = domainCount(draft);
   const mixed = count > 1;
   if (
+    state.draftOnly ||
     !state.upgradeSession ||
     count === 0 ||
+    (Object.keys(draft) as (keyof MixedEdits)[]).some(
+      (domain) => draft[domain].length > 0 && !domainEnabled(state, domain),
+    ) ||
     (mixed && (!api.writeMixed || !mixedIntentFits(draft)))
   )
     return false;
@@ -327,7 +341,13 @@ export function useTauriHealth(
   const restore = useCallback(
     (result: HealthState) => {
       if (!mounted.current) return;
-      setState((current) => {
+      setState((previous) => {
+        const current = {
+          ...previous,
+          draftOnly: result.draftOnly ?? previous.draftOnly,
+          production: result.production === true || previous.production,
+          domains: result.domains ?? previous.domains,
+        };
         if (!result.enabled) {
           return {
             ...current,
@@ -400,6 +420,7 @@ export function useTauriHealth(
 
   function edit(player: PlayerDto, health: number) {
     if (
+      !domainEnabled(state, "health") ||
       inFlight.current ||
       LOCKED.includes(state.phase) ||
       !Number.isSafeInteger(health) ||
@@ -447,6 +468,7 @@ export function useTauriHealth(
 
   function editUpgrade(upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) {
     if (
+      !domainEnabled(state, "upgrades") ||
       inFlight.current ||
       LOCKED.includes(state.phase) ||
       !Number.isSafeInteger(value) ||
@@ -571,7 +593,7 @@ export function useTauriHealth(
   }
 
   function editRun(edit: RunStatEdit) {
-    if (inFlight.current || LOCKED.includes(state.phase)) return;
+    if (!domainEnabled(state, "run") || inFlight.current || LOCKED.includes(state.phase)) return;
     if (
       edit.before === edit.after &&
       state.refillEdits.length === 0 &&
@@ -624,7 +646,8 @@ export function useTauriHealth(
   }, []);
 
   function stageRefills(items: readonly AdvancedItemDto[]) {
-    if (inFlight.current || LOCKED.includes(state.phase)) return;
+    if (!domainEnabled(state, "refillToFull") || inFlight.current || LOCKED.includes(state.phase))
+      return;
     const edits = items.map(refillEdit).filter((edit): edit is AdvancedRefillEdit => edit !== null);
     if (edits.length === 0) return;
     const targets = new Set(edits.map((edit) => edit.entity));
@@ -663,7 +686,9 @@ export function useTauriHealth(
     acknowledge: boolean,
     ownRequest = state.pendingOperationId === operationId,
   ): Promise<HealthTransaction | null> {
-    const result = await api.recover(session.id, operationId, acknowledge);
+    const result = await (state.production
+      ? api.recover(session.id, operationId, acknowledge, true)
+      : api.recover(session.id, operationId, acknowledge));
     if (!mounted.current) return null;
     if (
       result.operationId !== operationId ||
@@ -772,6 +797,7 @@ export function useTauriHealth(
       return;
     const draft = mixedEdits(state);
     const { health, upgrades, run, refillToFull } = draft;
+    const productionArgs: [] | [true] = state.production ? [true] : [];
     inFlight.current = true;
     try {
       if (state.phase === "unchanged" && state.operationId) {
@@ -793,45 +819,58 @@ export function useTauriHealth(
       }));
       let result: HealthTransaction;
       if (domainCount(draft) > 1) {
-        result = await api.writeMixed!({
-          saveId: session.id,
-          fingerprint: base.current.fingerprint,
-          operationId,
-          session: state.upgradeSession!,
-          mixed: draft,
-        });
+        result = await api.writeMixed!(
+          {
+            saveId: session.id,
+            fingerprint: base.current.fingerprint,
+            operationId,
+            session: state.upgradeSession!,
+            mixed: draft,
+          },
+          ...productionArgs,
+        );
       } else if (refillToFull.length > 0) {
-        result = await api.writeRefills!({
-          saveId: session.id,
-          fingerprint: base.current.fingerprint,
-          operationId,
-          session: state.upgradeSession!,
-          refillToFull,
-        });
+        result = await api.writeRefills!(
+          {
+            saveId: session.id,
+            fingerprint: base.current.fingerprint,
+            operationId,
+            session: state.upgradeSession!,
+            refillToFull,
+          },
+          ...productionArgs,
+        );
       } else if (health.length > 0) {
-        result = await api.writeHealthBatch({
+        const request = {
           saveId: session.id,
           fingerprint: base.current.fingerprint,
           health,
           session: state.upgradeSession!,
           operationId,
-        });
+        };
+        result = await api.writeHealthBatch(request, ...productionArgs);
       } else if (run.length > 0) {
-        result = await api.writeRun!({
-          saveId: session.id,
-          fingerprint: base.current.fingerprint,
-          operationId,
-          session: state.upgradeSession!,
-          run,
-        });
+        result = await api.writeRun!(
+          {
+            saveId: session.id,
+            fingerprint: base.current.fingerprint,
+            operationId,
+            session: state.upgradeSession!,
+            run,
+          },
+          ...productionArgs,
+        );
       } else {
-        result = await api.writeUpgrades!({
-          saveId: session.id,
-          fingerprint: base.current.fingerprint,
-          operationId,
-          session: state.upgradeSession!,
-          upgrades,
-        });
+        result = await api.writeUpgrades!(
+          {
+            saveId: session.id,
+            fingerprint: base.current.fingerprint,
+            operationId,
+            session: state.upgradeSession!,
+            upgrades,
+          },
+          ...productionArgs,
+        );
       }
       if (!mounted.current) return;
       await applyWriteResult(result, operationId);
@@ -843,19 +882,32 @@ export function useTauriHealth(
     }
   }
 
+  async function verifyAppliedWrite(operationId: string) {
+    // Production acknowledgement checks ciphertext, the backup, and canonical values itself.
+    if (state.production) return finishApplied(operationId, true);
+    const verified = await reconcile(operationId, false, true);
+    if (verified?.status === "applied") await finishApplied(operationId, true);
+    else if (verified)
+      setState((current) => ({ ...current, phase: "conflict", backupVerified: false }));
+  }
+
   async function applyWriteResult(result: HealthTransaction, operationId: string) {
     if (result.operationId !== operationId) {
       setState((current) => ({ ...current, phase: "recovery", backupVerified: false }));
     } else if (result.status === "applied") {
-      const verified = await reconcile(operationId, false, true);
-      if (verified?.status === "applied") await finishApplied(operationId, true);
-      else if (verified)
-        setState((current) => ({ ...current, phase: "conflict", backupVerified: false }));
+      await verifyAppliedWrite(operationId);
     } else if (result.status === "rejected") {
       const status = await api.state(session.id);
       if (!mounted.current) return;
       if (status.enabled && status.state === "idle") {
         setState((current) => ({ ...current, phase: "rejected", reason: result.reason }));
+      } else if (state.production && !status.enabled && status.state === "disabled") {
+        setState((current) => ({
+          ...current,
+          phase: "rejected",
+          upgradeSession: null,
+          reason: result.reason,
+        }));
       } else restore(status);
     } else {
       setState((current) => ({
@@ -917,6 +969,9 @@ export function useTauriHealth(
       Object.values(invalidUpgrades).some(Boolean) ||
       Object.values(invalidRun).some(Boolean),
     setInvalid,
+    reviewPath: state.production
+      ? (state.canonical?.opened.session.path ?? session.path)
+      : undefined,
     locked: LOCKED.includes(state.phase),
     edit,
     save,
@@ -935,6 +990,10 @@ export function useTauriHealth(
     editRun,
     revertRun,
     setRunInvalid,
+    healthEnabled: domainEnabled(state, "health"),
+    upgradesEnabled: domainEnabled(state, "upgrades"),
+    runEnabled: domainEnabled(state, "run"),
+    refillsEnabled: domainEnabled(state, "refillToFull"),
     healthBatchFits:
       state.healthEdits.length === 0 || healthIntentFits(healthIntent(state.healthEdits)),
     upgradeBatchFits:

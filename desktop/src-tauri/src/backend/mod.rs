@@ -17,7 +17,7 @@ use std::{
 use tauri::Manager;
 
 const DEADLINE: Duration = Duration::from_secs(30);
-const AVATAR_SLOT: usize = if cfg!(feature = "synthetic-health-recovery") {
+const AVATAR_SLOT: usize = if cfg!(feature = "health-transport") {
     12
 } else {
     9
@@ -32,12 +32,14 @@ pub struct HostState {
     pub closing: Arc<AtomicBool>,
     pub artwork: Mutex<artwork::Registry>,
     cosmetic_key: OnceLock<String>,
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     editor_session: Mutex<(u64, Option<(String, String)>)>,
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "private-editing")]
+    pub private_run_scope: Mutex<Option<String>>,
+    #[cfg(feature = "health-transport")]
     pub meta_session: Mutex<crate::synthetic::meta::Session>,
 }
-#[cfg(feature = "synthetic-health-recovery")]
+#[cfg(feature = "health-transport")]
 #[derive(Clone)]
 pub struct EditorWrite {
     pub save: String,
@@ -46,13 +48,13 @@ pub struct EditorWrite {
 }
 
 impl HostState {
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     pub fn open_editor(&self, save: &str, fingerprint: &str) {
         let mut session = self.editor_session.lock().unwrap();
         session.0 += 1;
         session.1 = Some((save.into(), fingerprint.into()));
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     pub fn close_editor(&self, save: &str) {
         if let Ok(mut session) = self.editor_session.lock() {
             if session.1.as_ref().is_some_and(|(id, _)| id == save) {
@@ -61,19 +63,19 @@ impl HostState {
             }
         }
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     pub fn upgrade_session(&self, save: &str) -> Option<String> {
         let session = self.editor_session.lock().ok()?;
         (session.1.as_ref()?.0 == save).then(|| format!("{}-{}", std::process::id(), session.0))
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     pub fn accepts_upgrade(&self, save: &str, fingerprint: &str, token: &str) -> bool {
         let Ok(session) = self.editor_session.lock() else {
             return false;
         };
         Self::editor_matches(&session, save, fingerprint, token)
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     fn editor_matches(
         session: &(u64, Option<(String, String)>),
         save: &str,
@@ -86,7 +88,7 @@ impl HostState {
             .is_some_and(|(id, fp)| id == save && fp == fingerprint)
             && token == format!("{}-{}", std::process::id(), session.0)
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     fn launch_editor_write<T>(
         &self,
         editor: &EditorWrite,
@@ -102,7 +104,7 @@ impl HostState {
         // Close and open share this lock through process creation, then the writer owns recovery.
         spawn()
     }
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     pub fn update_editor(&self, save: &str, fingerprint: &str, token: &str) {
         if let Ok(mut session) = self.editor_session.lock() {
             if token == format!("{}-{}", std::process::id(), session.0) {
@@ -129,7 +131,8 @@ struct Request(
     usize,
     Arc<AtomicBool>,
     bool,
-    #[cfg(feature = "synthetic-health-recovery")] Option<EditorWrite>,
+    #[cfg(feature = "health-transport")] Option<EditorWrite>,
+    #[cfg(feature = "health-transport")] Option<u64>,
 );
 impl Request {
     fn reserve(state: Arc<HostState>, slot: usize) -> Result<Self, BackendError> {
@@ -145,7 +148,9 @@ impl Request {
             slot,
             cancelled,
             false,
-            #[cfg(feature = "synthetic-health-recovery")]
+            #[cfg(feature = "health-transport")]
+            None,
+            #[cfg(feature = "health-transport")]
             None,
         ))
     }
@@ -172,9 +177,11 @@ pub enum Operation {
     ArtworkBatch(Arc<artwork::ArtworkBatch>),
     Upgrades(String, Option<Arc<AtomicBool>>),
     Run(String),
-    Items(String),
+    Items(String, Option<Arc<AtomicBool>>),
     Maps(bool, Option<String>),
     Cosmetics(bool),
+    #[cfg(feature = "production-health")]
+    ProductionHealth(String, String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealth(String, String, String, String, Instant),
     #[cfg(feature = "synthetic-health-recovery")]
@@ -203,18 +210,24 @@ pub enum Operation {
     TestHealthRecover(String, String, bool, bool),
     #[cfg(feature = "synthetic-health-recovery")]
     TestHealthState(String),
-    #[cfg(feature = "synthetic-health-recovery")]
-    TestMetaState(Option<String>),
-    #[cfg(feature = "synthetic-health-recovery")]
-    TestMetaPrepare(String, String, String, String, Instant),
-    #[cfg(feature = "synthetic-health-recovery")]
-    TestMetaWrite(String, String, String, String, Instant),
-    #[cfg(feature = "synthetic-health-recovery")]
-    TestMetaRecover(String, String),
+    #[cfg(feature = "health-transport")]
+    MetaState(bool, Option<String>),
+    #[cfg(feature = "health-transport")]
+    MetaPrepare(bool, u64, String, String, String, String, Instant),
+    #[cfg(feature = "health-transport")]
+    MetaWrite(bool, u64, String, String, String, String, Instant),
+    #[cfg(feature = "health-transport")]
+    MetaRecover(bool, String, String),
 }
 impl Operation {
     fn slot(&self) -> usize {
         match self {
+            #[cfg(feature = "production-health")]
+            Self::ProductionHealth(action, ..) => match action.as_str() {
+                "state" => 11,
+                "inspect" | "acknowledge" => 10,
+                _ => 9,
+            },
             Self::Discovery => 0,
             Self::Open(_) => 1,
             Self::Game => 2,
@@ -223,13 +236,17 @@ impl Operation {
             Self::Artwork(..) | Self::ArtworkBatch(_) => ARTWORK_SLOT,
             Self::Upgrades(..) => 4,
             Self::Run(_) => 5,
-            Self::Items(_) => 6,
+            Self::Items(..) => 6,
             Self::Maps(..) => 7,
             Self::Cosmetics(_) => 8,
+            #[cfg(feature = "health-transport")]
+            Self::MetaPrepare(..) | Self::MetaWrite(..) => 9,
+            #[cfg(feature = "health-transport")]
+            Self::MetaRecover(..) => 10,
+            #[cfg(feature = "health-transport")]
+            Self::MetaState(..) => 11,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaPrepare(..)
-            | Self::TestMetaWrite(..)
-            | Self::TestHealth(..)
+            Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
@@ -242,32 +259,52 @@ impl Operation {
             | Self::TestMixed(..)
             | Self::TestMixedPrepare(..) => 9,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealthRecover(..) | Self::TestMetaRecover(..) => 10,
+            Self::TestHealthRecover(..) => 10,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestHealthState(..) | Self::TestMetaState(..) => 11,
+            Self::TestHealthState(..) => 11,
         }
+    }
+    fn deadline(&self) -> Duration {
+        #[cfg(feature = "private-editing")]
+        if let Self::ProductionHealth(action, _, _, _, payload, _) = self {
+            if matches!(action.as_str(), "prepare" | "write")
+                && serde_json::from_str::<serde_json::Value>(payload).is_ok_and(|intent| {
+                    intent.get("refillToFull").is_some()
+                        || intent["mixed"]["refillToFull"]
+                            .as_array()
+                            .is_some_and(|items| !items.is_empty())
+                })
+            {
+                // Prepare and write share a deadline and each scans the pinned Unity resources.
+                return Duration::from_secs(120);
+            }
+        }
+        DEADLINE
     }
     fn service(&self) -> Service {
         match self {
+            #[cfg(feature = "production-health")]
+            Self::ProductionHealth(..) => Service::Save,
             Self::Discovery => Service::Discovery,
             Self::Open(_) => Service::Save,
             Self::Game => Service::Game,
             Self::Players(_) | Self::Avatar(..) => Service::Player,
             Self::Upgrades(..) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
             Self::Run(_) => Service::Run,
-            Self::Items(_) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
+            Self::Items(..) | Self::Artwork(artwork::Scope::Item, ..) => Service::Items,
             Self::Maps(..) | Self::Artwork(artwork::Scope::Map, ..) => Service::Maps,
             Self::Cosmetics(_) | Self::Artwork(artwork::Scope::Cosmetic, ..) => Service::Cosmetics,
             Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Upgrade => Service::Upgrade,
             Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Item => Service::Items,
             Self::ArtworkBatch(batch) if batch.scope == artwork::Scope::Map => Service::Maps,
             Self::ArtworkBatch(_) => Service::Cosmetics,
+            #[cfg(feature = "health-transport")]
+            Self::MetaState(..)
+            | Self::MetaPrepare(..)
+            | Self::MetaWrite(..)
+            | Self::MetaRecover(..) => Service::Save,
             #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaState(..)
-            | Self::TestMetaPrepare(..)
-            | Self::TestMetaWrite(..)
-            | Self::TestMetaRecover(..)
-            | Self::TestHealth(..)
+            Self::TestHealth(..)
             | Self::TestHealthPrepare(..)
             | Self::TestHealthBatch(..)
             | Self::TestHealthBatchPrepare(..)
@@ -285,6 +322,17 @@ impl Operation {
     }
     fn arguments(&self) -> Vec<&str> {
         match self {
+            #[cfg(feature = "production-health")]
+            Self::ProductionHealth(action, save, operation, fingerprint, payload, _) => {
+                vec![
+                    "production-health",
+                    action,
+                    save,
+                    operation,
+                    fingerprint,
+                    payload,
+                ]
+            }
             Self::Discovery => vec!["environment"],
             Self::Open(id) => vec!["saves-open", id],
             Self::Game => vec!["game-status"],
@@ -336,7 +384,7 @@ impl Operation {
             }
             Self::Upgrades(id, _) => vec!["upgrades-list", id],
             Self::Run(id) => vec!["run-get", id],
-            Self::Items(id) => vec!["advanced-get", id],
+            Self::Items(id, _) => vec!["advanced-get", id],
             Self::Maps(proof, save) => {
                 let mut args = vec!["maps-list"];
                 if *proof {
@@ -444,24 +492,56 @@ impl Operation {
             }
             #[cfg(feature = "synthetic-health-recovery")]
             Self::TestHealthState(id) => vec!["health-state", id],
-            #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaState(operation) => {
-                let mut args = vec!["meta-state"];
+            #[cfg(feature = "health-transport")]
+            Self::MetaState(production, operation) => {
+                let mut args = vec![if *production {
+                    "production-meta-state"
+                } else {
+                    "meta-state"
+                }];
                 if let Some(id) = operation {
                     args.push(id);
                 }
                 args
             }
-            #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaPrepare(id, fingerprint, intent, namespace, _) => {
-                vec!["meta-prepare", id, fingerprint, intent, namespace]
+            #[cfg(feature = "health-transport")]
+            Self::MetaPrepare(production, _, id, fingerprint, intent, namespace, _) => {
+                vec![
+                    if *production {
+                        "production-meta-prepare"
+                    } else {
+                        "meta-prepare"
+                    },
+                    id,
+                    fingerprint,
+                    intent,
+                    namespace,
+                ]
             }
-            #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaWrite(id, fingerprint, intent, namespace, _) => {
-                vec!["meta-write", id, fingerprint, intent, namespace]
+            #[cfg(feature = "health-transport")]
+            Self::MetaWrite(production, _, id, fingerprint, intent, namespace, _) => {
+                vec![
+                    if *production {
+                        "production-meta-write"
+                    } else {
+                        "meta-write"
+                    },
+                    id,
+                    fingerprint,
+                    intent,
+                    namespace,
+                ]
             }
-            #[cfg(feature = "synthetic-health-recovery")]
-            Self::TestMetaRecover(id, proof) => vec!["meta-recover", id, proof],
+            #[cfg(feature = "health-transport")]
+            Self::MetaRecover(production, id, proof) => vec![
+                if *production {
+                    "production-meta-recover"
+                } else {
+                    "meta-recover"
+                },
+                id,
+                proof,
+            ],
         }
     }
 }
@@ -474,8 +554,9 @@ fn execute(
     deadline: Duration,
 ) -> Result<Vec<u8>, BackendError> {
     let state = &request.0;
-    // Each optional/status lane has one permit; network lookup cannot delay save work.
+    // Advisory discovery, status and artwork reads each have their own bounded request lane.
     let _domain_worker = if request.3
+        || request.1 == Operation::Discovery.slot()
         || request.1 == Operation::Game.slot()
         || request.1 == AVATAR_SLOT
         || request.1 == ARTWORK_SLOT
@@ -527,19 +608,29 @@ fn execute(
         cosmetic_key,
         request.3,
         |command| {
-            #[cfg(feature = "synthetic-health-recovery")]
+            #[cfg(feature = "health-transport")]
             if let Some(editor) = &request.4 {
                 return state.launch_editor_write(editor, || process::spawn(command));
+            }
+            #[cfg(feature = "health-transport")]
+            if let Some(generation) = request.5 {
+                return state
+                    .meta_session
+                    .lock()
+                    .map_err(|_| BackendError::Request)?
+                    .launch(generation, || process::spawn(command));
             }
             process::spawn(command)
         },
     );
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     if request.1 == 9
+        && !(args.first() == Some(&"production-health") && args.get(1) == Some(&"prepare"))
         && !matches!(
             args.first(),
             Some(
                 &"meta-prepare"
+                    | &"production-meta-prepare"
                     | &"health-prepare"
                     | &"health-batch-prepare"
                     | &"refill-prepare"
@@ -560,7 +651,7 @@ fn execute(
     result
 }
 
-#[cfg(feature = "synthetic-health-recovery")]
+#[cfg(feature = "health-transport")]
 fn worker_result<T>(
     result: tauri::Result<Result<T, BackendError>>,
     write: bool,
@@ -581,7 +672,7 @@ where
         app,
         operation,
         parse,
-        #[cfg(feature = "synthetic-health-recovery")]
+        #[cfg(feature = "health-transport")]
         None,
     )
     .await
@@ -591,18 +682,21 @@ pub async fn request_with_editor<T, F>(
     app: tauri::AppHandle,
     operation: Operation,
     parse: F,
-    #[cfg(feature = "synthetic-health-recovery")] editor: Option<EditorWrite>,
+    #[cfg(feature = "health-transport")] editor: Option<EditorWrite>,
 ) -> Outcome<T>
 where
     T: Serialize + Send + 'static,
     F: FnOnce(&[u8]) -> Result<T, BackendError> + Send + 'static,
 {
     let service = operation.service();
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     let started = match &operation {
-        Operation::TestMetaPrepare(.., started)
-        | Operation::TestMetaWrite(.., started)
-        | Operation::TestHealth(.., started)
+        #[cfg(feature = "production-health")]
+        Operation::ProductionHealth(.., started) => *started,
+        #[cfg(feature = "health-transport")]
+        Operation::MetaPrepare(.., started) | Operation::MetaWrite(.., started) => *started,
+        #[cfg(feature = "synthetic-health-recovery")]
+        Operation::TestHealth(.., started)
         | Operation::TestHealthPrepare(.., started)
         | Operation::TestHealthBatch(.., started)
         | Operation::TestHealthBatchPrepare(.., started)
@@ -616,37 +710,46 @@ where
         | Operation::TestMixedPrepare(.., started) => *started,
         _ => Instant::now(),
     };
-    #[cfg(not(feature = "synthetic-health-recovery"))]
+    #[cfg(not(feature = "health-transport"))]
     let started = Instant::now();
     let state = app.state::<Arc<HostState>>().inner().clone();
     let mut request = match Request::reserve(state, operation.slot()) {
         Ok(request) => request,
         Err(error) => return Outcome::for_service(Err(error), service),
     };
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     {
         request.4 = editor;
+        if let Operation::MetaPrepare(_, generation, ..) | Operation::MetaWrite(_, generation, ..) =
+            &operation
+        {
+            request.5 = Some(*generation);
+        }
     }
     match &operation {
         Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
         Operation::ArtworkBatch(batch) => request.2 = batch.cancelled.clone(),
-        Operation::Upgrades(_, Some(cancelled)) => {
+        Operation::Upgrades(_, Some(cancelled)) | Operation::Items(_, Some(cancelled)) => {
             request.2 = cancelled.clone();
             request.3 = true;
         }
         _ => {}
     }
-    #[cfg(feature = "synthetic-health-recovery")]
-    let is_write = matches!(
-        operation,
-        Operation::TestMetaWrite(..)
-            | Operation::TestHealth(..)
-            | Operation::TestHealthBatch(..)
-            | Operation::TestRefill(..)
-            | Operation::TestUpgrades(..)
-            | Operation::TestRun(..)
-            | Operation::TestMixed(..)
-    );
+    #[cfg(feature = "health-transport")]
+    let is_write = match &operation {
+        #[cfg(feature = "production-health")]
+        Operation::ProductionHealth(action, ..) => action == "write",
+        #[cfg(feature = "health-transport")]
+        Operation::MetaWrite(..) => true,
+        #[cfg(feature = "synthetic-health-recovery")]
+        Operation::TestHealth(..)
+        | Operation::TestHealthBatch(..)
+        | Operation::TestRefill(..)
+        | Operation::TestUpgrades(..)
+        | Operation::TestRun(..)
+        | Operation::TestMixed(..) => true,
+        _ => false,
+    };
     let result = tauri::async_runtime::spawn_blocking(move || {
         let root = if cfg!(debug_assertions) {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../build/backend/repoditor-backend")
@@ -661,19 +764,19 @@ where
             &root.join("repoditor-backend.exe"),
             &operation.arguments(),
             started,
-            DEADLINE,
+            operation.deadline(),
         )?;
         let result = parse(&bytes);
-        #[cfg(feature = "synthetic-health-recovery")]
+        #[cfg(feature = "health-transport")]
         if is_write {
             return result.map_err(|_| BackendError::WriteUncertain);
         }
         result
     })
     .await;
-    #[cfg(feature = "synthetic-health-recovery")]
+    #[cfg(feature = "health-transport")]
     let result = worker_result(result, is_write);
-    #[cfg(not(feature = "synthetic-health-recovery"))]
+    #[cfg(not(feature = "health-transport"))]
     let result = result.unwrap_or(Err(BackendError::Failed));
     Outcome::for_service(result, service)
 }

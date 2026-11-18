@@ -380,6 +380,49 @@ fn health_transport_has_only_fixed_arguments_and_exclusive_admission() {
     drop(request);
     assert!(state.idle());
 }
+#[cfg(feature = "private-editing")]
+#[test]
+fn private_refills_have_a_bounded_budget_for_both_write_phases() {
+    let deadline = |action: &str, payload: &str| {
+        Operation::ProductionHealth(
+            action.into(),
+            String::new(),
+            String::new(),
+            String::new(),
+            payload.into(),
+            Instant::now(),
+        )
+        .deadline()
+    };
+    let refill = r#"{"refillToFull":[{}]}"#;
+    let mixed_refill = r#"{"mixed":{"health":[{}],"refillToFull":[{}]}}"#;
+    let mixed_without_refill = r#"{"mixed":{"health":[{}],"refillToFull":[]}}"#;
+    for action in ["prepare", "write"] {
+        assert_eq!(deadline(action, refill), Duration::from_secs(120));
+        assert_eq!(deadline(action, mixed_refill), Duration::from_secs(120));
+        assert_eq!(deadline(action, mixed_without_refill), DEADLINE);
+    }
+    assert_eq!(deadline("inspect", refill), DEADLINE);
+}
+
+#[test]
+fn discovery_does_not_wait_for_an_editor_worker() {
+    let state = Arc::new(HostState::default());
+    let _held = state.domain_worker.lock().unwrap();
+    let request = Request::reserve(state.clone(), Operation::Discovery.slot()).unwrap();
+    assert_eq!(
+        execute(
+            &request,
+            Path::new("missing-discovery-fixture.exe"),
+            &[],
+            Instant::now(),
+            Duration::from_secs(1)
+        )
+        .unwrap_err(),
+        BackendError::Unavailable
+    );
+}
+
 #[cfg(feature = "synthetic-health-recovery")]
 #[test]
 fn queued_write_timeout_is_rejected_but_started_timeout_is_uncertain() {
@@ -524,7 +567,7 @@ fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
 fn queued_requests_observe_cancellation_and_original_deadline() {
     let state = Arc::new(HostState::default());
     let _held = state.domain_worker.lock().unwrap();
-    let request = Request::reserve(state.clone(), 0).unwrap();
+    let request = Request::reserve(state.clone(), Operation::Open(String::new()).slot()).unwrap();
     let path = Path::new("must-never-spawn.exe");
     assert_eq!(
         execute(
@@ -538,7 +581,7 @@ fn queued_requests_observe_cancellation_and_original_deadline() {
         BackendError::Timeout
     );
     state.closing.store(true, Ordering::SeqCst);
-    assert!(Request::reserve(state.clone(), Operation::Open(String::new()).slot()).is_err());
+    assert!(Request::reserve(state.clone(), Operation::Run(String::new()).slot()).is_err());
     assert_eq!(
         execute(&request, path, &[], Instant::now(), DEADLINE).unwrap_err(),
         BackendError::Failed

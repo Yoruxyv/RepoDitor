@@ -35,6 +35,29 @@ type NavigationFocus =
   | { kind: "discovery"; saveId: string; refreshRevision: number; headingFocused: boolean };
 
 type ArtworkDecision = { readonly result: EntryArtworkResults; readonly proceed: () => void };
+type EditMode = "checking" | "readonly" | "test" | "production";
+const PREPARING_EDITOR = "entry.preparingEditor";
+const READ_ONLY = "app.discoveryPreview";
+
+function runAuthorizationNotice(
+  mode: EditMode,
+  inSave: boolean,
+  opening: boolean,
+): TranslationKey | null {
+  if (opening || (inSave && mode === "checking")) return PREPARING_EDITOR;
+  if (!inSave || mode === "production") return null;
+  return mode === "test" ? "health.testOnly" : READ_ONLY;
+}
+
+function EditorAuthorization({ notice }: { readonly notice: TranslationKey | null }) {
+  const { t } = usePreferences();
+  return (
+    <output className="min-w-56 flex-1 text-sm text-secondary" data-testid="editor-authorization">
+      {notice ? t(notice) : null}
+      {notice === PREPARING_EDITOR ? "…" : null}
+    </output>
+  );
+}
 
 function waitForArtworkDecision(
   result: EntryArtworkResults,
@@ -156,7 +179,7 @@ function RunSaveContent({
   readonly onOpen: (saveId: string) => void;
   readonly onCancel: (saveId: string) => void;
   readonly onClose: () => void;
-  readonly onHealthAvailability: (enabled: boolean) => void;
+  readonly onHealthAvailability: (mode: EditMode) => void;
 }) {
   const { t } = usePreferences();
   const openingId = save.openingSaveId;
@@ -202,7 +225,8 @@ function RunSaveContent({
 
 function DiscoveryPreview() {
   const [workspace, setWorkspace] = useState<"run-saves" | "cosmetics">("run-saves");
-  const [healthEnabled, setHealthEnabled] = useState(false);
+  const [editMode, setEditMode] = useState<EditMode>("checking");
+  const [cosmeticsEditing, setCosmeticsEditing] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<TauriEntryProgress | null>(null);
   const [prepared, setPrepared] = useState<TauriEntrySnapshot | null>(null);
   const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
@@ -372,6 +396,12 @@ function DiscoveryPreview() {
     save.close();
   }
   const { t } = usePreferences();
+  const cosmeticsAvailability = cosmeticsEditing ? null : READ_ONLY;
+  const cosmeticsNotice = cosmeticsEditing === null ? PREPARING_EDITOR : cosmeticsAvailability;
+  const authorizationNotice =
+    workspace === "cosmetics"
+      ? cosmeticsNotice
+      : runAuthorizationNotice(editMode, inSave, opening || save.drainingOpen);
   return (
     <AppShell>
       <output
@@ -411,9 +441,7 @@ function DiscoveryPreview() {
               </button>
             ))}
           </div>
-          <p className="min-w-56 flex-1 text-sm text-secondary">
-            {t(healthEnabled ? "health.testOnly" : "app.discoveryPreview")}
-          </p>
+          <EditorAuthorization notice={authorizationNotice} />
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <ThemeMenu />
             <LanguageMenu />
@@ -440,12 +468,13 @@ function DiscoveryPreview() {
             onOpen={(id) => void open(id)}
             onCancel={cancelOpen}
             onClose={() => void close()}
-            onHealthAvailability={setHealthEnabled}
+            onHealthAvailability={setEditMode}
           />
         </div>
         <TauriCosmeticsWorkspace
           active={workspace === "cosmetics"}
           recoveryGeneration={safety.recoveryGeneration}
+          onProductionAvailability={setCosmeticsEditing}
         />
       </div>
       {blocked !== null ? (

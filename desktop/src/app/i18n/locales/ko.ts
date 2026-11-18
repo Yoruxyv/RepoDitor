@@ -179,8 +179,7 @@ export const ko: Record<keyof typeof en, string> = {
   "upgrades.empty": "이 세이브에는 플레이어 업그레이드가 없습니다.",
   "upgrades.input": "{player}의 {upgrade}",
   "upgrades.error": "업그레이드 값은 0에서 2,147,483,647 사이의 정수여야 합니다.",
-  "upgrades.draftOnly":
-    "업그레이드 변경을 검토한 뒤 저장하면 합성 저장 파일에 반영됩니다. 되돌리면 저장하지 않은 변경을 버립니다.",
+  "upgrades.reviewDrafts": "저장하기 전에 업그레이드 변경 사항을 검토하세요.",
   "upgrades.revertDrafts": "업그레이드 초안 되돌리기",
   "upgrades.saveUnavailable":
     "체력과 업그레이드는 따로 저장하세요. 한 그룹을 되돌리거나 큰 업그레이드 변경 묶음을 줄이세요.",
@@ -192,6 +191,8 @@ export const ko: Record<keyof typeof en, string> = {
     "아래의 읽기 쉬운 값을 메모리에서 조정합니다. 선택한 세이브에는 아직 쓰지 않습니다.",
   "run.levelError": "레벨은 1에서 2,147,483,648 사이의 정수여야 합니다.",
   "run.valueError": "{label}은(는) -2,147,483,648에서 2,147,483,647 사이의 정수여야 합니다.",
+  "run.currencyOverflow":
+    "R.E.P.O.에서 이 금액을 천 달러 단위에서 달러 단위로 변환하면 잔액에서 오버플로가 발생할 수 있습니다.",
   "run.resumeLocation": "재개 위치",
   "run.lives": "목숨",
   "run.totalHaul": "총 수익",
@@ -403,12 +404,15 @@ export const ko: Record<keyof typeof en, string> = {
   "error.metaMissing": "MetaSave.es3 파일을 찾을 수 없습니다.",
   "error.saveInvalid": "선택한 세이브를 안전하게 읽거나 검증할 수 없습니다.",
   "error.saveStale": "디스크의 세이브가 변경되었습니다. 다시 연 뒤 저장하세요.",
+  "error.saveOpenTimeout": "저장 파일을 여는 시간이 초과되었습니다. 다시 열어 주세요.",
   "error.saveOpenStale":
     "세이브를 여는 동안 내용이 변경되었습니다. 현재 버전을 불러오려면 다시 여세요.",
   "error.saveSourceUnverified":
     "RepoDitor가 세이브 원본을 확인하지 못했습니다. 전체 미리보기 빌드를 다시 빌드하거나 설치한 뒤 다시 시도하세요.",
   "error.write": "RepoDitor가 세이브를 안전하게 기록하지 못했습니다. 파일은 교체되지 않았습니다.",
   "error.copyPath": "경로를 복사하지 못했습니다",
+  "health.draftOnly":
+    "이 미리보기에서는 체력 변경을 작성하고 검토할 수 있습니다. 저장은 비활성화되어 있습니다.",
   "health.testOnly":
     "합성 테스트: Health, Upgrades, Run 및 아이템 충전. 프로덕션 빌드는 읽기 전용입니다.",
   "items.saveUnavailable":
@@ -423,6 +427,9 @@ export const ko: Record<keyof typeof en, string> = {
   "health.unchanged": "대기 중인 편집은 적용되지 않았습니다. 값을 확인한 뒤 다시 저장하세요.",
   "health.conflict":
     "복구 자료를 대조할 수 없어 편집이 차단되었습니다. 다시 확인하거나 수동으로 복구해야 합니다.",
+  "health.fileInUse": "다른 프로세스가 저장 파일을 사용 중입니다.",
+  "health.verificationUnavailable": "저장 파일 또는 설치된 게임을 확인할 수 없습니다.",
+  "health.unsupportedBuild": "이 게임 빌드에서는 체력 편집이 승인되지 않았습니다.",
   "health.status": "저장 상태",
   "health.persisted": "파일에 저장됨: {name} · {health} / {max}",
   "health.backupVerified": "원본 백업을 검증했습니다.",

@@ -224,10 +224,17 @@ function RunStatValue({
   const maximum = stat.key === "level" ? RUN_DISPLAY_LEVEL_MAX : SAVE_INT32_MAX;
   const invalid =
     input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum;
+  const overflowRisk =
+    !invalid &&
+    stat.key === "currency" &&
+    (parsed * 1000 < SAVE_INT32_MIN || parsed * 1000 > SAVE_INT32_MAX);
   const errorId = `run-${stat.key}-error`;
   const pendingId = `run-${stat.key}-pending`;
+  const overflowId = "run-currency-overflow";
   const description =
-    [invalid ? errorId : null, edit ? pendingId : null].filter(Boolean).join(" ") || undefined;
+    [invalid ? errorId : null, edit ? pendingId : null, overflowRisk ? overflowId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
   useEffect(() => {
     if (onStatChange) onValidityChange?.(stat.key, invalid);
   }, [onValidityChange, onStatChange, stat.key, invalid]);
@@ -288,6 +295,11 @@ function RunStatValue({
         <p className="mt-2 text-xs text-danger" id={errorId} role="alert">
           {stat.key === "level" ? t("run.levelError") : t("run.valueError", { label: stat.label })}
         </p>
+      ) : null}
+      {overflowRisk ? (
+        <output className="mt-2 block text-xs text-warning" id={overflowId}>
+          {t("run.currencyOverflow")}
+        </output>
       ) : null}
       {edit ? (
         <p

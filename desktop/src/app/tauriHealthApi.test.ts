@@ -7,6 +7,44 @@ const call = vi.mocked(invoke);
 beforeEach(() => {
   call.mockReset();
 });
+
+it("keeps the approved Health candidate on production write and recovery commands", async () => {
+  const request = {
+    saveId: "save",
+    fingerprint: "a".repeat(64),
+    operationId: "b".repeat(32),
+    session: "editor-session",
+    health: [{ playerId: "111", before: 80, value: 79 }],
+  };
+  call.mockRejectedValueOnce(new Error("Synthetic command unavailable"));
+  call.mockResolvedValueOnce({ enabled: true, state: "busy" });
+  expect(await tauriHealthApi.state(request.saveId)).toMatchObject({ production: true });
+  await tauriHealthApi.writeHealthBatch(request, true);
+  expect(call).toHaveBeenLastCalledWith("production_health_write", { request });
+  await tauriHealthApi.recover(request.saveId, request.operationId, true, true);
+  expect(call).toHaveBeenLastCalledWith("production_health_recover", {
+    request: { saveId: request.saveId, operationId: request.operationId, acknowledge: true },
+  });
+});
+
+it("sends an approved four-domain draft through one production command", async () => {
+  const request = {
+    saveId: "save",
+    fingerprint: "a".repeat(64),
+    operationId: "b".repeat(32),
+    session: "editor-session",
+    mixed: {
+      health: [{ playerId: "111", before: 80, value: 79 }],
+      upgrades: [{ playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 }],
+      run: [{ field: "currency" as const, before: 12, value: -19 }],
+      refillToFull: [{ saveKey: "Item Tool/1", before: 99 }],
+    },
+  };
+  call.mockResolvedValueOnce({ status: "applied" });
+  await tauriHealthApi.writeMixed(request, true);
+  expect(call).toHaveBeenCalledExactlyOnceWith("production_health_write", { request });
+});
+
 describe("synthetic native health transport", () => {
   it("sends only a fixed refill intent and preserves identity after response loss", async () => {
     const request = {

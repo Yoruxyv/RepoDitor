@@ -73,6 +73,75 @@ describe("native upgrade drafts", () => {
     }));
   });
 
+  it("reviews and reverts Health drafts without offering an unauthorized save", async () => {
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: true,
+      draftOnly: true,
+      state: "idle",
+      pending: null,
+      canonical: { opened: openResult().data, players, upgrades, run: runState },
+      upgradeSession: "draft-session",
+    });
+    const user = userEvent.setup();
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    const input = await screen.findByRole<HTMLInputElement>("spinbutton", {
+      name: "Current health",
+    });
+    const original = input.value;
+    fireEvent.change(input, { target: { value: "17" } });
+    fireEvent.blur(input);
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByTestId("workspace-review").textContent).toContain(`${original} → 17`);
+    const save = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Save Changes",
+    });
+    expect(save.disabled).toBe(true);
+    await user.click(save);
+    expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
+    expect(tauriHealthApi.recover).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(input.value).toBe(original);
+    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+      "No pending changes",
+    );
+  });
+
+  it.each([false, true])(
+    "honors individual production approvals (Upgrades: %s)",
+    async (upgradesApproved) => {
+      vi.mocked(tauriHealthApi.state).mockResolvedValue({
+        enabled: true,
+        production: true,
+        domains: upgradesApproved ? ["health", "upgrades"] : ["health"],
+        state: "idle",
+        pending: null,
+        canonical: { opened: openResult().data, players, upgrades, run: runState },
+        upgradeSession: "editor-session",
+      });
+      const user = userEvent.setup();
+      renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+      await user.click(screen.getByRole("tab", { name: "Players" }));
+      const health = await screen.findByRole("spinbutton", { name: "Current health" });
+      expect(health.hasAttribute("readonly")).toBe(false);
+      fireEvent.change(health, { target: { value: "79" } });
+      fireEvent.blur(health);
+      const save = screen.getByRole<HTMLButtonElement>("button", { name: "Save Changes" });
+      expect(save.disabled).toBe(false);
+      await user.click(save);
+      expect(screen.getByTestId("workspace-review").textContent).toContain(session.path);
+      expect(screen.getByTestId("workspace-review").textContent).toContain("80 → 79");
+      expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
+      expect(save.disabled).toBe(false);
+      await user.click(screen.getByRole("button", { name: "Revert all" }));
+      await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+      const upgrade = await screen.findByRole(upgradesApproved ? "spinbutton" : "textbox", {
+        name: "Strength for Alpha",
+      });
+      expect(upgrade.hasAttribute("readonly")).toBe(!upgradesApproved);
+    },
+  );
+
   it.each([true, false])(
     "keeps Overview available and defers Players/Upgrades until initial safety resolves (synthetic: %s)",
     async (enabled) => {
@@ -438,93 +507,122 @@ describe("native upgrade drafts", () => {
     expect(tauriHealthApi.recover).not.toHaveBeenCalled();
   });
 
-  it("persists a reviewed batch and refreshes canonical values without losing player selection", async () => {
-    const projected = upgrades.map((upgrade) => ({
-      ...upgrade,
-      values: upgrade.values.map((value) =>
-        upgrade.key === "playerUpgradeStrength"
-          ? { ...value, value: value.playerId === "111" ? 3 : 4 }
-          : value,
-      ),
-    }));
-    vi.mocked(tauriHealthApi.writeUpgrades).mockImplementation(async (request) => ({
-      operationId: request.operationId,
-      status: "applied",
-      fingerprint: "b".repeat(64),
-      backupAvailable: true,
-      reason: null,
-      canonical: null,
-    }));
-    let finishAcknowledgement!: () => void;
-    const acknowledgement = new Promise<void>((resolve) => {
-      finishAcknowledgement = resolve;
-    });
-    vi.mocked(tauriHealthApi.recover).mockImplementation(
-      async (_save, operationId, acknowledge) => {
-        if (acknowledge) await acknowledgement;
-        return {
-          operationId,
-          status: "applied",
-          fingerprint: "b".repeat(64),
-          backupAvailable: true,
-          reason: null,
-          canonical: {
-            opened: { ...openResult().data, session: { ...session, fingerprint: "b".repeat(64) } },
-            players,
-            upgrades: projected,
-          },
-        };
-      },
-    );
-    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
-    const user = await openUpgrades();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
-      target: { value: "3" },
-    });
-    await user.click(screen.getByRole("combobox", { name: "Player" }));
-    await user.click(screen.getByRole("option", { name: "Beta" }));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Beta" }), {
-      target: { value: "4" },
-    });
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
-    await waitFor(() =>
+  it.each([false, true])(
+    "persists a reviewed batch and refreshes canonical values (production: %s)",
+    async (production) => {
+      const writeScope = production ? "production-session" : "synthetic-session";
+      if (production) {
+        vi.mocked(tauriHealthApi.state).mockResolvedValue({
+          enabled: true,
+          production: true,
+          domains: ["upgrades"],
+          state: "idle",
+          pending: null,
+          canonical: { opened: openResult().data, players, upgrades },
+          upgradeSession: writeScope,
+        });
+      }
+      const projected = upgrades.map((upgrade) => ({
+        ...upgrade,
+        values: upgrade.values.map((value) =>
+          upgrade.key === "playerUpgradeStrength"
+            ? { ...value, value: value.playerId === "111" ? 3 : 4 }
+            : value,
+        ),
+      }));
+      vi.mocked(tauriHealthApi.writeUpgrades).mockImplementation(async (request) => ({
+        operationId: request.operationId,
+        status: "applied",
+        fingerprint: "b".repeat(64),
+        backupAvailable: true,
+        reason: null,
+        canonical: null,
+      }));
+      let finishAcknowledgement!: () => void;
+      const acknowledgement = new Promise<void>((resolve) => {
+        finishAcknowledgement = resolve;
+      });
+      vi.mocked(tauriHealthApi.recover).mockImplementation(
+        async (_save, operationId, acknowledge) => {
+          if (acknowledge) await acknowledgement;
+          return {
+            operationId,
+            status: "applied",
+            fingerprint: "b".repeat(64),
+            backupAvailable: true,
+            reason: null,
+            canonical: {
+              opened: {
+                ...openResult().data,
+                session: { ...session, fingerprint: "b".repeat(64) },
+              },
+              players,
+              upgrades: projected,
+            },
+          };
+        },
+      );
+      renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+      const user = await openUpgrades();
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
+        target: { value: "3" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "Player" }));
+      await user.click(screen.getByRole("option", { name: "Beta" }));
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Beta" }), {
+        target: { value: "4" },
+      });
+      if (production) await user.click(screen.getByRole("button", { name: "Review" }));
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+      await waitFor(() => expect(tauriHealthApi.recover).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(screen.getByTestId("workspace").getAttribute("data-session-fingerprint")).toBe(
+          production ? session.fingerprint : "b".repeat(64),
+        ),
+      );
+      expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1);
+      await user.click(screen.getByRole("tab", { name: "Maps" }));
+      expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
+      await act(async () => finishAcknowledgement());
+      await waitFor(() =>
+        expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
+      );
+      expect(await screen.findByText("McJannek Station")).toBeTruthy();
+      expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
+      await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+      await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2));
+      expect(tauriHealthApi.writeUpgrades).toHaveBeenCalledWith(
+        expect.objectContaining({
+          saveId: session.id,
+          session: writeScope,
+          fingerprint: session.fingerprint,
+          upgrades: [
+            { playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 },
+            { playerId: "222", key: "playerUpgradeStrength", before: 0, value: 4 },
+          ],
+        }),
+        ...(production ? [true] : []),
+      );
+      expect(
+        screen.getByRole("spinbutton", { name: "Strength for Beta" }).getAttribute("value"),
+      ).toBe("4");
+      expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
+        "No pending changes",
+      );
       expect(screen.getByTestId("workspace").getAttribute("data-session-fingerprint")).toBe(
         "b".repeat(64),
-      ),
-    );
-    expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole("tab", { name: "Maps" }));
-    expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
-    await act(async () => finishAcknowledgement());
-    await waitFor(() =>
-      expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
-    );
-    expect(await screen.findByText("McJannek Station")).toBeTruthy();
-    expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
-    await user.click(screen.getByRole("tab", { name: "Upgrades" }));
-    await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2));
-    expect(tauriHealthApi.writeUpgrades).toHaveBeenCalledWith(
-      expect.objectContaining({
-        saveId: session.id,
-        session: "synthetic-session",
-        fingerprint: session.fingerprint,
-        upgrades: [
-          { playerId: "111", key: "playerUpgradeStrength", before: 2, value: 3 },
-          { playerId: "222", key: "playerUpgradeStrength", before: 0, value: 4 },
-        ],
-      }),
-    );
-    expect(
-      screen.getByRole("spinbutton", { name: "Strength for Beta" }).getAttribute("value"),
-    ).toBe("4");
-    expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
-      "No pending changes",
-    );
-    expect(screen.getByTestId("workspace").getAttribute("data-session-fingerprint")).toBe(
-      "b".repeat(64),
-    );
-    expect(tauriHealthApi.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);
-  });
+      );
+      expect(tauriHealthApi.recover).toHaveBeenLastCalledWith(
+        session.id,
+        expect.any(String),
+        true,
+        ...(production ? [true] : []),
+      );
+      expect(vi.mocked(tauriHealthApi.recover).mock.calls.map((call) => call[2])).toEqual(
+        production ? [true] : [false, true],
+      );
+    },
+  );
 
   it("marks Health drafts on the Players tab across selection, navigation, Revert and Save", async () => {
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);

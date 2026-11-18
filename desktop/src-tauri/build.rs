@@ -16,6 +16,8 @@ fn main() {
         || cfg!(feature = "synthetic-health-ui")
     {
         "synthetic"
+    } else if cfg!(feature = "production-health") {
+        "health-candidate"
     } else if tauri_build::is_dev() {
         "development"
     } else {
@@ -47,6 +49,20 @@ fn main() {
                 "maps_list",
                 "cosmetics_get",
                 "preview_close",
+                #[cfg(feature = "production-health")]
+                "production_health_write",
+                #[cfg(feature = "production-health")]
+                "production_health_recover",
+                #[cfg(feature = "production-health")]
+                "production_meta_state",
+                #[cfg(feature = "production-health")]
+                "production_meta_write",
+                #[cfg(feature = "production-health")]
+                "production_meta_recover",
+                #[cfg(feature = "production-health")]
+                "production_meta_close",
+                #[cfg(feature = "production-health")]
+                "production_health_state",
                 #[cfg(feature = "synthetic-health-recovery")]
                 "test_health_write",
                 #[cfg(feature = "synthetic-health-recovery")]

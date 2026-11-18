@@ -483,6 +483,21 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
     home,
     required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
   );
+  const alternateId = E2E_SAVE_ID.replace(/30$/, "31");
+  const alternate = { ...fixture.opened.session, id: alternateId, displayName: "Alternate save" };
+  const environmentFile = path.join(home, "environment.json");
+  const environment = JSON.parse(await readFile(environmentFile, "utf8")) as {
+    saves: unknown[];
+    saveCount: number;
+  };
+  await writeFile(
+    environmentFile,
+    JSON.stringify({
+      ...environment,
+      saves: [...environment.saves, alternate],
+      saveCount: 2,
+    }),
+  );
   const timing = path.join(home, "timing");
   await mkdir(timing);
   const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
@@ -497,9 +512,8 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
     ...fixture.environment,
     REPODITOR_TEST_TIMING_DIR: timing,
   });
-  try {
-    const { page } = app;
-    await page.route(avatarUrl, (route) =>
+  const installAvatarImage = (page: Page) =>
+    page.route(avatarUrl, (route) =>
       route.fulfill({
         contentType: "image/png",
         body: Buffer.from(
@@ -508,9 +522,15 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
         ),
       }),
     );
-    await page.getByRole("button", { name: /Open workspace/ }).click();
+  const openPlayers = async (page: Page, id: string) => {
+    await page.locator(`button[data-save-id="${id}"]`).click();
     await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
     await page.getByRole("tab", { name: "Players", exact: true }).click();
+  };
+  try {
+    const { page } = app;
+    await installAvatarImage(page);
+    await openPlayers(page, E2E_SAVE_ID);
     const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
     await expect(avatar).toHaveAttribute("src", avatarUrl);
     expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
@@ -547,8 +567,47 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toBeVisible();
     const timed = (await readdir(timing)).filter((file) => file.startsWith("players-avatar-"));
     expect(timed).toHaveLength(2);
+
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await writeFile(
+      path.join(home, "saves-open.json"),
+      JSON.stringify({
+        ...fixture.opened,
+        session: alternate,
+      }),
+    );
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null },
+      }),
+    );
+    await openPlayers(page, alternateId);
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("A");
+    await expect(avatar).toHaveCount(0);
   } finally {
     await close(app.child, app.browser);
+  }
+  await writeFile(path.join(home, "saves-open.json"), JSON.stringify(fixture.opened));
+  await writeFile(
+    path.join(home, "players-avatar.json"),
+    JSON.stringify({
+      ok: true,
+      avatar: { playerId: "111", avatarUrl, status: "available", retryAfterMs: null },
+    }),
+  );
+  const restarted = await launch(fixture.executable, home, fixture.environment);
+  try {
+    const { page } = restarted;
+    await installAvatarImage(page);
+    await openPlayers(page, E2E_SAVE_ID);
+    const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.bringToFront();
+    expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+  } finally {
+    await close(restarted.child, restarted.browser);
   }
 });
 

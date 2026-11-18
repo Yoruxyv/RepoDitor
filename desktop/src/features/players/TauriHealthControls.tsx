@@ -23,8 +23,33 @@ const ERRORS: Record<string, TranslationKey> = {
   save_missing: "error.saveMissing",
   game_running: "error.gameRunning",
   game_status_unknown: "error.gameUnknown",
+  save_in_use: "health.fileInUse",
+  save_verification_unavailable: "health.verificationUnavailable",
+  save_unsupported: "health.unsupportedBuild",
+  write_conflict: LABELS.conflict,
   save_validation_failed: "error.saveInvalid",
 };
+
+const STATUS = "health.status";
+
+function statusLabel(health: ReturnType<typeof useTauriHealth>): TranslationKey {
+  if (health.production && health.phase === "editing") return STATUS;
+  if (
+    health.phase === "recovery" &&
+    health.healthEdits.length > 0 &&
+    health.pendingOperationId !== health.operationId
+  ) {
+    return "health.otherOperation";
+  }
+  return LABELS[health.phase];
+}
+
+function showRecoveryAction(health: ReturnType<typeof useTauriHealth>): boolean {
+  return (
+    ["recovery", "conflict", "unchanged"].includes(health.phase) &&
+    !(health.draftOnly && health.operationId)
+  );
+}
 
 export function TauriHealthControls({
   health,
@@ -46,7 +71,7 @@ export function TauriHealthControls({
   return (
     <section
       ref={region}
-      aria-label={t("health.status")}
+      aria-label={t(STATUS)}
       tabIndex={-1}
       className="my-4 min-w-0 rounded-sm border border-line bg-surface px-4 py-3 text-sm"
       data-testid="health-status"
@@ -58,13 +83,7 @@ export function TauriHealthControls({
         className={problem ? "font-semibold text-danger" : "font-semibold text-ink"}
         role={problem ? "alert" : "status"}
       >
-        {t(
-          health.phase === "recovery" &&
-            health.healthEdits.length > 0 &&
-            health.pendingOperationId !== health.operationId
-            ? "health.otherOperation"
-            : LABELS[health.phase],
-        )}
+        {t(statusLabel(health))}
       </p>
       {health.reason && ERRORS[health.reason] ? (
         <p className="mt-1 text-xs text-secondary">{t(ERRORS[health.reason]!)}</p>
@@ -81,9 +100,7 @@ export function TauriHealthControls({
       {health.backupVerified ? (
         <p className="mt-1 text-xs text-success">{t("health.backupVerified")}</p>
       ) : null}
-      {health.phase === "recovery" ||
-      health.phase === "conflict" ||
-      health.phase === "unchanged" ? (
+      {showRecoveryAction(health) ? (
         <button
           className="ui-feedback mt-3 rounded-sm border border-control px-3 py-2 font-semibold text-ink hover:border-accent disabled:opacity-50"
           type="button"

@@ -1,5 +1,7 @@
-//! Independent synthetic MetaSave authority; Python owns evidence and save semantics.
-use super::{meta_anchor, recovery::test_root};
+//! Independent MetaSave authority; Python owns evidence and save semantics.
+#[cfg(feature = "synthetic-health-recovery")]
+use super::recovery::test_root;
+use super::{meta_anchor, recovery::save_permissions};
 use crate::{
     backend::{self, HostState, Operation},
     error::{BackendError, Outcome},
@@ -9,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashSet,
-    path::PathBuf,
     sync::{atomic::Ordering, Arc},
     time::Instant,
 };
@@ -42,7 +43,7 @@ impl Intent {
             | Action::ClearPresets { admission } => admission,
         }
     }
-    fn valid(&self) -> bool {
+    fn valid_in(&self, production: bool) -> bool {
         let expected: Value = serde_json::from_str(meta_anchor::manifest()).unwrap();
         let ids = expected["catalog"].as_array().unwrap();
         hex(self.admission(), 64)
@@ -51,9 +52,10 @@ impl Intent {
                     !selected.is_empty()
                         && selected.len() <= 512
                         && selected.iter().collect::<HashSet<_>>().len() == selected.len()
-                        && selected
-                            .iter()
-                            .all(|i| ids.iter().any(|row| row["id"] == *i))
+                        && (production
+                            || selected
+                                .iter()
+                                .all(|i| ids.iter().any(|row| row["id"] == *i)))
                 }
                 _ => true,
             }
@@ -70,7 +72,15 @@ struct Admission {
     digest: String,
 }
 impl Admission {
-    fn valid(&self) -> bool {
+    fn valid_in(&self, production: bool) -> bool {
+        if production {
+            return self.identity == "repoditor-production-meta-v1"
+                && hex(&self.manifest, 64)
+                && hex(&self.digest, 64)
+                && !self.build.is_empty()
+                && self.build.len() <= 20
+                && self.build.bytes().all(|c| c.is_ascii_digit());
+        }
         self.manifest == meta_anchor::PIN
             && self.identity == "repoditor-synthetic-meta-v1"
             && self.build == "26294889"
@@ -92,6 +102,8 @@ struct Pending {
 #[serde(rename_all = "camelCase")]
 pub struct State {
     state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_path: Option<String>,
     view: Option<cosmetics::Cosmetics>,
     admission: Option<Admission>,
     namespace: Option<String>,
@@ -148,6 +160,7 @@ fn hex(s: &str, n: usize) -> bool {
 fn disabled(state: &str) -> State {
     State {
         state: state.into(),
+        source_path: None,
         view: None,
         admission: None,
         namespace: None,
@@ -175,19 +188,19 @@ fn view(raw: &Value) -> std::result::Result<cosmetics::Cosmetics, BackendError> 
             .map_err(|_| BackendError::Invalid)?,
     )
 }
-fn parse_state(bytes: &[u8]) -> std::result::Result<State, BackendError> {
+fn parse_state(bytes: &[u8], production: bool) -> std::result::Result<State, BackendError> {
     let raw = crate::error::json(bytes)?;
     if raw["ok"] != true {
         return Err(BackendError::Invalid);
     }
     let state = raw["state"].as_str().ok_or(BackendError::Invalid)?;
-    if matches!(state, "busy" | "blocked") {
+    if matches!(state, "disabled" | "busy" | "blocked") {
         return Ok(disabled(state));
     }
     if !matches!(state, "idle" | "pending") {
         return Err(BackendError::Invalid);
     }
-    let mut result = canonical_state(&raw, state, view(&raw["view"])?)?;
+    let mut result = canonical_state(&raw, state, view(&raw["view"])?, production)?;
     if state == "pending" {
         let pending: Pending =
             serde_json::from_value(raw["pending"].clone()).map_err(|_| BackendError::Invalid)?;
@@ -196,7 +209,10 @@ fn parse_state(bytes: &[u8]) -> std::result::Result<State, BackendError> {
             || !hex(&pending.fingerprint, 64)
             || !matches!(pending.status.as_str(), "applied" | "unchanged")
             || (pending.status == "applied" && !pending.backup_available)
-            || pending.intent.as_ref().is_some_and(|i| !i.valid())
+            || pending
+                .intent
+                .as_ref()
+                .is_some_and(|i| !i.valid_in(production))
         {
             return Err(BackendError::Invalid);
         }
@@ -211,9 +227,16 @@ fn canonical_state(
     raw: &Value,
     state: &str,
     projection: cosmetics::Cosmetics,
+    production: bool,
 ) -> std::result::Result<State, BackendError> {
     let mut result = disabled(state);
     result.view = Some(projection);
+    if production {
+        result.source_path = raw["sourcePath"]
+            .as_str()
+            .filter(|path| path.len() <= 32_767 && std::path::Path::new(path).is_absolute())
+            .map(str::to_owned);
+    }
     let namespace = raw["namespace"]
         .as_str()
         .filter(|s| hex(s, 64))
@@ -222,7 +245,7 @@ fn canonical_state(
     if !raw["admission"].is_null() {
         let proof: Admission =
             serde_json::from_value(raw["admission"].clone()).map_err(|_| BackendError::Invalid)?;
-        if !proof.valid() {
+        if !proof.valid_in(production) {
             return Err(BackendError::Invalid);
         }
         result.admission = Some(proof);
@@ -231,7 +254,7 @@ fn canonical_state(
 }
 fn parse_result(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
     let raw = crate::error::json(bytes)?;
-    let mut result = decode_result(&raw, id, false)?;
+    let mut result = decode_result(&raw, id, false, false)?;
     if let Some(proof) = raw.get("recoveryProof") {
         let hash = |value: &Value| {
             value
@@ -250,13 +273,18 @@ fn parse_result(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendEr
     }
     Ok(result)
 }
-fn parse_recovery(bytes: &[u8], id: &str) -> std::result::Result<Result, BackendError> {
-    decode_result(&crate::error::json(bytes)?, id, true)
+fn parse_recovery(
+    bytes: &[u8],
+    id: &str,
+    production: bool,
+) -> std::result::Result<Result, BackendError> {
+    decode_result(&crate::error::json(bytes)?, id, true, production)
 }
 fn decode_result(
     raw: &Value,
     id: &str,
     recovering: bool,
+    production: bool,
 ) -> std::result::Result<Result, BackendError> {
     if raw["ok"] != true {
         return Err(BackendError::Invalid);
@@ -288,6 +316,7 @@ fn decode_result(
                     | "backup_failed"
                     | "save_write_failed"
                     | "save_verification_failed"
+                    | "save_verification_unavailable"
             )
         })
     {
@@ -311,16 +340,32 @@ fn decode_result(
             return Err(BackendError::Invalid);
         }
         let projection = result.view.take().ok_or(BackendError::Invalid)?;
-        result.fresh = Some(canonical_state(raw, "idle", projection)?);
+        result.fresh = Some(canonical_state(raw, "idle", projection, production)?);
     }
     Ok(result)
 }
 impl Session {
-    fn invalidate(&mut self) -> u64 {
+    #[cfg(feature = "production-health")]
+    pub(crate) fn close(&mut self) {
+        self.invalidate();
+    }
+
+    pub(crate) fn invalidate(&mut self) -> u64 {
         self.generation += 1;
         self.mutation = None;
         self.recovery = None;
         self.generation
+    }
+
+    pub(crate) fn launch<T>(
+        &self,
+        generation: u64,
+        spawn: impl FnOnce() -> std::result::Result<T, BackendError>,
+    ) -> std::result::Result<T, BackendError> {
+        if self.generation != generation {
+            return Err(BackendError::Request);
+        }
+        spawn()
     }
 
     fn publish_write(&mut self, generation: u64, namespace: &str, result: &mut Result) {
@@ -388,7 +433,23 @@ impl Session {
         }
     }
 }
-fn admitted() -> bool {
+fn admitted(app: &tauri::AppHandle, production: bool) -> bool {
+    if production {
+        return cfg!(feature = "production-health")
+            && std::env::var("REPODITOR_E2E").as_deref() != Ok("1")
+            && save_permissions(app, "production-meta-write", "production-meta-recover");
+    }
+    synthetic_admitted()
+}
+
+#[cfg(not(feature = "synthetic-health-recovery"))]
+fn synthetic_admitted() -> bool {
+    false
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
+fn synthetic_admitted() -> bool {
+    use std::path::PathBuf;
     if !cfg!(feature = "synthetic-health-ui") || !test_root() {
         return false;
     }
@@ -414,8 +475,8 @@ fn admitted() -> bool {
         .is_some_and(|(home, fence)| home.starts_with(fence))
 }
 
-pub async fn state(app: tauri::AppHandle, raw: Value) -> State {
-    if !admitted()
+pub async fn state(app: tauri::AppHandle, raw: Value, production: bool) -> State {
+    if !admitted(&app, production)
         || !raw.as_object().is_some_and(|o| {
             o.is_empty()
                 || (o.len() == 1 && raw["operationId"].as_str().is_some_and(|s| hex(s, 32)))
@@ -427,7 +488,13 @@ pub async fn state(app: tauri::AppHandle, raw: Value) -> State {
     let host = app.state::<Arc<HostState>>().inner().clone();
     // Revoke authority when inspection starts, including while the backend is still queued.
     let generation = host.meta_session.lock().unwrap().invalidate();
-    match backend::request(app, Operation::TestMetaState(operation), parse_state).await {
+    match backend::request(
+        app,
+        Operation::MetaState(production, operation),
+        move |bytes| parse_state(bytes, production),
+    )
+    .await
+    {
         Outcome::Success { mut data, .. } => {
             let mut session = host.meta_session.lock().unwrap();
             if session.generation != generation || host.closing.load(Ordering::SeqCst) {
@@ -448,7 +515,7 @@ struct Write {
     intent: Intent,
 }
 async fn dispatch(app: tauri::AppHandle, operation: Operation, id: &str) -> Result {
-    let preparing = matches!(operation, Operation::TestMetaPrepare(..));
+    let preparing = matches!(operation, Operation::MetaPrepare(..));
     let expected = id.to_owned();
     match backend::request(app, operation, move |bytes| parse_result(bytes, &expected)).await {
         Outcome::Success { data, .. } => data,
@@ -463,12 +530,16 @@ async fn dispatch(app: tauri::AppHandle, operation: Operation, id: &str) -> Resu
         ),
     }
 }
-pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
+pub async fn write(app: tauri::AppHandle, raw: Value, production: bool) -> Result {
     let Ok(request) = serde_json::from_value::<Write>(raw) else {
         return failure("", "rejected");
     };
     let id = &request.operation_id;
-    if !admitted() || !hex(id, 32) || !hex(&request.fingerprint, 64) || !request.intent.valid() {
+    if !admitted(&app, production)
+        || !hex(id, 32)
+        || !hex(&request.fingerprint, 64)
+        || !request.intent.valid_in(production)
+    {
         return failure(id, "rejected");
     }
     let host = app.state::<Arc<HostState>>().inner().clone();
@@ -487,7 +558,9 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
     let payload = serde_json::to_string(&request.intent).unwrap();
     let prepared = dispatch(
         app.clone(),
-        Operation::TestMetaPrepare(
+        Operation::MetaPrepare(
+            production,
+            generation,
             id.clone(),
             request.fingerprint.clone(),
             payload.clone(),
@@ -502,7 +575,9 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
     }
     let mut result = dispatch(
         app,
-        Operation::TestMetaWrite(
+        Operation::MetaWrite(
+            production,
+            generation,
             id.clone(),
             request.fingerprint,
             payload,
@@ -512,7 +587,7 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Result {
         id,
     )
     .await;
-    if admitted() && !host.closing.load(Ordering::SeqCst) {
+    if !host.closing.load(Ordering::SeqCst) {
         host.meta_session
             .lock()
             .unwrap()
@@ -526,11 +601,11 @@ struct Recover {
     operation_id: String,
     session: String,
 }
-pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
+pub async fn recover(app: tauri::AppHandle, raw: Value, production: bool) -> Result {
     let Ok(request) = serde_json::from_value::<Recover>(raw) else {
         return failure("", "conflict");
     };
-    if !admitted() || !hex(&request.operation_id, 32) {
+    if !admitted(&app, production) || !hex(&request.operation_id, 32) {
         return failure(&request.operation_id, "conflict");
     }
     let host = app.state::<Arc<HostState>>().inner().clone();
@@ -547,10 +622,10 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
     let Some(grant) = grant else {
         return failure(&request.operation_id, "conflict");
     };
-    let operation = Operation::TestMetaRecover(request.operation_id.clone(), grant.proof);
+    let operation = Operation::MetaRecover(production, request.operation_id.clone(), grant.proof);
     let expected = request.operation_id.clone();
     let Outcome::Success { mut data, .. } = backend::request(app, operation, move |bytes| {
-        parse_recovery(bytes, &expected)
+        parse_recovery(bytes, &expected, production)
     })
     .await
     else {
@@ -558,7 +633,7 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Result {
     };
     if let Some(fresh) = &mut data.fresh {
         // A concurrent inspection may have already replaced this grant.
-        if admitted() && !host.closing.load(Ordering::SeqCst) {
+        if !host.closing.load(Ordering::SeqCst) {
             host.meta_session
                 .lock()
                 .unwrap()

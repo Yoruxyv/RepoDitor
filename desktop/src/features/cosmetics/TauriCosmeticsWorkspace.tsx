@@ -1,6 +1,7 @@
-/** Global Cosmetics presentation with independently admitted synthetic MetaSave editing. */
+/** Global Cosmetics presentation with independently admitted MetaSave editing. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
+import type { CosmeticsViewDto } from "@electron/contracts";
 import { closeNativeCosmeticArtwork, useCosmeticArtworkActivity } from "@/app/tauriArtwork";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
@@ -43,28 +44,28 @@ function CosmeticsPreparationStatus({
 export function TauriCosmeticsWorkspace({
   active,
   recoveryGeneration,
+  onProductionAvailability,
 }: {
   readonly active: boolean;
   readonly recoveryGeneration: number;
+  readonly onProductionAvailability?: (enabled: boolean | null) => void;
 }) {
   const { t } = usePreferences();
   useEffect(() => (active ? closeNativeCosmeticArtwork : undefined), [active]);
   const meta = useTauriCosmetics(active, recoveryGeneration);
-  const cosmetics = useCosmeticsRead(
-    meta.readOnlyReady,
+  const production = active && meta.state.production === true && meta.enabled;
+  const productionEditing = production && meta.state.admission !== null;
+  useEffect(() => {
+    onProductionAvailability?.(meta.authorizationPending ? null : productionEditing);
+    return () => onProductionAvailability?.(null);
+  }, [meta.authorizationPending, productionEditing, onProductionAvailability]);
+  const { view, error, loading, artworkPending, refresh } = useCosmeticsPresentation(
+    meta,
+    production,
     recoveryGeneration,
-    tauriReadApi.cosmetics.get,
   );
-  const view = meta.enabled ? meta.view : cosmetics.view;
-  const loading = meta.enabled ? meta.loading || meta.saving : cosmetics.loading;
   const action = meta.intent?.metaCosmetics.action;
-  let nativeError = meta.state.state === "blocked" ? t("health.conflict") : null;
-  if (meta.state.state === "busy") nativeError = t("health.checking");
-  const error = meta.enabled ? nativeError : cosmetics.error;
   const actions = mutationActions(meta);
-  function refresh() {
-    void (meta.enabled ? meta.reload() : cosmetics.reload());
-  }
   return (
     <section aria-label={t("app.cosmetics")} data-testid="cosmetics-workspace" hidden={!active}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
@@ -103,7 +104,7 @@ export function TauriCosmeticsWorkspace({
         <CosmeticsView
           view={view}
           artworkActive={active}
-          artworkPending={!meta.enabled && loading}
+          artworkPending={artworkPending}
           knownOwnedCount={view?.knownOwnedCount ?? 0}
           knownLockedCount={view?.knownLockedCount ?? 0}
           savedPresetCount={view?.savedPresetCount ?? 0}
@@ -125,6 +126,34 @@ export function TauriCosmeticsWorkspace({
   );
 }
 
+function useCosmeticsPresentation(
+  meta: ReturnType<typeof useTauriCosmetics>,
+  production: boolean,
+  recoveryGeneration: number,
+) {
+  const { t } = usePreferences();
+  const cosmetics = useCosmeticsRead(
+    meta.readOnlyReady || production,
+    recoveryGeneration,
+    tauriReadApi.cosmetics.get,
+    production ? meta.view?.fingerprint : undefined,
+  );
+  const artwork = cosmetics.loading ? null : cosmetics.view;
+  const view = meta.enabled ? withNativeArtwork(meta.view, artwork) : cosmetics.view;
+  const loading = meta.enabled ? meta.loading || meta.saving : cosmetics.loading;
+  let nativeError = meta.state.state === "blocked" ? t("health.conflict") : null;
+  if (meta.state.state === "busy") nativeError = t("health.checking");
+  return {
+    view,
+    loading,
+    error: meta.enabled ? nativeError : cosmetics.error,
+    artworkPending: (!meta.enabled && loading) || (production && cosmetics.loading),
+    refresh() {
+      void (meta.enabled ? meta.reload() : cosmetics.reload());
+    },
+  };
+}
+
 function mutationActions(meta: ReturnType<typeof useTauriCosmetics>) {
   if (!meta.state.admission || !meta.state.session || !meta.enabled)
     return {
@@ -138,5 +167,16 @@ function mutationActions(meta: ReturnType<typeof useTauriCosmetics>) {
     onUnlockCosmetic: (id: number) => meta.stage("unlockIds", id),
     onClearAllPresets: () => meta.stage("clearPresets"),
     onLockAll: () => meta.stage("lockAll"),
+  };
+}
+
+function withNativeArtwork(view: CosmeticsViewDto | null, source: CosmeticsViewDto | null) {
+  if (!view || source?.fingerprint !== view.fingerprint) return view;
+  const icons = new Map(
+    source.cosmetics.map(({ id, iconToken, iconReuseKey }) => [id, { iconToken, iconReuseKey }]),
+  );
+  return {
+    ...view,
+    cosmetics: view.cosmetics.map((row) => ({ ...row, ...icons.get(row.id) })),
   };
 }

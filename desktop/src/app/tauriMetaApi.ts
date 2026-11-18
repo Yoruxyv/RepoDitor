@@ -1,4 +1,4 @@
-/** Fixed synthetic MetaSave endpoints; authority is separate from Run-save sessions. */
+/** Fixed MetaSave endpoints; authority is separate from Run-save sessions. */
 import { invoke } from "@tauri-apps/api/core";
 import type { CosmeticsViewDto } from "@electron/contracts";
 
@@ -9,6 +9,8 @@ export interface MetaIntent {
   metaCosmetics: MetaAction;
 }
 export interface MetaState {
+  production?: boolean;
+  sourcePath?: string;
   state: "disabled" | "idle" | "pending" | "busy" | "blocked";
   view: CosmeticsViewDto | null;
   admission: { manifest: string; identity: string; build: string; digest: string } | null;
@@ -58,27 +60,41 @@ const failed = (operationId: string, status: "uncertain" | "conflict"): MetaResu
 });
 export const tauriMetaApi = {
   async state(operationId?: string): Promise<MetaState> {
+    const request = operationId ? { operationId } : {};
     try {
-      return await invoke<MetaState>("test_meta_state", {
-        request: operationId ? { operationId } : {},
-      });
+      const result = await invoke<MetaState>("test_meta_state", { request });
+      if (result.state !== "disabled") return result;
+    } catch {
+      // This build may have only production authority.
+    }
+    try {
+      const result = await invoke<MetaState>("production_meta_state", { request });
+      return result.state === "disabled" ? result : { ...result, production: true };
     } catch {
       return disabledMeta();
     }
   },
-  async write(request: MetaWrite): Promise<MetaResult> {
+  async write(request: MetaWrite, production = false): Promise<MetaResult> {
     try {
-      return await invoke<MetaResult>("test_meta_write", { request });
+      return await invoke<MetaResult>(production ? "production_meta_write" : "test_meta_write", {
+        request,
+      });
     } catch {
       return failed(request.operationId, "uncertain");
     }
   },
-  async recover(operationId: string, session: string): Promise<MetaResult> {
+  async recover(operationId: string, session: string, production = false): Promise<MetaResult> {
     try {
-      return await invoke<MetaResult>("test_meta_recover", { request: { operationId, session } });
+      return await invoke<MetaResult>(
+        production ? "production_meta_recover" : "test_meta_recover",
+        { request: { operationId, session } },
+      );
     } catch {
       return failed(operationId, "conflict");
     }
+  },
+  async close(): Promise<void> {
+    await invoke("production_meta_close").catch(() => {});
   },
 };
 export function metaIntentFits(intent: MetaIntent): boolean {

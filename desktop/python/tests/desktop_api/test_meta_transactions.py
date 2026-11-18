@@ -12,6 +12,8 @@ import pytest
 from repo_save_editor.core import save_resources
 from repo_save_editor.core.crypto import _decrypt_plaintext, _encrypt_plaintext, decrypt_save
 from repo_save_editor.desktop_api import meta_transactions as api
+from repo_save_editor.desktop_api import production_health as run_admission
+from repo_save_editor.desktop_api import production_meta as production
 from repo_save_editor.desktop_api.cosmetics import save_cosmetics
 from repo_save_editor.services.cosmetics import admission, synthetic_fixture
 from repo_save_editor.services.cosmetics.synthetic_fixture import MANIFEST, PIN
@@ -484,3 +486,54 @@ def test_recovery_receipt_proofs_do_not_consume_encrypted_save_budget(fixture, m
         assert state["state"] == "pending"
         assert len(budget.encrypted) == 2
         assert api.meta_recover(root, OP, state["pending"]["proof"])["status"] == "applied"
+
+
+def test_production_meta_requires_a_separate_source_pin_and_preserves_recovery(
+    fixture, monkeypatch
+):
+    root, path, before, game = fixture
+    game_exe = game / "REPO.exe"
+    game_exe.touch(exist_ok=True)
+    for name in run_admission.HEALTH_BUILD_SOURCES:
+        source = game / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        if not source.exists():
+            source.write_bytes(name.encode())
+    installation = admission.artwork_installation(game)
+    assert installation is not None
+    build = admission.installed_build_identity(installation)
+    assert build is not None
+    _, catalog = admission.admit_cosmetics(root.parents[2])
+    pinned = run_admission._source_pins(installation, build)
+    monkeypatch.setattr(production, "_installed_game", lambda: (installation, build))
+    monkeypatch.setattr(production, "get_default_save_root", lambda: root)
+    monkeypatch.setattr(production, "discover_cosmetic_mutation_catalog", lambda _: catalog)
+    monkeypatch.setattr(production, "_process_status", lambda _: Status.NOT_RUNNING)
+
+    command = production.production_meta
+    assert command("state", None)["state"] == "disabled"
+    monkeypatch.setattr(production, "APPROVED_META_BUILDS", {build.build_id: pinned})
+    state = command("state", None)
+    assert state["admission"]["identity"] == "repoditor-production-meta-v1"
+    options = {
+        "namespace": state["namespace"],
+        "fingerprint": sha256(before).hexdigest(),
+        "intent": {
+            "metaCosmetics": {
+                "action": "unlockIds",
+                "ids": [0, 2],
+                "admission": state["admission"]["digest"],
+            }
+        },
+    }
+    assert command("prepare", OP, **options)["status"] == "prepared"
+    assert path.read_bytes() == before
+    applied = command("write", OP, **options)
+    assert applied["status"] == "applied"
+    saved = path.read_bytes()
+    proof = applied["recoveryProof"]
+    assert storage.HealthTransaction(path, OP).backup.read_bytes() == before
+    assert command("recover", OP, proof=proof)["status"] == "applied"
+    archived = command("state", OP)["pending"]
+    assert command("recover", OP, proof=archived["proof"])["status"] == "applied"
+    assert path.read_bytes() == saved

@@ -119,4 +119,20 @@ describe("RunView", () => {
     expect(onStatChange).not.toHaveBeenCalled();
     expect(onRevert).toHaveBeenCalledWith("currency");
   });
+  it("warns about in-game currency overflow while allowing valid stored drafts", () => {
+    const onStatChange = vi.fn();
+    renderWithPreferences(
+      <RunView {...handlers} error={null} loading={false} run={run} onStatChange={onStatChange} />,
+    );
+    const currency = screen.getByRole("spinbutton", { name: "Currency" });
+    fireEvent.change(currency, { target: { value: "2147483" } });
+    expect(screen.queryByText(/may show a wrapped balance/)).toBeNull();
+    fireEvent.change(currency, { target: { value: "6612313" } });
+    expect(screen.getByText(/may show a wrapped balance/)).toBeTruthy();
+    expect(currency.getAttribute("aria-invalid")).toBeNull();
+    expect(onStatChange).toHaveBeenLastCalledWith(run.stats[1], 6612313);
+    fireEvent.change(currency, { target: { value: "-2147484" } });
+    expect(screen.getByText(/may show a wrapped balance/)).toBeTruthy();
+    expect(onStatChange).toHaveBeenLastCalledWith(run.stats[1], -2147484);
+  });
 });

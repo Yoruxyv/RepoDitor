@@ -53,7 +53,11 @@ export function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
 export function useItems(
   saveId: string,
   initialResult: DesktopOperationResult<AdvancedSaveDto> | null = null,
-  get: RepoDitorApi["advanced"]["get"] = getDesktopItems,
+  get: (
+    saveId: string,
+    fingerprint?: string,
+    background?: boolean,
+  ) => ReturnType<RepoDitorApi["advanced"]["get"]> = getDesktopItems,
   loadInitially = true,
 ) {
   const { t } = usePreferences();
@@ -186,6 +190,26 @@ export function useItems(
     setPendingByItem({});
   }
 
+  async function refreshArtwork(fingerprint: string): Promise<void> {
+    const version = snapshotVersion.current;
+    const result = await get(saveId, fingerprint, true);
+    if (!mounted.current || version !== snapshotVersion.current || !result.ok) return;
+    const tokens = new Map(result.data.items.map((item) => [item.saveKey, item.iconToken]));
+    setState((current) => {
+      if (!current.advanced) return current;
+      return {
+        ...current,
+        advanced: {
+          ...current.advanced,
+          items: current.advanced.items.map((item) => ({
+            ...item,
+            iconToken: tokens.get(item.saveKey) ?? null,
+          })),
+        },
+      };
+    });
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -203,5 +227,6 @@ export function useItems(
     },
     reload: () => load(false),
     refreshAfterSave: () => load(true),
+    refreshArtwork,
   };
 }

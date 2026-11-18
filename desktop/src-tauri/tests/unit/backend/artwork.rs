@@ -210,6 +210,33 @@ fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
     assert!(!registry.finish(&token, &current));
     assert!(registry.begin(&token).is_err());
 }
+
+#[test]
+fn rereading_unchanged_upgrades_keeps_artwork_active_until_the_save_changes() {
+    let mut registry = Registry::default();
+    let fingerprint = "a".repeat(64);
+    registry.open("save", &fingerprint);
+    let generation = registry.generation("save");
+    let mut rows = upgrades(1);
+    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    let token = rows[0].icon_token.take().unwrap();
+    let (_, _, _, decoding) = registry.begin(&token).unwrap();
+
+    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    assert_eq!(rows[0].icon_token.as_ref(), Some(&token));
+    assert!(!decoding.load(Ordering::SeqCst));
+    assert!(registry.finish(&token, &decoding));
+
+    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    let refreshed = rows[0].icon_token.take().unwrap();
+    assert_ne!(refreshed, token);
+    assert!(registry.begin(&token).is_err());
+    let (_, _, _, old) = registry.begin(&refreshed).unwrap();
+    registry.open("other", &fingerprint);
+    assert!(old.load(Ordering::SeqCst));
+    assert!(!registry.finish(&refreshed, &old));
+    assert!(registry.begin(&refreshed).is_err());
+}
 #[test]
 fn stale_lists_cannot_register_and_refresh_revokes_old_tokens() {
     let mut registry = Registry::default();

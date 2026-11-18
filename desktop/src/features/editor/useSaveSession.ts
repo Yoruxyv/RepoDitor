@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type {
+  DesktopOperationErrorCode,
   RepoDitorApi,
   SaveChange,
   SaveOpenResult,
@@ -18,6 +19,12 @@ import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 const desktopOpen: RepoDitorApi["saves"]["open"] = (saveId) => window.repoditor.saves.open(saveId);
 type OpenSave = (saveId: string, signal: AbortSignal) => ReturnType<typeof desktopOpen>;
+
+function openErrorKey(code: DesktopOperationErrorCode): TranslationKey {
+  if (code === "save_stale") return "error.saveOpenStale";
+  if (code === "process_timeout") return "error.saveOpenTimeout";
+  return operationErrorKey(code);
+}
 
 /**
  * Own one Run-save session without exposing decrypted data to the renderer.
@@ -54,11 +61,7 @@ export function useSaveSession(openSave: OpenSave = desktopOpen) {
       if (result.ok) {
         return result.data;
       }
-      setError(
-        result.error.code === "save_stale"
-          ? "error.saveOpenStale"
-          : operationErrorKey(result.error.code),
-      );
+      setError(openErrorKey(result.error.code));
     } catch {
       if (!request.signal.aborted) setError("error.service");
     } finally {

@@ -92,7 +92,7 @@ describe("read-only native discovery", () => {
     const latest = await screen.findByRole("button", { name: /Open workspace/ });
     expect(latest.matches(":disabled")).toBe(false);
     expect(screen.getByRole("button", { name: /Earlier save/ }).matches(":disabled")).toBe(false);
-    expect(screen.getByText(/Read-only preview/)).toBeTruthy();
+    expect(screen.queryByText(/Read-only preview/)).toBeNull();
     await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
     expect(await screen.findByText(/Refresh failed/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
@@ -139,6 +139,8 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
     const opening = screen.getByRole("region", { name: "Opening save" });
+    expect(screen.getByTestId("editor-authorization").textContent).toBe("Preparing editor…");
+    expect(screen.queryByText(/Read-only preview/)).toBeNull();
     expect(within(opening).getByRole("status").textContent).toBe(
       "Reading and validating save data…",
     );
@@ -159,6 +161,7 @@ describe("read-only native discovery", () => {
     expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
     await act(() => finishItems({ ok: true, data: advanced }));
     expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(await screen.findByText(/Read-only preview/)).toBeTruthy();
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
     const user = userEvent.setup();
     for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
@@ -181,7 +184,7 @@ describe("read-only native discovery", () => {
     const user = userEvent.setup();
     const open = async () => {
       await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-      await screen.findByRole("heading", { name: "Run snapshot" });
+      await screen.findByRole("tab", { name: "Overview" });
     };
     const saveProof = { id: session.id, fingerprint: session.fingerprint };
     await open();
@@ -255,6 +258,22 @@ describe("read-only native discovery", () => {
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
     expect(await screen.findByRole("tab", { name: "Overview", selected: true })).toBeTruthy();
     expect(tauriReadApi.advanced.get).toHaveBeenCalledTimes(2);
+  });
+  it("identifies a timed-out opening and leaves discovery available for retry", async () => {
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open).mockResolvedValueOnce({
+      ok: false,
+      error: { code: "process_timeout", message: "private detail" },
+    });
+    render(<TauriDiscovery />);
+    const open = await screen.findByRole("button", { name: /Open workspace/ });
+    const user = userEvent.setup();
+    await user.click(open);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Opening the save timed out. Try opening it again.",
+    );
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
   });
   it("reuses prepared players and upgrades until changing saves and ignores old reads", async () => {
     const older = { ...environment.saves[0]!, id: "earlier", name: "Earlier save" };
@@ -339,9 +358,8 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    const snapshot = await screen.findByRole("heading", { name: "Run snapshot" });
-    expect(snapshot).toBeTruthy();
-    const workspace = screen.getByTestId("workspace");
+    const workspace = await screen.findByTestId("workspace");
+    expect(within(workspace).getByRole("heading", { name: "Run snapshot" })).toBeTruthy();
     expect(within(workspace).getByRole("heading", { name: "Browse this save" })).toBeTruthy();
     expect(within(workspace).queryByRole("heading", { name: "Edit this save" })).toBeNull();
     expect(
@@ -635,7 +653,7 @@ describe("read-only native discovery", () => {
         expect(document.activeElement).toBe(screen.getByRole("button", { name: /Open workspace/ })),
       );
       await user.keyboard("{Enter}");
-      expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+      expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
     },
   );
   it("identifies a missing MetaSave without exposing backend diagnostics", async () => {

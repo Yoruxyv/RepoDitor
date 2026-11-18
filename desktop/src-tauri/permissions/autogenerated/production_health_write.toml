@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-production-health-write"
+description = "Enables the production_health_write command without any pre-configured scope."
+commands.allow = ["production_health_write"]
+
+[[permission]]
+identifier = "deny-production-health-write"
+description = "Denies the production_health_write command without any pre-configured scope."
+commands.deny = ["production_health_write"]

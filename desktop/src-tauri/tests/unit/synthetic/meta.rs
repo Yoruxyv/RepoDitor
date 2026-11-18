@@ -12,7 +12,7 @@ fn fixture() -> Value {
             "capabilities":{"canReadCosmetics":true,"canUnlockCosmetic":true,"canUnlockAll":true,"canRemoveOwnership":true,"canClearPresets":true},"cosmetics":cosmetics}})
 }
 fn decode(value: Value) -> std::result::Result<State, BackendError> {
-    parse_state(&serde_json::to_vec(&value).unwrap())
+    parse_state(&serde_json::to_vec(&value).unwrap(), false)
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn recovery_requires_settled_identity_and_only_issues_current_pinned_admission()
     raw["status"] = json!("applied");
     raw["fingerprint"] = raw["view"]["fingerprint"].clone();
     raw["backupAvailable"] = json!(true);
-    let parse = |raw: &Value| parse_recovery(&serde_json::to_vec(raw).unwrap(), &id);
+    let parse = |raw: &Value| parse_recovery(&serde_json::to_vec(raw).unwrap(), &id, false);
     for (key, bad) in [
         ("operationId", json!("e".repeat(32))),
         ("fingerprint", json!("e".repeat(64))),
@@ -169,7 +169,7 @@ fn exact_action_union_rejects_unknown_duplicate_sparse_ineligible_and_mixed_payl
     ] {
         let raw =
             json!({"metaCosmetics":{"action":"unlockIds","ids":ids,"admission":"b".repeat(64)}});
-        let valid = serde_json::from_value::<Intent>(raw).is_ok_and(|i| i.valid());
+        let valid = serde_json::from_value::<Intent>(raw).is_ok_and(|i| i.valid_in(false));
         assert_eq!(valid, ids == json!([0, 2]));
     }
     for raw in [
@@ -194,4 +194,31 @@ fn pending_and_results_require_fingerprint_backup_and_explicit_validated_view() 
         bad[key] = Value::Null;
         assert!(parse_result(&serde_json::to_vec(&bad).unwrap(), &id).is_err());
     }
+}
+
+#[test]
+fn revoked_meta_generation_cannot_launch_a_writer() {
+    let mut session = Session::default();
+    let generation = session.invalidate();
+    assert_eq!(session.launch(generation, || Ok(1)).unwrap(), 1);
+    session.invalidate();
+    assert!(matches!(
+        session.launch(generation, || panic!("revoked writer launched")),
+        Err::<(), _>(BackendError::Request)
+    ));
+}
+
+#[test]
+fn production_and_synthetic_meta_proofs_are_disjoint() {
+    let mut admission = Admission {
+        manifest: meta_anchor::PIN.into(),
+        identity: "repoditor-synthetic-meta-v1".into(),
+        build: "26294889".into(),
+        digest: "a".repeat(64),
+    };
+    assert!(admission.valid_in(false));
+    assert!(!admission.valid_in(true));
+    admission.identity = "repoditor-production-meta-v1".into();
+    assert!(admission.valid_in(true));
+    assert!(!admission.valid_in(false));
 }

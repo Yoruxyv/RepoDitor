@@ -1,4 +1,4 @@
-"""Synthetic-only MetaSave transactions; Run sessions never authorize this file."""
+"""Independent MetaSave transactions; Run sessions never authorize this file."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from repo_save_editor.desktop_api.cosmetics import (
 from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
 from repo_save_editor.services.cosmetics.admission import admit_cosmetics
+from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.storage.health_recovery import (
     HealthTransaction,
@@ -34,6 +35,8 @@ from repo_save_editor.storage.repository import (
     SaveVerificationError,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
+
+CosmeticAdmission = Callable[[Path], tuple[dict[str, str], tuple[InstalledCosmeticMetadata, ...]]]
 
 FIELDS = frozenset({"cosmeticHistory", "cosmeticUnlocks", "cosmeticPresets", "colorPresets"})
 
@@ -77,10 +80,10 @@ class _Canonical(TypedDict):
     admission: dict[str, str] | None
 
 
-def _canonical(root: Path, directory: SaveDirectory | None) -> _Canonical:
+def _canonical(root: Path, directory: SaveDirectory | None, admit: CosmeticAdmission) -> _Canonical:
     _path, data, source, _repository = _load_meta_save(root, directory)
     try:
-        proof, catalog = admit_cosmetics(root.parents[2])
+        proof, catalog = admit(root)
     except (OSError, ValueError, TypeError):
         proof, catalog = None, None
     return {
@@ -89,8 +92,14 @@ def _canonical(root: Path, directory: SaveDirectory | None) -> _Canonical:
     }
 
 
+def _admit_synthetic(root: Path) -> tuple[dict[str, str], tuple[InstalledCosmeticMetadata, ...]]:
+    return admit_cosmetics(root.parents[2])
+
+
 @bounded_save_operation
-def meta_state(root: Path, operation: str | None = None) -> dict[str, object]:
+def meta_state(
+    root: Path, operation: str | None = None, *, admit: CosmeticAdmission = _admit_synthetic
+) -> dict[str, object]:
     """Read canonical state or independently inspect existing evidence without cleanup."""
     try:
         path = _meta_path(root)
@@ -111,7 +120,7 @@ def meta_state(root: Path, operation: str | None = None) -> dict[str, object]:
                     "proof": tx.proof(),
                     "intent": receipt.intent if receipt else None,
                 }
-            canonical = _canonical(root, directory)
+            canonical = _canonical(root, directory, admit)
             return {
                 "ok": True,
                 "state": "pending" if pending else "idle",
@@ -132,6 +141,7 @@ def meta_write(
     *,
     namespace: str,
     prepare: bool = False,
+    admit: CosmeticAdmission = _admit_synthetic,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
 ) -> dict[str, object]:
     """Reserve or claim the same fixed action, then use the existing protected overwrite."""
@@ -155,7 +165,7 @@ def meta_write(
             _path, data, source, repository = _load_meta_save(root, directory)
             if sha256(source).hexdigest() != fingerprint:
                 raise RecoveryError("save_stale")
-            proof, catalog = admit_cosmetics(root.parents[2])
+            proof, catalog = admit(root)
             if proof["digest"] != value["metaCosmetics"]["admission"]:
                 raise RecoveryError("save_stale")
             original = deepcopy(data)
@@ -169,9 +179,10 @@ def meta_write(
 
             def before_replace() -> None:
                 # Complete every catalog read before the last authoritative game query.
-                current, _catalog = admit_cosmetics(root.parents[2])
+                current, _catalog = admit(root)
                 if current != proof:
                     raise RecoveryError("save_stale")
+                tx.verify_before_replace()
                 require_game_closed(game_status_loader)
 
             _backup, written = repository.overwrite(
@@ -199,7 +210,13 @@ def meta_write(
 
 
 @bounded_save_operation
-def meta_recover(root: Path, operation: str, proof: str) -> dict[str, object]:
+def meta_recover(
+    root: Path,
+    operation: str,
+    proof: str,
+    *,
+    admit: CosmeticAdmission = _admit_synthetic,
+) -> dict[str, object]:
     """Settle only inspected evidence, never replace MetaSave bytes or replay intent."""
     try:
         path = _meta_path(root)
@@ -213,7 +230,7 @@ def meta_recover(root: Path, operation: str, proof: str) -> dict[str, object]:
                 or tx.proof() != proof
             ):
                 raise RecoveryError("write_conflict")
-            canonical = _canonical(root, directory)
+            canonical = _canonical(root, directory, admit)
             if canonical["view"]["fingerprint"] != fingerprint or tx.proof() != proof:
                 raise RecoveryError("write_conflict")
             if tx.recover() != result or inspect_pending(path, directory) is not None:

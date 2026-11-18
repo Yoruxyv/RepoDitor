@@ -59,7 +59,13 @@ export const tauriReadApi: {
   players: { list: EntryRead<PlayerDto[]>; avatar: RepoDitorApi["players"]["avatar"] };
   upgrades: { list: EntryRead<PlayerUpgradeDto[]>; prepare: RepoDitorApi["upgrades"]["list"] };
   run: { get: EntryRead<RunStateDto> };
-  advanced: { get: EntryRead<AdvancedSaveDto> };
+  advanced: {
+    get: (
+      saveId: string,
+      prepareFingerprint?: string,
+      background?: boolean,
+    ) => Promise<DesktopOperationResult<AdvancedSaveDto>>;
+  };
   maps: {
     list: (
       proof?: "entry" | "verify",
@@ -105,11 +111,12 @@ export const tauriReadApi: {
     },
   },
   advanced: {
-    async get(saveId, prepareFingerprint) {
+    async get(saveId, prepareFingerprint, background) {
       try {
         return await invoke<DesktopOperationResult<AdvancedSaveDto>>("advanced_get", {
           saveId,
           prepareFingerprint,
+          ...(background ? { background: true } : {}),
         });
       } catch {
         return {
@@ -138,7 +145,8 @@ export const tauriReadApi: {
     },
   },
   upgrades: {
-    list: (saveId, prepareFingerprint) => readUpgrades(saveId, false, prepareFingerprint),
+    list: (saveId, prepareFingerprint) =>
+      readUpgrades(saveId, prepareFingerprint !== undefined, prepareFingerprint),
     prepare: (saveId) => readUpgrades(saveId, true),
   },
   players: {

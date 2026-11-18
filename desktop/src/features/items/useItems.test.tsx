@@ -49,6 +49,27 @@ describe("injected Items reads", () => {
       expect(result.current.loading).toBe(false);
     },
   );
+  it("rebinds artwork for the saved fingerprint without replacing canonical charge", async () => {
+    const fingerprint = "b".repeat(64);
+    const image = "item-artwork:" + "c".repeat(32);
+    const refreshed = structuredClone(advanced);
+    refreshed.items[0]!.iconToken = image;
+    const get = vi.fn().mockResolvedValue({ ok: true, data: refreshed });
+    const { result } = renderHook(() => useItems(saveId, { ok: true, data: advanced }, get), {
+      wrapper,
+    });
+    const full = structuredClone(advanced);
+    Object.assign(full.items[0]!, { storedCharge: null, chargeState: "default_full" });
+    act(() => result.current.acceptSnapshot(full));
+    await act(() => result.current.refreshArtwork(fingerprint));
+    expect(get).toHaveBeenCalledExactlyOnceWith(saveId, fingerprint, true);
+    expect(result.current.advanced?.items[0]).toMatchObject({
+      storedCharge: null,
+      chargeState: "default_full",
+      iconToken: image,
+    });
+  });
+
   it("loads once under StrictMode, coalesces retries and recovers from a translated failure", async () => {
     let complete!: (value: DesktopOperationResult<AdvancedSaveDto>) => void;
     const get = vi

@@ -177,8 +177,7 @@ export const ja: Record<keyof typeof en, string> = {
   "upgrades.empty": "このセーブにプレイヤーアップグレードはありません。",
   "upgrades.input": "{player} の {upgrade}",
   "upgrades.error": "アップグレード値は 0 から 2,147,483,647 の整数で入力してください。",
-  "upgrades.draftOnly":
-    "アップグレードの変更を確認し、保存して合成セーブに反映します。元に戻すと未保存の変更を破棄します。",
+  "upgrades.reviewDrafts": "保存する前にアップグレードの変更内容を確認してください。",
   "upgrades.revertDrafts": "アップグレードの下書きを元に戻す",
   "upgrades.saveUnavailable":
     "体力とアップグレードは別々に保存してください。一方の変更を元に戻すか、大きな変更セットを減らしてください。",
@@ -189,6 +188,8 @@ export const ja: Record<keyof typeof en, string> = {
   "run.description": "以下の値をメモリ内で変更します。選択したセーブにはまだ書き込みません。",
   "run.levelError": "レベルは 1 から 2,147,483,648 の整数で入力してください。",
   "run.valueError": "{label} は -2,147,483,648 から 2,147,483,647 の整数で入力してください。",
+  "run.currencyOverflow":
+    "R.E.P.O. がこの金額を千ドル単位からドル単位に変換すると、残高がオーバーフローすることがあります。",
   "run.resumeLocation": "再開地点",
   "run.lives": "残機",
   "run.totalHaul": "合計収益",
@@ -403,12 +404,14 @@ export const ja: Record<keyof typeof en, string> = {
   "error.metaMissing": "MetaSave.es3 が見つかりません。",
   "error.saveInvalid": "選択したセーブを安全に読み取りまたは検証できません。",
   "error.saveStale": "セーブがディスク上で変更されました。再度開いてから保存してください。",
+  "error.saveOpenTimeout": "セーブを開く処理がタイムアウトしました。もう一度開いてください。",
   "error.saveOpenStale":
     "セーブを開いている間に内容が変わりました。現在の内容を読み込むには、開き直してください。",
   "error.saveSourceUnverified":
     "RepoDitor はセーブの読み込み元を確認できませんでした。完全なプレビュー版を再ビルドまたは再インストールしてから、もう一度お試しください。",
   "error.write": "セーブを安全に書き込めませんでした。元のファイルは置き換えていません。",
   "error.copyPath": "パスをコピーできませんでした",
+  "health.draftOnly": "このプレビューでは体力の変更を下書きして確認できます。保存は無効です。",
   "health.testOnly":
     "合成テスト：Health、Upgrades、Run、アイテムの充電。本番ビルドは読み取り専用です。",
   "items.saveUnavailable":
@@ -423,6 +426,9 @@ export const ja: Record<keyof typeof en, string> = {
   "health.unchanged": "保留中の編集は適用されていません。値を確認してから再度保存してください。",
   "health.conflict":
     "復旧データを照合できないため編集を停止しています。再確認するか、手動での復旧が必要です。",
+  "health.fileInUse": "別のプロセスがセーブファイルを使用しています。",
+  "health.verificationUnavailable": "セーブまたはインストール済みのゲームを確認できませんでした。",
+  "health.unsupportedBuild": "このゲームビルドでは体力の編集は承認されていません。",
   "health.status": "保存状態",
   "health.persisted": "ファイル内: {name} · {health} / {max}",
   "health.backupVerified": "元のバックアップを検証しました。",

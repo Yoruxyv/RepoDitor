@@ -127,25 +127,41 @@ impl Registry {
         if generation.is_none() || generation != self.generation(save) {
             return;
         }
-        revoke(&mut self.entries);
-        self.cancel_abandoned_batch();
-        let Some(fingerprint) = fingerprint.filter(|s| valid_revision(s)) else {
-            return;
-        };
-        self.fingerprint = fingerprint.into();
-        for upgrade in upgrades
+        let rows: Vec<_> = upgrades
             .iter_mut()
             .filter(|upgrade| {
                 !upgrade.key.contains(['/', '\\']) && !upgrade.key.chars().any(char::is_control)
             })
             .take(MAX_IMAGES)
-        {
-            upgrade.icon_token = Some(register(
-                &mut self.entries,
-                Scope::Upgrade,
-                &upgrade.key,
-                None,
-            ));
+            .collect();
+        if fingerprint == Some(self.fingerprint.as_str()) {
+            // Keep active decodes. Settled images get fresh tokens so an installed asset
+            // change can still be picked up when the artwork is read again.
+            self.entries.retain(|_, entry| {
+                let active = !entry.cancelled.load(Ordering::SeqCst)
+                    && rows.iter().any(|row| row.key == entry.key);
+                if !active {
+                    entry.cancelled.store(true, Ordering::SeqCst);
+                }
+                active
+            });
+        } else {
+            revoke(&mut self.entries);
+        }
+        self.cancel_abandoned_batch();
+        let Some(fingerprint) = fingerprint.filter(|s| valid_revision(s)) else {
+            return;
+        };
+        self.fingerprint = fingerprint.into();
+        for upgrade in rows {
+            let existing = self
+                .entries
+                .iter()
+                .find(|(_, entry)| entry.key == upgrade.key)
+                .map(|(token, _)| token.clone());
+            upgrade.icon_token = Some(existing.unwrap_or_else(|| {
+                register(&mut self.entries, Scope::Upgrade, &upgrade.key, None)
+            }));
         }
     }
     pub fn register_items(

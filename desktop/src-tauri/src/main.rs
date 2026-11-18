@@ -2,14 +2,14 @@
 mod backend;
 mod error;
 mod projections;
-#[cfg(feature = "synthetic-health-recovery")]
+#[cfg(feature = "health-transport")]
 mod synthetic;
 
 use backend::{artwork, HostState, Operation};
 use error::{BackendError, Outcome, Service};
 use projections::{cosmetics, discovery, game, items, maps, players, run, saves, upgrades};
 use std::sync::{atomic::Ordering, Arc};
-#[cfg(feature = "synthetic-health-recovery")]
+#[cfg(feature = "health-transport")]
 use synthetic::recovery;
 use tauri::Manager;
 
@@ -131,7 +131,7 @@ async fn saves_open(
         }
         let mut registry = state.artwork.lock().unwrap();
         registry.open(&id, opened.fingerprint());
-        #[cfg(feature = "synthetic-health-recovery")]
+        #[cfg(feature = "health-transport")]
         state.open_editor(&id, opened.fingerprint());
         Ok(opened)
     })
@@ -412,7 +412,7 @@ fn upgrade_artwork_cancel(app: tauri::AppHandle, token: Option<String>, save_id:
         registry.cancel(token);
     } else if token.is_none() {
         if let Some(id) = save_id.as_deref().filter(|id| saves::valid_id(id)) {
-            #[cfg(feature = "synthetic-health-recovery")]
+            #[cfg(feature = "health-transport")]
             state.close_editor(id);
             if registry.generation(id).is_some() {
                 registry.clear();
@@ -555,6 +555,7 @@ async fn advanced_get(
     app: tauri::AppHandle,
     save_id: Option<serde_json::Value>,
     prepare_fingerprint: Option<String>,
+    background: Option<bool>,
 ) -> Outcome<items::Advanced> {
     let Some(id) = save_id
         .as_ref()
@@ -565,17 +566,27 @@ async fn advanced_get(
         return Outcome::for_service(Err(BackendError::Request), Service::Items);
     };
     let state = app.state::<Arc<HostState>>().inner().clone();
-    let generation = state.artwork.lock().unwrap().generation(&id);
-    backend::request(app, Operation::Items(id.clone()), move |bytes| {
+    let refreshing = !cfg!(feature = "synthetic-health-recovery") && background == Some(true);
+    let (generation, cancelled) = {
+        let registry = state.artwork.lock().unwrap();
+        let cancelled = refreshing
+            .then(|| registry.session_preparation(&id))
+            .flatten()
+            .map(|(_, cancelled)| cancelled);
+        (registry.generation(&id), cancelled)
+    };
+    if refreshing && (cancelled.is_none() || prepare_fingerprint.is_none()) {
+        return Outcome::for_service(Err(BackendError::Request), Service::Items);
+    }
+    backend::request(app, Operation::Items(id.clone(), cancelled), move |bytes| {
         let mut values = items::parse(bytes)?;
         let raw = error::json(bytes)?;
         check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
-        state.artwork.lock().unwrap().register_items(
-            &id,
-            generation,
-            raw["fingerprint"].as_str(),
-            &mut values,
-        );
+        let mut registry = state.artwork.lock().unwrap();
+        if refreshing && registry.generation(&id) != generation {
+            return Err(BackendError::Failed);
+        }
+        registry.register_items(&id, generation, raw["fingerprint"].as_str(), &mut values);
         Ok(values)
     })
     .await
@@ -587,7 +598,7 @@ async fn test_meta_state(
     app: tauri::AppHandle,
     request: serde_json::Value,
 ) -> synthetic::meta::State {
-    synthetic::meta::state(app, request).await
+    synthetic::meta::state(app, request, false).await
 }
 
 #[cfg(feature = "synthetic-health-recovery")]
@@ -596,7 +607,7 @@ async fn test_meta_write(
     app: tauri::AppHandle,
     request: serde_json::Value,
 ) -> synthetic::meta::Result {
-    synthetic::meta::write(app, request).await
+    synthetic::meta::write(app, request, false).await
 }
 
 #[cfg(feature = "synthetic-health-recovery")]
@@ -605,7 +616,7 @@ async fn test_meta_recover(
     app: tauri::AppHandle,
     request: serde_json::Value,
 ) -> synthetic::meta::Result {
-    synthetic::meta::recover(app, request).await
+    synthetic::meta::recover(app, request, false).await
 }
 
 #[tauri::command]
@@ -667,6 +678,67 @@ async fn test_health_state(app: tauri::AppHandle, save_id: String) -> recovery::
     recovery::state(app, save_id).await
 }
 
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_meta_state(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::State {
+    synthetic::meta::state(app, request, true).await
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_meta_write(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::Result {
+    synthetic::meta::write(app, request, true).await
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_meta_recover(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> synthetic::meta::Result {
+    synthetic::meta::recover(app, request, true).await
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+fn production_meta_close(app: tauri::AppHandle) {
+    app.state::<std::sync::Arc<backend::HostState>>()
+        .meta_session
+        .lock()
+        .unwrap()
+        .close();
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_health_write(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::production_write(app, request).await
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_health_recover(
+    app: tauri::AppHandle,
+    request: serde_json::Value,
+) -> recovery::Transaction {
+    recovery::production_recover(app, request).await
+}
+
+#[cfg(feature = "production-health")]
+#[tauri::command]
+async fn production_health_state(app: tauri::AppHandle, save_id: String) -> recovery::HealthState {
+    recovery::production_state(app, save_id).await
+}
+
 fn main() {
     let fixture = std::env::var("REPODITOR_E2E").as_deref() == Ok("1");
     let _cache_activity =
@@ -693,6 +765,20 @@ fn main() {
             maps_list,
             cosmetics_get,
             preview_close,
+            #[cfg(feature = "production-health")]
+            production_health_write,
+            #[cfg(feature = "production-health")]
+            production_health_recover,
+            #[cfg(feature = "production-health")]
+            production_meta_state,
+            #[cfg(feature = "production-health")]
+            production_meta_write,
+            #[cfg(feature = "production-health")]
+            production_meta_recover,
+            #[cfg(feature = "production-health")]
+            production_meta_close,
+            #[cfg(feature = "production-health")]
+            production_health_state,
             #[cfg(feature = "synthetic-health-recovery")]
             test_health_write,
             #[cfg(feature = "synthetic-health-recovery")]

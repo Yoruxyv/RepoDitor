@@ -1,4 +1,4 @@
-//! Feature-only synthetic transport; never compiled into the normal preview.
+//! Feature-gated Health transaction transport and synthetic domain adapters.
 use crate::{
     backend::{self, EditorWrite, Operation},
     error::{BackendError, Outcome},
@@ -6,8 +6,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+#[cfg(feature = "synthetic-health-recovery")]
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::{path::PathBuf, time::Instant};
+use std::time::Instant;
 use tauri::Manager;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -232,6 +234,10 @@ pub struct Pending {
 #[serde(rename_all = "camelCase")]
 pub struct HealthState {
     enabled: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    draft_only: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    domains: Vec<String>,
     state: String,
     pending: Option<Pending>,
     canonical: Option<Canonical>,
@@ -241,6 +247,8 @@ pub struct HealthState {
 fn unavailable(enabled: bool, state: &str) -> HealthState {
     HealthState {
         enabled,
+        draft_only: false,
+        domains: Vec::new(),
         state: state.into(),
         pending: None,
         canonical: None,
@@ -289,7 +297,25 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
         return Err(BackendError::Invalid);
     }
     let state = raw["state"].as_str().ok_or(BackendError::Invalid)?;
+    if state == "disabled" {
+        return Ok(unavailable(false, state));
+    }
     let mut result = unavailable(true, state);
+    if let Some(domains) = raw.get("domains") {
+        result.domains =
+            serde_json::from_value(domains.clone()).map_err(|_| BackendError::Invalid)?;
+        if result.domains.is_empty()
+            || result.domains.len() > 4
+            || result.domains.iter().any(|domain| {
+                !matches!(
+                    domain.as_str(),
+                    "health" | "upgrades" | "run" | "refillToFull"
+                )
+            })
+        {
+            return Err(BackendError::Invalid);
+        }
+    }
     match state {
         "idle" => result.canonical = Some(canonical(&raw["canonical"], save, None)?),
         "pending" => {
@@ -320,6 +346,45 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
     Ok(result)
 }
 
+pub(crate) fn save_permissions(app: &tauri::AppHandle, write: &str, recover: &str) -> bool {
+    use tauri::utils::config::CapabilityEntry;
+
+    let permissions = app
+        .config()
+        .app
+        .security
+        .capabilities
+        .iter()
+        .filter_map(|entry| match entry {
+            CapabilityEntry::Inlined(capability)
+                if capability.local && capability.windows.iter().any(|name| name == "main") =>
+            {
+                Some(&capability.permissions)
+            }
+            _ => None,
+        })
+        .flatten()
+        .map(|permission| permission.identifier().get());
+    let mut can_write = false;
+    let mut can_recover = false;
+    for permission in permissions {
+        match permission {
+            value if value.strip_prefix("allow-") == Some(write) => can_write = true,
+            value if value.strip_prefix("allow-") == Some(recover) => can_recover = true,
+            value
+                if value
+                    .strip_prefix("deny-")
+                    .is_some_and(|name| name == write || name == recover) =>
+            {
+                return false;
+            }
+            _ => {}
+        }
+    }
+    can_write && can_recover
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn state(app: tauri::AppHandle, save: String) -> HealthState {
     if !cfg!(feature = "synthetic-health-ui") || !test_root() || !saves::valid_id(&save) {
         return unavailable(false, "disabled");
@@ -331,12 +396,14 @@ pub async fn state(app: tauri::AppHandle, save: String) -> HealthState {
     let host = app.state::<Arc<backend::HostState>>().inner().clone();
     let session_save = save.clone();
     let session = host.upgrade_session(&save);
+    let draft_only = !save_permissions(&app, "test-health-write", "test-health-recover");
     match backend::request(app, Operation::TestHealthState(save), move |bytes| {
         parse_state(bytes, &expected)
     })
     .await
     {
         Outcome::Success { mut data, .. } => {
+            data.draft_only = draft_only;
             if let (Some(projection), Some(token)) = (&data.canonical, &session) {
                 host.update_editor(&session_save, projection.opened.fingerprint(), token);
             }
@@ -355,6 +422,7 @@ fn hex(value: &str, size: usize) -> bool {
             .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub fn test_root() -> bool {
     std::env::var("REPODITOR_E2E").as_deref() == Ok("1")
         && std::env::var_os("REPODITOR_E2E_LOCAL_APP_DATA_LOW")
@@ -493,6 +561,7 @@ async fn dispatch(
     }
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
     if raw.get("mixed").is_some() {
         return write_batch(app, raw, Batch::Mixed).await;
@@ -560,18 +629,22 @@ pub async fn write(app: tauri::AppHandle, raw: Value) -> Transaction {
     dispatch(app, command, operation.into(), true, save, editor).await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn write_upgrades(app: tauri::AppHandle, raw: Value) -> Transaction {
     write_batch(app, raw, Batch::Upgrades).await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn write_run(app: tauri::AppHandle, raw: Value) -> Transaction {
     write_batch(app, raw, Batch::Run).await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn write_refills(app: tauri::AppHandle, raw: Value) -> Transaction {
     write_batch(app, raw, Batch::Refill).await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 #[derive(Clone, Copy)]
 enum Batch {
     Health,
@@ -581,6 +654,26 @@ enum Batch {
     Mixed,
 }
 
+fn valid_batch(field: &str, raw: &Value) -> bool {
+    match field {
+        "refillToFull" => {
+            serde_json::from_value::<RefillIntent>(json!({"refillToFull":raw[field]}))
+                .is_ok_and(|i| valid_refill_intent(&i))
+        }
+        "health" => serde_json::from_value::<HealthBatchIntent>(json!({"health":raw[field]}))
+            .is_ok_and(|i| valid_health_batch_intent(&i)),
+        "run" => serde_json::from_value::<RunIntent>(json!({"run":raw[field]}))
+            .is_ok_and(|i| valid_run_intent(&i)),
+        "upgrades" => serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw[field]}))
+            .is_ok_and(|i| valid_upgrade_intent(&i)),
+        "mixed" => valid_mixed_intent(&MixedIntent {
+            mixed: raw[field].clone(),
+        }),
+        _ => false,
+    }
+}
+
+#[cfg(feature = "synthetic-health-recovery")]
 async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transaction {
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "rejected", "invalid_request");
@@ -592,23 +685,10 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
         Batch::Refill => "refillToFull",
         Batch::Mixed => "mixed",
     };
-    let valid_intent = match batch {
-        Batch::Refill => serde_json::from_value::<RefillIntent>(json!({"refillToFull":raw[field]}))
-            .is_ok_and(|i| valid_refill_intent(&i)),
-        Batch::Health => serde_json::from_value::<HealthBatchIntent>(json!({"health":raw[field]}))
-            .is_ok_and(|i| valid_health_batch_intent(&i)),
-        Batch::Run => serde_json::from_value::<RunIntent>(json!({"run":raw[field]}))
-            .is_ok_and(|i| valid_run_intent(&i)),
-        Batch::Upgrades => serde_json::from_value::<UpgradeIntent>(json!({"upgrades":raw[field]}))
-            .is_ok_and(|i| valid_upgrade_intent(&i)),
-        Batch::Mixed => valid_mixed_intent(&MixedIntent {
-            mixed: raw[field].clone(),
-        }),
-    };
     if !cfg!(feature = "synthetic-health-ui")
         || !test_root()
         || !raw.as_object().is_some_and(|r| r.len() == 5)
-        || !valid_intent
+        || !valid_batch(field, &raw)
     {
         return failure(operation, "rejected", "invalid_request");
     }
@@ -713,6 +793,7 @@ async fn write_batch(app: tauri::AppHandle, raw: Value, batch: Batch) -> Transac
     .await
 }
 
+#[cfg(feature = "synthetic-health-recovery")]
 pub async fn recover(app: tauri::AppHandle, raw: Value) -> Transaction {
     let Some((save, operation)) = identity(&raw) else {
         return failure("", "conflict", "invalid_request");
@@ -741,6 +822,162 @@ pub async fn recover(app: tauri::AppHandle, raw: Value) -> Transaction {
     )
     .await;
     if let (Some(projection), Some(token)) = (&result.canonical, token) {
+        host.update_editor(save, projection.opened.fingerprint(), &token);
+    }
+    result
+}
+
+#[cfg(feature = "production-health")]
+pub async fn production_state(app: tauri::AppHandle, save: String) -> HealthState {
+    if !save_permissions(&app, "production-health-write", "production-health-recover") {
+        return unavailable(false, "disabled");
+    }
+    let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let Some(token) = host.upgrade_session(&save) else {
+        return unavailable(false, "disabled");
+    };
+    let enrolling = !private_run_allowed(&host, &token);
+    let expected = save.clone();
+    let operation = Operation::ProductionHealth(
+        "state".into(),
+        save.clone(),
+        String::new(),
+        String::new(),
+        "null".into(),
+        Instant::now(),
+    );
+    match backend::request(app, operation, move |bytes| parse_state(bytes, &expected)).await {
+        Outcome::Success { mut data, .. }
+            if (!data.enabled || !data.domains.is_empty())
+                && host.upgrade_session(&save).as_ref() == Some(&token) =>
+        {
+            if enrolling && !matches!(data.state.as_str(), "idle" | "pending") {
+                return data;
+            }
+            if let Some(canonical) = &data.canonical {
+                if enrolling && !host.accepts_upgrade(&save, canonical.opened.fingerprint(), &token)
+                {
+                    return unavailable(false, "disabled");
+                }
+                host.update_editor(&save, canonical.opened.fingerprint(), &token);
+            }
+            #[cfg(feature = "private-editing")]
+            if enrolling && data.enabled {
+                *host.private_run_scope.lock().unwrap() = Some(token.clone());
+            }
+            data.upgrade_session = data.enabled.then_some(token);
+            data
+        }
+        _ => unavailable(false, "disabled"),
+    }
+}
+
+#[cfg(feature = "production-health")]
+fn private_run_allowed(host: &backend::HostState, token: &str) -> bool {
+    #[cfg(feature = "private-editing")]
+    return host.private_run_scope.lock().unwrap().as_deref() == Some(token);
+    #[cfg(not(feature = "private-editing"))]
+    {
+        let _ = (host, token);
+        true
+    }
+}
+
+#[cfg(feature = "production-health")]
+pub async fn production_write(app: tauri::AppHandle, raw: Value) -> Transaction {
+    let Some((save, operation)) = identity(&raw) else {
+        return failure("", "rejected", "invalid_request");
+    };
+    let Some(field) = ["health", "upgrades", "run", "refillToFull", "mixed"]
+        .into_iter()
+        .find(|field| raw.get(field).is_some())
+    else {
+        return failure(operation, "rejected", "invalid_request");
+    };
+    if !raw.as_object().is_some_and(|r| r.len() == 5) || !valid_batch(field, &raw) {
+        return failure(operation, "rejected", "invalid_request");
+    }
+    let Some(editor) = editor_write(&app, save, &raw) else {
+        return failure(operation, "rejected", "invalid_request");
+    };
+    let host = app.state::<Arc<backend::HostState>>();
+    if !private_run_allowed(&host, &editor.token) {
+        return failure(operation, "rejected", "save_unsupported");
+    }
+    let started = Instant::now();
+    let command = |action: &str| {
+        Operation::ProductionHealth(
+            action.into(),
+            save.into(),
+            operation.into(),
+            editor.fingerprint.clone(),
+            json!({(field): raw[field]}).to_string(),
+            started,
+        )
+    };
+    let prepared = dispatch(
+        app.clone(),
+        command("prepare"),
+        operation.into(),
+        true,
+        save,
+        Some(editor.clone()),
+    )
+    .await;
+    if prepared.status != "prepared" {
+        return prepared;
+    }
+    dispatch(
+        app,
+        command("write"),
+        operation.into(),
+        true,
+        save,
+        Some(editor),
+    )
+    .await
+}
+
+#[cfg(feature = "production-health")]
+pub async fn production_recover(app: tauri::AppHandle, raw: Value) -> Transaction {
+    let Some((save, operation)) = identity(&raw) else {
+        return failure("", "conflict", "invalid_request");
+    };
+    let Some(acknowledge) = raw["acknowledge"].as_bool() else {
+        return failure(operation, "conflict", "invalid_request");
+    };
+    let host = app.state::<Arc<backend::HostState>>().inner().clone();
+    let Some(token) = host.upgrade_session(save) else {
+        return failure(operation, "conflict", "invalid_request");
+    };
+    if !raw.as_object().is_some_and(|r| r.len() == 3) {
+        return failure(operation, "conflict", "invalid_request");
+    }
+    if !private_run_allowed(&host, &token) {
+        return failure(operation, "conflict", "save_unsupported");
+    }
+    let action = if acknowledge {
+        "acknowledge"
+    } else {
+        "inspect"
+    };
+    let result = dispatch(
+        app,
+        Operation::ProductionHealth(
+            action.into(),
+            save.into(),
+            operation.into(),
+            String::new(),
+            "null".into(),
+            Instant::now(),
+        ),
+        operation.into(),
+        false,
+        save,
+        None,
+    )
+    .await;
+    if let Some(projection) = &result.canonical {
         host.update_editor(save, projection.opened.fingerprint(), &token);
     }
     result
