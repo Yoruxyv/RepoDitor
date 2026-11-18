@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -7,6 +8,7 @@ import pytest
 
 from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api.run import get_run_state
+from repo_save_editor.desktop_api.run_save_changes import apply_run_save_changes
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability
@@ -15,6 +17,34 @@ from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
+
+RUN_COMPATIBILITY = json.loads(
+    (Path(__file__).parents[4] / "compatibility/es3/run-mutations.json").read_text(encoding="utf-8")
+)
+
+
+@pytest.mark.parametrize("case", RUN_COMPATIBILITY["healthCases"], ids=lambda case: case["name"])
+def test_shared_health_mutations(case) -> None:
+    source = deepcopy(RUN_COMPATIBILITY["runSave"])
+    fields = source["dictionaryOfDictionaries"]["value"]
+    fields.update(deepcopy(case.get("overrides", {})))
+    if "remove" in case:
+        del fields[case["remove"]]
+    before = encrypt_save(source)
+    data = SaveRepository.load_bytes(before)
+    changes = [{"feature": "players", "entity": "111", "field": "health", "after": case["after"]}]
+
+    if not case["accepted"]:
+        with pytest.raises(
+            ValueError, match=r"Current Health|whole-number change|not a supported integer"
+        ):
+            apply_run_save_changes(data, changes)
+        assert data == source
+        return
+
+    apply_run_save_changes(data, changes)
+    fields.setdefault("playerHealth", {})["111"] = case["after"]
+    assert SaveRepository.load_bytes(encrypt_save(data)) == source
 
 
 def _game_closed() -> GameProcessStatus:
@@ -40,6 +70,44 @@ def _fingerprint(root: Path) -> str:
     result = open_save(_save_path(root).parent.name, root)
     assert result["ok"] is True
     return result["session"]["fingerprint"]
+
+
+@pytest.mark.parametrize(
+    "resume", RUN_COMPATIBILITY["resumeCases"], ids=lambda case: case["choice"]
+)
+def test_shared_run_mutations_preserve_unrelated_encrypted_fields(tmp_path: Path, resume) -> None:
+    expected = deepcopy(RUN_COMPATIBILITY["runSave"])
+    fields = expected["dictionaryOfDictionaries"]["value"]
+    fields["runStats"]["save level"] = resume["before"]
+    path = _write_fixture(tmp_path, expected)
+    original = path.read_bytes()
+    refill = RUN_COMPATIBILITY["refill"]
+    result = save_changes(
+        path.parent.name,
+        sha256(original).hexdigest(),
+        [
+            {"feature": "players", "entity": "111", "field": "health", "after": 120},
+            {
+                "feature": "run",
+                "entity": "run",
+                "field": "resumeLocation",
+                "after": resume["label"],
+            },
+            *[
+                {"feature": "advanced", "entity": key, "field": "refillToFull", "after": True}
+                for key in refill["instances"]
+            ],
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=_rechargeable,
+    )
+    assert result["ok"] is True, result
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+    fields["playerHealth"]["111"] = 120
+    fields["runStats"]["save level"] = resume["after"]
+    fields["itemStatBattery"] = refill["expectedCharges"]
+    assert SaveRepository.load(path) == expected
 
 
 def test_save_changes_writes_multiple_players_with_one_exact_backup(tmp_path: Path, sample_save):

@@ -550,7 +550,7 @@ describe("App", () => {
       target: { value: "-1" },
     });
 
-    expect((await screen.findByRole("alert")).textContent).toMatch(/between 0 and 2,147,483,647/iu);
+    expect((await screen.findByRole("alert")).textContent).toMatch(/between 0 and 120/iu);
     expect(screen.getByText("No pending changes")).toBeTruthy();
     expect(button(screen.getByRole("button", { name: "Discard changes" })).disabled).toBe(true);
   });
@@ -564,7 +564,7 @@ describe("App", () => {
     await screen.findByTestId("save-workspace");
     const health = screen.getByRole("spinbutton", { name: "Current health" });
 
-    for (const value of ["", "-", "1.5", "2147483648"]) {
+    for (const value of ["", "-", "1.5", "121", "2147483648"]) {
       fireEvent.change(health, { target: { value } });
       expect(screen.getByText("No pending changes")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();

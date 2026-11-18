@@ -1,0 +1,121 @@
+{
+  "runSave": {
+    "teamName": { "__type": "System.String", "value": "Synthetic team" },
+    "dateAndTime": { "__type": "System.String", "value": "2026-08-06" },
+    "timePlayed": { "__type": "System.Single", "value": 100 },
+    "playerNames": {
+      "__type": "Dictionary",
+      "value": { "111": "Alpha", "222": "Beta" }
+    },
+    "dictionaryOfDictionaries": {
+      "__type": "Dictionary",
+      "value": {
+        "runStats": {
+          "level": 4,
+          "save level": 0,
+          "currency": 12,
+          "lives": 3,
+          "totalHaul": 500
+        },
+        "playerHealth": { "111": 80, "222": 150 },
+        "playerUpgradeHealth": { "111": 1 },
+        "item": {
+          "Item Cart Laser/1": 1,
+          "Item Cart Laser/2": 1,
+          "Item Cart Laser/3": 1,
+          "Item Cart Medium/1": 1
+        },
+        "itemStatBattery": {
+          "Item Cart Laser/1": 0,
+          "Item Cart Laser/2": 40,
+          "Item Cart Medium/1": 50,
+          "Item Cart Laser/99": 60
+        }
+      }
+    },
+    "opaqueFutureField": {
+      "value": { "entries": ["unchanged", { "nested": true }], "amount": 2.375 }
+    }
+  },
+  "healthCases": [
+    { "name": "zero", "after": 0, "accepted": true },
+    { "name": "upgraded maximum", "after": 120, "accepted": true },
+    { "name": "above upgraded maximum", "after": 121, "accepted": false },
+    { "name": "negative input", "after": -1, "accepted": false },
+    { "name": "fractional input", "after": 1.5, "accepted": false },
+    { "name": "boolean input", "after": true, "accepted": false },
+    { "name": "numeric string", "after": "100", "accepted": false },
+    { "name": "null input", "after": null, "accepted": false },
+    {
+      "name": "missing Health dictionary",
+      "remove": "playerHealth",
+      "after": 100,
+      "accepted": true
+    },
+    {
+      "name": "missing player Health entry",
+      "overrides": { "playerHealth": {} },
+      "after": 100,
+      "accepted": true
+    },
+    {
+      "name": "missing Health upgrades",
+      "remove": "playerUpgradeHealth",
+      "after": 101,
+      "accepted": false
+    },
+    {
+      "name": "negative saved upgrade",
+      "overrides": { "playerUpgradeHealth": { "111": -1 } },
+      "after": 101,
+      "accepted": false
+    },
+    {
+      "name": "repair above maximum",
+      "overrides": { "playerHealth": { "111": 150 } },
+      "after": 120,
+      "accepted": true
+    },
+    {
+      "name": "repair negative saved Health",
+      "overrides": { "playerHealth": { "111": -1 } },
+      "after": 0,
+      "accepted": true
+    },
+    {
+      "name": "malformed stored Health",
+      "overrides": { "playerHealth": { "111": "80" } },
+      "after": 100,
+      "accepted": false
+    },
+    {
+      "name": "signed Int32 ceiling",
+      "overrides": { "playerUpgradeHealth": { "111": 2147483647 } },
+      "after": 2147483647,
+      "accepted": true
+    },
+    {
+      "name": "above signed Int32 ceiling",
+      "overrides": { "playerUpgradeHealth": { "111": 2147483647 } },
+      "after": 2147483648,
+      "accepted": false
+    }
+  ],
+  "resumeCases": [
+    { "choice": "normal", "label": "Normal", "before": 1, "after": 0 },
+    {
+      "choice": "shop",
+      "label": "Shop / Service Station",
+      "before": 0,
+      "after": 1
+    }
+  ],
+  "refill": {
+    "instances": [
+      "Item Cart Laser/1",
+      "Item Cart Laser/2",
+      "Item Cart Laser/3"
+    ],
+    "expectedCharges": { "Item Cart Medium/1": 50, "Item Cart Laser/99": 60 }
+  }
+}

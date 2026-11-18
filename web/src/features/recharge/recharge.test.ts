@@ -141,9 +141,9 @@ describe("recharge inspection", () => {
     );
     expect(() => inspectRecharge(meta)).toThrow(RechargeEditError);
 
-    const missingCharge = runSave();
-    Reflect.deleteProperty(dictionaries(missingCharge), "itemStatBattery");
-    expect(() => inspectRecharge(missingCharge)).toThrow(/itemStatBattery/iu);
+    const malformedCharge = runSave();
+    dictionaries(malformedCharge).itemStatBattery = null;
+    expect(() => inspectRecharge(malformedCharge)).toThrow(/itemStatBattery/iu);
 
     const malformedInventory = runSave();
     dictionaries(malformedInventory).item = [];
@@ -170,6 +170,14 @@ describe("recharge inspection", () => {
 });
 
 describe("recharge mutation", () => {
+  it("treats an absent battery dictionary as full without creating one", () => {
+    const data = runSave();
+    Reflect.deleteProperty(dictionaries(data), "itemStatBattery");
+    expect(inspectRecharge(data)).toEqual({ needingRechargeCount: 0, supportedItemCount: 2 });
+    expect(rechargeAllSupportedItems(data)).toBe(false);
+    expect(Object.hasOwn(dictionaries(data), "itemStatBattery")).toBe(false);
+  });
+
   it("removes only supported exact-instance charge leaves and is idempotent", () => {
     const data = runSave();
     const itemOrder = Object.keys(dictionaries(data).item as SaveObject);

@@ -1,13 +1,15 @@
 import { isInteger, LosslessNumber } from "lossless-json";
 
-import { isSaveNumber, isSaveObject, type SaveObject } from "@/features/save-file/serialization";
+import {
+  isSaveNumber,
+  isSaveObject,
+  parseSaveJson,
+  type SaveObject,
+} from "@/features/save-file/serialization";
+import type { EditSession } from "@/features/save-file/session";
 
 const RUN_SAVE_KEY = {
   level: "save level",
-} as const;
-
-const RUN_SAVE_MESSAGE = {
-  levelMissing: "Run level is not present in this save.",
 } as const;
 
 const RUN_VALUE_LABEL = {
@@ -22,6 +24,8 @@ export const SAVE_INT32_MAX = 2_147_483_647;
 export const DISPLAY_LEVEL_MAX = SAVE_INT32_MAX + 1;
 
 const UPGRADE_PREFIX = "playerUpgrade";
+const BASE_PLAYER_HEALTH = 100;
+const HEALTH_PER_UPGRADE = 20;
 const UPGRADE_LABELS: Readonly<Record<string, string>> = {
   playerUpgradeLaunch: "Tumble Launch",
   playerUpgradeSpeed: "Sprint Speed",
@@ -59,6 +63,16 @@ export class RunEditError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RunEditError";
+  }
+}
+
+export class PendingHealthLimitError extends RunEditError {
+  readonly maximum: number;
+
+  constructor(maximum: number) {
+    super(`Pending Health must be a whole number between 0 and ${maximum}.`);
+    this.name = "PendingHealthLimitError";
+    this.maximum = maximum;
   }
 }
 
@@ -207,9 +221,6 @@ export function inspectRunSave(data: SaveObject): RunSaveState {
   }));
   const stats = runStats(data);
   const resumeValue = storedInteger(stats, RUN_SAVE_KEY.level, 0, RUN_VALUE_LABEL.resumeLocation);
-  if (!Object.hasOwn(stats, "level")) {
-    throw new RunEditError(RUN_SAVE_MESSAGE.levelMissing);
-  }
 
   return {
     currency: storedInteger(stats, "currency", 0, "Currency"),
@@ -221,9 +232,16 @@ export function inspectRunSave(data: SaveObject): RunSaveState {
   };
 }
 
+export function getPlayerMaxHealth(data: SaveObject, playerId: string): number {
+  const upgrades = dictionaries(data).playerUpgradeHealth;
+  const count = isSaveObject(upgrades) ? storedInteger(upgrades, playerId, 0, "Health upgrade") : 0;
+  return BASE_PLAYER_HEALTH + Math.max(count, 0) * HEALTH_PER_UPGRADE;
+}
+
 export function setPlayerHealth(data: SaveObject, playerId: string, value: unknown): void {
-  const next = editableInteger(value, 0, SAVE_INT32_MAX, RUN_VALUE_LABEL.currentHealth);
   requirePlayer(data, playerId);
+  const maximum = Math.min(getPlayerMaxHealth(data, playerId), SAVE_INT32_MAX);
+  const next = editableInteger(value, 0, maximum, RUN_VALUE_LABEL.currentHealth);
   const values = dictionaries(data);
   let health = optionalObject(values, "playerHealth", RUN_VALUE_LABEL.playerHealth);
   if (health) {
@@ -233,6 +251,23 @@ export function setPlayerHealth(data: SaveObject, playerId: string, value: unkno
     values.playerHealth = health;
   }
   health[playerId] = new LosslessNumber(String(next));
+}
+
+export function validatePendingHealthEdits(baseline: SaveObject, working: SaveObject): void {
+  const health = dictionaries(working).playerHealth;
+  if (!isSaveObject(health)) return;
+  const originalHealth = dictionaries(baseline).playerHealth;
+  for (const [playerId, value] of Object.entries(health)) {
+    const before =
+      isSaveObject(originalHealth) && Object.hasOwn(originalHealth, playerId)
+        ? originalHealth[playerId]
+        : undefined;
+    // Only a numeric Health edit can be staged. Imported values may already exceed the cap.
+    if (!isSaveNumber(value) || (isSaveNumber(before) && before.value === value.value)) continue;
+    const maximum = Math.min(getPlayerMaxHealth(working, playerId), SAVE_INT32_MAX);
+    const edited = storedInteger(health, playerId, 0, RUN_VALUE_LABEL.currentHealth);
+    if (edited < 0 || edited > maximum) throw new PendingHealthLimitError(maximum);
+  }
 }
 
 export function setPlayerUpgrade(
@@ -262,13 +297,19 @@ export function setCurrency(data: SaveObject, value: unknown): void {
   writeInteger(runStats(data), "currency", value, SAVE_INT32_MIN, SAVE_INT32_MAX, "Currency");
 }
 
-export function setRunLevel(data: SaveObject, value: unknown): void {
-  const displayed = editableInteger(value, 1, DISPLAY_LEVEL_MAX, "Run level");
-  const stats = runStats(data);
-  if (!Object.hasOwn(stats, "level")) {
-    throw new RunEditError(RUN_SAVE_MESSAGE.levelMissing);
+export function setRunLevel(session: EditSession, value: unknown): void {
+  const next = editableInteger(value, 1, DISPLAY_LEVEL_MAX, "Run level") - 1;
+  const stats = runStats(session.working);
+  storedInteger(stats, "level", 0, "Run level");
+  const original = runStats(parseSaveJson(session.baselineSource));
+
+  if (next !== storedInteger(original, "level", 0, "Run level")) {
+    stats.level = new LosslessNumber(String(next));
+  } else if (Object.hasOwn(original, "level")) {
+    stats.level = original.level;
+  } else {
+    Reflect.deleteProperty(stats, "level");
   }
-  writeInteger(stats, "level", displayed - 1, 0, SAVE_INT32_MAX, "Run level");
 }
 
 export function setResumeLocation(data: SaveObject, value: unknown): void {

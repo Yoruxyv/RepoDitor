@@ -42,7 +42,7 @@ describe("pending Run edits", () => {
     setPlayerHealth(editSession.working, "111", 95);
     setPlayerUpgrade(editSession.working, "111", "playerUpgradeStrength", 3);
     setCurrency(editSession.working, 67);
-    setRunLevel(editSession.working, 5);
+    setRunLevel(editSession, 5);
     setResumeLocation(editSession.working, "shop");
 
     expect(getRunPendingEdits(editSession)).toEqual([

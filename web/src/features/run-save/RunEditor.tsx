@@ -15,8 +15,8 @@ import { SelectedPlayerIdentity } from "@/features/run-save/PlayerIdentity";
 import { ResumeLocationMenu } from "@/features/run-save/ResumeLocationMenu";
 import {
   DISPLAY_LEVEL_MAX,
+  getPlayerMaxHealth,
   inspectRunSave,
-  type RunPlayer,
   SAVE_INT32_MAX,
   SAVE_INT32_MIN,
   setCurrency,
@@ -31,8 +31,6 @@ type EditorSection = "players" | "recharge" | "run" | "upgrades";
 
 const TABS: readonly EditorSection[] = ["players", "upgrades", "run", "recharge"];
 const TAB_OFFSETS: Readonly<Record<string, number>> = { ArrowLeft: -1, ArrowRight: 1 };
-const BASE_PLAYER_HEALTH = 100;
-const HEALTH_PER_UPGRADE = 20;
 
 interface RunEditorProps {
   readonly busy: boolean;
@@ -103,12 +101,6 @@ function IntegerInput({
       ) : null}
     </>
   );
-}
-
-function maximumHealth(player: RunPlayer, upgrades: ReturnType<typeof inspectRunSave>["upgrades"]) {
-  const healthUpgrade =
-    upgrades.find(({ key }) => key === "playerUpgradeHealth")?.values.get(player.id) ?? 0;
-  return BASE_PLAYER_HEALTH + Math.max(healthUpgrade, 0) * HEALTH_PER_UPGRADE;
 }
 
 function inspectWorkingSave(
@@ -275,7 +267,7 @@ export function RunEditor({ busy, onSessionChange, session }: RunEditorProps) {
                   onRejectAvatar={() => avatars.reject(player.id)}
                 />
                 {(() => {
-                  const maxHealth = maximumHealth(player, state.upgrades);
+                  const maxHealth = getPlayerMaxHealth(session.working, player.id);
                   const visibleHealth = Math.min(Math.max(player.health, 0), maxHealth);
                   const healthPercent = Math.round((visibleHealth / maxHealth) * 100);
                   const editableMaximum = Math.min(maxHealth, SAVE_INT32_MAX);
@@ -294,11 +286,11 @@ export function RunEditor({ busy, onSessionChange, session }: RunEditorProps) {
                         <div className="flex items-center gap-2">
                           <IntegerInput
                             error={t("run.players.healthError", {
-                              maximum: formatNumber(SAVE_INT32_MAX),
+                              maximum: formatNumber(editableMaximum),
                             })}
                             id="run-player-health"
                             key={player.id}
-                            maximum={SAVE_INT32_MAX}
+                            maximum={editableMaximum}
                             minimum={0}
                             resetToken={session.working}
                             value={player.health}
@@ -461,7 +453,7 @@ export function RunEditor({ busy, onSessionChange, session }: RunEditorProps) {
                       minimum={1}
                       resetToken={session.working}
                       value={state.level}
-                      onValueChange={(value) => apply(() => setRunLevel(session.working, value))}
+                      onValueChange={(value) => apply(() => setRunLevel(session, value))}
                     />
                   </div>
                 </div>
