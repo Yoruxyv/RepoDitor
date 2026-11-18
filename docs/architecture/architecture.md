@@ -871,10 +871,12 @@ retains its own finite coordinator. `python/client.cts` owns command allowlists,
 output/time limits and child cleanup on shutdown.
 `GameIcon` confines image loading to the thumbnail box and falls back on null/error.
 
-Tauri retains the active Run save's Players, Upgrades, Run, Items and Maps
-projections while navigating between tabs. Editor Preparation loads them from
-the opened snapshot before showing Overview. Closing the workspace disposes its
-projections.
+Tauri shows the read-only Overview snapshot after the selected save is opened
+and validated. Editor Preparation resolves Players, Upgrades, Run, Items, Maps
+and artwork while that snapshot is visible. The editor and its navigation open
+after preparation, final source verification and the game-status check.
+The active workspace retains its projections across tab changes and disposes
+them on close.
 
 The separate Cosmetics workspace revalidates MetaSave and installed artwork
 sources on entry, refresh and game-safety recovery. A successful catalog read
@@ -994,14 +996,22 @@ credentials.
 
 The Windows editor cache lives alongside Cosmetics at
 `%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview\editor-artwork-v1`.
-It holds three DPAPI-protected files, one each for Upgrade, Item and Map artwork.
-Their payload limits are 4, 8 and 8 MiB respectively, with at most 64 hashed
+It holds DPAPI-protected files for Upgrade, Item and Map artwork and for
+installed metadata. The artwork payload limits are 4, 8 and 8 MiB respectively, with at most 64 hashed
 artwork identities per file. Each image is limited to 1 MiB before base64
 encoding. Including seal overhead, the atomic publication file and the opt-in
-diagnostic log, the namespace publishes at most 28.04 MiB. Entries contain
+diagnostic log, the namespace publishes at most 28.30 MiB. Artwork entries contain
 validated PNGs and their source bindings or a confirmed unavailable result.
 The cache contains no save contents, save identifier, player data, or paths.
 An ambiguous or failed extraction is retried.
+
+The metadata file holds up to eight requested item-type sets in 256 KiB.
+Native projection reads may reuse those results after checking the installed
+build, Steam manifest and both Unity file identities before and after the read.
+The binding includes NTFS change time and the metadata format version. The
+sidecar projects player and item-instance values from the current encrypted
+save on every request. Write admission and reconciliation use their existing
+independent checks.
 
 The sidecar checks the installed build and a bounded roster of source identities
 before and after serving cached artwork. The roster includes file identity,

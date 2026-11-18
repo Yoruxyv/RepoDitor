@@ -557,11 +557,96 @@ supported Windows/filesystem validation, remote CI confirmation and ordinary
 release/installer acceptance. These prerequisites
 cannot be replaced by the synthetic recovery drill or a successful read-only open.
 
+### Private Health qualification
+
+The private frozen sidecar embeds the reviewed build hashes, a fixed local
+disposable profile, and an Ed25519 verification key. The host grants only the
+production Health commands. Keep the offline signing key outside the application
+bundle. A signed proposal authorizes one Health edit on one file and binds its
+Steam build, save slot, player, before and after values, encrypted SHA-256, file
+identity, and Windows directory identity. The original bytes and identity must
+match under the transaction lock. Existing independent reconciliation verifies
+the signed intent and its original identity against the receipt after replacement.
+Build 26407089 stays outside the production write policy.
+
+1. Export a fresh Run from a separately isolated profile after the game has
+   exited and Steam Cloud for that test is inactive. Place the unchanged encrypted
+   export under `desktop/build/w6-d1b-authentic/saves/<slot>/<slot>.es3` and its
+   record at `desktop/build/w6-d1b-authentic/provenance.json`. Use the fields
+   checked by [the intake validator](../desktop/scripts/tauri/validate_run_fixture.py).
+2. Set `PYTHONPATH` to `desktop/python`. Run
+   `private_health_approval.py propose <export> <provenance> <player-id> <new-health>`
+   from [the Tauri tools](../desktop/scripts/tauri/private_health_approval.py)
+   with the project Python interpreter. The tool verifies the export and creates
+   one working copy under the private bundle's profile. Review the proposal under
+   `desktop/build/w6-private-health/operator/proposal.json`, then explicitly run
+   `private_health_approval.py sign <reviewed-sha256>` against the exact approved
+   proposal. Both commands refuse to overwrite an existing target or approval.
+3. Open that slot in the private preview, select the approved player in Players,
+   enter the approved value, use Review, then Save Changes. After the preview reports
+   success, verify that the exact encrypted backup matches the intake SHA-256 and
+   that the settled receipt links that hash to the edited file's hash.
+4. A gameplay test requires separate approval for the exact game-readable slot
+   and an isolated profile. Use the original slot identity of the freshly exported
+   Run. With the game closed, preserve the original and stage the verified edited
+   copy only in the approved slot. Observe Health, let the game save normally,
+   exit and capture its encrypted output, then reload and confirm the value.
+   Stop and retain the evidence if the game rejects the save or legitimate game
+   activity changes the value. After exiting, restore the exact encrypted backup
+   to the approved slot and compare its SHA-256 with the intake. Preserve the
+   before, edited, resaved, reloaded and restored evidence separately.
+
+### Private existing-save editing
+
+The `private-editing` host uses the same validated Run and MetaSave transaction
+commands. Its local frozen sidecar pins the reviewed Steam executable, engine,
+managed assembly and game-manager digests for build 26407089. The live package
+uses the Windows Known Folder save root. The disposable verification sidecar
+has its profile path baked into the bundle. Ordinary hosts omit private
+capabilities and the public build policy is independent.
+
+1. Close R.E.P.O. and let Steam finish any prior synchronization. Launch
+   `desktop/build/w6-private-editing/candidate/repoditor-preview.exe`.
+   Open the intended Run. The host enables supported editing after verifying the
+   save and installed build, and binds authority to the current save generation.
+   **Change save** revokes that authority. Cosmetics independently verifies
+   MetaSave and revokes its authority when leaving that workspace.
+2. Edit the desired fields and select **Review**. Verify the full source path
+   and pending values. **Save Changes** writes and independently checks an
+   exact encrypted backup before replacing the save. A mixed Run request uses
+   one backup and replacement. MetaSave uses its own transaction.
+3. After success, retain the `<save>.bak-health-<operation>` and
+   `.<save>.health-<operation>.json` next to the save. Compare the backup's
+   SHA-256 with the receipt's `before` and the edited file's SHA-256 with
+   `after`. Then close the preview, load the same slot in R.E.P.O., and verify
+   the value before and after a normal resave and reload.
+4. If restoring, close the game and preview, let synchronization finish,
+   and preserve the edited/resaved bytes. Verify the operation backup against
+   `before`; restore it to the reviewed path and recheck that hash. Preserve
+   the receipt and use the [recovery instructions](#tauri-save-recovery-and-cutover)
+   if a transaction is unresolved. A file modified by the game after the edit
+   will normally differ from the receipt's `after` hash.
+
+The private package uses the existing Item eligibility classifier with the
+pinned installed Unity version. Item creation, deletion and duplication are
+outside Electron's supported operations. Cosmetics still uses the intersection
+of installed IDs and Electron's reviewed mutation IDs. The independent
+gameplay round-trip determines whether this build persists edits in-game.
+
 ### Proposed consumer live-editing exception
 
 A consumer release may use the following bounded policy only after separate
 production approval explicitly replaces strict exclusion for the approved scope.
-Current Tauri write authorization remains limited to the synthetic fixture fence.
+The private editing candidate is compiled with `production-health` and explicitly
+grants its production Run-save and MetaSave commands. Ordinary builds omit the
+commands. The production sidecar rejects synthetic profiles. Health, Upgrades,
+Run, Item refills and Cosmetics require independent build approval. The approval
+tables are empty, including Health for build 26407089. Installed Steam provenance
+and pinned executable, engine, managed assembly and game-manager digests are
+required. Item refills also require the existing installed recharge evidence.
+Cosmetics additionally uses Electron's mutation catalog and a separate MetaSave
+session. A mixed Run-save request requires approval for every included domain
+and uses one backup, replacement and recovery receipt.
 
 1. Verify that R.E.P.O. is closed at admission and again before publication.
    Unknown status or failed inspection blocks the write.
