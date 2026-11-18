@@ -303,7 +303,12 @@ export async function launch(
     environment["WEBVIEW2_REMOTE_DEBUGGING_PORT"] = "";
   }
   environment["PATH"] = `${process.env["SYSTEMROOT"]}\\System32;${process.env["SYSTEMROOT"]}`;
+  const browserArgs = environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"];
   Object.assign(environment, extraEnvironment);
+  if (extraEnvironment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"]) {
+    environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] =
+      `${browserArgs} ${extraEnvironment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"]}`.trim();
+  }
   const spawnedAt = Date.now();
   const child = spawn(executable, [], {
     cwd: path.dirname(executable),

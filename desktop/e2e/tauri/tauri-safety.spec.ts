@@ -109,6 +109,76 @@ async function holdEditorEntry(page: Page) {
   return () => page.evaluate(() => window.dispatchEvent(new Event("repoditor-entry-release")));
 }
 
+test("packaged release notification leaves discovery and editor opening usable", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  // Block real GitHub DNS before the test can attach its controlled response.
+  const app = await launch(f.executable, f.home, {
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:
+      '--no-proxy-server --host-resolver-rules="MAP api.github.com ~NOTFOUND"',
+  });
+  let allowResponse!: () => void;
+  const waiting = new Promise<void>((resolve) => (allowResponse = resolve));
+  try {
+    const { page } = app;
+    const installed = await native<string>(page, "plugin:app|version");
+    await expect(page.getByRole("button", { name: /Open workspace/ })).toBeEnabled();
+    const [major, minor] = installed.split(".").map(Number);
+    const version = `${major}.${minor + 1}.0`;
+    const url = "https://github.com/Yoruxyv/RepoDitor/releases/tag/v" + version;
+    let requests = 0;
+    await page.route(
+      "https://api.github.com/repos/Yoruxyv/RepoDitor/releases/latest",
+      async (route) => {
+        requests += 1;
+        await waiting;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*" },
+          json: { tag_name: "v" + version, html_url: url, draft: false, prerelease: false },
+        });
+      },
+    );
+    await page.evaluate(() => {
+      localStorage.removeItem("repoditor.update.lastCheck");
+      sessionStorage.removeItem("repoditor.update.lastCheck");
+    });
+    await page.reload();
+    await expect.poll(() => requests).toBe(1);
+    const toast = page.getByRole("region", { name: `RepoDitor v${version} is available` });
+    await expect(toast).toHaveCount(0);
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("heading", { name: "Opening save" })).toBeVisible();
+    allowResponse();
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible({ timeout: 15_000 });
+    await expect(toast).toBeVisible();
+    const release = toast.getByRole("link", { name: "View release" });
+    await expect(release).toHaveAttribute("href", url);
+    await expect(release).toHaveAttribute("target", "_blank");
+    await page.getByRole("tab", { name: "Players" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("80");
+    await page.screenshot({ path: info.outputPath("update-notification.png") });
+    await toast.getByRole("button", { name: "Later" }).press("Enter");
+    await expect(toast).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        "repoditor.update.dismissed." + version,
+      ),
+    ).toBe("1");
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Open workspace/ })).toBeEnabled();
+    await expect(toast).toHaveCount(0);
+    expect(requests).toBe(1);
+    expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    allowResponse();
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary packaged workspace preserves keyboard focus across navigation", async ({
   browserName,
 }, info) => {

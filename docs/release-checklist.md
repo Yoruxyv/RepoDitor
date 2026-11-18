@@ -683,6 +683,62 @@ Remaining release gates:
   Focused packaged cancellation and retry checks did not reproduce it. Retain
   startup and process-exit diagnostics if it recurs.
 
+#### W8 installer migration acceptance
+
+Use the published Electron v0.2.1 Windows x64 installer and the exact v0.3.0
+Tauri release-candidate installer in a disposable standard Windows account or
+VM. Verify the older download against the published digest since a local
+same-version build can differ from the release. Keep migration pending until
+both installers can be exercised together. The current Tauri artifact is a
+portable preview. The existing automated installer assertions expect the
+Electron payload.
+
+1. Verify the v0.2.1 installer checksum and install it normally. Record its
+   Installed Apps registration, install path, executable, Start Menu and any
+   desktop shortcut targets. Set a recognizable theme and language.
+2. Seed synthetic Run and MetaSave files, RepoDitor backups beside them, and
+   one separately stored backup. Record relative paths and SHA-256 hashes.
+   Close RepoDitor and R.E.P.O.
+3. Install v0.3.0 while v0.2.1 is registered. Verify the launched version,
+   registrations, shortcut targets, ownership of shared directories, and the
+   resulting theme and language. Record whether preferences carry forward or
+   need to be set again. Test removal of either registration that remains and
+   ensure it cannot remove the other install's files or shortcuts.
+4. Uninstall v0.3.0 and compare the synthetic save and backup manifests after
+   every install and uninstall step. Verify reinstall in a clean profile.
+   Record whether users must manually remove v0.2.1 before installing v0.3.0.
+   Block release for any install conflict, broken shortcut or registration, or
+   change to saves and backups. If removal is required, verify that exact
+   uninstall-then-install sequence before documenting it.
+
+#### v0.3.0 distribution
+
+- Publish the verified Windows installer, SHA-256 and migration instructions on
+  the [canonical GitHub Releases page](https://github.com/Yoruxyv/RepoDitor/releases)
+  under the stable tag `v0.3.0`. Verify the latest-release endpoint returns that
+  tag and confirm version and artifact hashes on download.
+- Update the existing [Nexus Mods listing](https://www.nexusmods.com/repo/mods/319)
+  and [Thunderstore listing](https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/)
+  with the reviewed v0.3.0 package where permitted. Follow each platform's
+  review and file rules. Identify the edition as the standalone Windows Tauri
+  app and link to the canonical release notes and checksum.
+- Use these upgrade instructions on both listings after migration acceptance.
+  1. Close RepoDitor and R.E.P.O. Keep your existing saves and backups.
+  2. Download the v0.3.0 Windows installer and compare its SHA-256 with the
+     canonical GitHub release.
+  3. If in-place installation passed, use “Run the v0.3.0 installer with
+     v0.2.1 still installed.” If uninstall-first passed and is required, use
+     “Remove RepoDitor v0.2.1 in Windows Settings → Apps → Installed apps.
+     Then run the v0.3.0 installer.” Publish only the validated instruction.
+  4. Launch RepoDitor from its installed shortcut and confirm v0.3.0. Reapply
+     theme and language if the migration test showed they reset. The
+     standalone app belongs outside the R.E.P.O. game directory.
+- v0.2.1 users need to see the listing or release announcement and update
+  manually. From v0.3.0 onward, the optional toast checks the canonical GitHub
+  release on startup at most once per session, with a six-hour local cooldown.
+  **Later** remembers the dismissed version. **View release** opens the release
+  page in the system browser for a manual download.
+
 ### Proposed consumer live-editing exception
 
 A consumer release may use the following bounded policy only after separate

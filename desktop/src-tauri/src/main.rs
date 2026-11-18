@@ -18,16 +18,27 @@ use tauri::Manager;
 
 const PROJECT_SOURCE_URL: &str = "https://github.com/Yoruxyv/RepoDitor";
 
-fn handle_project_window(url: &tauri::Url, open: impl FnOnce()) {
-    if url.as_str() == PROJECT_SOURCE_URL {
-        open();
+fn handle_project_window(url: &tauri::Url, open: impl FnOnce(&str)) {
+    let target = url.as_str();
+    let release = target
+        .strip_prefix(PROJECT_SOURCE_URL)
+        .and_then(|path| path.strip_prefix("/releases/tag/"))
+        .is_some_and(|tag| {
+            !tag.is_empty()
+                && tag.len() <= 129
+                && tag
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b".+-".contains(&byte))
+        });
+    if target == PROJECT_SOURCE_URL || release {
+        open(target);
     }
 }
 
-fn open_project_source() {
+fn open_project_url(target: &str) {
     use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
 
-    let url: Vec<_> = PROJECT_SOURCE_URL.encode_utf16().chain(Some(0)).collect();
+    let url: Vec<_> = target.encode_utf16().chain(Some(0)).collect();
     // WebView2 dispatches this handler on its COM-initialized UI thread.
     unsafe {
         ShellExecuteW(
@@ -1052,7 +1063,7 @@ fn main() {
                 .data_directory(profile)
                 .on_navigation(allowed_navigation)
                 .on_new_window(|url, _| {
-                    handle_project_window(&url, open_project_source);
+                    handle_project_window(&url, open_project_url);
                     tauri::webview::NewWindowResponse::Deny
                 })
                 .build()?;

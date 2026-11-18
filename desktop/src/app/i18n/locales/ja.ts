@@ -14,6 +14,11 @@ export const ja: Record<keyof typeof en, string> = {
   "app.about": "RepoDitor について",
   "app.unofficial": "非公式 R.E.P.O. セーブユーティリティ",
   "app.projectSource": "プロジェクトソース",
+  "update.available": "RepoDitor v{version} が利用可能です",
+  "update.description":
+    "新しいバージョンがあります。リリースノートを確認し、更新をダウンロードしてください。",
+  "update.viewRelease": "リリースを見る",
+  "update.later": "後で",
   "app.workspaces": "RepoDitor ワークスペース",
   "app.runSaves": "ランセーブ",
   "cosmetics.artwork.title": "コスメティック画像を準備中",

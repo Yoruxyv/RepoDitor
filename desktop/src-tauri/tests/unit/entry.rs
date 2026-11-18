@@ -33,8 +33,7 @@ fn entry_source_proof_distinguishes_incompatible_responses_from_changed_bytes() 
 }
 
 #[test]
-fn only_the_exact_project_url_reaches_the_system_browser_handoff() {
-    let mut calls = 0;
+fn only_project_and_single_release_tag_urls_reach_the_system_browser_handoff() {
     for url in [
         "https://github.com/Yoruxyv/RepoDitor/",
         "https://github.com/Yoruxyv/RepoDitor?x=1",
@@ -43,18 +42,30 @@ fn only_the_exact_project_url_reaches_the_system_browser_handoff() {
         "http://github.com/Yoruxyv/RepoDitor",
         "https://github.com@example.com/Yoruxyv/RepoDitor",
         "https://github.com.evil.example/Yoruxyv/RepoDitor",
+        "https://github.com/Yoruxyv/RepoDitor/releases/download/v0.3.0/setup.exe",
+        "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0/asset",
+        "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0?redirect=other",
+        "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0#changes",
+        "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0%2Fother",
+        "https://github.com:444/Yoruxyv/RepoDitor/releases/tag/v0.3.0",
+        "https://github.com/other/RepoDitor/releases/tag/v0.3.0",
         "file:///RepoDitor",
         "https://example.com/",
     ] {
         let url = url.parse().unwrap();
-        super::handle_project_window(&url, || calls += 1);
+        super::handle_project_window(&url, |target| panic!("unexpected handoff: {target}"));
         assert!(!allowed_navigation(&url));
     }
-    assert_eq!(calls, 0);
-    let project = "https://github.com/Yoruxyv/RepoDitor".parse().unwrap();
-    super::handle_project_window(&project, || calls += 1);
-    assert_eq!(calls, 1);
-    assert!(!allowed_navigation(&project));
+    for expected in [
+        "https://github.com/Yoruxyv/RepoDitor",
+        "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0",
+    ] {
+        let url = expected.parse().unwrap();
+        let mut opened = None;
+        super::handle_project_window(&url, |target| opened = Some(target.to_owned()));
+        assert_eq!(opened.as_deref(), Some(expected));
+        assert!(!allowed_navigation(&url));
+    }
 }
 
 #[cfg(all(windows, feature = "native-ui-test"))]
@@ -118,8 +129,23 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
             .split(';')
             .find(|p| p.trim().starts_with("connect-src "))
             .unwrap();
-        assert!(!connect.contains("https:") && !connect.contains('*'));
+        let expected = if key == "csp" {
+            "connect-src ipc: http://ipc.localhost"
+        } else {
+            "connect-src ipc: http://ipc.localhost ws://127.0.0.1:1420"
+        };
+        assert_eq!(
+            connect.trim(),
+            format!("{expected} https://api.github.com/repos/Yoruxyv/RepoDitor/releases/latest")
+        );
     }
+    let html = include_str!("../../../tauri.html");
+    let html_csp = security["devCsp"].as_str().unwrap().replacen(
+        "script-src 'self' 'unsafe-inline'",
+        "script-src 'self'",
+        1,
+    );
+    assert!(html.contains(&format!("content=\"{html_csp}\"")));
     let capabilities = security["capabilities"].as_array().unwrap();
     assert_eq!(capabilities.len(), 1);
     assert_eq!(capabilities[0]["windows"], serde_json::json!(["main"]));
@@ -134,7 +160,8 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
     assert!(permissions.contains(&serde_json::json!("allow-cosmetic-artwork-get")));
     assert!(permissions.contains(&serde_json::json!("allow-cosmetic-artwork-cancel")));
     assert!(permissions.contains(&serde_json::json!("allow-editor-entry")));
-    assert_eq!(permissions.len(), 20);
+    assert!(permissions.contains(&serde_json::json!("core:app:allow-version")));
+    assert_eq!(permissions.len(), 21);
     assert!(!permissions.iter().any(|p| {
         let s = p.as_str().unwrap();
         s.contains("write") || s.contains("http") || s.contains("shell") || s.contains("fs:")

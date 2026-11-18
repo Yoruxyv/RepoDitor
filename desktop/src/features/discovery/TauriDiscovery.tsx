@@ -5,6 +5,7 @@ import { AppShell } from "@/app/AppShell";
 import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { ThemeMenu } from "@/app/ThemeMenu";
+import { TauriUpdateNotice } from "@/app/TauriUpdateNotice";
 import { usePreferences } from "@/app/preferences";
 import type { TranslationKey } from "@/app/i18n";
 import { tauriHealthApi } from "@/app/tauriHealthApi";
@@ -497,6 +498,7 @@ export function TauriDiscovery() {
   return (
     <PreferencesProvider>
       <DiscoveryPreview />
+      <TauriUpdateNotice />
     </PreferencesProvider>
   );
 }

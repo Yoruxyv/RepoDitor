@@ -13,6 +13,11 @@ export const en = {
   "app.about": "About RepoDitor",
   "app.unofficial": "Unofficial R.E.P.O. save utility",
   "app.projectSource": "Project source",
+  "update.available": "RepoDitor v{version} is available",
+  "update.description":
+    "A newer version is available. View the release notes and download the update.",
+  "update.viewRelease": "View release",
+  "update.later": "Later",
   "app.workspaces": "RepoDitor workspaces",
   "app.runSaves": "Run Saves",
   "cosmetics.artwork.title": "Preparing cosmetic artwork",
