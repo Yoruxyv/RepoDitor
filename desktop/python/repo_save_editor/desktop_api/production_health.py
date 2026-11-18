@@ -300,6 +300,8 @@ def production_health(
     except RecoveryError as exc:
         return _outcome(operation, "rejected", exc.code)
     changes = cast(dict[str, object], payload)[domain]
+    # Private editor sessions support Electron's zero default for absent Health.
+    allow_missing_health = bundle is not None and bundle.session
 
     if action in {"prepare", "apply"}:
         prepared = prepare_health(
@@ -310,6 +312,7 @@ def production_health(
             root,
             game_status_loader=game_status,
             verify_source_identity=True,
+            allow_missing_health=allow_missing_health,
             approval=approval,
             health_batch=domain == "health",
             upgrade_batch=domain == "upgrades",
@@ -331,6 +334,7 @@ def production_health(
         root,
         game_status_loader=game_status,
         verify_source_identity=True,
+        allow_missing_health=allow_missing_health,
         verify_build=verify_build if action == "apply" else None,
         approval=approval,
         reserved=True,

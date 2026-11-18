@@ -98,7 +98,11 @@ def _refill_changes(
 
 
 def _health_changes(
-    data: SaveData, changes: object, *, require_existing: bool = False
+    data: SaveData,
+    changes: object,
+    *,
+    verify_health_field: bool = False,
+    allow_missing_health: bool = False,
 ) -> list[dict[str, object]]:
     players = {player.player_id for player in get_players(data)}
     result = []
@@ -106,9 +110,10 @@ def _health_changes(
         player = edit["playerId"]
         if player not in players:
             raise DesktopSaveError("save_validation_failed", "The player is unavailable.")
-        if require_existing:
-            values = get_dictionaries(data).get("playerHealth")
-            raw_health = values.get(player) if isinstance(values, dict) else None
+        if verify_health_field:
+            values = get_dictionaries(data).get("playerHealth", {})
+            missing = 0 if allow_missing_health else None
+            raw_health = values.get(player, missing) if isinstance(values, dict) else None
             if type(raw_health) is not int or not 0 <= raw_health <= SAVE_INT32_MAX:
                 raise DesktopSaveError("save_validation_failed", "The Health field is unsupported.")
         if get_player_health(data, player) != edit["before"]:
@@ -166,10 +171,16 @@ def _mixed_changes(
     changes: object,
     loader: RechargeCapabilityLoader,
     *,
-    require_existing_health: bool = False,
+    verify_health_field: bool = False,
+    allow_missing_health: bool = False,
 ) -> tuple[list[dict[str, object]], Mapping[str, ItemRechargeCapability]]:
     groups = cast(dict[str, list[object]], changes)
-    edits = _health_changes(data, groups["health"], require_existing=require_existing_health)
+    edits = _health_changes(
+        data,
+        groups["health"],
+        verify_health_field=verify_health_field,
+        allow_missing_health=allow_missing_health,
+    )
     edits.extend(_upgrade_changes(data, groups["upgrades"]))
     edits.extend(_run_changes(data, groups["run"]))
     if groups["refillToFull"]:
@@ -194,6 +205,7 @@ def prepare_health(
     run_batch: bool = False,
     mixed_batch: bool = False,
     verify_source_identity: bool = False,
+    allow_missing_health: bool = False,
     approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
@@ -237,7 +249,8 @@ def prepare_health(
                     data,
                     changes,
                     recharge_capability_loader,
-                    require_existing_health=verify_source_identity,
+                    verify_health_field=verify_source_identity,
+                    allow_missing_health=allow_missing_health,
                 )
             elif refill_batch:
                 intent = {"refillToFull": changes}
@@ -247,7 +260,10 @@ def prepare_health(
             elif health_batch:
                 intent = {"health": changes}
                 engine_changes = _health_changes(
-                    data, changes, require_existing=verify_source_identity
+                    data,
+                    changes,
+                    verify_health_field=verify_source_identity,
+                    allow_missing_health=allow_missing_health,
                 )
             elif run_batch:
                 intent = {"run": changes}
@@ -346,6 +362,7 @@ def write_health(
     run_batch: bool = False,
     mixed_batch: bool = False,
     verify_source_identity: bool = False,
+    allow_missing_health: bool = False,
     verify_build: Callable[[], None] | None = None,
     approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
@@ -411,12 +428,18 @@ def write_health(
                         data,
                         changes,
                         recharge_capability_loader,
-                        require_existing_health=verify_source_identity,
+                        verify_health_field=verify_source_identity,
+                        allow_missing_health=allow_missing_health,
                     )[0]
                     if mixed_batch
                     else _refill_changes(data, changes, recharge_capability_loader)[0]
                     if refill_batch
-                    else _health_changes(data, changes, require_existing=verify_source_identity)
+                    else _health_changes(
+                        data,
+                        changes,
+                        verify_health_field=verify_source_identity,
+                        allow_missing_health=allow_missing_health,
+                    )
                     if health_batch
                     else _run_changes(data, changes)
                     if run_batch

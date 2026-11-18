@@ -36,6 +36,66 @@ def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    ("private_session", "storage_kind", "status"),
+    [
+        (True, "missing player", "applied"),
+        (True, "missing dictionary", "applied"),
+        (True, "malformed player", "rejected"),
+        (True, "malformed dictionary", "rejected"),
+        (False, "missing player", "rejected"),
+    ],
+)
+def test_private_health_edit_uses_zero_only_for_absent_fields(
+    tmp_path, sample_save, monkeypatch, private_session, storage_kind, status
+):
+    values = sample_save["dictionaryOfDictionaries"]["value"]
+    if storage_kind == "missing dictionary":
+        del values["playerHealth"]
+    elif storage_kind == "malformed dictionary":
+        values["playerHealth"] = None
+    elif storage_kind == "malformed player":
+        values["playerHealth"]["111"] = False
+    else:
+        del values["playerHealth"]["111"]
+
+    root = tmp_path / "saves"
+    target = root / SAVE / f"{SAVE}.es3"
+    SaveRepository(root).save_as(target, sample_save)
+    original = target.read_bytes()
+    bundle = Bundle(tmp_path, b"", "901", (), session=True) if private_session else None
+    monkeypatch.setattr(admission, "private_bundle", lambda: bundle)
+    monkeypatch.setattr(admission, "get_default_save_root", lambda: root)
+    monkeypatch.setattr(admission, "_game", lambda: (tmp_path / "REPO.exe", "901", {"health"}))
+    monkeypatch.setattr(
+        admission,
+        "verified_private_game",
+        lambda *_: (SimpleNamespace(root=tmp_path), SimpleNamespace(build_id="901")),
+    )
+    monkeypatch.setattr(admission, "_process_status", lambda *_: GameProcessStatus.NOT_RUNNING)
+
+    result = admission.production_health(
+        "apply",
+        SAVE,
+        OPERATION,
+        sha256(original).hexdigest(),
+        {"health": [{"playerId": "111", "before": 0, "value": 100}]},
+        publication_allowed=lambda: True,
+    )["transaction"]
+    assert result["status"] == status
+    backups = list(target.parent.glob("*.bak-health-*"))
+    if status == "rejected":
+        assert result["reason"] == "save_validation_failed"
+        assert target.read_bytes() == original
+        assert backups == []
+        return
+
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == original
+    values.setdefault("playerHealth", {})["111"] = 100
+    assert SaveRepository.load(target) == sample_save
+
+
 @pytest.mark.parametrize("mixed", [False, True])
 @pytest.mark.parametrize("apply", [False, True])
 def test_production_transaction_reconciles_from_another_process(
