@@ -279,11 +279,9 @@ export function Workspace({
               >
                 {t(`nav.${section}`)}
                 <span aria-hidden="true" className="ml-1 inline-block size-1.5 align-middle">
-                  {pendingCount > 0 ? (
+                  {!active && pendingCount > 0 ? (
                     <span
-                      className={`block size-1.5 rounded-full ${
-                        active ? "bg-accent-ink" : "bg-warning"
-                      }`}
+                      className="block size-1.5 rounded-full bg-warning"
                       data-testid={`workspace-tab-pending-indicator-${section}`}
                     />
                   ) : null}

@@ -4,7 +4,6 @@ import { usePreferences } from "@/app/preferences";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import type { useTauriCosmetics } from "./useTauriCosmetics";
 
-const UNAVAILABLE = "cosmetics.syntheticUnavailable";
 const APPROVAL_NEEDED = "health.saveUnavailable";
 const SAVE_CHANGES = "action.saveChanges";
 
@@ -12,10 +11,15 @@ type Meta = ReturnType<typeof useTauriCosmetics>;
 
 export function TauriCosmeticsStatus({ meta }: { readonly meta: Meta }) {
   const { t } = usePreferences();
-  const unavailable = meta.state.production ? APPROVAL_NEEDED : UNAVAILABLE;
+  const unavailable = meta.state.production && !meta.state.admission;
   return (
-    <div className="mb-4 space-y-2 text-sm" data-testid="meta-status" data-state={meta.state.state}>
-      {!meta.state.admission ? <p className="text-warning">{t(unavailable)}</p> : null}
+    <div
+      className="mb-4 space-y-2 text-sm"
+      hidden={!unavailable && !meta.saved && !meta.error && !meta.recovery}
+      data-testid="meta-status"
+      data-state={meta.state.state}
+    >
+      {unavailable ? <p className="text-warning">{t(APPROVAL_NEEDED)}</p> : null}
       {meta.saved ? (
         <output className="block text-success">
           {t("health.saved")} {t("health.backupVerified")}
@@ -42,7 +46,6 @@ export function TauriCosmeticsStatus({ meta }: { readonly meta: Meta }) {
 
 export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
   const { t } = usePreferences();
-  const unavailable = meta.state.production ? APPROVAL_NEEDED : UNAVAILABLE;
   const dialog = useRef<HTMLDialogElement>(null);
   const action = meta.intent?.metaCosmetics;
   const affected =
@@ -62,7 +65,7 @@ export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
         testIdPrefix="cosmetics"
         reviewPath={meta.state.production ? meta.state.sourcePath : undefined}
         blocked={meta.locked}
-        saveUnavailableReason={meta.state.session ? null : t(unavailable)}
+        saveUnavailableReason={meta.state.session ? null : t(APPROVAL_NEEDED)}
         onRevert={meta.revert}
         onSave={() => dialog.current?.showModal()}
       />

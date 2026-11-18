@@ -73,6 +73,33 @@ describe("native upgrade drafts", () => {
     }));
   });
 
+  it("keeps preparation visible until the initial editing check finishes", async () => {
+    let finish!: (status: Awaited<ReturnType<typeof tauriHealthApi.state>>) => void;
+    vi.mocked(tauriHealthApi.state).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    renderWithPreferences(
+      <TauriWorkspace session={session} onClose={vi.fn()} whileChecking={<h2>Opening save</h2>} />,
+    );
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.queryByTestId("workspace")).toBeNull();
+    await act(() =>
+      finish({
+        enabled: true,
+        state: "idle",
+        pending: null,
+        canonical: { opened: openResult().data, players, upgrades, run: runState },
+        upgradeSession: "synthetic-session",
+      }),
+    );
+    expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Opening save" })).toBeNull();
+    expect(screen.getByTestId("health-status").hasAttribute("hidden")).toBe(true);
+  });
+
   it("reviews and reverts Health drafts without offering an unauthorized save", async () => {
     vi.mocked(tauriHealthApi.state).mockResolvedValue({
       enabled: true,
@@ -334,14 +361,21 @@ describe("native upgrade drafts", () => {
     );
     await user.click(screen.getByRole("tab", { name: "Items" }));
     await user.click(await screen.findByRole("button", { name: "Recharge All Tools" }));
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-items")).toBeNull();
     await user.click(screen.getByRole("tab", { name: "Run" }));
     fireEvent.change(await screen.findByRole("spinbutton", { name: "Currency" }), {
       target: { value: "4" },
     });
+    expect(screen.getByTestId("workspace-tab-pending-indicator-items")).toBeTruthy();
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-run")).toBeNull();
     expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(true);
     expect(screen.getByText(/Revert Health, Upgrades, Run or Items drafts/)).toBeTruthy();
     expect(tauriHealthApi.writeRefills).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: "Items" }));
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-items")).toBeNull();
+    expect(screen.getByTestId("workspace-tab-pending-indicator-run")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-run")).toBeNull();
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(
       "No pending changes",
     );
@@ -486,7 +520,11 @@ describe("native upgrade drafts", () => {
     expect(review.getByText("0 → 4")).toBeTruthy();
     const tab = screen.getByRole("tab", { name: "Upgrades" });
     tab.focus();
-    await user.keyboard("{ArrowLeft}{ArrowRight}");
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-upgrades")).toBeNull();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByTestId("workspace-tab-pending-indicator-upgrades")).toBeTruthy();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-upgrades")).toBeNull();
     expect(document.activeElement).toBe(tab);
     expect(
       screen.getByRole("spinbutton", { name: "Strength for Beta" }).getAttribute("value"),
@@ -628,6 +666,8 @@ describe("native upgrade drafts", () => {
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
     const user = userEvent.setup();
     const tab = screen.getByRole("tab", { name: "Players" });
+    const upgradesTab = screen.getByRole("tab", { name: "Upgrades" });
+    const indicator = () => screen.queryByTestId("workspace-tab-pending-indicator-players");
     await user.click(tab);
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     await waitFor(() => expect(health.hasAttribute("readonly")).toBe(false));
@@ -635,13 +675,20 @@ describe("native upgrade drafts", () => {
     health.focus();
     fireEvent.change(health, { target: { value: "17" } });
     await user.tab();
+    expect(indicator()).toBeNull();
     expect(tab.getAttribute("aria-describedby")).toBe("native-players-pending");
     expect(document.getElementById("native-players-pending")?.textContent).toBe("1 pending change");
     await user.click(screen.getByRole("button", { name: /Beta/ }));
     expect(health.hasAttribute("readonly")).toBe(false);
     tab.focus();
-    await user.keyboard("{ArrowRight}{ArrowLeft}");
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(upgradesTab);
+    expect(upgradesTab.getAttribute("aria-selected")).toBe("true");
+    expect(indicator()?.closest('[aria-hidden="true"]')).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Players", description: "1 pending change" })).toBe(tab);
+    await user.keyboard("{ArrowLeft}");
     expect(document.activeElement).toBe(tab);
+    expect(indicator()).toBeNull();
     expect(tab.getAttribute("aria-describedby")).toBe("native-players-pending");
     await user.click(screen.getByRole("button", { name: /Alpha/ }));
     expect(screen.getByRole("spinbutton", { name: "Current health" }).getAttribute("value")).toBe(
@@ -657,10 +704,14 @@ describe("native upgrade drafts", () => {
       await user.tab();
     };
     await stage();
+    await user.click(upgradesTab);
+    expect(indicator()).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(indicator()).toBeNull();
     expect(tab.getAttribute("aria-describedby")).toBeNull();
     expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
     expect(tauriHealthApi.recover).not.toHaveBeenCalled();
+    await user.click(tab);
     await stage();
     const canonical = {
       opened: openResult({ ...session, fingerprint: "b".repeat(64) }).data,
@@ -684,11 +735,14 @@ describe("native upgrade drafts", () => {
       reason: null,
       canonical,
     }));
+    await user.click(upgradesTab);
+    expect(indicator()).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() =>
       expect(screen.getByTestId("health-status").getAttribute("data-phase")).toBe("saved"),
     );
     expect(tab.getAttribute("aria-describedby")).toBeNull();
+    expect(indicator()).toBeNull();
     expect(document.getElementById("native-players-pending")).toBeNull();
     expect(tauriHealthApi.writeHealthBatch).toHaveBeenCalledOnce();
     expect(tauriHealthApi.recover).toHaveBeenLastCalledWith(session.id, expect.any(String), true);

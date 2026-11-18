@@ -199,8 +199,16 @@ describe("native GameIcon", () => {
     expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
     expect(invoke).not.toHaveBeenCalled();
   });
-  it.each(["item", "cosmetic"] as const)("cancels offscreen %s artwork", async (variant) => {
-    const sizeClass = variant === "item" ? "size-14" : "size-[48px]";
+  it("uses the fallback for an unprepared cosmetic without issuing a browsing request", () => {
+    vi.mocked(invoke).mockReset();
+    render(icon(`cosmetic-artwork:${"d".repeat(32)}`, "cosmetic"));
+    expect(screen.getByTestId("native-icon").getAttribute("data-icon-source")).toBe("specific");
+    expect(screen.queryByTestId("native-icon-loading")).toBeNull();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it("cancels offscreen item artwork", async () => {
+    const variant = "item";
+    const sizeClass = "size-14";
     let observe!: IntersectionObserverCallback;
     const disconnect = vi.fn();
     vi.stubGlobal(

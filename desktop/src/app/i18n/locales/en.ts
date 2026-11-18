@@ -26,11 +26,6 @@ export const en = {
   "cosmetics.artwork.expand": "Show artwork progress",
   "cosmetics.artwork.degraded":
     "Some cosmetic artwork could not be prepared. Editing remains available.",
-  "cosmetics.validating": "Validating MetaSave and the installed cosmetic catalog…",
-  "cosmetics.revalidating": "Revalidating the catalog and its artwork sources…",
-  "cosmetics.decodingVisible": "Loading images for visible cosmetics…",
-  "cosmetics.visibleArtwork":
-    "Cosmetic images load as you browse. Unavailable images use built-in icons.",
   "app.cosmetics": "Cosmetics",
   "utility.group": "Application utilities",
   "utility.githubUnavailable": "GitHub star count unavailable",
@@ -245,8 +240,6 @@ export const en = {
   "cosmetics.description": "Manage the known cosmetic catalog without guessing unavailable names.",
   "cosmetics.knownCatalog": "Known catalog",
   "cosmetics.owned": "Owned",
-  "cosmetics.syntheticUnavailable":
-    "Cosmetics editing requires the verified synthetic build and catalog. Existing transactions can still be reconciled.",
   "cosmetics.confirmTitle": "Save synthetic Cosmetics changes?",
   "cosmetics.confirmOwnership":
     "Change ownership for {count} eligible cosmetics. Unsupported IDs and equipment are preserved. An exact backup is created before replacement.",
@@ -412,8 +405,6 @@ export const en = {
   "error.write": "RepoDitor could not write the save safely. Nothing was replaced.",
   "error.copyPath": "Path could not be copied",
   "health.draftOnly": "This preview supports Health drafts and review. Saving is disabled.",
-  "health.testOnly":
-    "Synthetic test: Health, Upgrades, Run and item refills. Production builds remain read-only.",
   "items.saveUnavailable":
     "This refill batch cannot be saved safely. Recheck the save or revert some pending refills.",
   "health.saveUnavailable":
@@ -431,8 +422,6 @@ export const en = {
   "health.fileInUse": "Another process is using the save file.",
   "health.verificationUnavailable": "RepoDitor could not verify the save or installed game.",
   "health.unsupportedBuild": "This game build is not approved for Health edits.",
-  "health.status": "Save status",
-  "health.persisted": "On disk: {name} · {health} / {max}",
   "health.backupVerified": "Original backup verified.",
   "health.reconcile": "Reconcile changes",
   "health.recheck": "Recheck recovery data",

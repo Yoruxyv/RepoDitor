@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
@@ -113,33 +114,47 @@ def test_native_batch_keeps_valid_members_bounds_bytes_and_rechecks_meta(
         )
     ]
     png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
-    with patch.object(native, "read_bound_cosmetic_png", return_value=png) as read:
-        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 3) == {"ok": False}
+    with patch.object(
+        native, "read_bound_cosmetic_pngs", return_value={"1": png, "2": png}
+    ) as read:
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 33) == {"ok": False}
         assert native.get_native_cosmetic_artwork_batch(fingerprint, members[:2] * 2) == {
             "ok": False
         }
         read.assert_not_called()
         forged = [*members[:2], members[0], members[3]]
+        read.return_value = {"1": png}
         result = native.get_native_cosmetic_artwork_batch(fingerprint, forged)
         assert result["artworks"][0]["cosmeticId"] == 1
         assert result["artworks"][1] is None
-        read.assert_called_once()
+        read.assert_called_once_with("b" * 64, [("1", "c" * 32, "d" * 64)])
+        read.return_value = {"1": png, "2": png}
         monkeypatch.setattr(native, "NATIVE_BATCH_BASE64_BUDGET", len(png) * 2)
         result = native.get_native_cosmetic_artwork_batch(fingerprint, members)
         assert result["artworks"][0]["cosmeticId"] == 1
         assert result["artworks"][1] is False
         assert meta.read_bytes() == original
 
-    def replace_during_read(*_args, identity, **_kwargs):
-        if identity == "2":
-            meta.write_bytes(b"changed")
-        return png
+    def replace_during_read(_revision, _group):
+        meta.write_bytes(b"changed")
+        return {"1": png, "2": png}
 
-    monkeypatch.setattr(native, "read_bound_cosmetic_png", replace_during_read)
+    monkeypatch.setattr(native, "read_bound_cosmetic_pngs", replace_during_read)
     assert native.get_native_cosmetic_artwork_batch(fingerprint, members) == {
         "ok": True,
         "artworks": [None, None],
     }
+
+
+def test_native_preview_bounds_large_baked_png_for_the_catalog() -> None:
+    pytest.importorskip("PIL.Image")
+    png = encode_rgba_png(bytes((1, 2, 3, 255)) * (512 * 256), 512, 256)
+    thumbnail = native._native_image(1, "b" * 64, png)
+    assert thumbnail is not None
+    assert (thumbnail["width"], thumbnail["height"]) == (96, 48)
+    pixels = base64.b64decode(thumbnail["pngBase64"])
+    assert native._native_image(1, "b" * 64, pixels) == thumbnail
+    assert len(pixels) < len(png)
 
 
 @pytest.mark.parametrize("changed", [False, True])

@@ -771,47 +771,65 @@ def read_bound_cosmetic_png(
     identity: str = "",
 ) -> bytes | None:
     """Recheck the installed sources and one previously verified baked mapping."""
+    return read_bound_cosmetic_pngs(revision, [(identity, key, png_revision)], cache).get(identity)
+
+
+def read_bound_cosmetic_pngs(
+    revision: str,
+    members: list[tuple[str, str, str]],
+    cache: NativeArtworkCache | None = None,
+) -> dict[str, bytes]:
+    """Validate one installed source snapshot around a bounded batch of baked mappings."""
     try:
-        if len(key) != 32 or any(c not in "0123456789abcdef" for c in key):
-            return None
         reviewed = _reviewed_installation(None)
         if reviewed is None:
-            return None
+            return {}
         root, library, build, assembly = reviewed
         before = _native_sources(root, library, build)
         if assembly not in before[0] or _digest([build.build_id, before]) != revision:
-            if cache is not None:
-                cache.note("source_changed")
-            return None
-        path = _cosmetic_png(root, key)
-        stamp = _png_stamp(owned_file(library, path).stat())
-        if _png_revision(path, stamp) != png_revision:
-            if cache is not None:
-                cache.note("source_changed")
-            return None
-        binding = f"{revision}:{key}:{png_revision}" if cache and all(before[1]) else None
-        cached = cache.open_png(identity, binding) if cache and binding is not None else None
-        png = cached if cached is not None else _read_owned_png(library, path, stamp)
+            _cache_event(cache, "source_changed")
+            return {}
+        read: list[tuple[str, Path, str, bytes, str | None, bool]] = []
+        for identity, key, png_revision in members:
+            if len(key) != 32 or any(c not in "0123456789abcdef" for c in key):
+                continue
+            path = _cosmetic_png(root, key)
+            try:
+                stamp = _png_stamp(owned_file(library, path).stat())
+                if _png_revision(path, stamp) != png_revision:
+                    _cache_event(cache, "source_changed")
+                    continue
+                binding = f"{revision}:{key}:{png_revision}" if cache and all(before[1]) else None
+                cached = (
+                    cache.open_png(identity, binding) if cache and binding is not None else None
+                )
+                png = cached if cached is not None else _read_owned_png(library, path, stamp)
+                if png is not None:
+                    read.append((identity, path, png_revision, png, binding, cached is not None))
+            except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+                _cache_event(cache, "source_unavailable")
         if _native_sources(root, library, build) != before:
-            if cache is not None:
-                cache.note("source_changed")
-            return None
-        if _file_binding(library, path, revision, png_revision) is None:
-            if cache is not None:
-                cache.note("source_changed")
-            return None
-        if cache is not None and png is not None:
-            cache.note("thumbnail_hit" if cached is not None else "thumbnail_read")
-        if (
-            cache is not None
-            and binding is not None
-            and cached is None
-            and png is not None
-            and (stripped := cacheable_png(png)) is not None
-        ):
-            cache.publish_png(identity, binding, stripped)
-        return png
+            _cache_event(cache, "source_changed")
+            return {}
+        result: dict[str, bytes] = {}
+        for identity, path, png_revision, png, binding, was_cached in read:
+            try:
+                current = _file_binding(library, path, revision, png_revision)
+            except (OSError, ValueError):
+                current = None
+            if current is None:
+                _cache_event(cache, "source_changed")
+                continue
+            _cache_event(cache, "thumbnail_hit" if was_cached else "thumbnail_read")
+            if (
+                cache is not None
+                and binding is not None
+                and not was_cached
+                and (stripped := cacheable_png(png)) is not None
+            ):
+                cache.publish_png(identity, binding, stripped)
+            result[identity] = png
+        return result
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
-        if cache is not None:
-            cache.note("source_unavailable")
-        return None
+        _cache_event(cache, "source_unavailable")
+        return {}

@@ -871,26 +871,28 @@ retains its own finite coordinator. `python/client.cts` owns command allowlists,
 output/time limits and child cleanup on shutdown.
 `GameIcon` confines image loading to the thumbnail box and falls back on null/error.
 
-Tauri shows the read-only Overview snapshot after the selected save is opened
-and validated. Editor Preparation resolves Players, Upgrades, Run, Items, Maps
-and artwork while that snapshot is visible. The editor and its navigation open
-after preparation, final source verification and the game-status check.
+Tauri shows the dedicated Opening Save screen while Editor Preparation resolves
+Players, Upgrades, Run, Items, Maps and artwork. The editor and its navigation
+open after preparation, final source verification, the game-status check and
+the initial editing-authorization check.
 The active workspace retains its projections across tab changes and disposes
 them on close.
 
 The separate Cosmetics workspace revalidates MetaSave and installed artwork
 sources on entry, refresh and game-safety recovery. A successful catalog read
-issues new artwork tokens and presentation keys tied to the MetaSave fingerprint,
-cosmetic ID, installed source and PNG file identity. The renderer can reuse up
-to 24 previously validated thumbnails in memory when those keys match. Pending
-and failed images are not retained. In the shared artwork queue, visible
-Cosmetics requests near the viewport center take priority within their group.
-Up to four adjacent queued requests share one sidecar call and a 2 MiB response
-budget. Each image is independently validated. The queue preserves requests for
-other domains, drops cancelled or stale results, and sends valid images that did
-not fit through the single-image path. Batching reduces launches and brings a
-group of visible images in sooner, while the first individual image can appear
-later and a cache-cleared entry can take longer.
+issues new artwork tokens tied to the MetaSave fingerprint, cosmetic ID,
+installed source and PNG file identity. Opening Cosmetics prepares the current
+catalog's admitted baked images before showing the grid. Up to 64 mappings share
+one sidecar call and a 2 MiB response budget. Each image is independently
+validated and resized to fit within 96×96 for the 48 px grid. The renderer also
+checks decoding. Images that exceed the response budget can use the single-image
+path. Missing or invalid images use the ordinary fallback.
+
+The renderer keeps up to 32 Mi base64 characters of decoded-ready image URLs for
+the current catalog. It reuses an image on a fresh catalog read only when the
+cosmetic ID, installed source and PNG file identity still match. Navigation away
+cancels preparation and revokes the old native tokens. Run opening does not
+start Cosmetics preparation.
 
 On Windows, native Cosmetics also uses
 `%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview\artwork-v1`. It contains

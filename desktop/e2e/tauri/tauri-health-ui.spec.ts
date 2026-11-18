@@ -166,7 +166,8 @@ test("edits, reverts and saves one player with keyboard access at every desktop 
   try {
     await openPlayers(app);
     await stage(app);
-    await expect(app.page.getByTestId("health-persisted")).toContainText("80 / 100");
+    await expect(app.page.getByTestId("health-status")).toBeHidden();
+    expect(data(f.source)).toEqual(original);
     await app.page.getByRole("button", { name: "Review", exact: true }).focus();
     await app.page.keyboard.press("Enter");
     await expect(app.page.getByTestId("workspace-review")).toBeVisible();

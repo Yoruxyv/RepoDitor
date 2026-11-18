@@ -28,11 +28,6 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "Tampilkan progres gambar",
   "cosmetics.artwork.degraded":
     "Sebagian gambar kosmetik gagal disiapkan. Pengeditan tetap tersedia.",
-  "cosmetics.validating": "Memvalidasi MetaSave dan katalog kosmetik terpasang…",
-  "cosmetics.revalidating": "Memvalidasi ulang katalog dan sumber gambarnya…",
-  "cosmetics.decodingVisible": "Memuat gambar kosmetik yang terlihat…",
-  "cosmetics.visibleArtwork":
-    "Gambar kosmetik dimuat saat Anda menelusuri katalog. Gambar yang tidak tersedia diganti ikon bawaan.",
   "app.cosmetics": "Kosmetik",
   "utility.group": "Utilitas aplikasi",
   "utility.githubUnavailable": "Jumlah bintang GitHub tidak tersedia",
@@ -247,8 +242,6 @@ export const id: Record<keyof typeof en, string> = {
     "Kelola katalog kosmetik yang dikenal tanpa menebak nama yang belum tersedia.",
   "cosmetics.knownCatalog": "Katalog dikenal",
   "cosmetics.owned": "Dimiliki",
-  "cosmetics.syntheticUnavailable":
-    "Pengeditan kosmetik memerlukan build dan katalog sintetis yang terverifikasi. Transaksi yang ada tetap dapat direkonsiliasi.",
   "cosmetics.confirmTitle": "Simpan perubahan kosmetik sintetis?",
   "cosmetics.confirmOwnership":
     "Ubah kepemilikan {count} kosmetik yang memenuhi syarat. ID yang tidak didukung dan perlengkapan dipertahankan. Cadangan persis dibuat sebelum penggantian.",
@@ -416,8 +409,6 @@ export const id: Record<keyof typeof en, string> = {
   "error.copyPath": "Path tidak dapat disalin",
   "health.draftOnly":
     "Pratinjau ini mendukung draf dan peninjauan Health. Penyimpanan dinonaktifkan.",
-  "health.testOnly":
-    "Pengujian sintetis: Health, Upgrades, Run, dan isi ulang item. Build produksi tetap hanya baca.",
   "items.saveUnavailable":
     "Kelompok isi ulang ini belum dapat disimpan dengan aman. Periksa kembali simpanan atau batalkan sebagian isi ulang yang tertunda.",
   "health.saveUnavailable":
@@ -436,8 +427,6 @@ export const id: Record<keyof typeof en, string> = {
   "health.fileInUse": "Proses lain sedang menggunakan file save.",
   "health.verificationUnavailable": "RepoDitor tidak dapat memverifikasi save atau instalasi game.",
   "health.unsupportedBuild": "Build game ini belum disetujui untuk mengubah Health.",
-  "health.status": "Status penyimpanan",
-  "health.persisted": "Di berkas: {name} · {health} / {max}",
   "health.backupVerified": "Cadangan asli terverifikasi.",
   "health.reconcile": "Rekonsiliasi perubahan",
   "health.recheck": "Periksa data pemulihan",

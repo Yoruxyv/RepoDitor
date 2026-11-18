@@ -19,26 +19,23 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function withArtwork(token: string, fingerprint: string) {
+function withArtwork(versions: string[], fingerprint = "a") {
   return {
     ...cosmetics,
-    fingerprint,
-    cosmetics: [{ ...cosmetics.cosmetics[0]!, iconToken: token }, ...cosmetics.cosmetics.slice(1)],
+    fingerprint: fingerprint.repeat(64),
+    cosmetics: cosmetics.cosmetics.map((row, index) => {
+      const version = versions[index];
+      return version
+        ? {
+            ...row,
+            iconToken: "cosmetic-artwork:" + version.repeat(32),
+            iconReuseKey: [fingerprint.repeat(64), row.id, version.repeat(64), "d".repeat(64)].join(
+              ":",
+            ),
+          }
+        : row;
+    }),
   };
-}
-
-class VisibleArtworkObserver {
-  readonly callback: IntersectionObserverCallback;
-  constructor(callback: IntersectionObserverCallback) {
-    this.callback = callback;
-  }
-  observe() {
-    this.callback(
-      [{ isIntersecting: true } as IntersectionObserverEntry],
-      this as unknown as IntersectionObserver,
-    );
-  }
-  disconnect() {}
 }
 
 describe("native Cosmetics composition", () => {
@@ -53,71 +50,64 @@ describe("native Cosmetics composition", () => {
       .mockReset()
       .mockResolvedValue({ ok: true, data: cosmetics });
   });
-  it("keeps retained rows usable while a revisit checks authority and replaces artwork", async () => {
-    const firstToken = `cosmetic-artwork:${"a".repeat(32)}`;
-    const nextToken = `cosmetic-artwork:${"b".repeat(32)}`;
-    const currentMeta = deferred<MetaState>();
-    const currentCatalog = deferred<DesktopOperationResult<CosmeticsViewDto>>();
-    const artworkRequests: string[] = [];
+  it("prepares a complete batch before rendering and only fetches changed bindings on revisit", async () => {
+    const first = withArtwork(["a", "b"]);
+    const warm = withArtwork(["a", "b"], "b");
+    const changed = withArtwork(["c", "b"], "b");
+    const image = deferred<unknown>();
     const get = vi.mocked(tauriReadApi.cosmetics.get);
     get
-      .mockResolvedValueOnce({
-        ok: true,
-        data: withArtwork(firstToken, "a".repeat(64)),
-      })
-      .mockReturnValueOnce(currentCatalog.promise);
-    let metaChecks = 0;
-    vi.mocked(invoke).mockImplementation(async (command, args) => {
-      if (command === "test_meta_state")
-        return ++metaChecks === 1 ? disabledMeta() : currentMeta.promise;
-      if (command !== "cosmetic_artwork_get") return undefined;
-      const token = String((args as { token?: unknown } | undefined)?.token);
-      artworkRequests.push(token);
-      return {
-        ok: true,
-        data: {
-          token,
-          revision: token.slice(-1).repeat(64),
-          dataUrl: "data:image/png;base64,AAAA",
-        },
-      };
+      .mockResolvedValueOnce({ ok: true, data: first })
+      .mockResolvedValueOnce({ ok: true, data: warm })
+      .mockResolvedValueOnce({ ok: true, data: changed });
+    const renderImage = (token: string) => ({
+      token,
+      revision: token.slice(-1).repeat(64),
+      dataUrl: "data:image/png;base64,AAAA",
     });
-    vi.stubGlobal("IntersectionObserver", VisibleArtworkObserver);
-    try {
-      const { rerender } = renderWithPreferences(
-        <TauriCosmeticsWorkspace active recoveryGeneration={0} />,
-      );
-      const id = `cosmetic-icon-${cosmetics.cosmetics[0]!.id}`;
-      const search = await screen.findByRole("searchbox");
-      await waitFor(() => expect(artworkRequests).toEqual([firstToken]));
-      expect(screen.getByText("Validated MetaSave")).toBeTruthy();
-      rerender(<TauriCosmeticsWorkspace active={false} recoveryGeneration={0} />);
-      expect(invoke).toHaveBeenCalledWith("cosmetic_artwork_cancel");
-      rerender(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
-      expect(screen.getByRole("searchbox")).toBe(search);
-      expect(screen.getByText("Cosmetic #999")).toBeTruthy();
-      expect(get).toHaveBeenCalledTimes(1);
-      expect(artworkRequests).toEqual([firstToken]);
-      expect(screen.getByTestId(`${id}-loading`).classList.contains("size-[48px]")).toBe(true);
-      expect(screen.queryByTestId(id)).toBeNull();
-      expect(screen.queryByText("Validated MetaSave")).toBeNull();
-
-      await act(() => currentMeta.resolve(disabledMeta()));
-      await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-      expect(screen.getByRole("searchbox")).toBe(search);
-      expect(artworkRequests).toEqual([firstToken]);
-      await act(() =>
-        currentCatalog.resolve({ ok: true, data: withArtwork(nextToken, "b".repeat(64)) }),
-      );
-      await waitFor(() => expect(artworkRequests).toEqual([firstToken, nextToken]));
-      await waitFor(() =>
-        expect(screen.getByTestId(id).getAttribute("data-artwork-revision")).toBe("b".repeat(64)),
-      );
-      expect(screen.getByTestId(id).classList.contains("size-[48px]")).toBe(true);
-      expect(get).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "test_meta_state") return disabledMeta();
+      if (command !== "cosmetic_artwork_get") return undefined;
+      const params = args as { token?: string; tokens?: string[] };
+      if (params.tokens) return image.promise;
+      return { ok: true, data: renderImage(params.token!) };
+    });
+    const { rerender } = renderWithPreferences(
+      <TauriCosmeticsWorkspace active recoveryGeneration={0} />,
+    );
+    const [firstRow, secondRow] = first.cosmetics;
+    const icon = () => screen.getByTestId("cosmetic-icon-" + firstRow!.id);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("cosmetic_artwork_get", {
+        tokens: [firstRow!.iconToken, secondRow!.iconToken],
+      }),
+    );
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Preparing cosmetic artwork" })).toBeTruthy();
+    await act(() =>
+      image.resolve({
+        ok: true,
+        data: [firstRow, secondRow].map((row) => renderImage(row!.iconToken!)),
+      }),
+    );
+    expect(await screen.findByRole("searchbox")).toBeTruthy();
+    expect(icon().dataset.artworkRevision).toBe("a".repeat(64));
+    expect(icon().querySelector("img")?.getAttribute("loading")).toBe("eager");
+    expect(screen.queryByText(/images load as you browse/i)).toBeNull();
+    rerender(<TauriCosmeticsWorkspace active={false} recoveryGeneration={0} />);
+    expect(invoke).toHaveBeenCalledWith("cosmetic_artwork_cancel");
+    rerender(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+    expect(await screen.findByRole("searchbox")).toBeTruthy();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([name]) => name === "cosmetic_artwork_get"),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByRole("searchbox")).toBeTruthy();
+    expect(
+      vi.mocked(invoke).mock.calls.filter(([name]) => name === "cosmetic_artwork_get"),
+    ).toHaveLength(2);
+    expect(icon().dataset.artworkRevision).toBe("c".repeat(64));
   });
   it("waits for the latest visit after leaving during the previous authority check", async () => {
     const previous = deferred<MetaState>();
@@ -148,7 +138,7 @@ describe("native Cosmetics composition", () => {
     renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
     expect(await screen.findByRole("searchbox", { name: "Search cosmetics" })).toBeTruthy();
     expect(screen.getByText("Cosmetic #999")).toBeTruthy();
-    expect(screen.getByTestId("cosmetic-artwork-status").textContent).toMatch(/built-in icons/);
+    expect(screen.queryByText(/built-in icons/)).toBeNull();
     expect(screen.getByTestId("cosmetic-icon-999").getAttribute("data-icon-source")).toBe(
       "fallback",
     );
@@ -164,34 +154,28 @@ describe("native Cosmetics composition", () => {
     await waitFor(() => expect(tauriReadApi.cosmetics.get).toHaveBeenCalledTimes(2));
     expect(window.repoditor.cosmetics.write).not.toHaveBeenCalled();
   });
-  it("separates catalog validation from the active artwork request", async () => {
+  it("presents an explicit fallback after an unavailable image result", async () => {
+    const view = withArtwork(["f"]);
     const read = deferred<DesktopOperationResult<CosmeticsViewDto>>();
     const image = deferred<unknown>();
-    const token = `cosmetic-artwork:${"f".repeat(32)}`;
     vi.mocked(tauriReadApi.cosmetics.get).mockReturnValueOnce(read.promise);
     vi.mocked(invoke).mockImplementation(async (command) => {
       if (command === "test_meta_state") return disabledMeta();
       if (command === "cosmetic_artwork_get") return image.promise;
     });
-    vi.stubGlobal("IntersectionObserver", VisibleArtworkObserver);
-    try {
-      renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
-      expect(
-        screen.getByText("Validating MetaSave and the installed cosmetic catalog…"),
-      ).toBeTruthy();
-      expect(screen.queryByTestId("cosmetic-artwork-status")).toBeNull();
-      await act(() => read.resolve({ ok: true, data: withArtwork(token, "f".repeat(64)) }));
-      expect(await screen.findByText("Loading images for visible cosmetics…")).toBeTruthy();
-      expect(screen.getByRole("searchbox").matches(":disabled")).toBe(false);
-      expect(
-        screen.queryByText("Validating MetaSave and the installed cosmetic catalog…"),
-      ).toBeNull();
-      await act(() => image.resolve({ ok: true, data: null }));
-      expect(screen.getByTestId("cosmetic-artwork-status").textContent).toMatch(/built-in icons/);
-      const icon = screen.getByTestId(`cosmetic-icon-${cosmetics.cosmetics[0]!.id}`);
-      expect(icon.dataset.iconSource).toBe("fallback");
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+    expect(screen.getByText("Checking saved cosmetic artwork…")).toBeTruthy();
+    await act(() => read.resolve({ ok: true, data: view }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("cosmetic_artwork_get", {
+        token: view.cosmetics[0]!.iconToken,
+      }),
+    );
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    await act(() => image.resolve({ ok: true, data: null }));
+    expect(await screen.findByRole("searchbox")).toBeTruthy();
+    const icon = screen.getByTestId("cosmetic-icon-" + view.cosmetics[0]!.id);
+    expect(icon.dataset.iconSource).toBe("fallback");
+    expect(icon.getAttribute("aria-busy")).toBeNull();
   });
 });

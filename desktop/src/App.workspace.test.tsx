@@ -73,7 +73,7 @@ describe("run-save workspace integration", () => {
     expect(screen.getByTestId("pending-health-edit").textContent).toContain("0 → 42");
     expect(health.getAttribute("aria-describedby")).toContain("player-health-pending");
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe("1 pending change");
-    expect(screen.getByTestId("workspace-tab-pending-indicator-players")).toBeTruthy();
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-players")).toBeNull();
     expect(screen.getByRole("tab", { name: "Players" }).getAttribute("aria-describedby")).toContain(
       "workspace-tab-pending-1",
     );
@@ -100,6 +100,7 @@ describe("run-save workspace integration", () => {
       "false",
     );
     await user.click(await screen.findByRole("tab", { name: "Players" }, { timeout: 10_000 }));
+    expect(screen.queryByTestId("workspace-tab-pending-indicator-players")).toBeNull();
     expect(screen.getByRole("heading", { name: "Beta" })).toBeTruthy();
     expect(input(screen.getByRole("spinbutton", { name: "Current health" })).value).toBe("42");
 

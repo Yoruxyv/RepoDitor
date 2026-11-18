@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 pub const MAX_IMAGES: usize = 16;
 pub const MAX_PNG: usize = 1024 * 1024;
-const MAX_ARTWORK_BATCH: usize = 4;
+const MAX_COSMETIC_BATCH: usize = 64;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
@@ -369,7 +369,7 @@ impl Registry {
             Scope::Upgrade => MAX_IMAGES,
             Scope::Item => 64,
             Scope::Map => 5,
-            Scope::Cosmetic => MAX_ARTWORK_BATCH,
+            Scope::Cosmetic => MAX_COSMETIC_BATCH,
         };
         if !(2..=limit).contains(&tokens.len())
             || !valid_revision(&fingerprint)

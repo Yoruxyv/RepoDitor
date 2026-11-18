@@ -20,7 +20,7 @@ interface OverviewViewProps {
   readonly readOnly?: boolean;
 }
 
-export function RunSnapshot({ session }: { readonly session: SaveSession }) {
+function RunSnapshot({ session }: { readonly session: SaveSession }) {
   const { locale, t } = usePreferences();
   const metrics = [
     { icon: ArrowUpIcon, label: t("overview.level"), value: session.level },

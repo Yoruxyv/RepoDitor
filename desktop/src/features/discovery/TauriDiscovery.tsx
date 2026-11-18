@@ -1,7 +1,6 @@
 /** Existing discovery presentation running against the opt-in native adapter. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { SaveSession } from "@electron/contracts";
 import { AppShell } from "@/app/AppShell";
 import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
@@ -18,7 +17,6 @@ import {
   type EntryArtworkResults,
 } from "@/app/tauriArtwork";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
-import { RunSnapshot } from "@/features/editor/OverviewView";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
@@ -39,28 +37,7 @@ type NavigationFocus =
 
 type ArtworkDecision = { readonly result: EntryArtworkResults; readonly proceed: () => void };
 type EditMode = "checking" | "readonly" | "test" | "production";
-const PREPARING_EDITOR = "entry.preparingEditor";
 const READ_ONLY = "app.discoveryPreview";
-
-function runAuthorizationNotice(
-  mode: EditMode,
-  inSave: boolean,
-  opening: boolean,
-): TranslationKey | null {
-  if (opening || (inSave && mode === "checking")) return PREPARING_EDITOR;
-  if (!inSave || mode === "production") return null;
-  return mode === "test" ? "health.testOnly" : READ_ONLY;
-}
-
-function EditorAuthorization({ notice }: { readonly notice: TranslationKey | null }) {
-  const { t } = usePreferences();
-  return (
-    <output className="min-w-56 flex-1 text-sm text-secondary" data-testid="editor-authorization">
-      {notice ? t(notice) : null}
-      {notice === PREPARING_EDITOR ? "…" : null}
-    </output>
-  );
-}
 
 function waitForArtworkDecision(
   result: EntryArtworkResults,
@@ -164,7 +141,6 @@ function RunSaveContent({
   save,
   active,
   prepared,
-  openingSnapshot,
   progress,
   artworkProgress,
   artworkDecision,
@@ -177,7 +153,6 @@ function RunSaveContent({
   readonly save: ReturnType<typeof useSaveSession>;
   readonly active: boolean;
   readonly prepared: TauriEntrySnapshot | null;
-  readonly openingSnapshot: SaveSession | null;
   readonly progress: TauriEntryProgress | null;
   readonly artworkProgress: EntryArtworkProgress | null;
   readonly artworkDecision: ArtworkDecision | null;
@@ -190,19 +165,12 @@ function RunSaveContent({
   const openingId = save.openingSaveId;
   if (openingId !== null) {
     return (
-      <>
-        {openingSnapshot?.id === openingId ? (
-          <section aria-labelledby="overview-title" className="mb-6" data-testid="opening-overview">
-            <RunSnapshot session={openingSnapshot} />
-          </section>
-        ) : null}
-        <OpeningSavePreparation
-          progress={progress}
-          artworkProgress={artworkProgress}
-          artworkDecision={artworkDecision}
-          onCancel={() => onCancel(openingId)}
-        />
-      </>
+      <OpeningSavePreparation
+        progress={progress}
+        artworkProgress={artworkProgress}
+        artworkDecision={artworkDecision}
+        onCancel={() => onCancel(openingId)}
+      />
     );
   }
   if (save.session !== null) {
@@ -215,6 +183,14 @@ function RunSaveContent({
         onClose={onClose}
         onCanonical={save.enter}
         onHealthAvailability={onHealthAvailability}
+        whileChecking={
+          <OpeningSavePreparation
+            progress={progress}
+            artworkProgress={artworkProgress}
+            artworkDecision={null}
+            onCancel={onClose}
+          />
+        }
       />
     );
   }
@@ -241,7 +217,6 @@ function DiscoveryPreview() {
   const [cosmeticsEditing, setCosmeticsEditing] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<TauriEntryProgress | null>(null);
   const [prepared, setPrepared] = useState<TauriEntrySnapshot | null>(null);
-  const [openingSnapshot, setOpeningSnapshot] = useState<SaveSession | null>(null);
   const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
   const [artworkDecision, setArtworkDecision] = useState<ArtworkDecision | null>(null);
   const safety = useGameSafety(tauriReadApi.game.status);
@@ -252,14 +227,12 @@ function DiscoveryPreview() {
     setArtworkProgress(null);
     setArtworkDecision(null);
     setPrepared(null);
-    setOpeningSnapshot(null);
     signal.throwIfAborted();
     const opened = await tauriReadApi.saves.open(id);
     if (!opened.ok) return opened;
     let keep = false;
     try {
       signal.throwIfAborted();
-      setOpeningSnapshot(opened.data.session);
       const entry = await prepareTauriEntry(
         opened.data,
         signal,
@@ -335,12 +308,15 @@ function DiscoveryPreview() {
     };
   }, [inSave, prepared]);
   const focusPreparation =
-    workspace === "run-saves" && opening && !initialCheck && blocked === null;
+    workspace === "run-saves" &&
+    (opening || (inSave && editMode === "checking")) &&
+    !initialCheck &&
+    blocked === null;
   const waitingForDiscovery = isRefreshing || save.drainingOpen;
   useLayoutEffect(() => {
     if (focusPreparation)
       focusNavigationTarget(content.current?.querySelector("#asset-preparation-title"));
-  }, [focusPreparation]);
+  }, [focusPreparation, opening]);
   useLayoutEffect(() => {
     const root = content.current;
     const request = navigationFocus.current;
@@ -349,7 +325,7 @@ function DiscoveryPreview() {
       navigationFocus.current = null;
       return;
     }
-    if (opening || initialCheck || blocked !== null) return;
+    if (opening || (inSave && editMode === "checking") || initialCheck || blocked !== null) return;
     if (request.kind === "workspace") {
       if (inSave && focusNavigationTarget(root.querySelector("#native-overview-tab")))
         navigationFocus.current = null;
@@ -368,7 +344,16 @@ function DiscoveryPreview() {
       root.querySelectorAll<HTMLButtonElement>("button[data-save-id]"),
     ).find((candidate) => candidate.dataset["saveId"] === request.saveId);
     if (!focusNavigationTarget(button)) focusNavigationTarget(heading);
-  }, [workspace, opening, initialCheck, blocked, inSave, waitingForDiscovery, refreshRevision]);
+  }, [
+    workspace,
+    opening,
+    initialCheck,
+    blocked,
+    inSave,
+    editMode,
+    waitingForDiscovery,
+    refreshRevision,
+  ]);
 
   async function open(saveId: string) {
     const request = generation.current;
@@ -415,12 +400,8 @@ function DiscoveryPreview() {
     save.close();
   }
   const { t } = usePreferences();
-  const cosmeticsAvailability = cosmeticsEditing ? null : READ_ONLY;
-  const cosmeticsNotice = cosmeticsEditing === null ? PREPARING_EDITOR : cosmeticsAvailability;
-  const authorizationNotice =
-    workspace === "cosmetics"
-      ? cosmeticsNotice
-      : runAuthorizationNotice(editMode, inSave, opening || save.drainingOpen);
+  const readOnly =
+    workspace === "cosmetics" ? cosmeticsEditing === false : inSave && editMode === "readonly";
   return (
     <AppShell>
       <output
@@ -460,7 +441,9 @@ function DiscoveryPreview() {
               </button>
             ))}
           </div>
-          <EditorAuthorization notice={authorizationNotice} />
+          {readOnly ? (
+            <output className="flex-1 text-sm text-secondary">{t(READ_ONLY)}</output>
+          ) : null}
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <ThemeMenu />
             <LanguageMenu />
@@ -472,7 +455,6 @@ function DiscoveryPreview() {
             discovery={discovery}
             save={save}
             prepared={prepared}
-            openingSnapshot={openingSnapshot}
             progress={progress}
             artworkProgress={artworkProgress}
             artworkDecision={
@@ -494,7 +476,7 @@ function DiscoveryPreview() {
         <TauriCosmeticsWorkspace
           active={workspace === "cosmetics"}
           recoveryGeneration={safety.recoveryGeneration}
-          onProductionAvailability={setCosmeticsEditing}
+          onEditingAvailability={setCosmeticsEditing}
         />
       </div>
       {blocked !== null ? (

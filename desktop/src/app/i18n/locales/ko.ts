@@ -27,11 +27,6 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "이미지 준비 진행률 보기",
   "cosmetics.artwork.degraded":
     "일부 이미지를 준비하지 못했습니다. 편집은 계속 사용할 수 있습니다.",
-  "cosmetics.validating": "MetaSave와 설치된 꾸미기 카탈로그를 검증하는 중…",
-  "cosmetics.revalidating": "카탈로그와 이미지 출처를 다시 검증하는 중…",
-  "cosmetics.decodingVisible": "화면에 보이는 꾸미기 이미지를 불러오는 중…",
-  "cosmetics.visibleArtwork":
-    "꾸미기 이미지는 탐색할 때 불러옵니다. 사용할 수 없는 이미지는 기본 아이콘으로 표시됩니다.",
   "app.cosmetics": "코스메틱",
   "utility.group": "애플리케이션 도구",
   "utility.githubUnavailable": "GitHub 스타 수를 불러올 수 없음",
@@ -245,8 +240,6 @@ export const ko: Record<keyof typeof en, string> = {
     "사용할 수 없는 이름을 추측하지 않고 알려진 코스메틱 카탈로그를 관리합니다.",
   "cosmetics.knownCatalog": "알려진 카탈로그",
   "cosmetics.owned": "보유함",
-  "cosmetics.syntheticUnavailable":
-    "코스메틱 편집에는 검증된 합성 빌드와 카탈로그가 필요합니다. 기존 트랜잭션은 계속 대조할 수 있습니다.",
   "cosmetics.confirmTitle": "합성 코스메틱 변경 사항을 저장할까요?",
   "cosmetics.confirmOwnership":
     "지원되는 코스메틱 {count}개의 소유 상태를 변경합니다. 미지원 ID와 장비는 유지되며 교체 전에 원본의 정확한 백업을 만듭니다.",
@@ -413,8 +406,6 @@ export const ko: Record<keyof typeof en, string> = {
   "error.copyPath": "경로를 복사하지 못했습니다",
   "health.draftOnly":
     "이 미리보기에서는 체력 변경을 작성하고 검토할 수 있습니다. 저장은 비활성화되어 있습니다.",
-  "health.testOnly":
-    "합성 테스트: Health, Upgrades, Run 및 아이템 충전. 프로덕션 빌드는 읽기 전용입니다.",
   "items.saveUnavailable":
     "이 충전 변경 묶음을 안전하게 저장할 수 없습니다. 세이브를 다시 확인하거나 대기 중인 충전 변경 일부를 되돌리세요.",
   "health.saveUnavailable":
@@ -430,8 +421,6 @@ export const ko: Record<keyof typeof en, string> = {
   "health.fileInUse": "다른 프로세스가 저장 파일을 사용 중입니다.",
   "health.verificationUnavailable": "저장 파일 또는 설치된 게임을 확인할 수 없습니다.",
   "health.unsupportedBuild": "이 게임 빌드에서는 체력 편집이 승인되지 않았습니다.",
-  "health.status": "저장 상태",
-  "health.persisted": "파일에 저장됨: {name} · {health} / {max}",
   "health.backupVerified": "원본 백업을 검증했습니다.",
   "health.reconcile": "변경 대조",
   "health.recheck": "복구 자료 다시 확인",

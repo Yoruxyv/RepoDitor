@@ -27,11 +27,6 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.artwork.expand": "画像の進行状況を表示",
   "cosmetics.artwork.degraded":
     "一部の画像を準備できませんでした。編集操作は引き続き利用できます。",
-  "cosmetics.validating": "MetaSave とインストール済みのコスメティックカタログを検証しています…",
-  "cosmetics.revalidating": "カタログと画像の参照元を再検証しています…",
-  "cosmetics.decodingVisible": "表示中のコスメティック画像を読み込んでいます…",
-  "cosmetics.visibleArtwork":
-    "コスメティック画像は閲覧時に読み込まれます。利用できない画像には内蔵アイコンを表示します。",
   "app.cosmetics": "コスメティック",
   "utility.group": "アプリケーション設定",
   "utility.githubUnavailable": "GitHub スター数を取得できません",
@@ -239,8 +234,6 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.description": "不明な名前を推測せず、既知のコスメティックカタログを管理します。",
   "cosmetics.knownCatalog": "既知のカタログ",
   "cosmetics.owned": "所有済み",
-  "cosmetics.syntheticUnavailable":
-    "コスメティックの編集には検証済みの合成ビルドとカタログが必要です。既存の取引は引き続き照合できます。",
   "cosmetics.confirmTitle": "合成コスメティックの変更を保存しますか？",
   "cosmetics.confirmOwnership":
     "対象のコスメティック{count}個の所有状態を変更します。未対応IDと装備は保持され、置換前に元ファイルの正確なバックアップを作成します。",
@@ -412,8 +405,6 @@ export const ja: Record<keyof typeof en, string> = {
   "error.write": "セーブを安全に書き込めませんでした。元のファイルは置き換えていません。",
   "error.copyPath": "パスをコピーできませんでした",
   "health.draftOnly": "このプレビューでは体力の変更を下書きして確認できます。保存は無効です。",
-  "health.testOnly":
-    "合成テスト：Health、Upgrades、Run、アイテムの充電。本番ビルドは読み取り専用です。",
   "items.saveUnavailable":
     "この充電の一括変更は安全に保存できません。セーブを再確認するか、未保存の充電変更の一部を元に戻してください。",
   "health.saveUnavailable":
@@ -429,8 +420,6 @@ export const ja: Record<keyof typeof en, string> = {
   "health.fileInUse": "別のプロセスがセーブファイルを使用しています。",
   "health.verificationUnavailable": "セーブまたはインストール済みのゲームを確認できませんでした。",
   "health.unsupportedBuild": "このゲームビルドでは体力の編集は承認されていません。",
-  "health.status": "保存状態",
-  "health.persisted": "ファイル内: {name} · {health} / {max}",
   "health.backupVerified": "元のバックアップを検証しました。",
   "health.reconcile": "変更を照合",
   "health.recheck": "復旧データを再確認",

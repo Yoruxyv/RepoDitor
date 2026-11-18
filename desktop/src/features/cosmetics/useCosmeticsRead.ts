@@ -1,8 +1,8 @@
-/** Read-only MetaSave loading without pending changes, artwork preparation or writes. */
+/** Validate the current MetaSave and prepare its artwork before publishing the catalog. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CosmeticsViewDto, RepoDitorApi } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
-import { restoreNativeCosmeticPreviews } from "@/app/tauriArtwork";
+import { prepareNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
 export function useCosmeticsRead(
@@ -23,6 +23,11 @@ export function useCosmeticsRead(
     view: CosmeticsViewDto | null;
     error: TranslationKey | null;
   } | null>(null);
+  const [artwork, setArtwork] = useState<{
+    request: typeof request;
+    completed: number;
+    total: number;
+  } | null>(null);
   const committed = useRef<typeof request | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
   useLayoutEffect(() => {
@@ -33,17 +38,20 @@ export function useCosmeticsRead(
   }, [request]);
   useEffect(() => {
     if (!request.active) return;
-    let cancelled = false;
-    const isCurrent = () => !cancelled && committed.current === request;
+    const work = new AbortController();
+    const isCurrent = () => !work.signal.aborted && committed.current === request;
     async function read() {
       try {
         const result = await request.get();
-        if (isCurrent())
-          setState(
-            result.ok
-              ? { request, view: restoreNativeCosmeticPreviews(result.data), error: null }
-              : { request, view: null, error: operationErrorKey(result.error.code) },
-          );
+        if (!isCurrent()) return;
+        if (!result.ok) {
+          setState({ request, view: null, error: operationErrorKey(result.error.code) });
+          return;
+        }
+        const view = await prepareNativeCosmeticArtwork(result.data, work.signal, (progress) => {
+          if (isCurrent()) setArtwork({ request, ...progress });
+        });
+        if (isCurrent()) setState({ request, view, error: null });
       } catch {
         if (isCurrent()) setState({ request, view: null, error: "error.service" });
       }
@@ -56,9 +64,7 @@ export function useCosmeticsRead(
       inFlight.current = null;
     }
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => work.abort();
   }, [request]);
 
   const current = active && state?.request === request;
@@ -66,6 +72,8 @@ export function useCosmeticsRead(
     view: state?.view ?? null,
     error: current && state.error ? t(state.error) : null,
     loading: !current,
+    artwork:
+      artwork?.request === request ? { completed: artwork.completed, total: artwork.total } : null,
     reload() {
       if (current) setRefresh(refresh + 1);
     },

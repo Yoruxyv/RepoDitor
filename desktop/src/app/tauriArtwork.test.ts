@@ -5,7 +5,7 @@ import {
   acquireNativeArtwork,
   cancelEntryArtwork,
   preloadEntryArtwork,
-  restoreNativeCosmeticPreviews,
+  prepareNativeCosmeticArtwork,
 } from "./tauriArtwork";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -256,49 +256,7 @@ it("keeps visible Cosmetics queued behind other domains without losing their slo
   releases.forEach((release) => release());
 });
 
-it("uses the current viewport to prioritize queued Cosmetics without crossing other domains", async () => {
-  const cosmeticToken = (id: number) => token(id).replace("upgrade-", "cosmetic-");
-  const completions: Array<(response: unknown) => void> = [];
-  vi.mocked(invoke)
-    .mockReset()
-    .mockImplementation(() => new Promise((resolve) => completions.push(resolve)));
-  const midpoint = window.innerHeight / 2;
-  const card = (top: () => number) => {
-    const node = document.createElement("span");
-    document.body.append(node);
-    vi.spyOn(node, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, top(), 48, 48));
-    return node;
-  };
-  let scrolled = false;
-  const first = card(() => midpoint - (scrolled ? 160 : 24));
-  const second = card(() => midpoint - (scrolled ? 24 : 160));
-  const afterUpgrade = card(() => midpoint - 24);
-  const releases = [
-    acquireNativeArtwork(cosmeticToken(1), vi.fn()),
-    acquireNativeArtwork(cosmeticToken(2), vi.fn(), undefined, first),
-    acquireNativeArtwork(cosmeticToken(3), vi.fn(), undefined, second),
-    acquireNativeArtwork(token(4), vi.fn()),
-    acquireNativeArtwork(cosmeticToken(5), vi.fn(), undefined, afterUpgrade),
-  ];
-  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", {
-    token: cosmeticToken(1),
-  });
-  scrolled = true;
-  for (const [index, [command, args]] of [
-    ["cosmetic_artwork_get", { tokens: [cosmeticToken(3), cosmeticToken(2)] }],
-    ["upgrade_artwork_get", { token: token(4) }],
-    ["cosmetic_artwork_get", { token: cosmeticToken(5) }],
-  ].entries()) {
-    completions[index]!({ ok: true, data: null });
-    await vi.waitFor(() => expect(invoke).toHaveBeenLastCalledWith(command, args));
-  }
-  completions[3]!({ ok: true, data: null });
-  await flush();
-  releases.forEach((release) => release());
-  [first, second, afterUpgrade].forEach((node) => node.remove());
-});
-
-it("bounds visible batches, drops cancelled replies, and defers oversized images behind queued work", async () => {
+it("bounds batches, drops cancelled replies, and defers oversized images behind queued work", async () => {
   const tokens = Array.from({ length: 5 }, (_, i) => token(i + 1).replace("upgrade-", "cosmetic-"));
   const cards = tokens.map(() => document.body.appendChild(document.createElement("span")));
   const listeners = tokens.map(() => vi.fn());
@@ -310,9 +268,7 @@ it("bounds visible batches, drops cancelled replies, and defers oversized images
         ? Promise.resolve()
         : new Promise((resolve) => resolveImages.push(resolve)),
     );
-  const release = tokens.map((id, i) =>
-    acquireNativeArtwork(id, listeners[i]!, undefined, cards[i]),
-  );
+  const release = tokens.map((id, i) => acquireNativeArtwork(id, listeners[i]!, cards[i]));
   await vi.waitFor(() => expect(resolveImages).toHaveLength(1));
   expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", {
     tokens: tokens.slice(0, 4),
@@ -338,79 +294,42 @@ it("bounds visible batches, drops cancelled replies, and defers oversized images
   cards.forEach((node) => node.remove());
 });
 
-it("reuses only completed Cosmetics thumbnails with the same validated source and PNG key", async () => {
-  const first = token(51).replace("upgrade-", "cosmetic-");
-  const next = token(52).replace("upgrade-", "cosmetic-");
-  const last = token(53).replace("upgrade-", "cosmetic-");
-  const prefix = `${"b".repeat(64)}:51:${"a".repeat(64)}:`;
-  const key = prefix + "c".repeat(64);
-  const changedKey = prefix + "d".repeat(64);
-  const responses: Array<(value: unknown) => void> = [];
-  vi.mocked(invoke)
-    .mockReset()
-    .mockImplementation((command) =>
-      command === "cosmetic_artwork_get"
-        ? new Promise((resolve) => responses.push(resolve))
-        : Promise.resolve(),
-    );
-  const abandoned = vi.fn();
-  const releaseAbandoned = acquireNativeArtwork(first, abandoned, key);
-  releaseAbandoned();
-  responses[0]!({ ok: true, data: { ...image(51), token: first } });
-  await flush();
-  expect(abandoned).not.toHaveBeenCalled();
-
-  const receive = vi.fn();
-  const release = acquireNativeArtwork(next, receive, key);
-  const releaseOverlap = acquireNativeArtwork(next, vi.fn(), key);
-  expect(responses).toHaveLength(2);
-  responses[1]!({ ok: true, data: { ...image(52), token: next } });
-  await flush();
-  expect(receive).toHaveBeenCalledExactlyOnceWith({ ...image(52), token: next });
-  release();
-  releaseOverlap();
-  receive.mockClear();
-  acquireNativeArtwork(last, receive, key)();
-  expect(receive).toHaveBeenCalledExactlyOnceWith({ ...image(52), token: last });
-  expect(responses).toHaveLength(2);
-
-  const releaseChanged = acquireNativeArtwork(last, receive, changedKey);
-  expect(responses).toHaveLength(3);
-  responses[2]!({ ok: true, data: null });
-  await flush();
-  releaseChanged();
-  const releaseRetry = acquireNativeArtwork(last, receive, changedKey);
-  expect(responses).toHaveLength(4);
-  responses[3]!({ ok: true, data: { ...image(53), token: last } });
-  await flush();
-  releaseRetry();
-});
-
-it("restores a warm thumbnail through the bounded lane only for its current key and token", async () => {
+it("uses a fresh binding before reusing a warm PNG and rejects a preview for a different token", async () => {
   const current = token(61).replace("upgrade-", "cosmetic-");
-  const wrong = token(62).replace("upgrade-", "cosmetic-");
-  const key = `${"b".repeat(64)}:0:${"a".repeat(64)}:${"e".repeat(64)}`;
+  const next = token(62).replace("upgrade-", "cosmetic-");
+  const binding = ":0:" + "a".repeat(64) + ":" + "e".repeat(64);
+  const key = "b".repeat(64) + binding;
   const row = { ...cosmetics.cosmetics[0]!, iconToken: current, iconReuseKey: key };
   const preview = { ...image(61), token: current };
-  const restored = restoreNativeCosmeticPreviews({
-    ...cosmetics,
-    cosmetics: [{ ...row, iconPreview: preview }],
-  });
-  expect(restored.cosmetics).toEqual([row]);
+  const { signal } = new AbortController();
+  const report = vi.fn();
   vi.mocked(invoke).mockReset().mockResolvedValue({ ok: true, data: null });
-  const receive = vi.fn();
-  acquireNativeArtwork(current, receive, key)();
-  expect(receive).toHaveBeenCalledExactlyOnceWith(preview);
+  const restored = await prepareNativeCosmeticArtwork(
+    { ...cosmetics, cosmetics: [{ ...row, iconPreview: preview }] },
+    signal,
+    report,
+  );
+  expect(restored.cosmetics).toEqual([row]);
+  expect(report).toHaveBeenLastCalledWith({ completed: 1, total: 1 });
   expect(invoke).not.toHaveBeenCalled();
-
-  const changedKey = key.slice(0, -1) + "f";
-  restoreNativeCosmeticPreviews({
-    ...cosmetics,
-    cosmetics: [{ ...row, iconReuseKey: changedKey, iconPreview: { ...preview, token: wrong } }],
-  });
-  const release = acquireNativeArtwork(current, receive, changedKey);
-  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", { token: current });
-  await flush();
-  expect(receive).toHaveBeenLastCalledWith(null);
-  release();
+  await prepareNativeCosmeticArtwork(
+    {
+      ...cosmetics,
+      cosmetics: [{ ...row, iconToken: next, iconReuseKey: "c".repeat(64) + binding }],
+    },
+    signal,
+    report,
+  );
+  expect(invoke).not.toHaveBeenCalled();
+  await prepareNativeCosmeticArtwork(
+    {
+      ...cosmetics,
+      cosmetics: [
+        { ...row, iconToken: next, iconReuseKey: key.slice(0, -1) + "f", iconPreview: preview },
+      ],
+    },
+    signal,
+    report,
+  );
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", { token: next });
 });

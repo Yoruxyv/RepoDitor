@@ -1,5 +1,12 @@
 /** Native workspace with shared Run-save recovery. */
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
@@ -40,24 +47,6 @@ function saveUnavailable(health: ReturnType<typeof useTauriHealth>) {
   return null;
 }
 
-function WorkspacePreparationStatus({
-  started,
-  playersLoading,
-  upgradesLoading,
-}: {
-  readonly started: boolean;
-  readonly playersLoading: boolean;
-  readonly upgradesLoading: boolean;
-}) {
-  const { t } = usePreferences();
-  let detail: string | undefined;
-  if (started && playersLoading) detail = t("entry.detail.players");
-  else if (started && upgradesLoading) detail = t("entry.detail.upgrades");
-  return (
-    <output className={detail ? "mb-4 block text-sm text-secondary" : undefined}>{detail}</output>
-  );
-}
-
 export function TauriWorkspace({
   session,
   prepared,
@@ -65,6 +54,7 @@ export function TauriWorkspace({
   onClose,
   onCanonical = () => undefined,
   onHealthAvailability,
+  whileChecking,
 }: {
   readonly session: SaveSession;
   readonly prepared?: TauriEntrySnapshot | null;
@@ -72,6 +62,7 @@ export function TauriWorkspace({
   readonly onClose: () => void;
   readonly onCanonical?: (opened: SaveOpenResult) => void;
   readonly onHealthAvailability?: (mode: "checking" | "readonly" | "test" | "production") => void;
+  readonly whileChecking?: ReactElement;
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
@@ -180,8 +171,6 @@ export function TauriWorkspace({
     refreshUpgrades,
     section,
   ]);
-  const selectedPlayer =
-    visiblePlayers.find((player) => player.id === players.selectedPlayerId) ?? null;
   const pendingSections: Partial<Record<Section, number>> = {
     players: health.healthEdits.length,
     upgrades: health.upgradeEdits.length,
@@ -215,6 +204,7 @@ export function TauriWorkspace({
     event.preventDefault();
     selectTabWithFocus(SECTIONS[next]!);
   }
+  if (!initialHealthKnown && whileChecking) return whileChecking;
   return (
     <section
       aria-labelledby="workspace-title"
@@ -223,7 +213,7 @@ export function TauriWorkspace({
       data-session-fingerprint={currentSession.fingerprint}
     >
       <SaveHeader session={currentSession} onClose={onClose} />
-      <TauriHealthControls health={health} player={selectedPlayer} />
+      <TauriHealthControls health={health} />
       {entry &&
       Object.values(entry.artwork).some(({ issues }) => Object.keys(issues).length > 0) ? (
         <output className="mb-4 block border-l-2 border-accent bg-accent-muted px-4 py-3 text-sm text-secondary">
@@ -260,10 +250,14 @@ export function TauriWorkspace({
               onKeyDown={(event) => moveTab(event, index)}
             >
               {t(`nav.${item}`)}
-              <span
-                aria-hidden="true"
-                className={`ml-1 inline-block size-1.5 rounded-full align-middle ${section === item ? "bg-accent-ink" : "bg-accent"} ${pendingSections[item] ? "" : "invisible"}`}
-              />
+              <span aria-hidden="true" className="ml-1 inline-block size-1.5 align-middle">
+                {section !== item && pendingSections[item] ? (
+                  <span
+                    className="block size-1.5 rounded-full bg-accent"
+                    data-testid={`workspace-tab-pending-indicator-${item}`}
+                  />
+                ) : null}
+              </span>
               {pendingSections[item] ? (
                 <span className="sr-only" id={`native-${item}-pending`}>
                   {t(pendingSections[item] === 1 ? "pending.one" : "pending.many", {
@@ -284,19 +278,12 @@ export function TauriWorkspace({
           tabIndex={0}
         >
           {section === "overview" ? (
-            <>
-              <WorkspacePreparationStatus
-                started={initialHealthKnown}
-                playersLoading={players.loading}
-                upgradesLoading={upgrades.loading}
-              />
-              <OverviewView
-                readOnly={!health.healthEnabled}
-                session={currentSession}
-                availableDestinations={["players", "upgrades", "run", "items"]}
-                onNavigate={selectTabWithFocus}
-              />
-            </>
+            <OverviewView
+              readOnly={!health.healthEnabled}
+              session={currentSession}
+              availableDestinations={["players", "upgrades", "run", "items"]}
+              onNavigate={selectTabWithFocus}
+            />
           ) : null}
           {section === "players" ? (
             <TauriPlayersView

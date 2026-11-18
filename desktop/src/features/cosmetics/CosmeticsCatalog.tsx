@@ -1,5 +1,5 @@
 /**
- * Searchable, sortable, lazily illustrated installed cosmetic catalog.
+ * Searchable and sortable installed cosmetic catalog.
  *
  * Filtering changes only presentation order. Numeric IDs remain canonical and all
  * action availability is supplied by the typed domain projection.
@@ -9,9 +9,8 @@ import { useRef, useState } from "react";
 
 import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
 
-import { COSMETIC_ICON_SIZE, GameIcon } from "@/components/GameIcon";
+import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
-import { Skeleton } from "@/components/Skeleton";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/i18n";
 
@@ -19,7 +18,6 @@ interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
   readonly actionsDisabled: boolean;
   readonly artworkActive?: boolean | undefined;
-  readonly artworkPending?: boolean | undefined;
   readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
 }
 
@@ -201,7 +199,6 @@ export function CosmeticsCatalog({
   view,
   actionsDisabled,
   artworkActive,
-  artworkPending,
   onUnlockCosmetic,
 }: CosmeticsCatalogProps) {
   const { t } = usePreferences();
@@ -358,7 +355,6 @@ export function CosmeticsCatalog({
           const visible = visibleCosmeticIds.has(cosmetic.id);
           const showArtwork = artworkActive === undefined || (artworkActive && visible);
           const iconId = `cosmetic-icon-${cosmetic.id}`;
-          const pendingArtwork = artworkPending && cosmetic.iconToken !== null;
           return (
             <li
               aria-label={t("cosmetics.itemLabel", {
@@ -372,13 +368,7 @@ export function CosmeticsCatalog({
               key={cosmetic.id}
             >
               <div className="flex min-w-0 items-start gap-3">
-                {showArtwork && pendingArtwork ? (
-                  <Skeleton
-                    className={`${COSMETIC_ICON_SIZE} shrink-0 border border-line`}
-                    testId={`${iconId}-loading`}
-                  />
-                ) : null}
-                {showArtwork && !pendingArtwork ? (
+                {showArtwork ? (
                   <GameIcon
                     key={artworkActive === undefined ? undefined : cosmetic.iconToken}
                     fallback={TShirtIcon}

@@ -117,7 +117,6 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     const search = page.getByRole("searchbox", { name: "Search cosmetics" });
     const icon = page.getByTestId("cosmetic-icon-0");
     const card = page.getByRole("listitem", { name: /Installed Cosmetic 0,/ });
-    const placeholder = page.getByTestId("cosmetic-icon-0-loading");
     async function measure(frame: Locator) {
       const layout = await frame.evaluate((node) => {
         const bounds = node.getBoundingClientRect();
@@ -142,29 +141,18 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
       await expect(icon.locator("img")).toHaveAttribute("alt", "");
     }
     await open.click();
-    await expect(
-      page.getByText("Validating MetaSave and the installed cosmetic catalog…"),
-    ).toBeVisible();
-    const skeleton = page.getByTestId("cosmetics-skeleton");
-    await expect(skeleton).toHaveCSS("animation-name", "none");
-    const coldFrame = await page.getByTestId("cosmetic-thumbnail-skeleton").evaluate((node) => {
-      const { width, height } = node.getBoundingClientRect();
-      return { width, height };
-    });
-    expect(coldFrame).toEqual({ width: 48, height: 48 });
+    const preparation = page.getByRole("heading", { name: "Preparing cosmetic artwork" });
+    await expect(preparation).toBeVisible();
+    await expect(search).toBeHidden();
     await catalog.evaluate(({ release }) => release.initial());
-    await search.fill("Installed Cosmetic 0");
-    await card.scrollIntoViewIfNeeded();
-    await expect(placeholder).toBeVisible();
-    await expect(page.getByTestId("cosmetic-artwork-status")).toHaveText(
-      "Loading images for visible cosmetics…",
-    );
-    await expect(search).toBeEnabled();
-    const loading = await measure(icon);
+    await expect.poll(() => catalog.evaluate(({ artworkStarted }) => artworkStarted)).toBe(true);
+    await expect(preparation).toBeVisible();
+    await expect(search).toBeHidden();
     await catalog.evaluate(({ release }) => release.artwork());
     await expectArtwork("a");
-    await expect(page.getByTestId("cosmetic-artwork-status")).toContainText("built-in icons");
-    expect(await measure(icon)).toEqual(loading);
+    await search.fill("Installed Cosmetic 0");
+    await expect(page.getByText(/images load as you browse/i)).toHaveCount(0);
+    const layout = await measure(icon);
     expect(await catalogReads()).toBe(1);
     expect(artworkTokens).toEqual([expect.stringMatching(/^cosmetic-artwork:[0-9a-f]{32}$/)]);
 
@@ -172,17 +160,13 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await setSource("b");
     await open.click();
     await expect.poll(catalogReads).toBe(2);
-    await expect(page.getByText("Revalidating the catalog and its artwork sources…")).toBeVisible();
-    await expect(search).toHaveValue("Installed Cosmetic 0");
-    await card.scrollIntoViewIfNeeded();
-    await expect(placeholder).toBeVisible();
-    expect(await measure(placeholder)).toEqual(loading);
-    await expect(icon).toHaveCount(0);
-    await expect(page.getByText("Validated MetaSave")).toHaveCount(0);
+    await expect(preparation).toBeVisible();
+    await expect(search).toBeHidden();
     expect(artworkTokens).toHaveLength(1);
     await catalog.evaluate(({ release }) => release.revisit());
     await expectArtwork("b");
-    expect(await measure(icon)).toEqual(loading);
+    await expect(search).toHaveValue("Installed Cosmetic 0");
+    expect(await measure(icon)).toEqual(layout);
     expect(await catalogReads()).toBe(2);
     expect(artworkTokens).toHaveLength(2);
     expect(artworkTokens[1]).not.toBe(artworkTokens[0]);
@@ -190,7 +174,7 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await setSource("c");
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expectArtwork("c");
-    expect(await measure(icon)).toEqual(loading);
+    expect(await measure(icon)).toEqual(layout);
     expect(await catalogReads()).toBe(3);
     expect(artworkTokens).toHaveLength(3);
     expect(new Set(artworkTokens).size).toBe(3);
@@ -218,7 +202,7 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
       await expect.poll(() => artworkTokens.length).toBe(nextRequest);
       await expect(icon).toHaveAttribute("data-icon-source", "fallback");
       await expect(icon.locator("img")).toHaveCount(0);
-      expect(await measure(icon)).toEqual(loading);
+      expect(await measure(icon)).toEqual(layout);
     }
     expect(await catalogReads()).toBe(7);
     expect(new Set(artworkTokens).size).toBe(6);
@@ -274,7 +258,6 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
     artworkProofs: { 0: proof, 279: proof, 558: proof, 999: proof },
   };
   await writeFile(path.join(home, "cosmetics-get.json"), JSON.stringify({ ok: true, cosmetics }));
-  const artwork = path.join(home, "native-cosmetic-artwork.json");
   const batchArtwork = path.join(home, "native-cosmetic-artwork-batch.json");
   const image = (cosmeticId: number) => ({
     cosmeticId,
@@ -284,10 +267,10 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
     pngBase64:
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
   });
-  function setImage(cosmeticId: number) {
-    return writeFile(artwork, JSON.stringify({ ok: true, artwork: image(cosmeticId) }));
-  }
-  await setImage(0);
+  await writeFile(
+    batchArtwork,
+    JSON.stringify({ ok: true, artworks: [image(0), image(279), image(558)] }),
+  );
   const app = await launch(fixture.executable, home, fixture.environment);
   try {
     const { page } = app;
@@ -299,9 +282,15 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
       "data-artwork-revision",
       revision,
     );
-    await expect(page.getByTestId("cosmetic-icon-558").locator("img")).toHaveCount(0);
+    await expect(page.getByTestId("cosmetic-icon-558").locator("img")).toHaveAttribute(
+      "loading",
+      "eager",
+    );
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().endsWith("/cosmetic_artwork_get")) requests.push(request.url());
+    });
     for (const id of [279, 558]) {
-      await setImage(id);
       await search.fill(`Hat ${id}`);
       const icon = page.getByTestId(`cosmetic-icon-${id}`);
       await icon.scrollIntoViewIfNeeded();
@@ -312,6 +301,7 @@ test("ordinary native Cosmetics load visible canonical icons without a Run save"
         )
         .toBe(1);
     }
+    expect(requests).toEqual([]);
     await search.fill("999");
     await expect(page.getByTestId("cosmetic-icon-999")).toHaveAttribute(
       "data-icon-source",
