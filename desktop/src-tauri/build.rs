@@ -32,6 +32,7 @@ fn main() {
             .app_manifest(tauri_build::AppManifest::new().commands(&[
                 "environment_detect",
                 "saves_open",
+                "editor_entry",
                 "game_status",
                 "players_list",
                 "players_avatar",

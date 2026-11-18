@@ -14,7 +14,7 @@ if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(project / ".venv/Lib/site-packages"))
 
 from repo_save_editor.desktop_api import __main__ as entry
-from repo_save_editor.desktop_api import saves
+from repo_save_editor.desktop_api import game_status, health_recovery, meta_transactions, saves
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as recovery
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
@@ -54,26 +54,26 @@ def install_synthetic_status() -> None:
                 raise OSError("Synthetic final game-status query failure")
             return GameProcessStatus(final) if staged and final else status
 
-        original_write = entry.write_health
+        original_write = health_recovery.write_health
 
         def isolated_write(*args, **kwargs):
             return original_write(*args, **kwargs, game_status_loader=current_status)
 
-        entry.write_health = isolated_write
-        original_prepare = entry.prepare_health
+        health_recovery.write_health = isolated_write
+        original_prepare = health_recovery.prepare_health
 
         def isolated_prepare(*args, **kwargs):
             return original_prepare(*args, **kwargs, game_status_loader=lambda: status)
 
-        entry.prepare_health = isolated_prepare
-        original_status = entry.get_game_status
-        entry.get_game_status = lambda: original_status(lambda: status)
-        original_meta_write = entry.meta_write
+        health_recovery.prepare_health = isolated_prepare
+        original_status = game_status.get_game_status
+        game_status.get_game_status = lambda: original_status(lambda: status)
+        original_meta_write = meta_transactions.meta_write
 
         def isolated_meta_write(*args, **kwargs):
             return original_meta_write(*args, **kwargs, game_status_loader=current_status)
 
-        entry.meta_write = isolated_meta_write
+        meta_transactions.meta_write = isolated_meta_write
 
 
 def response_fault() -> None:
@@ -83,15 +83,15 @@ def response_fault() -> None:
 
 
 def install_completion_fault() -> None:
-    original = entry.write_health
-    original_prepare = entry.prepare_health
+    original = health_recovery.write_health
+    original_prepare = health_recovery.prepare_health
 
     def completed(*args, **kwargs):
         result = original(*args, **kwargs)
         phase("after_completion")
         return result
 
-    entry.write_health = completed
+    health_recovery.write_health = completed
 
     def prepared(*args, **kwargs):
         result = original_prepare(*args, **kwargs)
@@ -99,8 +99,8 @@ def install_completion_fault() -> None:
             phase("reservation_response")
         return result
 
-    entry.prepare_health = prepared
-    original_meta = entry.meta_write
+    health_recovery.prepare_health = prepared
+    original_meta = meta_transactions.meta_write
 
     def completed_meta(*args, **kwargs):
         result = original_meta(*args, **kwargs)
@@ -112,7 +112,7 @@ def install_completion_fault() -> None:
             phase("after_completion")
         return result
 
-    entry.meta_write = completed_meta
+    meta_transactions.meta_write = completed_meta
 
 
 def io_fault(name: str) -> None:

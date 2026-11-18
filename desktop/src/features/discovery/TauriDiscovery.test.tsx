@@ -13,13 +13,14 @@ import {
   upgrades,
 } from "@/test/repoditorApiFixture";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
+import { tauriHealthApi, type HealthState } from "@/app/tauriHealthApi";
 import { cancelEntryArtwork, closeNativeWorkspace } from "@/app/tauriArtwork";
 import { TauriDiscovery } from "./TauriDiscovery";
 
 vi.mock("@/app/tauriReadApi", () => ({
   tauriReadApi: {
     environment: { detect: vi.fn() },
-    saves: { open: vi.fn() },
+    saves: { open: vi.fn(), prepareEntry: vi.fn() },
     game: { status: vi.fn() },
     players: { list: vi.fn(), avatar: vi.fn() },
     upgrades: { list: vi.fn() },
@@ -57,6 +58,7 @@ describe("read-only native discovery", () => {
     vi.mocked(tauriReadApi.saves.open)
       .mockReset()
       .mockResolvedValue(openResult(undefined, "unresolved"));
+    vi.mocked(tauriReadApi.saves.prepareEntry).mockReset();
     vi.mocked(tauriReadApi.game.status)
       .mockReset()
       .mockResolvedValue({ ok: true, data: { status: "not_running", running: false } });
@@ -124,6 +126,78 @@ describe("read-only native discovery", () => {
     expect(await screen.findByRole("button", { name: /Open workspace/ })).toBeTruthy();
     expect(cancelEntryArtwork).toHaveBeenCalledTimes(1);
   });
+  it("keeps opening visible until the batched native views are available", async () => {
+    const opened = openResult(undefined, "unresolved");
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open).mockResolvedValue({
+      ok: true,
+      data: { ...opened.data, supportsEntryBatch: true },
+    });
+    let finish!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.prepareEntry>>) => void;
+    vi.mocked(tauriReadApi.saves.prepareEntry).mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    render(<TauriDiscovery />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await waitFor(() =>
+      expect(tauriReadApi.saves.prepareEntry).toHaveBeenCalledExactlyOnceWith({
+        id: session.id,
+        fingerprint: session.fingerprint,
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Run snapshot" })).toBeNull();
+    await act(() =>
+      finish({
+        ok: true,
+        data: {
+          players: { ok: true, data: players },
+          upgrades: { ok: true, data: upgrades },
+          items: { ok: true, data: advanced },
+          maps: { ok: true, data: maps },
+          run: { ok: true, data: runState },
+        },
+      }),
+    );
+    expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
+    expect(tauriReadApi.players.list).not.toHaveBeenCalled();
+    expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
+    expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
+    expect(tauriReadApi.run.get).not.toHaveBeenCalled();
+  });
+
+  it("waits for concurrent game safety and fresh editing admission before showing the workspace", async () => {
+    let finishAdmission!: (state: HealthState) => void;
+    let finishStatus!: (result: Awaited<ReturnType<typeof tauriReadApi.game.status>>) => void;
+    const eligibility = new Promise<HealthState>((resolve) => (finishAdmission = resolve));
+    const status = new Promise<Awaited<ReturnType<typeof tauriReadApi.game.status>>>(
+      (resolve) => (finishStatus = resolve),
+    );
+    const admission = vi.spyOn(tauriHealthApi, "state").mockReturnValue(eligibility);
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    try {
+      render(<TauriDiscovery />);
+      const workspace = await screen.findByRole("button", { name: /Open workspace/ });
+      const firstCheck = vi.mocked(tauriReadApi.game.status).mock.calls.length;
+      vi.mocked(tauriReadApi.game.status).mockReturnValueOnce(status);
+      await userEvent.setup().click(workspace);
+      await waitFor(() => {
+        expect(admission).toHaveBeenCalledExactlyOnceWith(session.id);
+        expect(tauriReadApi.game.status).toHaveBeenCalledTimes(firstCheck + 1);
+      });
+      await act(() =>
+        finishAdmission({ enabled: false, state: "disabled", pending: null, canonical: null }),
+      );
+      expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+      expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+      await act(() => finishStatus({ ok: true, data: { status: "not_running", running: false } }));
+      expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
+      expect(admission).toHaveBeenCalledTimes(1);
+    } finally {
+      admission.mockRestore();
+    }
+  });
+
   it("shows only preparation until the editor projections settle", async () => {
     let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });

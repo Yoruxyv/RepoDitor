@@ -3,7 +3,12 @@ import type {
   DesktopOperationResult,
   SaveOpenResult,
 } from "@electron/contracts";
-import { tauriReadApi, type NativeInstalledMaps } from "@/app/tauriReadApi";
+import type { HealthState } from "@/app/tauriHealthApi";
+import {
+  tauriReadApi,
+  type NativeInstalledMaps,
+  type NativeSaveOpenResult,
+} from "@/app/tauriReadApi";
 import {
   preloadEntryArtwork,
   rememberEntryArtwork,
@@ -17,6 +22,7 @@ const TASKS = ["players", "upgrades", "run", "items", "maps"] as const;
 type Status = "waiting" | "running" | "completed" | "degraded";
 export type TauriEntryProgress = Readonly<Record<RunEntryTask, Status>>;
 export type TauriEntrySnapshot = Pick<RunEntryData, RunEntryTask> & {
+  readonly initialHealth?: HealthState;
   readonly session: SaveOpenResult["session"];
   readonly artwork: EntryArtworkResults;
   readonly artworkRevision: string | undefined;
@@ -112,7 +118,7 @@ async function verifyEntrySources(
 }
 
 export async function prepareTauriEntry(
-  opened: SaveOpenResult,
+  opened: NativeSaveOpenResult,
   signal: AbortSignal,
   report: (progress: TauriEntryProgress) => void,
   reportArtwork: Parameters<typeof preloadEntryArtwork>[2],
@@ -143,7 +149,22 @@ export async function prepareTauriEntry(
     return result;
   }
 
-  try {
+  async function loadProjections() {
+    if (opened.supportsEntryBatch) {
+      update("upgrades", "running");
+      const entry = await tauriReadApi.saves.prepareEntry(saveProof);
+      signal.throwIfAborted();
+      if (!entry.ok) throw new EntrySourceError(entry.error);
+      for (const task of TASKS) {
+        const projection = entry.data[task];
+        const available = task !== "maps" || (entry.data.maps.ok && entry.data.maps.data.available);
+        update(task, projection.ok && available ? "completed" : "degraded");
+      }
+      return {
+        ...entry.data,
+        avatarPrefetch: prefetchInitialAvatar(id, entry.data.players, tauriReadApi.players.avatar),
+      };
+    }
     const players = await load("players", () => tauriReadApi.players.list(id, fingerprint));
     const avatarPrefetch = prefetchInitialAvatar(id, players, tauriReadApi.players.avatar);
     // Item artwork can reference tokens registered by the Upgrade read.
@@ -157,6 +178,11 @@ export async function prepareTauriEntry(
       () => tauriReadApi.maps.list("entry", saveProof),
       (catalog) => catalog.available,
     );
+    return { players, upgrades, run, items, maps, avatarPrefetch };
+  }
+
+  try {
+    const { players, upgrades, run, items, maps, avatarPrefetch } = await loadProjections();
     const { plan, revision, key } = prepareArtworkPlan(opened.session, { upgrades, items, maps });
     const reused = restoreEntryArtwork(key, plan);
     if (reused) {

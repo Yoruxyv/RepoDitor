@@ -339,12 +339,14 @@ def write_health(
     *,
     game_status_loader: Callable[[], GameProcessStatus] = get_game_process_status,
     reserved: bool = False,
+    own_reservation: bool = False,
     refill_batch: bool = False,
     health_batch: bool = False,
     upgrade_batch: bool = False,
     run_batch: bool = False,
     mixed_batch: bool = False,
     verify_source_identity: bool = False,
+    verify_build: Callable[[], None] | None = None,
     approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
 ) -> dict[str, object]:
@@ -389,7 +391,7 @@ def write_health(
                 raise RecoveryError("save_stale")
             if reserved:
                 requested = transaction.intent
-                transaction.resume()
+                transaction.resume(own_reservation=own_reservation)
                 mismatch = transaction.intent != requested
                 if single and transaction.intent is not None:
                     change = cast(list[dict[str, object]], changes)[0]
@@ -420,6 +422,12 @@ def write_health(
                     if run_batch
                     else _upgrade_changes(data, changes)
                 )
+
+            def verify_before_replace() -> None:
+                if verify_build is not None:
+                    verify_build()
+                transaction.verify_before_replace()
+
             result = save_changes(
                 save_id,
                 fingerprint,
@@ -428,7 +436,7 @@ def write_health(
                 game_status_loader=game_status_loader,
                 recharge_capability_loader=recharge_capability_loader,
                 health_transaction=transaction,
-                verify_replacement=transaction.verify_before_replace
+                verify_replacement=verify_before_replace
                 if single or mixed_batch or verify_source_identity
                 else None,
             )

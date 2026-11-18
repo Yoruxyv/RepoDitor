@@ -1,6 +1,6 @@
 //! Standalone synthetic child compiled only by process tests, never packaged.
 use std::{
-    io::{self, Write},
+    io::{self, Read, Write},
     process::{Command, Stdio},
     time::Duration,
 };
@@ -24,6 +24,15 @@ fn main() {
     let args: Vec<_> = std::env::args().collect();
     match args[1].as_str() {
         "success" => println!("{{\"ok\":true}}"),
+        "publication-test" => {
+            io::stdout()
+                .write_all(b"REPODITOR_READY_TO_PUBLISH\n")
+                .unwrap();
+            io::stdout().flush().unwrap();
+            let mut permit = [0];
+            let published = io::stdin().read_exact(&mut permit).is_ok() && permit == [1];
+            println!("{{\"published\":{published}}}");
+        }
         "fail" => {
             eprintln!("private diagnostic path");
             std::process::exit(7);

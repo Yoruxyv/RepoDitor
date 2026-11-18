@@ -2,6 +2,7 @@
 pub(crate) mod artwork;
 pub(crate) mod cache_activity;
 pub(crate) mod process;
+pub(crate) mod timing;
 
 use crate::error::{BackendError, Outcome, Service};
 use serde::Serialize;
@@ -163,7 +164,8 @@ impl Drop for Request {
 
 pub enum Operation {
     Discovery,
-    Open(String),
+    Open(String, Option<String>),
+    Entry(String, String, Arc<AtomicBool>),
     Game,
     Players(String),
     Avatar(String, String),
@@ -229,12 +231,12 @@ impl Operation {
                 _ => 9,
             },
             Self::Discovery => 0,
-            Self::Open(_) => 1,
+            Self::Open(..) => 1,
             Self::Game => 2,
             Self::Players(_) => 3,
             Self::Avatar(..) => AVATAR_SLOT,
             Self::Artwork(..) | Self::ArtworkBatch(_) => ARTWORK_SLOT,
-            Self::Upgrades(..) => 4,
+            Self::Upgrades(..) | Self::Entry(..) => 4,
             Self::Run(_) => 5,
             Self::Items(..) => 6,
             Self::Maps(..) => 7,
@@ -267,7 +269,7 @@ impl Operation {
     fn deadline(&self) -> Duration {
         #[cfg(feature = "private-editing")]
         if let Self::ProductionHealth(action, _, _, _, payload, _) = self {
-            if matches!(action.as_str(), "prepare" | "write")
+            if matches!(action.as_str(), "prepare" | "write" | "apply")
                 && serde_json::from_str::<serde_json::Value>(payload).is_ok_and(|intent| {
                     intent.get("refillToFull").is_some()
                         || intent["mixed"]["refillToFull"]
@@ -275,7 +277,7 @@ impl Operation {
                             .is_some_and(|items| !items.is_empty())
                 })
             {
-                // Prepare and write share a deadline and each scans the pinned Unity resources.
+                // Preparing and publishing each scan the pinned Unity resources.
                 return Duration::from_secs(120);
             }
         }
@@ -286,7 +288,7 @@ impl Operation {
             #[cfg(feature = "production-health")]
             Self::ProductionHealth(..) => Service::Save,
             Self::Discovery => Service::Discovery,
-            Self::Open(_) => Service::Save,
+            Self::Open(..) | Self::Entry(..) => Service::Save,
             Self::Game => Service::Game,
             Self::Players(_) | Self::Avatar(..) => Service::Player,
             Self::Upgrades(..) | Self::Artwork(artwork::Scope::Upgrade, ..) => Service::Upgrade,
@@ -334,7 +336,17 @@ impl Operation {
                 ]
             }
             Self::Discovery => vec!["environment"],
-            Self::Open(id) => vec!["saves-open", id],
+            Self::Open(id, revision) => {
+                let mut args = vec!["saves-open", id];
+                if !cfg!(feature = "synthetic-health-recovery") {
+                    args.push("--native");
+                    if let Some(revision) = revision {
+                        args.extend(["--entry-revision", revision]);
+                    }
+                }
+                args
+            }
+            Self::Entry(id, fingerprint, _) => vec!["editor-entry", id, fingerprint],
             Self::Game => vec!["game-status"],
             Self::Players(id) => vec!["players-list", id],
             Self::Avatar(id, player) => vec!["players-avatar", id, player],
@@ -564,7 +576,7 @@ fn execute(
         None
     } else {
         Some(loop {
-            if state.closing.load(Ordering::SeqCst) {
+            if state.closing.load(Ordering::SeqCst) || request.2.load(Ordering::SeqCst) {
                 return Err(BackendError::Failed);
             }
             if started.elapsed() >= deadline {
@@ -600,6 +612,23 @@ fn execute(
             })
             .as_str()
     });
+    let publication = (args.first() == Some(&"production-health") && args.get(1) == Some(&"apply"))
+        .then_some(|input: std::process::ChildStdin| {
+            #[cfg(feature = "production-health")]
+            if let Some(editor) = &request.4 {
+                use std::io::Write;
+
+                let mut input = input;
+                let _ = state.launch_editor_write(editor, || {
+                    if request.2.load(Ordering::SeqCst) {
+                        return Err(BackendError::Request);
+                    }
+                    input.write_all(&[1]).map_err(|_| BackendError::Failed)
+                });
+                return;
+            }
+            drop(input);
+        });
     let result = process::run(
         executable,
         args,
@@ -607,6 +636,7 @@ fn execute(
         request.2.clone(),
         cosmetic_key,
         request.3,
+        publication,
         |command| {
             #[cfg(feature = "health-transport")]
             if let Some(editor) = &request.4 {
@@ -729,6 +759,7 @@ where
     match &operation {
         Operation::Artwork(.., cancelled) => request.2 = cancelled.clone(),
         Operation::ArtworkBatch(batch) => request.2 = batch.cancelled.clone(),
+        Operation::Entry(_, _, cancelled) => request.2 = cancelled.clone(),
         Operation::Upgrades(_, Some(cancelled)) | Operation::Items(_, Some(cancelled)) => {
             request.2 = cancelled.clone();
             request.3 = true;
@@ -738,7 +769,7 @@ where
     #[cfg(feature = "health-transport")]
     let is_write = match &operation {
         #[cfg(feature = "production-health")]
-        Operation::ProductionHealth(action, ..) => action == "write",
+        Operation::ProductionHealth(action, ..) => action == "apply",
         #[cfg(feature = "health-transport")]
         Operation::MetaWrite(..) => true,
         #[cfg(feature = "synthetic-health-recovery")]

@@ -1,12 +1,15 @@
 import io
 import json
 import sys
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import repo_save_editor.desktop_api.__main__ as desktop_main
+from repo_save_editor.desktop_api import cosmetics, game_assets, game_status, saves
+from repo_save_editor.desktop_api.discovery import maps
 from repo_save_editor.desktop_api.discovery.environment import serialize_environment
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.saves.discovery import (
@@ -19,23 +22,23 @@ from repo_save_editor.services.saves.discovery import (
 @pytest.mark.parametrize(
     ("command", "target", "arguments", "expected_call"),
     [
-        ("environment", "discover_environment", (), ()),
-        ("game-status", "get_game_status", (), ()),
-        ("maps-list", "list_maps", (), ()),
-        ("maps-list", "list_maps", ("--entry-artwork-proof",), ()),
-        ("icons-roots", "get_icon_roots", (), ()),
-        ("cosmetics-get", "get_cosmetics", (), ()),
-        ("saves-open", "open_save", ("save-id",), ("save-id",)),
-        ("players-list", "list_players", ("save-id",), ("save-id",)),
+        ("environment", "discovery.environment:discover_environment", (), ()),
+        ("game-status", "game_status:get_game_status", (), ()),
+        ("maps-list", "discovery.maps:list_maps", (), ()),
+        ("maps-list", "discovery.maps:list_maps", ("--entry-artwork-proof",), ()),
+        ("icons-roots", "icons:get_icon_roots", (), ()),
+        ("cosmetics-get", "cosmetics:get_cosmetics", (), ()),
+        ("saves-open", "saves:open_save", ("save-id",), ("save-id",)),
+        ("players-list", "player.players:list_players", ("save-id",), ("save-id",)),
         (
             "players-avatar",
-            "get_player_avatar",
+            "player.players:get_player_avatar",
             ("save-id", "player-id"),
             ("save-id", "player-id"),
         ),
-        ("upgrades-list", "list_upgrades", ("save-id",), ("save-id",)),
-        ("run-get", "get_run_state", ("save-id",), ("save-id",)),
-        ("advanced-get", "get_advanced_save", ("save-id",), ("save-id",)),
+        ("upgrades-list", "player.upgrades:list_upgrades", ("save-id",), ("save-id",)),
+        ("run-get", "run:get_run_state", ("save-id",), ("save-id",)),
+        ("advanced-get", "items:get_advanced_save", ("save-id",), ("save-id",)),
     ],
 )
 def test_read_commands_preserve_names_arguments_and_one_json_result(
@@ -52,7 +55,8 @@ def test_read_commands_preserve_names_arguments_and_one_json_result(
         calls.append((args, kwargs))
         return {"ok": True, "command": command}
 
-    monkeypatch.setattr(desktop_main, target, fake)
+    module, name = target.split(":")
+    monkeypatch.setattr(import_module(f"repo_save_editor.desktop_api.{module}"), name, fake)
     monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", command, *arguments])
 
     desktop_main.main()
@@ -74,7 +78,7 @@ def test_saves_write_cli_preserves_positional_payload_contract(monkeypatch, caps
         calls.append(args)
         return {"ok": True}
 
-    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(saves, "save_changes", fake)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -102,8 +106,8 @@ def test_maps_entry_proof_verifies_save_last_without_returning_save_data(monkeyp
         assert save_id == "save-id"
         return {"ok": True, "session": {"id": save_id, "fingerprint": "b" * 64, "path": "private"}}
 
-    monkeypatch.setattr(desktop_main, "list_maps", list_maps)
-    monkeypatch.setattr(desktop_main, "open_save", open_save)
+    monkeypatch.setattr(maps, "list_maps", list_maps)
+    monkeypatch.setattr(saves, "open_save", open_save)
     command = desktop_main._parser().parse_args(
         ["maps-list", "--entry-artwork-proof", "--verify-save", "save-id"]
     )
@@ -138,7 +142,7 @@ def test_saves_write_cli_passes_optional_recharge_evidence(monkeypatch, capsys) 
         )
         return {"ok": True}
 
-    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(saves, "save_changes", fake)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -171,7 +175,7 @@ def test_saves_write_cli_ignores_malformed_optional_recharge_evidence(monkeypatc
         calls.append(args)
         return {"ok": True}
 
-    monkeypatch.setattr(desktop_main, "save_changes", fake)
+    monkeypatch.setattr(saves, "save_changes", fake)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -315,7 +319,7 @@ def test_health_write_build_admission_does_not_reuse_other_feature_approval(tmp_
 
 def test_cosmetics_get_cli_requires_no_run_save_id(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
-        desktop_main,
+        cosmetics,
         "get_cosmetics",
         lambda: {"ok": True, "cosmetics": {"fingerprint": "a" * 64}},
     )
@@ -335,7 +339,7 @@ def test_cosmetics_write_cli_uses_fingerprint_and_changes_only(monkeypatch, caps
         return {"ok": True}
 
     changes = [{"feature": "cosmetics", "entity": "known", "field": "unlockAll", "after": True}]
-    monkeypatch.setattr(desktop_main, "save_cosmetics", fake_save)
+    monkeypatch.setattr(cosmetics, "save_cosmetics", fake_save)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -355,7 +359,7 @@ def test_cosmetics_write_cli_uses_fingerprint_and_changes_only(monkeypatch, caps
 
 def test_game_status_cli_returns_narrow_status(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
-        desktop_main,
+        game_status,
         "get_game_status",
         lambda: {"ok": True, "status": "not_running", "running": False},
     )
@@ -398,7 +402,7 @@ def test_assets_prepare_cli_streams_records_and_one_structured_final(monkeypatch
             }
         )
 
-    monkeypatch.setattr(desktop_main, "prepare_game_assets", fake_prepare)
+    monkeypatch.setattr(game_assets, "prepare_game_assets", fake_prepare)
     payload = json.dumps(["playerUpgradeHealth", "playerUpgradeFuture"]).encode("utf-8")
     monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(payload)))
     monkeypatch.setattr(sys, "argv", ["repo_save_editor.desktop_api", "assets-prepare"])

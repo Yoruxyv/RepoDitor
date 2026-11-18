@@ -518,7 +518,7 @@ class HealthTransaction:
             raise RecoveryError("write_conflict")
 
     @bounded_save_operation
-    def resume(self) -> None:
+    def resume(self, *, own_reservation: bool = False) -> None:
         """Claim a durably acknowledged reservation before doing any save work."""
         if _present(self.archive, directory=self.directory):
             raise RecoveryError("write_duplicate")
@@ -526,7 +526,10 @@ class HealthTransaction:
         self._require_namespace(receipt)
         if receipt.phase != "prepared" or receipt.after is not None:
             raise RecoveryError("write_recovery_required")
-        if not _owner_exited(receipt.owner_pid, receipt.owner_started):
+        if own_reservation:
+            if (receipt.owner_pid, receipt.owner_started) != (os.getpid(), self.process_started):
+                raise RecoveryError("write_conflict")
+        elif not _owner_exited(receipt.owner_pid, receipt.owner_started):
             raise RecoveryError("write_busy")
         if _snapshot(self.path, directory=self.directory) != (
             receipt.before,
@@ -534,10 +537,11 @@ class HealthTransaction:
         ):
             raise RecoveryError("write_conflict")
         self.started = True
-        self._write(
-            replace(receipt, owner_pid=os.getpid(), owner_started=self.process_started),
-            self.pending,
-        )
+        if not own_reservation:
+            self._write(
+                replace(receipt, owner_pid=os.getpid(), owner_started=self.process_started),
+                self.pending,
+            )
         self.resumed = True
         self.intent = receipt.intent
 

@@ -904,32 +904,16 @@ pub async fn production_write(app: tauri::AppHandle, raw: Value) -> Transaction 
     if !private_run_allowed(&host, &editor.token) {
         return failure(operation, "rejected", "save_unsupported");
     }
-    let started = Instant::now();
-    let command = |action: &str| {
+    dispatch(
+        app,
         Operation::ProductionHealth(
-            action.into(),
+            "apply".into(),
             save.into(),
             operation.into(),
             editor.fingerprint.clone(),
             json!({(field): raw[field]}).to_string(),
-            started,
-        )
-    };
-    let prepared = dispatch(
-        app.clone(),
-        command("prepare"),
-        operation.into(),
-        true,
-        save,
-        Some(editor.clone()),
-    )
-    .await;
-    if prepared.status != "prepared" {
-        return prepared;
-    }
-    dispatch(
-        app,
-        command("write"),
+            Instant::now(),
+        ),
         operation.into(),
         true,
         save,

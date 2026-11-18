@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
+from functools import partial
 from hashlib import sha256
 from pathlib import Path
 from sys import platform
@@ -199,6 +201,17 @@ def _admit_request(
     return domain
 
 
+def _recovery_intent_allowed(
+    intent: object, *, domains: frozenset[str], approval: Approval | None
+) -> bool:
+    if approval is not None:
+        return intent == approval.intent
+    try:
+        return _intent_domain(intent)[1] <= domains
+    except RecoveryError:
+        return False
+
+
 def _authorized_root(save: str, approval: Approval | None) -> Path:
     root = get_default_save_root()
     if root is None:
@@ -228,7 +241,13 @@ def _authorize_build(
 
 
 def production_health(
-    action: str, save: str, operation: str = "", fingerprint: str = "", payload: object = None
+    action: str,
+    save: str,
+    operation: str = "",
+    fingerprint: str = "",
+    payload: object = None,
+    *,
+    publication_allowed: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     bundle = private_bundle()
     approval = read_approval(bundle) if bundle and not bundle.session else None
@@ -244,18 +263,18 @@ def production_health(
             return {"ok": True, "state": "disabled"}
         return _outcome(operation, "rejected", exc.code)
 
-    def game_status() -> GameProcessStatus:
+    def verify_build() -> None:
         if authorize() != (executable, build, domains):
             raise RecoveryError("save_verification_unavailable")
+
+    def status_with_build_check() -> GameProcessStatus:
+        verify_build()
         return _process_status(executable)
 
-    def intent_allowed(intent: object) -> bool:
-        if approval is not None:
-            return intent == approval.intent
-        try:
-            return _intent_domain(intent)[1] <= domains
-        except RecoveryError:
-            return False
+    game_status = (
+        partial(_process_status, executable) if action == "apply" else status_with_build_check
+    )
+    intent_allowed = partial(_recovery_intent_allowed, domains=domains, approval=approval)
 
     if action == "state":
         return {
@@ -272,7 +291,9 @@ def production_health(
             intent_allowed=intent_allowed,
             approval=approval,
         )
-    if action not in {"prepare", "write"}:
+    if action not in {"prepare", "write", "apply"} or (
+        action == "apply" and publication_allowed is None
+    ):
         return _outcome(operation, "rejected", "invalid_request")
     try:
         domain = _admit_request(payload, fingerprint, domains, approval)
@@ -280,8 +301,8 @@ def production_health(
         return _outcome(operation, "rejected", exc.code)
     changes = cast(dict[str, object], payload)[domain]
 
-    if action == "prepare":
-        return prepare_health(
+    if action in {"prepare", "apply"}:
+        prepared = prepare_health(
             save,
             fingerprint,
             changes,
@@ -296,6 +317,12 @@ def production_health(
             refill_batch=domain == "refillToFull",
             mixed_batch=domain == "mixed",
         )
+        transaction = cast(dict[str, object], prepared["transaction"])
+        if action == "prepare" or transaction["status"] != "prepared":
+            return prepared
+        # Rust rechecks the editor generation after reservation. EOF never grants publication.
+        if publication_allowed is None or not publication_allowed():
+            return _outcome(operation, "uncertain", "write_recovery_required")
     return write_health(
         save,
         fingerprint,
@@ -304,8 +331,10 @@ def production_health(
         root,
         game_status_loader=game_status,
         verify_source_identity=True,
+        verify_build=verify_build if action == "apply" else None,
         approval=approval,
         reserved=True,
+        own_reservation=action == "apply",
         health_batch=domain == "health",
         upgrade_batch=domain == "upgrades",
         run_batch=domain == "run",

@@ -58,6 +58,10 @@ pub struct SaveOpenResult {
     session: SaveSession,
     required_upgrade_visual_keys: Vec<String>,
     presentation_readiness: &'static str,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    supports_entry_batch: bool,
+    #[serde(skip)]
+    pub(crate) verified_entry_revision: Option<String>,
 }
 impl SaveOpenResult {
     pub fn fingerprint(&self) -> &str {
@@ -69,6 +73,9 @@ impl SaveOpenResult {
 struct PythonOpen {
     session: SaveSession,
     required_upgrade_visual_keys: Vec<String>,
+    #[serde(default)]
+    supports_entry_batch: bool,
+    verified_entry_revision: Option<String>,
 }
 
 pub fn parse(bytes: &[u8], requested: &str) -> Result<SaveOpenResult, BackendError> {
@@ -113,10 +120,14 @@ pub fn parse(bytes: &[u8], requested: &str) -> Result<SaveOpenResult, BackendErr
         session: value.session,
         required_upgrade_visual_keys: value.required_upgrade_visual_keys,
         presentation_readiness: readiness,
+        supports_entry_batch: value.supports_entry_batch,
+        verified_entry_revision: value
+            .verified_entry_revision
+            .filter(|revision| valid_fingerprint(revision)),
     })
 }
 
-pub(super) fn domain_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
+pub(crate) fn domain_error(raw: &serde_json::Value) -> Result<BackendError, BackendError> {
     let error = raw.get("error").ok_or(BackendError::Invalid)?;
     if error
         .get("message")

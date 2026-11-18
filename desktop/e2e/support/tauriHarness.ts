@@ -286,6 +286,7 @@ export async function launch(
   executable: string,
   home: string,
   extraEnvironment: Record<string, string> = {},
+  observeReady?: (page: Page, spawnedAt: number) => Promise<void>,
 ) {
   const interop = prepareWindowsProbe();
   const port = await freePort();
@@ -303,6 +304,7 @@ export async function launch(
   }
   environment["PATH"] = `${process.env["SYSTEMROOT"]}\\System32;${process.env["SYSTEMROOT"]}`;
   Object.assign(environment, extraEnvironment);
+  const spawnedAt = Date.now();
   const child = spawn(executable, [], {
     cwd: path.dirname(executable),
     env: environment,
@@ -372,6 +374,7 @@ export async function launch(
           .__TAURI_INTERNALS__?.invoke === "function",
     );
     await page.getByTestId("editor-content").waitFor({ state: "attached" });
+    await observeReady?.(page, spawnedAt);
     await record("ready");
     return { child, browser, page, startupPath };
   } catch (error) {

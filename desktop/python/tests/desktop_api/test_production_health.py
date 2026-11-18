@@ -37,7 +37,10 @@ def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
 
 
 @pytest.mark.parametrize("mixed", [False, True])
-def test_production_transaction_reconciles_from_another_process(tmp_path, sample_save, mixed):
+@pytest.mark.parametrize("apply", [False, True])
+def test_production_transaction_reconciles_from_another_process(
+    tmp_path, sample_save, mixed, apply
+):
     key = "Item Melee Inflatable Hammer/1"
     values = sample_save["dictionaryOfDictionaries"]["value"]
     if mixed:
@@ -88,7 +91,11 @@ health.inspect_windows_processes = lambda executable: ProcessInspection(
     (executable,) if sys.argv[4] == "running" else (),
     has_unverifiable_candidate=sys.argv[4] == "unknown",
 )
-print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]))))
+def publication():
+    if sys.argv[4] == "build-replaced":
+        (game / health.HEALTH_BUILD_SOURCES[-1]).write_bytes(b"unreviewed replacement")
+    return sys.argv[4] != "closed-editor"
+print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]), publication_allowed=publication)))
 """
     payload = {"health": [{"playerId": "111", "before": 80, "value": 79}]}
 
@@ -103,6 +110,8 @@ print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]
                 "refillToFull": [{"saveKey": key, "before": 99}],
             }
         }
+
+    operation = OPERATION
 
     def command(action, status="closed", changes=payload):
         env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[2])}
@@ -120,7 +129,7 @@ print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]
                 status,
                 action,
                 SAVE,
-                OPERATION,
+                operation,
                 fingerprint,
                 json.dumps(changes),
             ],
@@ -144,8 +153,25 @@ print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]
     assert command("prepare")["reason"] == "save_unsupported"
     assembly.write_bytes(b"REPO_Data/Managed/Assembly-CSharp.dll")
     assert save.read_bytes() == original
-    assert command("prepare")["status"] == "prepared"
-    assert command("write")["status"] == "applied"
+    if apply:
+        assert command("apply", "closed-editor")["reason"] == "write_recovery_required"
+        assert save.read_bytes() == original
+        assert list(save.parent.glob("*.bak-*")) == []
+        assert command("acknowledge")["status"] == "unchanged"
+        # Each authorization is one operation; a recovered ID cannot be replayed.
+        assert command("apply")["reason"] == "write_duplicate"
+        operation = "b" * 32
+        assert command("apply", "build-replaced")["reason"] == "save_unsupported"
+        assert save.read_bytes() == original
+        (game / admission.HEALTH_BUILD_SOURCES[-1]).write_bytes(
+            admission.HEALTH_BUILD_SOURCES[-1].encode()
+        )
+        assert command("acknowledge")["status"] == "unchanged"
+        operation = "c" * 32
+        assert command("apply")["status"] == "applied"
+    else:
+        assert command("prepare")["status"] == "prepared"
+        assert command("write")["status"] == "applied"
     inspected = command("inspect")
     assert inspected["status"] == "applied"
     assert inspected["backupAvailable"] is True

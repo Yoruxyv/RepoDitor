@@ -470,6 +470,16 @@ process or its response therefore cannot leave a potentially executed write with
 a pending marker. A preparation failure is known to precede save mutation, while an
 unverified launched writer is uncertain. Both processes share the original request's
 30-second budget.
+
+The production Run-save path prepares and publishes in one bounded sidecar. After
+persisting its reservation, the child waits for a byte on its parent-owned pipe.
+The host sends that byte only after rechecking the current editor generation
+under the open/close lock. A closed pipe leaves the save untouched and the
+reservation eligible for recovery after the child exits. Before replacing the
+save, Python checks the installed build and source digests again, then verifies
+the save and checks that the game is closed. Each game-process check still
+enumerates processes. A separate child reconciles the receipt and returns the
+canonical saved values.
 An OS file lock serializes cooperating writers/recovery. Recovery also verifies the
 recorded owner process has exited before cleaning its files. Windows process
 creation time distinguishes a reused PID from the recorded owner; an unverifiable
@@ -876,7 +886,24 @@ Players, Upgrades, Run, Items, Maps and artwork. The editor and its navigation
 open after preparation, final source verification, the game-status check and
 the initial editing-authorization check.
 The active workspace retains its projections across tab changes and disposes
-them on close.
+its drafts and editing session on close.
+
+The native entry read batches the five projections around one validated save
+snapshot. Upgrades and Items share an installed metadata lookup for their
+combined roster. The host binds the returned artwork to the current save
+generation after verifying the fingerprint. Initial discovery overlaps WebView
+startup and the first renderer request consumes that result. Setting
+`REPODITOR_PROFILE_TIMING=1` for a local profiling run emits host, sidecar and
+handler durations to standard error without paths or save contents. Sidecar
+commands load their own Python dependencies after dispatch. Discovery and game
+status can run without importing the save-writing or artwork decoders.
+
+The host retains one read-only projection snapshot in memory. It is reusable
+only when the installed-source revision agrees before and after preparation and
+a fresh open verifies the same installed-source revision and encrypted save
+fingerprint. The host issues new artwork tokens for the new generation. Game
+status and editing authorization are checked in parallel after preparation.
+The workspace waits for both and consumes the initial authorization once.
 
 The separate Cosmetics workspace revalidates MetaSave and installed artwork
 sources on entry, refresh and game-safety recovery. A successful catalog read
@@ -1012,8 +1039,8 @@ Native projection reads may reuse those results after checking the installed
 build, Steam manifest and both Unity file identities before and after the read.
 The binding includes NTFS change time and the metadata format version. The
 sidecar projects player and item-instance values from the current encrypted
-save on every request. Write admission and reconciliation use their existing
-independent checks.
+save on cache misses. Warm projection reuse requires a fresh fingerprint and
+source confirmation. Write admission and reconciliation use independent checks.
 
 The sidecar checks the installed build and a bounded roster of source identities
 before and after serving cached artwork. The roster includes file identity,

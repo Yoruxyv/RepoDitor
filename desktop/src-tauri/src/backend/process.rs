@@ -7,7 +7,7 @@ use std::{
         process::CommandExt,
     },
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
@@ -20,6 +20,7 @@ use windows_sys::Win32::System::Threading::{BELOW_NORMAL_PRIORITY_CLASS, CREATE_
 
 pub(crate) const STDOUT_LIMIT: usize = 2 * 1024 * 1024;
 pub(crate) const LARGE_ARTWORK_BATCH_STDOUT_LIMIT: usize = 8 * 1024 * 1024;
+const PUBLICATION_READY: &[u8] = b"REPODITOR_READY_TO_PUBLISH\n";
 
 struct Job(OwnedHandle);
 impl Job {
@@ -57,6 +58,7 @@ pub fn run(
     cancelled: Arc<AtomicBool>,
     cosmetic_key: Option<&str>,
     background: bool,
+    publication: Option<impl FnOnce(ChildStdin)>,
     launch: impl FnOnce(&mut Command) -> Result<Child, BackendError>,
 ) -> Result<Vec<u8>, BackendError> {
     if cancelled.load(Ordering::SeqCst) {
@@ -79,13 +81,20 @@ pub fn run(
                     0
                 },
         )
-        .stdin(Stdio::null())
+        .stdin(if publication.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     if let Some(key) = cosmetic_key {
         command.env("REPODITOR_NATIVE_COSMETIC_KEY", key);
     }
+    let launching = Instant::now();
     let mut child = launch(&mut command)?;
+    let spawn_ms = launching.elapsed().as_secs_f64() * 1000.0;
+    let mut publication = publication.zip(child.stdin.take());
     unsafe {
         if AssignProcessToJobObject(job.0.as_raw_handle(), child.as_raw_handle()) == 0 {
             let _ = child.kill();
@@ -122,17 +131,19 @@ pub fn run(
     })
     .collect();
     drop(sender);
+    let setup_ms = started.elapsed().as_secs_f64() * 1000.0;
     let mut output = Vec::new();
     let mut counts = [0usize; 2];
-    let stdout_limit = if matches!(
-        args.first().copied(),
-        Some("map-artwork-batch" | "item-artwork-batch")
-    ) {
-        LARGE_ARTWORK_BATCH_STDOUT_LIMIT
-    } else {
-        STDOUT_LIMIT
+    let stdout_limit = match args.first().copied() {
+        Some("map-artwork-batch" | "item-artwork-batch") => LARGE_ARTWORK_BATCH_STDOUT_LIMIT,
+        Some("editor-entry") => 5 * STDOUT_LIMIT + 4096,
+        _ => STDOUT_LIMIT,
     };
     let mut status = None;
+    let profiling = super::timing::enabled();
+    let mut diagnostics = Vec::new();
+    let mut first_output = None;
+    let mut ready_ms = None;
     let result = loop {
         if cancelled.load(Ordering::SeqCst) {
             break Err(BackendError::Failed);
@@ -147,7 +158,25 @@ pub fn run(
                     break Err(BackendError::Malformed);
                 }
                 if stream == 0 {
+                    if profiling && first_output.is_none() {
+                        first_output = Some(started.elapsed());
+                    }
                     output.extend(bytes);
+                    if publication.is_some() {
+                        if output.starts_with(PUBLICATION_READY) {
+                            let (permit, input) = publication.take().unwrap();
+                            output.drain(..PUBLICATION_READY.len());
+                            permit(input);
+                        } else if !PUBLICATION_READY.starts_with(&output) {
+                            // Preparation may finish with a rejection and never ask to publish.
+                            publication.take();
+                        }
+                    }
+                } else if profiling {
+                    diagnostics.extend(bytes);
+                    if ready_ms.is_none() && diagnostics.starts_with(b"REPODITOR_PROFILE_READY") {
+                        ready_ms = Some(started.elapsed().as_secs_f64() * 1000.0);
+                    }
                 }
             }
             Ok((_, Err(error))) => break Err(error),
@@ -172,6 +201,32 @@ pub fn run(
     drop(receiver);
     for reader in readers {
         let _ = reader.join();
+    }
+    if profiling {
+        let diagnostics = String::from_utf8_lossy(&diagnostics);
+        let elapsed = |prefix| {
+            diagnostics
+                .lines()
+                .find_map(|line| line.strip_prefix(prefix))
+                .and_then(|value| value.parse::<f64>().ok())
+                .filter(|value| value.is_finite() && *value >= 0.0)
+        };
+        let handler = elapsed("REPODITOR_PROFILE_HANDLER_MS=");
+        let source = elapsed("REPODITOR_PROFILE_SOURCE_MS=");
+        let save = elapsed("REPODITOR_PROFILE_SAVE_MS=");
+        let json = elapsed("REPODITOR_PROFILE_JSON_MS=");
+        let command = args.first().copied().unwrap_or("unknown");
+        let phase = if command == "production-health" {
+            args.get(1).copied().unwrap_or("")
+        } else {
+            ""
+        };
+        let first_ms = first_output.map(|elapsed| elapsed.as_secs_f64() * 1000.0);
+        eprintln!(
+            "[repoditor-perf] sidecar command={command} phase={phase} total_ms={:.2} spawn_ms={spawn_ms:.2} setup_ms={setup_ms:.2} ready_ms={ready_ms:?} first_output_ms={first_ms:?} handler_ms={handler:?} source_ms={source:?} save_ms={save:?} json_ms={json:?} ok={}",
+            started.elapsed().as_secs_f64() * 1000.0,
+            result.is_ok()
+        );
     }
     result
 }

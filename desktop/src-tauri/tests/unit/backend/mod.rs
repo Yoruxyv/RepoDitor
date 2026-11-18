@@ -397,7 +397,7 @@ fn private_refills_have_a_bounded_budget_for_both_write_phases() {
     let refill = r#"{"refillToFull":[{}]}"#;
     let mixed_refill = r#"{"mixed":{"health":[{}],"refillToFull":[{}]}}"#;
     let mixed_without_refill = r#"{"mixed":{"health":[{}],"refillToFull":[]}}"#;
-    for action in ["prepare", "write"] {
+    for action in ["prepare", "write", "apply"] {
         assert_eq!(deadline(action, refill), Duration::from_secs(120));
         assert_eq!(deadline(action, mixed_refill), Duration::from_secs(120));
         assert_eq!(deadline(action, mixed_without_refill), DEADLINE);
@@ -567,7 +567,8 @@ fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
 fn queued_requests_observe_cancellation_and_original_deadline() {
     let state = Arc::new(HostState::default());
     let _held = state.domain_worker.lock().unwrap();
-    let request = Request::reserve(state.clone(), Operation::Open(String::new()).slot()).unwrap();
+    let request =
+        Request::reserve(state.clone(), Operation::Open(String::new(), None).slot()).unwrap();
     let path = Path::new("must-never-spawn.exe");
     assert_eq!(
         execute(

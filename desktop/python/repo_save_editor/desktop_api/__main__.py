@@ -1,5 +1,8 @@
 """Command-line protocol adapter for the bundled RepoDitor desktop sidecar."""
 
+# Importing every route would load the save and artwork stacks for status-only requests.
+# ruff: noqa: PLC0415
+
 from __future__ import annotations
 
 import argparse
@@ -8,61 +11,9 @@ import os
 import sys
 from functools import partial
 from pathlib import Path
+from time import perf_counter
 
 from repo_save_editor.core.save_resources import bounded_save_operation
-from repo_save_editor.desktop_api.cosmetic_artwork import (
-    get_cosmetic_artwork,
-    get_native_cosmetic_artwork,
-    get_native_cosmetic_artwork_batch,
-    get_native_cosmetics,
-)
-from repo_save_editor.desktop_api.cosmetic_preparation import (
-    parse_cosmetic_ids,
-    stream_cosmetic_artwork,
-)
-from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
-from repo_save_editor.desktop_api.discovery.environment import discover_environment
-from repo_save_editor.desktop_api.discovery.maps import (
-    get_native_map_artwork,
-    get_native_map_artwork_batch,
-    list_maps,
-)
-from repo_save_editor.desktop_api.game_assets import (
-    prepare_game_assets,
-    read_upgrade_keys_stdin,
-)
-from repo_save_editor.desktop_api.game_status import get_game_status
-from repo_save_editor.desktop_api.health_recovery import (
-    health_state,
-    prepare_health,
-    recover_health,
-    write_health,
-)
-from repo_save_editor.desktop_api.icons import (
-    get_baked_artwork,
-    get_icon_roots,
-    get_native_item_artwork,
-    get_native_item_artwork_batch,
-    get_native_upgrade_artwork,
-    get_native_upgrade_artwork_batch,
-    get_upgrade_texture,
-)
-from repo_save_editor.desktop_api.items import get_advanced_save
-from repo_save_editor.desktop_api.meta_transactions import meta_recover, meta_state, meta_write
-from repo_save_editor.desktop_api.player.players import get_player_avatar, list_players
-from repo_save_editor.desktop_api.player.upgrades import list_upgrades
-from repo_save_editor.desktop_api.production_health import production_health
-from repo_save_editor.desktop_api.production_meta import production_meta
-from repo_save_editor.desktop_api.run import get_run_state
-from repo_save_editor.desktop_api.saves import open_save, save_changes
-from repo_save_editor.services.game.map_artwork import decode_map_artwork
-from repo_save_editor.services.items.recharge_capability import (
-    discover_installed_item_metadata,
-    discover_installed_item_metadata_with_evidence,
-)
-from repo_save_editor.services.player.installed_upgrades import (
-    discover_installed_upgrade_presentations,
-)
 
 _INVALID_JSON = object()
 
@@ -76,10 +27,32 @@ def _missing_save() -> dict[str, object]:
 
 
 def _open_save(args: argparse.Namespace) -> dict[str, object]:
-    return _missing_save() if args.save_id is None else open_save(args.save_id)
+    from repo_save_editor.desktop_api.saves import open_save
+    from repo_save_editor.services.baked_artwork import entry_artwork_revision
+
+    if args.save_id is None:
+        return _missing_save()
+    started = perf_counter()
+    current_revision = entry_artwork_revision() if args.entry_revision is not None else None
+    source_verified = perf_counter()
+    result = open_save(args.save_id)
+    if os.environ.get("REPODITOR_PROFILE_TIMING") == "1":
+        print(
+            f"REPODITOR_PROFILE_SOURCE_MS={(source_verified - started) * 1000:.2f}\n"
+            f"REPODITOR_PROFILE_SAVE_MS={(perf_counter() - source_verified) * 1000:.2f}",
+            file=sys.stderr,
+        )
+    if result["ok"] is True and args.native:
+        result["supportsEntryBatch"] = True
+        if current_revision is not None and current_revision == args.entry_revision:
+            result["verifiedEntryRevision"] = current_revision
+    return result
 
 
 def _list_maps(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.discovery.maps import list_maps
+    from repo_save_editor.desktop_api.saves import open_save
+
     catalog = list_maps(entry_proof=args.entry_artwork_proof)
     if not catalog["ok"] or args.verify_save is None:
         return catalog
@@ -93,6 +66,8 @@ def _list_maps(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _list_players(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.player.players import list_players
+
     return (
         _missing_save()
         if args.save_id is None
@@ -101,12 +76,22 @@ def _list_players(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _player_avatar(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.player.players import get_player_avatar
+
     if args.save_id is None or args.player_id is None:
         return _missing_save()
     return get_player_avatar(args.save_id, args.player_id)
 
 
 def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.player.upgrades import list_upgrades
+    from repo_save_editor.services.items.recharge_capability import (
+        discover_installed_item_metadata,
+    )
+    from repo_save_editor.services.player.installed_upgrades import (
+        discover_installed_upgrade_presentations,
+    )
+
     if args.save_id is None:
         return _missing_save()
     if not args.reuse_installed_metadata:
@@ -121,24 +106,35 @@ def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_upgrade_texture
+
     if args.upgrade_key is None:
         return _invalid_request("The required upgrade identity is missing.")
     return get_upgrade_texture(args.upgrade_key)
 
 
 def _native_upgrade_artwork(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_native_upgrade_artwork
+
     return get_native_upgrade_artwork(
         args.save_id, args.fingerprint, args.upgrade_key, persistent=True
     )
 
 
 def _cosmetic_artwork(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
+
     if args.cosmetic_id is None:
         return _invalid_request("A canonical cosmetic ID is required.")
     return get_cosmetic_artwork(args.cosmetic_id)
 
 
 def _prepare_cosmetics(_args: argparse.Namespace) -> None:
+    from repo_save_editor.desktop_api.cosmetic_preparation import (
+        parse_cosmetic_ids,
+        stream_cosmetic_artwork,
+    )
+
     def emit(record: dict[str, object]) -> None:
         print(json.dumps(record, separators=(",", ":")), flush=True)
 
@@ -151,6 +147,11 @@ def _prepare_cosmetics(_args: argparse.Namespace) -> None:
 
 
 def _prepare_assets(_args: argparse.Namespace) -> None:
+    from repo_save_editor.desktop_api.game_assets import (
+        prepare_game_assets,
+        read_upgrade_keys_stdin,
+    )
+
     def emit(record: dict[str, object]) -> None:
         print(json.dumps(record, separators=(",", ":")), flush=True)
 
@@ -177,6 +178,8 @@ def _prepare_assets(_args: argparse.Namespace) -> None:
 
 
 def _run_state(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.run import get_run_state
+
     return (
         _missing_save()
         if args.save_id is None
@@ -185,6 +188,11 @@ def _run_state(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _advanced_save(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.items import get_advanced_save
+    from repo_save_editor.services.items.recharge_capability import (
+        discover_installed_item_metadata_with_evidence,
+    )
+
     if args.save_id is None:
         return _missing_save()
     if not args.reuse_installed_metadata:
@@ -206,6 +214,9 @@ def _parse_changes(payload: str) -> object:
 
 
 def _save_changes(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.health_recovery import write_health
+    from repo_save_editor.desktop_api.saves import save_changes
+
     if args.save_id is None or args.fingerprint is None or args.payload is None:
         return _invalid_request("The save fingerprint and pending changes are required.")
     changes = _parse_changes(args.payload)
@@ -274,16 +285,26 @@ def _recovery_test_root(*, mixed: bool = False) -> Path | None:
 
 
 def _production_health(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.production_health import production_health
+
+    def publication_allowed() -> bool:
+        sys.stdout.buffer.write(b"REPODITOR_READY_TO_PUBLISH\n")
+        sys.stdout.buffer.flush()
+        return sys.stdin.buffer.read(1) == b"\x01"
+
     return production_health(
         args.action,
         args.save_id,
         args.operation,
         args.fingerprint,
         _parse_changes(args.payload),
+        publication_allowed=publication_allowed if args.action == "apply" else None,
     )
 
 
 def _recover_health(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.health_recovery import recover_health
+
     root = _recovery_test_root()
     if root is None or args.save_id is None or args.operation is None:
         return _invalid_request("Experimental recovery requires an isolated test request.")
@@ -297,6 +318,8 @@ def _recover_health(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _health_state(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.health_recovery import health_state
+
     root = _recovery_test_root()
     if root is None:
         return _invalid_request("Experimental recovery requires an isolated test request.")
@@ -304,6 +327,8 @@ def _health_state(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.health_recovery import prepare_health
+
     mixed = getattr(args, "mixed_batch", False)
     root = _recovery_test_root(mixed=mixed)
     changes = _parse_changes(args.payload)
@@ -325,6 +350,8 @@ def _prepare_health(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _save_cosmetics(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.cosmetics import save_cosmetics
+
     if args.fingerprint is None or args.payload is None:
         return _invalid_request("The save fingerprint and pending changes are required.")
     changes = _parse_changes(args.payload)
@@ -334,6 +361,13 @@ def _save_cosmetics(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _meta_transaction(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.meta_transactions import (
+        meta_recover,
+        meta_state,
+        meta_write,
+    )
+    from repo_save_editor.desktop_api.production_meta import production_meta
+
     if args.command.startswith("production-meta-"):
         return production_meta(
             args.command.removeprefix("production-meta-"),
@@ -361,6 +395,107 @@ def _meta_transaction(args: argparse.Namespace) -> dict[str, object]:
     )
 
 
+def _discover_environment(_args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.discovery.environment import (
+        discover_environment,
+    )
+
+    return discover_environment()
+
+
+def _get_game_status(_args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.game_status import get_game_status
+
+    return get_game_status()
+
+
+def _decode_map_artwork(_args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.services.game.map_artwork import decode_map_artwork
+
+    return {"ok": True, "artworks": decode_map_artwork()}
+
+
+def _get_native_map_artwork(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.discovery.maps import get_native_map_artwork
+
+    return get_native_map_artwork(args.revision, args.family, persistent=True)
+
+
+def _get_native_map_artwork_batch(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.discovery.maps import (
+        get_native_map_artwork_batch,
+    )
+
+    return get_native_map_artwork_batch(args.revision, args.families, persistent=True)
+
+
+def _get_icon_roots(_args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_icon_roots
+
+    return get_icon_roots()
+
+
+def _get_baked_artwork(_args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_baked_artwork
+
+    return get_baked_artwork()
+
+
+def _get_native_cosmetics(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.cosmetic_artwork import get_native_cosmetics
+    from repo_save_editor.desktop_api.cosmetics import get_cosmetics
+
+    return (
+        get_native_cosmetics(warm_artwork=args.warm_artwork)
+        if args.native_artwork
+        else get_cosmetics()
+    )
+
+
+def _get_native_cosmetic_artwork(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.cosmetic_artwork import (
+        get_native_cosmetic_artwork,
+    )
+
+    return get_native_cosmetic_artwork(args.fingerprint, args.proof, args.identity)
+
+
+def _get_native_cosmetic_artwork_batch(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.cosmetic_artwork import (
+        get_native_cosmetic_artwork_batch,
+    )
+
+    return get_native_cosmetic_artwork_batch(args.fingerprint, args.members)
+
+
+def _prepare_editor_entry(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.editor_entry import prepare_editor_entry
+
+    return prepare_editor_entry(args.save_id, args.fingerprint)
+
+
+def _get_native_upgrade_artwork_batch(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_native_upgrade_artwork_batch
+
+    return get_native_upgrade_artwork_batch(
+        args.save_id, args.fingerprint, args.keys, persistent=True
+    )
+
+
+def _get_native_item_artwork(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_native_item_artwork
+
+    return get_native_item_artwork(args.save_id, args.fingerprint, args.item_name, persistent=True)
+
+
+def _get_native_item_artwork_batch(args: argparse.Namespace) -> dict[str, object]:
+    from repo_save_editor.desktop_api.icons import get_native_item_artwork_batch
+
+    return get_native_item_artwork_batch(
+        args.save_id, args.fingerprint, args.names, persistent=True
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="repo_save_editor.desktop_api")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -381,57 +516,37 @@ def _parser() -> argparse.ArgumentParser:
         meta_recovery.add_argument("proof")
         meta_recovery.set_defaults(handler=_meta_transaction)
 
-    commands.add_parser("environment").set_defaults(handler=lambda _args: discover_environment())
-    commands.add_parser("game-status").set_defaults(handler=lambda _args: get_game_status())
+    commands.add_parser("environment").set_defaults(handler=_discover_environment)
+    commands.add_parser("game-status").set_defaults(handler=_get_game_status)
     maps_list = commands.add_parser("maps-list")
     maps_list.add_argument("--entry-artwork-proof", action="store_true")
     maps_list.add_argument("--verify-save")
     maps_list.set_defaults(handler=_list_maps)
-    commands.add_parser("maps-artwork").set_defaults(
-        handler=lambda _args: {"ok": True, "artworks": decode_map_artwork()}
-    )
+    commands.add_parser("maps-artwork").set_defaults(handler=_decode_map_artwork)
     map_artwork = commands.add_parser("map-artwork")
     map_artwork.add_argument("revision")
     map_artwork.add_argument("family")
-    map_artwork.set_defaults(
-        handler=lambda args: get_native_map_artwork(args.revision, args.family, persistent=True)
-    )
+    map_artwork.set_defaults(handler=_get_native_map_artwork)
     map_batch = commands.add_parser("map-artwork-batch")
     map_batch.add_argument("revision")
     map_batch.add_argument("families", nargs="+")
-    map_batch.set_defaults(
-        handler=lambda args: get_native_map_artwork_batch(
-            args.revision, args.families, persistent=True
-        )
-    )
-    commands.add_parser("icons-roots").set_defaults(handler=lambda _args: get_icon_roots())
-    commands.add_parser("baked-artwork").set_defaults(handler=lambda _args: get_baked_artwork())
+    map_batch.set_defaults(handler=_get_native_map_artwork_batch)
+    commands.add_parser("icons-roots").set_defaults(handler=_get_icon_roots)
+    commands.add_parser("baked-artwork").set_defaults(handler=_get_baked_artwork)
     cosmetics_get = commands.add_parser("cosmetics-get")
     cosmetics_get.add_argument("--native-artwork", action="store_true")
     cosmetics_get.add_argument("--warm-artwork", action="store_true")
-    cosmetics_get.set_defaults(
-        handler=lambda args: (
-            get_native_cosmetics(warm_artwork=args.warm_artwork)
-            if args.native_artwork
-            else get_cosmetics()
-        )
-    )
+    cosmetics_get.set_defaults(handler=_get_native_cosmetics)
     native_cosmetic = commands.add_parser("native-cosmetic-artwork")
     native_cosmetic.add_argument("fingerprint")
     native_cosmetic.add_argument("proof")
     native_cosmetic.add_argument("identity")
-    native_cosmetic.set_defaults(
-        handler=lambda args: get_native_cosmetic_artwork(
-            args.fingerprint, args.proof, args.identity
-        )
-    )
+    native_cosmetic.set_defaults(handler=_get_native_cosmetic_artwork)
 
     native_batch = commands.add_parser("native-cosmetic-artwork-batch")
     native_batch.add_argument("fingerprint")
     native_batch.add_argument("members", nargs="+")
-    native_batch.set_defaults(
-        handler=lambda args: get_native_cosmetic_artwork_batch(args.fingerprint, args.members)
-    )
+    native_batch.set_defaults(handler=_get_native_cosmetic_artwork_batch)
     commands.add_parser("cosmetics-prepare").set_defaults(
         handler=_prepare_cosmetics, streaming=True
     )
@@ -441,7 +556,14 @@ def _parser() -> argparse.ArgumentParser:
 
     saves_open = commands.add_parser("saves-open")
     saves_open.add_argument("save_id", nargs="?")
+    saves_open.add_argument("--native", action="store_true")
+    saves_open.add_argument("--entry-revision")
     saves_open.set_defaults(handler=_open_save)
+
+    editor_entry = commands.add_parser("editor-entry")
+    editor_entry.add_argument("save_id")
+    editor_entry.add_argument("fingerprint")
+    editor_entry.set_defaults(handler=_prepare_editor_entry)
 
     saves_write = commands.add_parser("saves-write")
     saves_write.add_argument("save_id", nargs="?")
@@ -459,7 +581,7 @@ def _parser() -> argparse.ArgumentParser:
 
     production = commands.add_parser("production-health")
     production.add_argument(
-        "action", choices=("state", "prepare", "write", "inspect", "acknowledge")
+        "action", choices=("state", "prepare", "write", "apply", "inspect", "acknowledge")
     )
     production.add_argument("save_id")
     production.add_argument("operation", nargs="?", default="")
@@ -549,30 +671,18 @@ def _parser() -> argparse.ArgumentParser:
     upgrade_batch.add_argument("save_id")
     upgrade_batch.add_argument("fingerprint")
     upgrade_batch.add_argument("keys", nargs="+")
-    upgrade_batch.set_defaults(
-        handler=lambda args: get_native_upgrade_artwork_batch(
-            args.save_id, args.fingerprint, args.keys, persistent=True
-        )
-    )
+    upgrade_batch.set_defaults(handler=_get_native_upgrade_artwork_batch)
 
     item_artwork = commands.add_parser("item-artwork")
     item_artwork.add_argument("save_id")
     item_artwork.add_argument("fingerprint")
     item_artwork.add_argument("item_name")
-    item_artwork.set_defaults(
-        handler=lambda args: get_native_item_artwork(
-            args.save_id, args.fingerprint, args.item_name, persistent=True
-        )
-    )
+    item_artwork.set_defaults(handler=_get_native_item_artwork)
     item_batch = commands.add_parser("item-artwork-batch")
     item_batch.add_argument("save_id")
     item_batch.add_argument("fingerprint")
     item_batch.add_argument("names", nargs="+")
-    item_batch.set_defaults(
-        handler=lambda args: get_native_item_artwork_batch(
-            args.save_id, args.fingerprint, args.names, persistent=True
-        )
-    )
+    item_batch.set_defaults(handler=_get_native_item_artwork_batch)
 
     assets_prepare = commands.add_parser("assets-prepare")
     assets_prepare.set_defaults(handler=_prepare_assets, streaming=True)
@@ -596,10 +706,25 @@ def _parser() -> argparse.ArgumentParser:
 @bounded_save_operation
 def main() -> None:
     """Execute one bounded desktop command and emit its declared JSON protocol."""
+    profiling = os.environ.get("REPODITOR_PROFILE_TIMING") == "1"
+    if profiling:
+        print("REPODITOR_PROFILE_READY", file=sys.stderr, flush=True)
+    started = perf_counter() if profiling else 0.0
     args = _parser().parse_args()
     result = args.handler(args)
+    if profiling:
+        print(
+            f"REPODITOR_PROFILE_HANDLER_MS={(perf_counter() - started) * 1000:.2f}", file=sys.stderr
+        )
     if not getattr(args, "streaming", False):
-        print(json.dumps(result))
+        serialize_started = perf_counter() if profiling else 0.0
+        response = json.dumps(result)
+        if profiling:
+            print(
+                f"REPODITOR_PROFILE_JSON_MS={(perf_counter() - serialize_started) * 1000:.2f}",
+                file=sys.stderr,
+            )
+        print(response)
 
 
 if __name__ == "__main__":

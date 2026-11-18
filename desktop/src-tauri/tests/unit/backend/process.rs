@@ -23,7 +23,16 @@ fn invoke(
     timeout: Duration,
     cancelled: Arc<AtomicBool>,
 ) -> Result<Vec<u8>, BackendError> {
-    run(fixture(), &[mode], timeout, cancelled, None, false, spawn)
+    run(
+        fixture(),
+        &[mode],
+        timeout,
+        cancelled,
+        None,
+        false,
+        None::<fn(ChildStdin)>,
+        spawn,
+    )
 }
 #[test]
 fn success_is_repeatable_and_failed_exit_is_sanitized() {
@@ -39,6 +48,32 @@ fn success_is_repeatable_and_failed_exit_is_sanitized() {
         BackendError::Failed
     );
 }
+
+#[test]
+fn writer_waits_for_publication_from_the_host() {
+    use std::io::Write;
+    for allowed in [false, true] {
+        let bytes = run(
+            fixture(),
+            &["publication-test"],
+            Duration::from_secs(5),
+            Arc::default(),
+            None,
+            false,
+            Some(|mut input: ChildStdin| {
+                if allowed {
+                    input.write_all(&[1]).unwrap();
+                }
+            }),
+            spawn,
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["published"],
+            allowed
+        );
+    }
+}
 #[test]
 fn startup_failure_is_public_and_not_a_raw_path() {
     assert_eq!(
@@ -49,6 +84,7 @@ fn startup_failure_is_public_and_not_a_raw_path() {
             Arc::default(),
             None,
             false,
+            None::<fn(ChildStdin)>,
             spawn,
         )
         .unwrap_err(),
@@ -103,6 +139,7 @@ fn closing_job_kills_descendants_and_releases_inherited_pipes() {
             cancelled,
             None,
             false,
+            None::<fn(ChildStdin)>,
             spawn,
         )
     });

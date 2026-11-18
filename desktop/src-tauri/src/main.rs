@@ -8,7 +8,10 @@ mod synthetic;
 use backend::{artwork, HostState, Operation};
 use error::{BackendError, Outcome, Service};
 use projections::{cosmetics, discovery, game, items, maps, players, run, saves, upgrades};
-use std::sync::{atomic::Ordering, Arc};
+use std::{
+    sync::{atomic::Ordering, Arc, Mutex},
+    time::Instant,
+};
 #[cfg(feature = "health-transport")]
 use synthetic::recovery;
 use tauri::Manager;
@@ -60,8 +63,19 @@ fn allowed_navigation(url: &tauri::Url) -> bool {
                 && url.port() == Some(1420)))
 }
 
+#[derive(Default)]
+struct InitialDiscovery(
+    Mutex<Option<tauri::async_runtime::JoinHandle<Outcome<discovery::EnvironmentDiscovery>>>>,
+);
+
 #[tauri::command]
 async fn environment_detect(app: tauri::AppHandle) -> Outcome<discovery::EnvironmentDiscovery> {
+    let initial = app.state::<InitialDiscovery>().0.lock().unwrap().take();
+    if let Some(initial) = initial {
+        return initial.await.unwrap_or_else(|_| {
+            Outcome::for_service(Err(BackendError::Failed), Service::Discovery)
+        });
+    }
     backend::request(app, Operation::Discovery, discovery::parse).await
 }
 
@@ -105,6 +119,16 @@ async fn saves_open(
         return Outcome::for_service(Err(BackendError::Request), Service::Save);
     };
     let state = app.state::<Arc<HostState>>().inner().clone();
+    let cached = if verify_fingerprint.is_none() {
+        app.state::<Mutex<EntryCache>>()
+            .lock()
+            .unwrap()
+            .snapshot
+            .clone()
+            .filter(|entry| entry.save == id)
+    } else {
+        None
+    };
     let generation = {
         let mut registry = state.artwork.lock().unwrap();
         if let Some(expected) = verify_fingerprint.as_deref() {
@@ -119,7 +143,9 @@ async fn saves_open(
         }
         registry.generation(&id)
     };
-    backend::request(app, Operation::Open(id.clone()), move |bytes| {
+    let revision = cached.as_ref().map(|entry| entry.revision.clone());
+    let handle = app.clone();
+    backend::request(app, Operation::Open(id.clone(), revision), move |bytes| {
         let opened = saves::parse(bytes, &id)?;
         if let Some(expected) = verify_fingerprint.as_deref() {
             let registry = state.artwork.lock().unwrap();
@@ -131,6 +157,18 @@ async fn saves_open(
         }
         let mut registry = state.artwork.lock().unwrap();
         registry.open(&id, opened.fingerprint());
+        let cache = handle.state::<Mutex<EntryCache>>();
+        let mut cache = cache.lock().unwrap();
+        cache.verified = cached
+            .filter(|entry| {
+                opened.fingerprint() == entry.fingerprint
+                    && opened.verified_entry_revision.as_ref() == Some(&entry.revision)
+                    && cache
+                        .snapshot
+                        .as_ref()
+                        .is_some_and(|current| Arc::ptr_eq(entry, current))
+            })
+            .and_then(|_| registry.generation(&id));
         #[cfg(feature = "health-transport")]
         state.open_editor(&id, opened.fingerprint());
         Ok(opened)
@@ -141,6 +179,156 @@ async fn saves_open(
 #[tauri::command]
 async fn game_status(app: tauri::AppHandle) -> Outcome<game::GameState> {
     backend::request(app, Operation::Game, game::parse).await
+}
+
+#[derive(serde::Serialize)]
+struct EditorEntry {
+    players: Outcome<Vec<players::Player>>,
+    upgrades: Outcome<Vec<upgrades::Upgrade>>,
+    run: Outcome<run::RunState>,
+    items: Outcome<items::Advanced>,
+    maps: Outcome<maps::InstalledMaps>,
+}
+
+#[derive(Default)]
+struct EntryCache {
+    snapshot: Option<Arc<CachedEntry>>,
+    verified: Option<uuid::Uuid>,
+}
+
+struct CachedEntry {
+    save: String,
+    fingerprint: String,
+    revision: String,
+    raw: serde_json::Value,
+}
+
+fn entry_projection<T>(
+    raw: &serde_json::Value,
+    parse: impl FnOnce(&[u8]) -> Result<T, BackendError>,
+) -> Result<T, BackendError> {
+    let bytes = serde_json::to_vec(raw).map_err(|_| BackendError::Invalid)?;
+    if bytes.len() > backend::process::STDOUT_LIMIT {
+        return Err(BackendError::Malformed);
+    }
+    parse(&bytes)
+}
+
+fn bind_editor_entry(
+    raw: &serde_json::Value,
+    registry: &mut artwork::Registry,
+    save: &str,
+    fingerprint: &str,
+    generation: Option<uuid::Uuid>,
+) -> Result<(EditorEntry, bool), BackendError> {
+    if raw["ok"] == false {
+        return Err(saves::domain_error(raw)?);
+    }
+    if raw["ok"] != true {
+        return Err(BackendError::Invalid);
+    }
+    check_entry_fingerprint(raw["fingerprint"].as_str(), Some(fingerprint))?;
+    if generation.is_none() || registry.generation(save) != generation {
+        return Err(BackendError::Request);
+    }
+    let players = entry_projection(&raw["players"], players::parse);
+    let run = entry_projection(&raw["run"], run::parse);
+    let mut upgrades = entry_projection(&raw["upgrades"], upgrades::parse);
+    let mut items = entry_projection(&raw["items"], items::parse);
+    let mut maps = entry_projection(&raw["maps"], maps::parse);
+    if let Ok(rows) = &mut upgrades {
+        registry.register(save, generation, Some(fingerprint), rows);
+    }
+    if let Ok(rows) = &mut items {
+        registry.register_items(save, generation, Some(fingerprint), rows);
+    }
+    if let Ok(catalog) = &mut maps {
+        registry.register_maps(catalog);
+        catalog.entry_save_verified = Some(true);
+    }
+    let complete =
+        players.is_ok() && run.is_ok() && upgrades.is_ok() && items.is_ok() && maps.is_ok();
+    Ok((
+        EditorEntry {
+            players: Outcome::for_service(players, Service::Player),
+            upgrades: Outcome::for_service(upgrades, Service::Upgrade),
+            run: Outcome::for_service(run, Service::Run),
+            items: Outcome::for_service(items, Service::Items),
+            maps: Outcome::for_service(maps, Service::Maps),
+        },
+        complete,
+    ))
+}
+
+#[tauri::command]
+async fn editor_entry(
+    app: tauri::AppHandle,
+    save_id: String,
+    fingerprint: String,
+) -> Outcome<EditorEntry> {
+    let host = app.state::<Arc<HostState>>().inner().clone();
+    let (generation, preparation) = {
+        let registry = host.artwork.lock().unwrap();
+        (
+            registry.generation(&save_id),
+            registry.session_preparation(&save_id),
+        )
+    };
+    let Some((_, cancelled)) = preparation.filter(|(opened, _)| opened == &fingerprint) else {
+        return Outcome::for_service(Err(BackendError::Request), Service::Save);
+    };
+    let cached = {
+        let cache = app.state::<Mutex<EntryCache>>();
+        let cache = cache.lock().unwrap();
+        cache
+            .snapshot
+            .as_ref()
+            .filter(|entry| {
+                cache.verified == generation
+                    && entry.save == save_id
+                    && entry.fingerprint == fingerprint
+            })
+            .cloned()
+    };
+    if let Some(cached) = cached {
+        let result = bind_editor_entry(
+            &cached.raw,
+            &mut host.artwork.lock().unwrap(),
+            &save_id,
+            &fingerprint,
+            generation,
+        );
+        return Outcome::for_service(result.map(|(entry, _)| entry), Service::Save);
+    }
+    let operation = Operation::Entry(save_id.clone(), fingerprint.clone(), cancelled);
+    let handle = app.clone();
+    backend::request(app, operation, move |bytes| {
+        let raw = error::json(bytes)?;
+        let mut registry = host.artwork.lock().unwrap();
+        let (entry, complete) =
+            bind_editor_entry(&raw, &mut registry, &save_id, &fingerprint, generation)?;
+        let cache = handle.state::<Mutex<EntryCache>>();
+        let mut cache = cache.lock().unwrap();
+        cache.verified = None;
+        cache.snapshot = raw["cacheRevision"]
+            .as_str()
+            .filter(|revision| {
+                complete
+                    && saves::valid_fingerprint(revision)
+                    && raw["maps"]["entryArtworkRevision"] == *revision
+            })
+            .map(str::to_owned)
+            .map(|revision| {
+                Arc::new(CachedEntry {
+                    save: save_id,
+                    fingerprint,
+                    revision,
+                    raw,
+                })
+            });
+        Ok(entry)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -740,14 +928,18 @@ async fn production_health_state(app: tauri::AppHandle, save_id: String) -> reco
 }
 
 fn main() {
+    let started = Instant::now();
     let fixture = std::env::var("REPODITOR_E2E").as_deref() == Ok("1");
     let _cache_activity =
         backend::cache_activity::retain(fixture).expect("Unable to coordinate artwork cache use");
     tauri::Builder::default()
         .manage(Arc::new(HostState::default()))
+        .manage(InitialDiscovery::default())
+        .manage(Mutex::new(EntryCache::default()))
         .invoke_handler(tauri::generate_handler![
             environment_detect,
             saves_open,
+            editor_entry,
             game_status,
             players_list,
             players_avatar,
@@ -799,6 +991,7 @@ fn main() {
             test_health_state,
         ])
         .setup(move |app| {
+            backend::timing::span("host_setup", started);
             let profile = if fixture {
                 std::path::PathBuf::from(
                     std::env::var_os("LOCALAPPDATA").ok_or("Missing isolated test profile")?,
@@ -829,6 +1022,12 @@ fn main() {
                     &std::env::var("REPODITOR_TEST_CDP_PORT").unwrap_or_default(),
                 )?)
             };
+            let handle = app.handle().clone();
+            *app.state::<InitialDiscovery>().0.lock().unwrap() =
+                Some(tauri::async_runtime::spawn(async move {
+                    backend::request(handle, Operation::Discovery, discovery::parse).await
+                }));
+            let webview_started = Instant::now();
             window
                 .title("RepoDitor Preview")
                 .inner_size(1200.0, 800.0)
@@ -840,6 +1039,7 @@ fn main() {
                     tauri::webview::NewWindowResponse::Deny
                 })
                 .build()?;
+            backend::timing::span("webview_build", webview_started);
             Ok(())
         })
         .on_window_event(|window, event| {

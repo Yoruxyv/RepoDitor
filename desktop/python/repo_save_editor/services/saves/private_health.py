@@ -11,9 +11,6 @@ from pathlib import Path
 from re import fullmatch
 from typing import NamedTuple
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
 
 class Bundle(NamedTuple):
     directory: Path
@@ -65,6 +62,10 @@ class Approval:
 
 def read_approval(bundle: Bundle) -> Approval | None:
     """Accept only an exact signed payload from the offline approval key."""
+    # Reading a bundle's discovery metadata does not verify an approval ticket.
+    from cryptography.exceptions import InvalidSignature  # noqa: PLC0415
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey  # noqa: PLC0415
+
     try:
         with (bundle.directory / "approval.json").open("rb") as stream:
             raw = stream.read(4097)

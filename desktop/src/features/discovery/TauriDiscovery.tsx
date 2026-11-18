@@ -7,6 +7,7 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { ThemeMenu } from "@/app/ThemeMenu";
 import { usePreferences } from "@/app/preferences";
 import type { TranslationKey } from "@/app/i18n";
+import { tauriHealthApi } from "@/app/tauriHealthApi";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
 import {
   cancelEntryArtwork,
@@ -243,9 +244,9 @@ function DiscoveryPreview() {
         (result) => waitForArtworkDecision(result, signal, setArtworkDecision),
       );
       if (!entry.ok) return entry;
-      await safety.check();
+      const [initialHealth] = await Promise.all([tauriHealthApi.state(id), safety.check()]);
       signal.throwIfAborted();
-      setPrepared(entry.data);
+      setPrepared({ ...entry.data, initialHealth });
       keep = true;
       return opened;
     } finally {

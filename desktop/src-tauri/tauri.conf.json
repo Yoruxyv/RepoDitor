@@ -21,6 +21,7 @@
           "permissions": [
             "allow-environment-detect",
             "allow-saves-open",
+            "allow-editor-entry",
             "allow-game-status",
             "allow-players-list",
             "allow-players-avatar",

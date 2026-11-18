@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
+import { tauriHealthApi } from "@/app/tauriHealthApi";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { TauriPlayersView } from "@/features/players/TauriPlayersView";
 import { usePlayers } from "@/features/players/usePlayers";
@@ -105,13 +106,19 @@ export function TauriWorkspace({
     tauriReadApi.advanced.get,
     section === "items",
   );
-  const health = useTauriHealth(session, players.players, (projection) => {
-    players.acceptSnapshot(projection.players);
-    if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
-    if (projection.run) run.acceptSnapshot(projection.run);
-    if (projection.advanced) items.acceptSnapshot(projection.advanced);
-    onCanonical(projection.opened);
-  });
+  const health = useTauriHealth(
+    session,
+    players.players,
+    (projection) => {
+      players.acceptSnapshot(projection.players);
+      if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
+      if (projection.run) run.acceptSnapshot(projection.run);
+      if (projection.advanced) items.acceptSnapshot(projection.advanced);
+      onCanonical(projection.opened);
+    },
+    tauriHealthApi,
+    entry?.initialHealth,
+  );
   useEffect(() => {
     if (health.phase !== "checking") setInitialHealthKnown(true);
   }, [health.phase]);

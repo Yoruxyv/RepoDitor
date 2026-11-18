@@ -22,6 +22,14 @@ export type NativeInstalledMaps = InstalledMapsDto & {
   readonly entrySaveVerified?: boolean;
 };
 type SaveProof = Pick<SaveOpenResult["session"], "id" | "fingerprint">;
+export type NativeSaveOpenResult = SaveOpenResult & { readonly supportsEntryBatch?: boolean };
+type NativeEditorEntry = {
+  players: DesktopOperationResult<PlayerDto[]>;
+  upgrades: DesktopOperationResult<PlayerUpgradeDto[]>;
+  run: DesktopOperationResult<RunStateDto>;
+  items: DesktopOperationResult<AdvancedSaveDto>;
+  maps: DesktopOperationResult<NativeInstalledMaps>;
+};
 
 type EntryRead<T> = (
   saveId: string,
@@ -53,7 +61,11 @@ async function readUpgrades(
 export const tauriReadApi: {
   environment: RepoDitorApi["environment"];
   saves: {
-    open: (saveId: string, verifyFingerprint?: string) => ReturnType<RepoDitorApi["saves"]["open"]>;
+    open: (
+      saveId: string,
+      verifyFingerprint?: string,
+    ) => Promise<DesktopOperationResult<NativeSaveOpenResult>>;
+    prepareEntry: (save: SaveProof) => Promise<DesktopOperationResult<NativeEditorEntry>>;
   };
   game: RepoDitorApi["game"];
   players: { list: EntryRead<PlayerDto[]>; avatar: RepoDitorApi["players"]["avatar"] };
@@ -184,9 +196,25 @@ export const tauriReadApi: {
     },
   },
   saves: {
+    async prepareEntry({ id, fingerprint }) {
+      try {
+        return await invoke<DesktopOperationResult<NativeEditorEntry>>("editor_entry", {
+          saveId: id,
+          fingerprint,
+        });
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "internal_error",
+            message: "The desktop editor preparation bridge failed unexpectedly.",
+          },
+        };
+      }
+    },
     async open(saveId, verifyFingerprint) {
       try {
-        return await invoke<DesktopOperationResult<SaveOpenResult>>("saves_open", {
+        return await invoke<DesktopOperationResult<NativeSaveOpenResult>>("saves_open", {
           saveId,
           verifyFingerprint,
         });

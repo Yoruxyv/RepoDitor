@@ -133,7 +133,8 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
     assert!(permissions.contains(&serde_json::json!("allow-map-artwork-cancel")));
     assert!(permissions.contains(&serde_json::json!("allow-cosmetic-artwork-get")));
     assert!(permissions.contains(&serde_json::json!("allow-cosmetic-artwork-cancel")));
-    assert_eq!(permissions.len(), 19);
+    assert!(permissions.contains(&serde_json::json!("allow-editor-entry")));
+    assert_eq!(permissions.len(), 20);
     assert!(!permissions.iter().any(|p| {
         let s = p.as_str().unwrap();
         s.contains("write") || s.contains("http") || s.contains("shell") || s.contains("fs:")
