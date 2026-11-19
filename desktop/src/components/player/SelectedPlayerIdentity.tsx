@@ -8,7 +8,7 @@ interface SelectedPlayerIdentityProps {
   readonly avatarUrl: string | null | undefined;
   readonly fallbackTestId: string;
   readonly headingId?: string;
-  readonly onRejectAvatar: () => void;
+  readonly onRejectAvatar: (url: string) => void;
 }
 
 export function SelectedPlayerIdentity({
@@ -27,6 +27,7 @@ export function SelectedPlayerIdentity({
         avatarUrl={avatarUrl}
         className="size-14 text-xl"
         fallbackTestId={fallbackTestId}
+        key={player.id}
         name={player.name}
         onError={onRejectAvatar}
       />

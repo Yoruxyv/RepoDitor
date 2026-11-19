@@ -21,7 +21,7 @@ export function TauriUpgradesView({
   readonly enabled: boolean;
   readonly locked: boolean;
   readonly avatarUrls: Record<string, string | null>;
-  readonly onRejectAvatar: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string, url: string) => void;
   readonly resetVersion: number;
   readonly onRevertAll: () => void;
   readonly transaction: ReturnType<typeof useTauriHealth>;

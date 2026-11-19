@@ -43,6 +43,58 @@ describe("usePlayerAvatars", () => {
     expect(avatar).toHaveBeenCalledTimes(1);
   });
 
+  it("reuses the URL across workspaces until it expires and ignores an error for an old URL", async () => {
+    vi.useFakeTimers();
+    const oldUrl = "https://avatars.fastly.steamstatic.com/old.jpg";
+    const newUrl = "https://avatars.fastly.steamstatic.com/new.jpg";
+    const avatar = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: { playerId: alpha, avatarUrl: oldUrl } })
+      .mockResolvedValueOnce({ ok: true, data: { playerId: alpha, avatarUrl: newUrl } });
+    const first = renderHook(() => usePlayerAvatars(saveId, alpha, avatar));
+    await act(async () => {});
+    first.unmount();
+
+    const second = renderHook(() => usePlayerAvatars(saveId + "-next", alpha, avatar));
+    expect(second.result.current.avatarUrls[alpha]).toBe(oldUrl);
+    expect(avatar).toHaveBeenCalledTimes(1);
+    second.unmount();
+
+    await act(async () => vi.advanceTimersByTimeAsync(15 * 60_000));
+    const third = renderHook(() => usePlayerAvatars(saveId, alpha, avatar));
+    await act(async () => {});
+    act(() => third.result.current.rejectAvatar(alpha, oldUrl));
+    expect(third.result.current.avatarUrls[alpha]).toBe(newUrl);
+    expect(avatar).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers a repeated transient failure on refocus after the cooldown", async () => {
+    vi.useFakeTimers();
+    const transient = { ok: false, error: { code: "internal_error", message: "bridge failed" } };
+    const avatar = vi
+      .fn()
+      .mockResolvedValueOnce(transient)
+      .mockResolvedValueOnce(transient)
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { playerId: alpha, avatarUrl: "https://avatars.fastly.steamstatic.com/ready.jpg" },
+      });
+    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha, avatar));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(result.current.avatarUrls[alpha]).toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(avatar).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(avatar).toHaveBeenCalledTimes(3);
+    expect(result.current.avatarUrls[alpha]).toContain("ready.jpg");
+  });
+
   it("sanitizes an early rejected prefetch and permits only one delayed recovery lookup", async () => {
     vi.useFakeTimers();
     const avatar = vi.fn().mockRejectedValue(new Error("private transport detail"));
@@ -136,6 +188,34 @@ describe("usePlayerAvatars", () => {
     expect(avatar).toHaveBeenCalledTimes(2);
     await act(async () => vi.advanceTimersByTimeAsync(600_000));
     expect(avatar).toHaveBeenCalledTimes(2);
+  });
+
+  it("honors a prefetched Steam cooldown after switching saves before mounting Players", async () => {
+    vi.useFakeTimers();
+    const avatar = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { playerId: alpha, avatarUrl: null, status: "transient", retryAfterMs: 45_000 },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { playerId: beta, avatarUrl: "https://avatars.fastly.steamstatic.com/beta.jpg" },
+      });
+    const nextSave = saveId + "-next";
+    const players = (id: string) => ({
+      ok: true as const,
+      data: [{ id, name: "Player", health: 100, maxHealth: 100 }],
+    });
+    await prefetchInitialAvatar(saveId, players(alpha), avatar)?.result;
+    expect(prefetchInitialAvatar(nextSave, players(beta), avatar)).toBeUndefined();
+    const { result } = renderHook(() => usePlayerAvatars(nextSave, beta, avatar));
+    expect(result.current.avatarUrls[beta]).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(44_999));
+    expect(avatar).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(avatar).toHaveBeenLastCalledWith(nextSave, beta);
+    expect(result.current.avatarUrls[beta]).toContain("beta.jpg");
   });
 
   it("ignores another save's prefetched result and treats permanent failures as final", async () => {
@@ -350,14 +430,14 @@ describe("usePlayerAvatars", () => {
     installBridge(avatar);
     const { result } = renderHook(() => usePlayerAvatars(saveId, alpha));
     await act(async () => {});
-    act(() => result.current.rejectAvatar(alpha));
+    act(() => result.current.rejectAvatar(alpha, url));
     expect(result.current.avatarUrls[alpha]).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(59_999));
     expect(avatar).toHaveBeenCalledTimes(1);
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(avatar).toHaveBeenCalledTimes(2);
     expect(result.current.avatarUrls[alpha]).toBe(url);
-    act(() => result.current.rejectAvatar(alpha));
+    act(() => result.current.rejectAvatar(alpha, url));
     await act(async () => vi.advanceTimersByTimeAsync(600_000));
     expect(avatar).toHaveBeenCalledTimes(2);
   });

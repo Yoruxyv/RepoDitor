@@ -12,7 +12,7 @@ export function TauriPlayersView({
   readonly players: ReturnType<typeof usePlayers>;
   readonly health: ReturnType<typeof useTauriHealth>;
   readonly avatarUrls: Record<string, string | null>;
-  readonly onRejectAvatar: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string, url: string) => void;
 }) {
   const canEdit = health.healthEnabled;
   return (

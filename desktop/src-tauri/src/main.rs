@@ -402,10 +402,23 @@ async fn players_avatar(
         return Outcome::for_service(Err(BackendError::Request), Service::Player);
     };
     let player = player.to_owned();
+    let cancelled = app
+        .state::<Arc<HostState>>()
+        .artwork
+        .lock()
+        .unwrap()
+        .session_preparation(save)
+        .map(|(_, cancelled)| cancelled);
+    let active = cancelled.clone();
     backend::request(
         app,
-        Operation::Avatar(save.to_owned(), player.clone()),
-        move |bytes| players::parse_avatar(bytes, &player),
+        Operation::Avatar(save.to_owned(), player.clone(), cancelled),
+        move |bytes| {
+            if active.is_some_and(|cancelled| cancelled.load(Ordering::SeqCst)) {
+                return Err(BackendError::Cancelled);
+            }
+            players::parse_avatar(bytes, &player)
+        },
     )
     .await
 }

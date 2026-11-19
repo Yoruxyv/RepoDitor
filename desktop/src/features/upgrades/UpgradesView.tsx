@@ -27,7 +27,7 @@ interface UpgradesViewProps {
   readonly avatarUrls: Record<string, string | null>;
   readonly resetVersion?: number;
   readonly onSelectPlayer: (playerId: string) => void;
-  readonly onRejectAvatar: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string, url: string) => void;
   readonly onChange: ((upgrade: PlayerUpgradeDto, player: PlayerDto, value: number) => void) | null;
   readonly onRevert: ((playerId: string, upgradeKey: string) => void) | null;
   readonly onRetry: () => void;
@@ -150,7 +150,7 @@ export function UpgradesView({
             avatarUrl={avatarUrls[player.id]}
             fallbackTestId="upgrades-avatar-fallback"
             player={player}
-            onRejectAvatar={() => onRejectAvatar(player.id)}
+            onRejectAvatar={(url) => onRejectAvatar(player.id, url)}
           />
           <label className="min-w-0 text-sm font-semibold text-ink">
             <span>{playerLabel}</span>

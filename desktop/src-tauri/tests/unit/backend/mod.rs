@@ -522,7 +522,7 @@ fn admission_is_bounded_and_released_on_failure() {
 
 #[test]
 fn avatar_lookup_has_one_fixed_optional_lane_and_never_uses_the_write_mutex() {
-    let operation = Operation::Avatar("save".into(), "111".into());
+    let operation = Operation::Avatar("save".into(), "111".into(), None);
     assert_eq!(operation.arguments(), ["players-avatar", "save", "111"]);
     let state = Arc::new(HostState::default());
     let _held = state.domain_worker.lock().unwrap();

@@ -1,8 +1,21 @@
-/** Selected-player-only optional lookups, with one finite transient retry per session. */
+/** Selected-player-only optional lookups with bounded reuse and retries. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RepoDitorApi } from "@electron/contracts";
+import { cachedAvatar, forgetAvatar, rememberAvatar } from "./avatarCache";
 
 type AvatarLoader = RepoDitorApi["players"]["avatar"];
+const AVATAR_RETRY_MS = 60_000;
+const steamCooldown = new WeakMap<AvatarLoader, number>();
+
+async function lookupAvatar(loader: AvatarLoader, saveId: string, playerId: string) {
+  const result = await loader(saveId, playerId);
+  if (result.ok && result.data.playerId === playerId && result.data.status === "transient") {
+    const delay = result.data.retryAfterMs ?? Infinity;
+    steamCooldown.set(loader, Math.max(steamCooldown.get(loader) ?? 0, Date.now() + delay));
+  }
+  return result;
+}
+
 export interface AvatarPrefetch {
   readonly saveId: string;
   readonly playerId: string;
@@ -16,16 +29,19 @@ export function prefetchInitialAvatar(
   fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
 ): AvatarPrefetch | undefined {
   const playerId = players.ok ? players.data[0]?.id : undefined;
-  if (!playerId) return undefined;
+  if (
+    !playerId ||
+    cachedAvatar(fetchAvatar, playerId) ||
+    Date.now() < (steamCooldown.get(fetchAvatar) ?? 0)
+  )
+    return undefined;
   return {
     saveId,
     playerId,
-    result: Promise.resolve()
-      .then(() => fetchAvatar(saveId, playerId))
-      .catch(() => ({
-        ok: false as const,
-        error: { code: "backend_unavailable", message: "The avatar service is unavailable." },
-      })),
+    result: lookupAvatar(fetchAvatar, saveId, playerId).catch(() => ({
+      ok: false as const,
+      error: { code: "backend_unavailable", message: "The avatar service is unavailable." },
+    })),
   };
 }
 
@@ -33,6 +49,33 @@ interface AvatarAttempt {
   requests: number;
   retryAt: number | null;
 }
+
+async function resolveAvatar(
+  playerId: string,
+  request: () => ReturnType<AvatarLoader>,
+): Promise<{ url: string | null; retryAfterMs?: number | null }> {
+  try {
+    const result = await request();
+    if (result.ok) {
+      if (result.data.playerId !== playerId) return { url: null };
+      if (result.data.status === "transient") {
+        return { url: null, retryAfterMs: result.data.retryAfterMs ?? null };
+      }
+      return { url: result.data.avatarUrl };
+    }
+    const { code } = result.error;
+    if (code === "process_cancelled") return { url: null, retryAfterMs: 1_000 };
+    if (
+      ["process_timeout", "process_failed", "backend_unavailable", "internal_error"].includes(code)
+    ) {
+      return { url: null, retryAfterMs: AVATAR_RETRY_MS };
+    }
+    return { url: null };
+  } catch {
+    return { url: null, retryAfterMs: AVATAR_RETRY_MS };
+  }
+}
+
 interface AvatarSession {
   saveId: string;
   urls: Record<string, string | null>;
@@ -69,8 +112,10 @@ export function usePlayerAvatars(
             active: true,
             notBefore: 0,
             blocked: false,
-            prefetch: prefetch?.saveId === saveId ? prefetch : undefined,
+            prefetch: undefined,
           };
+    if (prefetch?.saveId === saveId && !state.attempts.has(prefetch.playerId))
+      state.prefetch = prefetch;
     state.active = true;
     session.current = state;
     publish(state);
@@ -82,55 +127,43 @@ export function usePlayerAvatars(
   const loadAvatar = useCallback(
     async (playerId: string) => {
       const state = session.current;
-      if (state?.saveId !== saveId) return;
+      if (state?.saveId !== saveId || !state.active || playerId !== selectedPlayerId) return;
+      if (typeof state.urls[playerId] === "string") return;
+      const cached = cachedAvatar(fetchAvatar, playerId);
+      if (cached !== undefined && !state.attempts.has(playerId)) {
+        state.urls[playerId] = cached;
+        state.attempts.set(playerId, { requests: 0, retryAt: null });
+        publish(state);
+        return;
+      }
       const attempt = state.attempts.get(playerId);
+      const prefetched = state.prefetch?.playerId === playerId ? state.prefetch : undefined;
+      const notBefore = Math.max(state.notBefore, steamCooldown.get(fetchAvatar) ?? 0);
       if (
-        !state.active ||
         state.busy ||
         state.blocked ||
-        playerId !== selectedPlayerId ||
-        typeof state.urls[playerId] === "string" ||
         (attempt && (attempt.requests >= 2 || attempt.retryAt === null)) ||
-        Date.now() < Math.max(state.notBefore, attempt?.retryAt ?? 0)
+        (!prefetched && Date.now() < Math.max(notBefore, attempt?.retryAt ?? 0))
       )
         return;
       const current: AvatarAttempt = { requests: (attempt?.requests ?? 0) + 1, retryAt: null };
       state.attempts.set(playerId, current);
       state.busy = true;
       publish(state);
-      let delay: number | null = null;
-      let url: string | null = null;
-      try {
-        const prefetched = state.prefetch;
-        state.prefetch = undefined;
-        const result = await (prefetched?.playerId === playerId
-          ? prefetched.result
-          : fetchAvatar(saveId, playerId));
-        if (result.ok && result.data.playerId === playerId) {
-          url = result.data.avatarUrl;
-          if (result.data.status === "transient") {
-            delay = result.data.retryAfterMs ?? null;
-            if (delay === null) state.blocked = true;
-          }
-        } else if (
-          !result.ok &&
-          ["process_timeout", "process_failed", "backend_unavailable"].includes(result.error.code)
-        ) {
-          delay = 60_000;
-        }
-      } catch {
-        delay = 60_000;
-      } finally {
-        state.busy = false;
-        state.urls[playerId] = url;
-        // Both native and Electron projections validate the bounded retry delay.
-        if (delay !== null) {
-          current.retryAt = Date.now() + delay;
-          // A rate-limited lookup must not be followed by a burst for other players.
-          state.notBefore = Math.max(state.notBefore, current.retryAt);
-        }
-        publish(state);
+      if (prefetched) state.prefetch = undefined;
+      const { url, retryAfterMs } = await resolveAvatar(playerId, () =>
+        prefetched ? prefetched.result : lookupAvatar(fetchAvatar, saveId, playerId),
+      );
+      state.busy = false;
+      state.urls[playerId] = url;
+      if (state.active && url !== null) rememberAvatar(fetchAvatar, playerId, url);
+      if (retryAfterMs === null) state.blocked = true;
+      if (typeof retryAfterMs === "number") {
+        current.retryAt = Date.now() + retryAfterMs;
+        // A rate-limited lookup must not be followed by a burst for other players.
+        state.notBefore = Math.max(state.notBefore, current.retryAt);
       }
+      publish(state);
     },
     [fetchAvatar, publish, saveId, selectedPlayerId],
   );
@@ -139,7 +172,16 @@ export function usePlayerAvatars(
     const state = session.current;
     if (state?.saveId !== saveId) return;
     if (selectedPlayerId === null) return;
-    if (state.blocked) {
+    const cached = cachedAvatar(fetchAvatar, selectedPlayerId);
+    if (cached !== undefined && !state.attempts.has(selectedPlayerId)) {
+      void loadAvatar(selectedPlayerId);
+      return;
+    }
+    const prefetched = state.prefetch?.playerId === selectedPlayerId;
+    const notBefore = prefetched
+      ? 0
+      : Math.max(state.notBefore, steamCooldown.get(fetchAvatar) ?? 0);
+    if (state.blocked || notBefore === Infinity) {
       if (state.urls[selectedPlayerId] === undefined) {
         state.urls[selectedPlayerId] = null;
         publish(state);
@@ -152,31 +194,53 @@ export function usePlayerAvatars(
       (attempt && (attempt.requests >= 2 || attempt.retryAt === null))
     )
       return;
-    const delay = Math.max(state.notBefore, attempt?.retryAt ?? 0) - Date.now();
+    const delay = Math.max(notBefore, attempt?.retryAt ?? 0) - Date.now();
     if (delay > 0) {
       if (state.urls[selectedPlayerId] === undefined) {
         state.urls[selectedPlayerId] = null;
         publish(state);
       }
       const timer = setTimeout(() => {
-        void loadAvatar(selectedPlayerId);
+        publish(state);
       }, delay);
       return () => clearTimeout(timer);
     }
     void loadAvatar(selectedPlayerId);
-  }, [loadAvatar, publish, saveId, selectedPlayerId, snapshot]);
+  }, [fetchAvatar, loadAvatar, publish, saveId, selectedPlayerId, snapshot]);
+
+  useEffect(() => {
+    if (selectedPlayerId === null) return;
+    function resumeAvatar() {
+      if (selectedPlayerId === null) return;
+      const state = session.current;
+      if (!state?.active || state.saveId !== saveId || state.busy) return;
+      const attempt = state.attempts.get(selectedPlayerId);
+      if (
+        attempt?.requests === 2 &&
+        attempt.retryAt !== null &&
+        Date.now() >=
+          Math.max(attempt.retryAt, state.notBefore, steamCooldown.get(fetchAvatar) ?? 0)
+      ) {
+        attempt.requests = 1;
+        void loadAvatar(selectedPlayerId);
+      }
+    }
+    window.addEventListener("focus", resumeAvatar);
+    return () => window.removeEventListener("focus", resumeAvatar);
+  }, [fetchAvatar, loadAvatar, saveId, selectedPlayerId]);
 
   const rejectAvatar = useCallback(
-    (playerId: string) => {
+    (playerId: string, failedUrl: string) => {
       const state = session.current;
       if (state?.saveId !== saveId) return;
       const attempt = state.attempts.get(playerId);
-      if (!state.active || !attempt || state.urls[playerId] === null) return;
+      if (!state.active || !attempt || state.urls[playerId] !== failedUrl) return;
+      forgetAvatar(fetchAvatar, playerId, failedUrl);
       state.urls[playerId] = null;
-      attempt.retryAt = Date.now() + 60_000;
+      attempt.retryAt = Date.now() + AVATAR_RETRY_MS;
       publish(state);
     },
-    [publish, saveId],
+    [fetchAvatar, publish, saveId],
   );
 
   return {

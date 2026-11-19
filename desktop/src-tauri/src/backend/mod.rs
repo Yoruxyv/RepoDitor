@@ -168,7 +168,7 @@ pub enum Operation {
     Entry(String, String, Arc<AtomicBool>),
     Game,
     Players(String),
-    Avatar(String, String),
+    Avatar(String, String, Option<Arc<AtomicBool>>),
     Artwork(
         artwork::Scope,
         Option<String>,
@@ -349,7 +349,7 @@ impl Operation {
             Self::Entry(id, fingerprint, _) => vec!["editor-entry", id, fingerprint],
             Self::Game => vec!["game-status"],
             Self::Players(id) => vec!["players-list", id],
-            Self::Avatar(id, player) => vec!["players-avatar", id, player],
+            Self::Avatar(id, player, _) => vec!["players-avatar", id, player],
             Self::Artwork(scope, id, fingerprint, key, _) => {
                 let mut args = vec![match scope {
                     artwork::Scope::Upgrade => "upgrade-artwork",
@@ -762,6 +762,7 @@ where
         Operation::Entry(_, _, cancelled) | Operation::Open(_, _, cancelled) => {
             request.2 = cancelled.clone();
         }
+        Operation::Avatar(_, _, Some(cancelled)) => request.2 = cancelled.clone(),
         Operation::Items(_, Some(cancelled), background) => {
             request.2 = cancelled.clone();
             request.3 = *background;

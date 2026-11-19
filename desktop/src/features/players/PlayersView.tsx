@@ -19,7 +19,7 @@ interface PlayersViewProps {
   readonly healthEditingDisabled?: boolean;
   readonly onHealthValidityChange?: (invalid: boolean) => void;
   readonly onSelect: (playerId: string) => void;
-  readonly onRejectAvatar: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string, url: string) => void;
   readonly onHealthChange: ((player: PlayerDto, health: number) => void) | null;
   readonly onRevertHealth: ((playerId: string) => void) | null;
   readonly onRetry: () => void;
@@ -190,7 +190,7 @@ export function PlayersView({
           fallbackTestId="avatar-fallback"
           headingId="player-detail-title"
           player={player}
-          onRejectAvatar={() => onRejectAvatar(player.id)}
+          onRejectAvatar={(url) => onRejectAvatar(player.id, url)}
         />
 
         <PlayerHealth
