@@ -17,6 +17,7 @@ from repo_save_editor.services.game.installed_build import (
     VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
     artwork_assembly_matches,
+    installed_build_identity,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -30,6 +31,7 @@ from repo_save_editor.services.texture_codec import (
     flip_rgba_vertical,
 )
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MAX_RESOURCE_MANAGER_BYTES,
@@ -185,6 +187,8 @@ def _sha256_file(path: Path) -> str:
 def _validated_paths(
     installation: GameInstallation,
     build: ValidatedInstalledBuild | None = None,
+    *,
+    presentation: bool = False,
 ) -> tuple[Path, Path, Path, Path]:
     resolved_build = build if build is not None else validated_installed_artwork_build(installation)
     if resolved_build is None:
@@ -199,6 +203,14 @@ def _validated_paths(
 
     resources = _regular_owned_file(game_root, RESOURCES_RELATIVE_PATH)
     resource_manager = _regular_owned_file(game_root, RESOURCE_MANAGER_RELATIVE_PATH)
+    if presentation:
+        library = installation.steam_library_root
+        if library is None or installed_build_identity(installation) != resolved_build:
+            raise UpgradeTextureError("Installed presentation source changed.")
+        owned_file(library, resolved_build.manifest_path)
+        owned_file(library, resources)
+        owned_file(library, resource_manager)
+        return game_root, data_root, resources, resource_manager
     assembly = _regular_owned_file(game_root, ASSEMBLY_RELATIVE_PATH)
     assembly = owned_file(installation.steam_library_root or game_root, assembly)
     before = assembly.stat()
@@ -679,6 +691,7 @@ def prepare_installed_upgrade_textures(
     installation: GameInstallation,
     build: ValidatedInstalledBuild,
     *,
+    presentation: bool = False,
     on_stage: PreparationStageCallback | None = None,
     on_texture: PreparationTextureCallback | None = None,
     on_decode_start: PreparationDecodeCallback | None = None,
@@ -706,16 +719,22 @@ def prepare_installed_upgrade_textures(
     stage(UpgradePreparationStage.INDEXING)
     missing: set[str] = set()
     try:
-        admission_watches = tuple(
-            _watch(path)
-            for path in (installation.root / ASSEMBLY_RELATIVE_PATH, build.manifest_path)
+        admission_paths = (
+            (build.manifest_path,)
+            if presentation
+            else (installation.root / ASSEMBLY_RELATIVE_PATH, build.manifest_path)
         )
+        admission_watches = tuple(_watch(path) for path in admission_paths)
         (
             _game_root,
             data_root,
             resources_path,
             resource_manager_path,
-        ) = _validated_paths(installation, build)
+        ) = (
+            _validated_paths(installation, build, presentation=True)
+            if presentation
+            else _validated_paths(installation, build)
+        )
         if any(_watch(w.path) != w for w in admission_watches):
             raise UpgradeTextureError(
                 "Installed artwork admission sources changed during validation."
@@ -724,10 +743,13 @@ def prepare_installed_upgrade_textures(
             return UpgradeTextureBatchResult(True, True, True, ())
         admission_watches += (_watch(resources_path), _watch(resource_manager_path))
 
-        with (
-            ArtworkFileIndex(resource_manager_path) as managers,
-            ArtworkFileIndex(resources_path) as resources,
-        ):
+        index = PresentationFileIndex if presentation else ArtworkFileIndex
+        with index(resource_manager_path) as managers, index(resources_path) as resources:
+            if presentation and (
+                not is_sunstone_layout(resources.unity_version)
+                or managers.unity_version != resources.unity_version
+            ):
+                raise UpgradeTextureError("Unsupported installed upgrade source layout.")
             stage(UpgradePreparationStage.RESOLVING)
             outcomes, pending = _resolve_upgrade_batch(
                 upgrade_keys, managers, resources, data_root, resolved, missing

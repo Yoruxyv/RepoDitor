@@ -170,7 +170,7 @@ def test_warm_artwork_requires_current_metasave(
     monkeypatch.setattr(native, "_meta_path", lambda _: meta)
     png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
 
-    def catalog(_cache, *, warm_artwork):
+    def catalog(_cache, *, warm_artwork, **_options):
         assert warm_artwork
         if changed:
             meta.write_bytes(b"new source")

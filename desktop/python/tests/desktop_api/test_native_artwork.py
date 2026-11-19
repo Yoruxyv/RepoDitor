@@ -256,8 +256,8 @@ def test_native_item_artwork_revalidates_exact_type_save_and_baked_sources(
     tmp_path, monkeypatch, sample_save
 ):
     game, library = _installation(tmp_path, monkeypatch)
-    reviewed = baked_artwork._reviewed_installation
-    monkeypatch.setattr(baked_artwork, "_reviewed_installation", lambda _: reviewed(game))
+    install = baked_artwork._installation
+    monkeypatch.setattr(baked_artwork, "_installation", lambda _: install(game))
     installation = validate_game_installation(game, steam_library_root=library)
     assert installation is not None
     monkeypatch.setattr(icons, "artwork_installation", lambda _: installation)

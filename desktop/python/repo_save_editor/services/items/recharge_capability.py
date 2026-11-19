@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from contextlib import nullcontext
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
@@ -45,6 +45,17 @@ def _metadata_revision(context: RechargeSourceContext) -> str | None:
         if stamp[:4] != (source.device, source.inode, source.size, source.mtime_ns):
             return None
     return _cache_key((_METADATA_VERSION, asdict(context), resources, managers, manifest))
+
+
+def _metadata_source_matches(
+    game_dir: Path | None, context: RechargeSourceContext, revision: str | None
+) -> bool:
+    current = (
+        resolve_recharge_source_context(game_dir, presentation_only=True)
+        if context.presentation_only
+        else resolve_recharge_source_context(game_dir)
+    )
+    return current == context and (revision is None or _metadata_revision(context) == revision)
 
 
 def _decode_metadata(
@@ -118,6 +129,8 @@ def discover_installed_item_metadata_with_evidence(
         return {}, None
 
     context = resolve_recharge_source_context(game_dir)
+    if context is None and reuse_native_metadata:
+        context = resolve_recharge_source_context(game_dir, presentation_only=True)
     if context is None:
         return unknown, None
 
@@ -130,7 +143,11 @@ def discover_installed_item_metadata_with_evidence(
         else nullcontext()
     )
     with storage as cache:
-        revision = _metadata_revision(context) if cache is not None else None
+        revision = (
+            _metadata_revision(context) if cache is not None or context.presentation_only else None
+        )
+        if context.presentation_only and revision is None:
+            return unknown, None
         discovered = None
         frames: dict[str, object] = {}
         if cache is not None and revision is not None:
@@ -146,10 +163,14 @@ def discover_installed_item_metadata_with_evidence(
         hit = discovered is not None
         if discovered is None:
             discovered = dict(_cached_item_metadata(context, names, revision))
-        if (cache is not None or context.unity_version is not None) and (
-            resolve_recharge_source_context(game_dir) != context
-            or (revision is not None and _metadata_revision(context) != revision)
-        ):
+        if context.presentation_only:
+            discovered = {
+                name: replace(value, recharge_capability=ItemRechargeCapability.UNKNOWN)
+                for name, value in discovered.items()
+            }
+        if (
+            cache is not None or context.unity_version is not None or context.presentation_only
+        ) and not _metadata_source_matches(game_dir, context, revision):
             if cache is not None:
                 cache.note("source_changed")
             return unknown, None
@@ -165,6 +186,8 @@ def discover_installed_item_metadata_with_evidence(
                 payload = dict(list(frames.items())[-_MAX_PROJECTIONS:])
                 cache.publish_editor_frame("metadata", revision, json.dumps(payload).encode())
     metadata = {name: discovered.get(name, unknown[name]) for name in names}
+    if context.presentation_only:
+        return metadata, None
     evidence = build_recharge_evidence(
         context,
         {name: value.recharge_capability for name, value in metadata.items()},
@@ -198,6 +221,7 @@ def _cached_item_metadata(
             context.global_managers_path,
             names,
             unity_version=context.unity_version,
+            **({"presentation_only": True} if context.presentation_only else {}),
         ).items()
     )
 

@@ -44,24 +44,19 @@ def decode_texture_rgba(
     output = bytearray(rgba_size)
     block_bytes = 8 if texture_format == "DXT1" else 16
     cursor = 0
-    for block_y in range((height + 3) // 4):
-        for block_x in range((width + 3) // 4):
+    for y in range(0, height, 4):
+        rows = min(4, height - y)
+        for x in range(0, width, 4):
             block = data[cursor : cursor + block_bytes]
             cursor += block_bytes
             pixels = (
                 _decode_dxt1_block(block) if texture_format == "DXT1" else _decode_dxt5_block(block)
             )
-            for local_y in range(4):
-                y = block_y * 4 + local_y
-                if y >= height:
-                    continue
-                for local_x in range(4):
-                    x = block_x * 4 + local_x
-                    if x >= width:
-                        continue
-                    source = (local_y * 4 + local_x) * 4
-                    target = (y * width + x) * 4
-                    output[target : target + 4] = pixels[source : source + 4]
+            row_bytes = min(4, width - x) * 4
+            for row in range(rows):
+                source = row * 16
+                target = ((y + row) * width + x) * 4
+                output[target : target + row_bytes] = pixels[source : source + row_bytes]
     return bytes(output)
 
 

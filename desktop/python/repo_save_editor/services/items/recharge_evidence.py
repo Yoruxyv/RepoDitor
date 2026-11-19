@@ -10,6 +10,7 @@ from typing import Final
 
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.installed_build import (
+    artwork_installation,
     installed_build_identity,
     owned_file,
     validated_installed_build,
@@ -49,6 +50,7 @@ class RechargeSourceContext:
     global_managers_path: Path
     global_managers: InstalledFileIdentity
     unity_version: str | None = None
+    presentation_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +86,29 @@ def _source_identity(path: Path) -> InstalledFileIdentity | None:
     )
 
 
-def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSourceContext | None:
+def resolve_recharge_source_context(
+    game_dir: Path | None = None, *, presentation_only: bool = False
+) -> RechargeSourceContext | None:
     """Resolve the currently supported installed source identity without parsing Unity metadata."""
-    discovery = discover_game_installation(game_dir)
-    installation = discovery.installation
+    if presentation_only:
+        try:
+            installation = artwork_installation(game_dir)
+        except (OSError, ValueError):
+            return None
+    else:
+        installation = discover_game_installation(game_dir).installation
     if installation is None:
         return None
     bundle = private_bundle()
-    private = bundle is not None and bundle.session and bundle.item_unity is not None
+    private = (
+        not presentation_only
+        and bundle is not None
+        and bundle.session
+        and bundle.item_unity is not None
+    )
     build = (
         installed_build_identity(installation)
-        if private
+        if private or presentation_only
         else validated_installed_build(installation)
     )
     if build is None or (private and bundle is not None and build.build_id != bundle.build):
@@ -102,7 +116,16 @@ def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSou
 
     resources_path = installation.root / RESOURCES_RELATIVE_PATH
     global_managers_path = installation.root / GLOBAL_MANAGERS_RELATIVE_PATH
-    if private:
+    if presentation_only:
+        library = installation.steam_library_root
+        if library is None:
+            return None
+        try:
+            for path in (build.manifest_path, resources_path, global_managers_path):
+                owned_file(library, path)
+        except (OSError, ValueError):
+            return None
+    elif private:
         try:
             owned_file(installation.root, resources_path)
             owned_file(installation.root, global_managers_path)
@@ -122,6 +145,7 @@ def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSou
         global_managers_path=global_managers_path,
         global_managers=global_managers,
         unity_version=bundle.item_unity if private and bundle is not None else None,
+        presentation_only=presentation_only,
     )
 
 

@@ -144,13 +144,21 @@ def find_installed_catalog(game_dir: Path | None = None) -> Path | None:
     return None if installation is None else installation.catalog_path
 
 
-def discover_installed_maps(game_dir: Path | None = None) -> MapCatalog | None:
+def discover_installed_maps(
+    game_dir: Path | None = None, *, presentation: bool = False
+) -> MapCatalog | None:
     """Locate the installed game and return its dynamically discovered normal maps."""
     try:
         installation = artwork_installation(game_dir)
         if installation is None:
             return None
-        installed = read_installed_levels(installation)
+        if presentation:
+            try:
+                installed = read_installed_levels(installation, presentation=True)
+            except (OSError, ValueError):
+                installed = None
+        else:
+            installed = read_installed_levels(installation)
         if installed is not None:
             levels, sources = installed
             maps = tuple(

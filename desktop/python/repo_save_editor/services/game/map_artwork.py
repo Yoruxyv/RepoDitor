@@ -25,7 +25,8 @@ from repo_save_editor.services.game.maps import (
     MapCatalog,
     discover_installed_maps,
 )
-from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     MAX_RESOURCE_MANAGER_BYTES,
     RESOURCE_MANAGER_CLASS_ID,
@@ -44,7 +45,7 @@ MAX_PNG_BYTES = 2 * 1024 * 1024
 MAX_NATIVE_PNG_BYTES = 1024 * 1024
 
 
-class _MapSpriteIndex(ArtworkFileIndex):
+class _MapSpriteIndex(PresentationFileIndex):
     """Retain reviewed metadata while selecting native objects for UnityPy."""
 
     def _parse_types(self, reader: _Reader) -> None:
@@ -210,7 +211,7 @@ def decode_map_artwork(
 ) -> dict[str, object]:
     """Decode a finite installed-map batch in one process; optional sources fail soft."""
     try:
-        catalog = discover_installed_maps()
+        catalog = discover_installed_maps(presentation=True)
         if catalog is None or not catalog.source_paths:
             return {}
         return _decode(
@@ -243,12 +244,12 @@ def _decode(
     result: dict[str, object] = {}
     total = 0
     with ExitStack() as stack:
-        manager = stack.enter_context(ArtworkFileIndex(paths[-3]))
+        manager = stack.enter_context(PresentationFileIndex(paths[-3]))
         index = _MapSpriteIndex(paths[-2])
         stack.enter_context(index)
         if (
-            index.unity_version != SUNSTONE_UNITY_VERSION
-            or manager.unity_version != SUNSTONE_UNITY_VERSION
+            not is_sunstone_layout(index.unity_version)
+            or manager.unity_version != index.unity_version
         ):
             raise ValueError("Unsupported loading-art source version.")
         # Avoid materializing millions of unrelated UnityPy ObjectReaders from the installed file.

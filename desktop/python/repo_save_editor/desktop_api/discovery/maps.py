@@ -14,7 +14,7 @@ from repo_save_editor.services.game.maps import MapDiscoveryError, discover_inst
 def list_maps(game_dir: Path | None = None, *, entry_proof: bool = False) -> dict[str, object]:
     """Return installed maps, or an available-false result when the game is absent."""
     try:
-        catalog = discover_installed_maps(game_dir)
+        catalog = discover_installed_maps(game_dir, presentation=True)
     except MapDiscoveryError:
         return _failure(
             "backend_unavailable",

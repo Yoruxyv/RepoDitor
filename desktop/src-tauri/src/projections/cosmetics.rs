@@ -10,6 +10,8 @@ use std::collections::{HashMap, HashSet};
 pub struct Cosmetics {
     fingerprint: String,
     catalog_available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    catalog_issue: Option<CatalogIssue>,
     #[serde(deserialize_with = "safe_integer")]
     known_catalog_count: i64,
     #[serde(deserialize_with = "safe_integer")]
@@ -26,6 +28,12 @@ pub struct Cosmetics {
     artwork_proofs: HashMap<String, String>,
     #[serde(default, skip_serializing)]
     artwork_previews: HashMap<String, Value>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum CatalogIssue {
+    Incompatible,
 }
 
 impl Cosmetics {

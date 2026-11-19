@@ -213,8 +213,9 @@ def test_batch_discards_output_when_any_source_changes(
     (data / "resources.assets").replace(data / "released.assets")
 
 
+@pytest.mark.parametrize("unity_version", [SUNSTONE_UNITY_VERSION, "6000.3.28f1"])
 def test_native_preview_rechecks_exact_family_revision_and_limits(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unity_version: str
 ) -> None:
     initial = catalog(tmp_path)
     c = MapCatalog(
@@ -224,12 +225,12 @@ def test_native_preview_rechecks_exact_family_revision_and_limits(
     )
     for name, class_id in (("globalgamemanagers", 147), ("resources.assets", 28)):
         write_serialized_file(
-            c.path.parent / name, [(1, class_id, b"fixture")], unity_version=SUNSTONE_UNITY_VERSION
+            c.path.parent / name, [(1, class_id, b"fixture")], unity_version=unity_version
         )
     revision = art.artwork_revision(c)
     assert revision is not None
     selected: list[tuple[str, ...]] = []
-    monkeypatch.setattr(art, "discover_installed_maps", lambda: c)
+    monkeypatch.setattr(art, "discover_installed_maps", lambda **_: c)
     monkeypatch.setattr(
         art, "import_module", lambda _: SimpleNamespace(EndianBinaryReader=lambda _: None)
     )

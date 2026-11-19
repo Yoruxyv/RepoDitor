@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from repo_save_editor.services import baked_artwork as baked
+from repo_save_editor.services.cosmetics import presentation_catalog as presentation
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
 from repo_save_editor.services.game import installed_build
@@ -22,6 +23,7 @@ from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_hash import unity_hash128
+from tests.services.test_installed_cosmetic_catalog import _build_install, _cosmetic_asset
 from tests.unity_serialized_fixture import (
     aligned_string,
     mono_script,
@@ -179,7 +181,9 @@ def _installation(
             tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in range(557)),
         ),
     )
-    monkeypatch.setattr(baked, "_item_keys", lambda _: {"Item Tool": "Item Tool|Prefab"})
+    monkeypatch.setattr(
+        baked, "_item_keys", lambda _, **_options: {"Item Tool": "Item Tool|Prefab"}
+    )
     return root, tmp_path / "metadata-cache"
 
 
@@ -263,6 +267,93 @@ def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
     assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
     path.unlink()
     assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
+
+
+def test_compatible_cosmetics_survive_game_updates_without_granting_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    version = "6000.3.28f1"
+    root, level, target, manifest = _build_install(
+        tmp_path, build_id="26732417", unity_version=version
+    )
+    write_serialized_file(
+        target,
+        [
+            (7000 + 17 * i, 114, _cosmetic_asset(name, object_name=f"Object {i}"))
+            for i, name in enumerate(("Hat", "Hat", "Glasses"))
+        ],
+        externals=(("globalgamemanagers.assets", "globalgamemanagers.assets"),),
+        unity_version=version,
+    )
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Object 0"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+
+    snapshot = baked.native_cosmetic_catalog()
+    assert snapshot is not None
+    catalog, revision, images, _ = snapshot
+    assert [(entry.cosmetic_id, entry.asset_name) for entry in catalog] == [
+        (0, "Hat"),
+        (1, "Hat"),
+        (2, "Glasses"),
+    ]
+    assert list(images) == ["0"]
+    assert baked.read_bound_cosmetic_png(revision, *images["0"]) == png
+    assert baked.discover_baked_artwork(root) is None
+    with pytest.raises(ValueError, match="not approved"):
+        presentation.discover_cosmetic_mutation_catalog(root)
+
+    # A Steam build-only update invalidates old bindings but can reconstruct the same view.
+    manifest.write_bytes(manifest.read_bytes().replace(b"26732417", b"26732418"))
+    updated = baked.native_cosmetic_catalog()
+    assert updated is not None
+    assert updated[0] == catalog
+    assert updated[1] != revision
+    assert baked.read_bound_cosmetic_png(revision, *images["0"]) is None
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) == png
+    with pytest.raises(ValueError, match="not approved"):
+        presentation.discover_cosmetic_mutation_catalog(root)
+
+    # An authored order change rebinds images to the new ordinal identities.
+    previous_order = pptr(2, 7000) + pptr(2, 7017) + pptr(2, 7034)
+    new_order = pptr(2, 7034) + pptr(2, 7017) + pptr(2, 7000)
+    level.write_bytes(level.read_bytes().replace(previous_order, new_order))
+    reordered = baked.native_cosmetic_catalog()
+    assert reordered is not None
+    assert reordered[0][0].asset_name == "Glasses"
+    assert list(reordered[2]) == ["2"]
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) is None
+
+    # Compatible metadata edits are reflected; stale proofs no longer validate.
+    target.write_bytes(target.read_bytes().replace(b"Hat", b"Cap"))
+    level.write_bytes(level.read_bytes().replace(version.encode(), b"6000.3.29f1"))
+    changed = baked.native_cosmetic_catalog()
+    assert changed is not None
+    assert changed[0][2].asset_name == "Cap"
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) is None
+
+    # An incompatible header or missing required target cannot claim known ownership.
+    level.write_bytes(level.read_bytes().replace(b"6000.3.29f1", b"6000.4.29f1"))
+    incompatibilities: list[bool] = []
+    assert (
+        baked.native_cosmetic_catalog(on_incompatible=lambda: incompatibilities.append(True))
+        is None
+    )
+    assert incompatibilities == [True]
+    level.write_bytes(level.read_bytes().replace(b"6000.4.29f1", b"6000.3.29f1"))
+    scripts = level.parent / "globalgamemanagers.assets"
+    original_scripts = scripts.read_bytes()
+    scripts.write_bytes(original_scripts.replace(b"CosmeticAsset", b"DifferentType"))
+    assert baked.native_cosmetic_catalog() is None
+    scripts.write_bytes(original_scripts)
+    target.unlink()
+    assert baked.native_cosmetic_catalog() is None
+    assert baked.read_bound_cosmetic_png(changed[1], *changed[2]["2"]) is None
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Native artwork cache uses Windows DPAPI")

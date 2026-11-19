@@ -19,6 +19,7 @@ from repo_save_editor.services.baked_artwork import (
 from repo_save_editor.services.editor_artwork_cache import cached_editor_images
 from repo_save_editor.services.game.installed_build import (
     artwork_installation,
+    installed_build_identity,
     owned_file,
     validated_installed_artwork_build,
 )
@@ -157,12 +158,15 @@ def _native_upgrade_images(
             return {}
         library = installation.steam_library_root
         owned_file(library, installation.manifest_path)
-        build = validated_installed_artwork_build(installation)
+        reviewed = validated_installed_artwork_build(installation)
+        build = reviewed or installed_build_identity(installation)
         if build is None:
             return {}
 
         def extract(requested: tuple[str, ...]) -> dict[str, dict[str, str | int] | None]:
-            batch = prepare_installed_upgrade_textures(requested, installation, build)
+            batch = prepare_installed_upgrade_textures(
+                requested, installation, build, presentation=reviewed is None
+            )
             images: dict[str, dict[str, str | int] | None] = dict.fromkeys(batch.missing)
             images.update(
                 {

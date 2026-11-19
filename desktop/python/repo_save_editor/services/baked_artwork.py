@@ -1,7 +1,7 @@
 """Installed baked artwork identities, independent of save mutation capabilities.
 
-Only a reviewed Steam build and assembly may supply mappings. The disposable JSON
-cache contains source identities and canonical hash inputs, never game artwork.
+Reviewed builds supply legacy mappings. The native Cosmetics path also accepts
+structurally compatible, validated installed sources for presentation.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import replace
 from functools import lru_cache
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Final
 
 from repo_save_editor.services.native_artwork_cache import (
@@ -47,18 +47,22 @@ from repo_save_editor.services.game.discovery import (
 from repo_save_editor.services.game.installed_build import (
     ValidatedInstalledBuild,
     artwork_assembly_matches,
+    artwork_assembly_sha256,
+    installed_build_identity,
     owned_file,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.game.installed_build import artwork_installation as _installation
 from repo_save_editor.services.items.installed_metadata import _resolve_mono_scripts
-from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
+from repo_save_editor.services.items.runtime_metadata import read_sunstone_item_prefab
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_hash import unity_hash128
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     MONO_BEHAVIOUR_CLASS_ID,
     SerializedFileIndex,
+    UnityMetadataError,
     parse_mono_behaviour_prefix,
-    read_pptr,
 )
 
 # Preserve existing probe imports while installed-source ownership stays in installed_build.
@@ -95,6 +99,14 @@ class _NativeCatalogResolver(_ArtworkResolver):
     def __init__(self, data_dir: Path) -> None:
         super().__init__(data_dir)
         self.targets: dict[tuple[Path, int], SerializedFileIndex] = {}
+
+    def open(self, path: Path) -> SerializedFileIndex:
+        key = os.path.normcase(os.fspath(path))
+        if key not in self._indexes:
+            if len(self._indexes) >= MAX_OPEN_FILES:
+                raise UnityMetadataError("Too many serialized files were required.")
+            self._indexes[key] = PresentationFileIndex(owned_file(self.data_dir, path))
+        return self._indexes[key]
 
     def target_index(self, source: SerializedFileIndex, file_id: int) -> SerializedFileIndex:
         if file_id <= 0:
@@ -134,17 +146,23 @@ def _cosmetic_keys(
         return keys, paths, tuple(catalog)
 
 
-def _item_keys(root: Path) -> dict[str, str]:
+def _item_keys(root: Path, *, presentation: bool = False) -> dict[str, str]:
     """Use Item.name and PrefabRef.prefabName, authored from Object.name by SetPrefab."""
+    index = PresentationFileIndex if presentation else ArtworkFileIndex
     with (
-        ArtworkFileIndex(root / "REPO_Data/resources.assets") as resources,
-        ArtworkFileIndex(root / "REPO_Data/globalgamemanagers.assets") as scripts_index,
+        index(root / "REPO_Data/resources.assets") as resources,
+        index(root / "REPO_Data/globalgamemanagers.assets") as scripts_index,
     ):
-        if resources.unity_version != SUNSTONE_UNITY_VERSION:
+        if (
+            not is_sunstone_layout(resources.unity_version)
+            or resources.unity_version != scripts_index.unity_version
+        ):
             raise ValueError("Unsupported baked artwork Unity version.")
         records = tuple(resources.iter_records(frozenset({MONO_BEHAVIOUR_CLASS_ID})))
         prefixes = {r.path_id: parse_mono_behaviour_prefix(resources, r) for r in records}
-        scripts = _resolve_mono_scripts(resources, scripts_index, prefixes.values())
+        # Many objects reference the same script; validate each distinct file and path pair once.
+        script_prefixes = {prefix.script: prefix for prefix in prefixes.values()}
+        scripts = _resolve_mono_scripts(resources, scripts_index, script_prefixes.values())
         definitions: list[tuple[str, str]] = []
         for record in records:
             prefix = prefixes[record.path_id]
@@ -152,31 +170,8 @@ def _item_keys(root: Path) -> dict[str, str]:
                 "Item Upgrade "
             ):
                 continue
-            reader = resources.object_reader(record)
-            reader.skip(prefix.field_offset)
-            status = reader.i32()
-            disabled = reader.u8()
-            reader.align4()
-            reader.aligned_string()  # itemName
-            read_pptr(reader)  # itemNameLocalized
-            reader.aligned_string()  # description
-            reader.skip(16)  # itemType / emojiIcon / itemVolume / itemSecretShopType
-            read_pptr(reader)  # colorPreset
-            prefab_name = reader.aligned_string()
-            resource_path = reader.aligned_string()
-            bundle = read_pptr(reader)
-            if (
-                status not in (0, 1, 2)
-                or disabled not in (0, 1)
-                or bundle.file_id != 0
-                or bundle.path_id != 0
-                or not prefab_name
-                or not resource_path.startswith("Items/")
-                or PurePosixPath(resource_path).name != prefab_name
-                or any(part in ("", ".", "..") for part in resource_path.split("/"))
-            ):
-                continue
-            definitions.append((prefix.name, prefab_name))
+            if (prefab := read_sunstone_item_prefab(resources, record, prefix)) is not None:
+                definitions.append((prefix.name, prefab[1]))
         counts = Counter(name for name, _ in definitions)
         return {name: name + "|" + prefab for name, prefab in definitions if counts[name] == 1}
 
@@ -390,17 +385,25 @@ def read_baked_item_pngs(
     if not 1 <= len(names) <= MAX_NATIVE_ITEM_BATCH:
         return {}, set(), set()
     try:
-        reviewed = _reviewed_installation(None)
+        reviewed = _presentation_installation()
         if reviewed is None:
             return {}, set(), set()
-        root, library, build, assembly = reviewed
+        root, library, build = reviewed
         if expected_root is not None and root != expected_root:
             return {}, set(), set()
-        paths = (build.manifest_path, *(root / name for name in _SOURCE_NAMES))
-        sources = [_watch(library, path) for path in paths]
-        if assembly not in sources:
-            return {}, set(), set()
-        keys = _supported_keys(_item_keys(root))
+        paths: tuple[Path, ...] = (
+            build.manifest_path,
+            root / "REPO_Data/resources.assets",
+            root / "REPO_Data/globalgamemanagers.assets",
+        )
+        pinned = artwork_assembly_sha256(build.build_id) is not None
+        if pinned:
+            legacy = _reviewed_installation(None)
+            if legacy is None or legacy[:3] != reviewed:
+                return {}, set(), set()
+            paths += (Path(legacy[3]["path"]),)
+        sources = [installed_source_stamp(owned_file(library, path), path.stat()) for path in paths]
+        keys = _supported_keys(_item_keys(root, presentation=not pinned))
         images = {}
         deferred: set[str] = set()
         missing: set[str] = set()
@@ -428,7 +431,9 @@ def read_baked_item_pngs(
                 identity.update(png)
                 images[name] = (png, identity.hexdigest())
                 remaining -= len(png)
-        if [_watch(library, path) for path in paths] == sources:
+        if [
+            installed_source_stamp(owned_file(library, path), path.stat()) for path in paths
+        ] == sources and _presentation_installation() == reviewed:
             return images, deferred, missing
     except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
         return {}, set(), set()
@@ -437,15 +442,6 @@ def read_baked_item_pngs(
 
 def _cosmetic_png(root: Path, key: str) -> Path:
     return root / "REPO_Data/StreamingAssets/BakedIcons/Cosmetics" / (key + ".png")
-
-
-def _source_watches(
-    root: Path, library: Path, build: ValidatedInstalledBuild
-) -> list[dict[str, str]]:
-    return [
-        _watch(library, path)
-        for path in sorted({root / name for name in _SOURCE_NAMES} | {build.manifest_path})
-    ]
 
 
 def _digest(value: object) -> str:
@@ -521,10 +517,10 @@ def installed_source_stamp(path: Path, expected: os.stat_result) -> tuple[object
 def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
     """Prove the installed inputs for warm Run artwork without opening Unity indexes."""
     try:
-        reviewed = _reviewed_installation(None)
+        reviewed = _presentation_installation()
         if reviewed is None:
             return None
-        root, library, build, assembly = reviewed
+        root, library, build = reviewed
         if expected_root is not None and root != expected_root:
             return None
         manifest = owned_file(library, build.manifest_path)
@@ -550,34 +546,47 @@ def entry_artwork_revision(expected_root: Path | None = None) -> str | None:
                         pending.append(Path(entry.path))
             elif not stat.S_ISREG(info.st_mode):
                 return None
-        if _watch(library, Path(assembly["path"])) != assembly:
-            return None
-        if installed_source_stamp(manifest, manifest.stat()) != manifest_revision:
+        if (
+            installed_source_stamp(manifest, manifest.stat()) != manifest_revision
+            or _presentation_installation() != reviewed
+        ):
             return None
         return _digest([build.build_id, manifest_revision, identities])
     except (OSError, ValueError, OverflowError):
         return None
 
 
+def _presentation_installation() -> tuple[Path, Path, ValidatedInstalledBuild] | None:
+    installation = _installation(None)
+    if installation is None or installation.steam_library_root is None:
+        return None
+    build = installed_build_identity(installation)
+    if build is None:
+        return None
+    return installation.root, installation.steam_library_root, build
+
+
 def _native_sources(
     root: Path,
     library: Path,
     build: ValidatedInstalledBuild,
-) -> tuple[list[dict[str, str]], list[int], list[str]]:
-    watches = _source_watches(root, library, build)
-    changed = [_change_time(Path(watch["path"])) for watch in watches]
-    # An added basename can make a previously unique Unity external reference ambiguous.
-    names: list[str] = []
+) -> tuple[list[dict[str, str]], list[int]]:
+    paths = {build.manifest_path, root / "REPO_Data/level0"}
+    # External references resolve by basename. Include added and relocated source files.
     with os.scandir(root / "REPO_Data") as entries:
         for count, entry in enumerate(entries, 1):
             if count > MAX_OPEN_FILES:
-                return watches, [0], []
+                raise ValueError("Too many cosmetic sources.")
             info = entry.stat(follow_symlinks=False)
             if entry.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
-                changed.append(0)  # Recheck the resolver directly on every visit.
+                raise ValueError("Cosmetic sources may not contain reparse points.")
             if stat.S_ISREG(info.st_mode):
-                names.append(entry.name)
-    return watches, changed, sorted(names)
+                paths.add(Path(entry.path))
+    ordered = sorted(paths)
+    return (
+        [_watch(library, path) for path in ordered],
+        [_change_time(path) for path in ordered],
+    )
 
 
 def _cosmetic_directory(library: Path, directory: Path) -> list[tuple[int, int, int]]:
@@ -705,6 +714,7 @@ def native_cosmetic_catalog(
     cache: NativeArtworkCache | None = None,
     *,
     warm_artwork: bool = False,
+    on_incompatible: Callable[[], None] | None = None,
 ) -> (
     tuple[
         tuple[InstalledCosmeticMetadata, ...],
@@ -716,13 +726,13 @@ def native_cosmetic_catalog(
 ):
     """Read the authoritative catalog and bind eligible presentation artifacts."""
     try:
-        reviewed = _reviewed_installation(None)
+        reviewed = _presentation_installation()
         if reviewed is None:
             _cache_event(cache, "source_unavailable")
             return None
-        root, library, build, assembly = reviewed
+        root, library, build = reviewed
         before = _native_sources(root, library, build)
-        if assembly not in before[0]:
+        if _presentation_installation() != reviewed:
             return None
         revision = _digest([build.build_id, before])
         if not all(before[1]):
@@ -757,7 +767,9 @@ def native_cosmetic_catalog(
                 ).encode(),
             )
         return catalog, revision, mapped, previews
-    except (OSError, ValueError, RuntimeError, KeyError, OverflowError):
+    except (OSError, ValueError, RuntimeError, KeyError, OverflowError) as error:
+        if on_incompatible is not None and isinstance(error, UnityMetadataError):
+            on_incompatible()
         _cache_event(cache, "source_unavailable")
         return None
 
@@ -781,12 +793,15 @@ def read_bound_cosmetic_pngs(
 ) -> dict[str, bytes]:
     """Validate one installed source snapshot around a bounded batch of baked mappings."""
     try:
-        reviewed = _reviewed_installation(None)
+        reviewed = _presentation_installation()
         if reviewed is None:
             return {}
-        root, library, build, assembly = reviewed
+        root, library, build = reviewed
         before = _native_sources(root, library, build)
-        if assembly not in before[0] or _digest([build.build_id, before]) != revision:
+        if (
+            _digest([build.build_id, before]) != revision
+            or _presentation_installation() != reviewed
+        ):
             _cache_event(cache, "source_changed")
             return {}
         read: list[tuple[str, Path, str, bytes, str | None, bool]] = []

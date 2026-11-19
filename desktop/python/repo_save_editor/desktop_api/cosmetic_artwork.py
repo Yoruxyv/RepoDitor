@@ -97,13 +97,20 @@ def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
     """Attach private artwork proofs to the independently validated MetaSave view."""
     key = _host_key()
     snapshot = None
+    incompatible = False
+
+    def mark_incompatible() -> None:
+        nonlocal incompatible
+        incompatible = True
 
     with native_artwork_cache("initial_catalog" if warm_artwork else "catalog") as cache:
 
         def catalog() -> tuple[InstalledCosmeticMetadata, ...] | None:
             nonlocal snapshot
             snapshot = (
-                native_cosmetic_catalog(cache, warm_artwork=warm_artwork)
+                native_cosmetic_catalog(
+                    cache, warm_artwork=warm_artwork, on_incompatible=mark_incompatible
+                )
                 if key is not None
                 else None
             )
@@ -111,6 +118,8 @@ def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
 
         response = get_cosmetics(catalog_loader=catalog)
     view = response.get("cosmetics")
+    if incompatible and isinstance(view, dict) and not view["catalogAvailable"]:
+        view["catalogIssue"] = "incompatible"
     if key is not None and snapshot is not None and isinstance(view, dict):
         _, revision, mappings, warm = snapshot
         fingerprint = view["fingerprint"]

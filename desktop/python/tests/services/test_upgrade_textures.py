@@ -28,7 +28,12 @@ from repo_save_editor.services.unity_textures import (
     parse_mesh_vertex_data,
     parse_texture2d,
 )
-from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
+from tests.unity_serialized_fixture import (
+    UNITY_VERSION,
+    aligned_string,
+    pptr,
+    write_serialized_file,
+)
 
 
 def _game_object(name: str, components: list[int]) -> bytes:
@@ -289,15 +294,19 @@ def _write_resource_manager(
     path: Path,
     *entries: tuple[str, int, int],
     external_name: str = "resources.assets",
+    unity_version: str = UNITY_VERSION,
 ) -> None:
     write_serialized_file(
         path,
         [(900, 147, _resource_manager(*entries))],
         externals=(("", external_name),),
+        unity_version=unity_version,
     )
 
 
-def _write_upgrade_assets(path: Path, *, texture: bytes | None = None) -> None:
+def _write_upgrade_assets(
+    path: Path, *, texture: bytes | None = None, unity_version: str = UNITY_VERSION
+) -> None:
     write_serialized_file(
         path,
         [
@@ -311,6 +320,7 @@ def _write_upgrade_assets(path: Path, *, texture: bytes | None = None) -> None:
             (40, 28, texture or _texture2d()),
             (50, 43, _upgrade_pack_mesh()),
         ],
+        unity_version=unity_version,
     )
 
 
