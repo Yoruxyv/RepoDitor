@@ -165,6 +165,8 @@ export function CosmeticsView({
   if (!view) return null;
 
   const lockAllUnavailable = lockAllBlockedReason ? t("cosmetics.lockUnavailable") : null;
+  const unknown = t("cosmetics.unknown");
+  const installedCount = (count: number) => (view.catalogAvailable ? count : unknown);
 
   return (
     <section aria-busy={loading} aria-labelledby="cosmetics-title">
@@ -178,9 +180,9 @@ export function CosmeticsView({
 
       <dl className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          [t("cosmetics.knownCatalog"), view.knownCatalogCount],
-          [t("cosmetics.owned"), knownOwnedCount],
-          [t("cosmetics.locked"), knownLockedCount],
+          [t("cosmetics.knownCatalog"), installedCount(view.knownCatalogCount)],
+          [t("cosmetics.owned"), installedCount(knownOwnedCount)],
+          [t("cosmetics.locked"), installedCount(knownLockedCount)],
           [t("cosmetics.savedPresets"), savedPresetCount],
         ].map(([label, value]) => (
           <div className="min-w-0 border-t border-line pt-3" key={label}>

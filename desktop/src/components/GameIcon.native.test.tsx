@@ -30,15 +30,52 @@ function icon(
   );
 }
 describe("native GameIcon", () => {
-  it("restores prepared artwork only for the same proof and binds it to fresh tokens", async () => {
+  it("shows a pending Map thumbnail without duplicating its background request", async () => {
+    const upgrade = token("9");
+    const map = upgrade.replace("upgrade-", "map-");
+    let completeUpgrade!: (result: unknown) => void;
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => (completeUpgrade = resolve)))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { token: map, revision: "b".repeat(64), dataUrl: "data:image/png;base64,AAAA" },
+      });
+    try {
+      const artwork = preloadEntryArtwork(
+        { upgrade: [upgrade], map: [map], item: [] },
+        new AbortController().signal,
+      );
+      render(icon(map, "map"));
+      expect(screen.getByTestId("native-icon-loading")).toBeTruthy();
+      await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        completeUpgrade({ ok: true, data: null });
+        await artwork;
+      });
+      expect(screen.getByTestId("native-icon").getAttribute("data-artwork-revision")).toBe(
+        "b".repeat(64),
+      );
+      expect(invoke).toHaveBeenCalledTimes(2);
+    } finally {
+      cancelEntryArtwork();
+    }
+  });
+  it("retains artwork for two verified saves and binds each to fresh tokens", async () => {
     const original = token("1");
     const current = token("2");
+    const alternate = token("3");
+    const alternateCurrent = token("4");
     const shape = (value: string) => ({ upgrade: [value], map: [], item: [] });
     vi.mocked(invoke)
       .mockReset()
       .mockResolvedValueOnce({
         ok: true,
         data: { token: original, revision: "a".repeat(64), dataUrl: "data:image/png;base64,AAAA" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { token: alternate, revision: "b".repeat(64), dataUrl: "data:image/png;base64,BBBB" },
       });
     try {
       const results = await preloadEntryArtwork(
@@ -47,20 +84,35 @@ describe("native GameIcon", () => {
         vi.fn(),
       );
       rememberEntryArtwork("verified save and installation", shape(original), results);
-      cancelEntryArtwork();
+      const otherResults = await preloadEntryArtwork(
+        shape(alternate),
+        new AbortController().signal,
+        vi.fn(),
+      );
+      rememberEntryArtwork("alternate save and installation", shape(alternate), otherResults);
+      expect(restoreEntryArtwork("changed source", shape(original))).toBeNull();
       expect(restoreEntryArtwork("verified save and installation", shape(current))).toEqual(
         results,
       );
       const view = render(icon(current));
       expect(screen.queryByTestId("native-icon-loading")).toBeNull();
-      expect(screen.getByTestId("native-icon").querySelector("img")).toBeTruthy();
-      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("native-icon").querySelector("img")?.getAttribute("src")).toBe(
+        "data:image/png;base64,AAAA",
+      );
       view.unmount();
-      rememberEntryArtwork("verified save and installation", shape(current), results);
-      expect(restoreEntryArtwork("changed source", shape(original))).toBeNull();
+      expect(
+        restoreEntryArtwork("alternate save and installation", shape(alternateCurrent)),
+      ).toEqual(otherResults);
+      const otherView = render(icon(alternateCurrent));
+      expect(screen.getByTestId("native-icon").querySelector("img")?.getAttribute("src")).toBe(
+        "data:image/png;base64,BBBB",
+      );
+      expect(invoke).toHaveBeenCalledTimes(2);
+      otherView.unmount();
     } finally {
+      restoreEntryArtwork("verified save and installation", shape(original));
+      restoreEntryArtwork("alternate save and installation", shape(alternate));
       cancelEntryArtwork();
-      restoreEntryArtwork(null, shape(original));
     }
   });
   it("uses prepared Maps and shares the checked Upgrade texture with its matching Item", async () => {

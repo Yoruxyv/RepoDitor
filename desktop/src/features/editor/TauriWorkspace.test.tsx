@@ -73,7 +73,7 @@ describe("native upgrade drafts", () => {
     }));
   });
 
-  it("keeps preparation visible until the initial editing check finishes", async () => {
+  it("shows Overview with editing unavailable until the initial check finishes", async () => {
     let finish!: (status: Awaited<ReturnType<typeof tauriHealthApi.state>>) => void;
     vi.mocked(tauriHealthApi.state).mockImplementationOnce(
       () =>
@@ -81,11 +81,9 @@ describe("native upgrade drafts", () => {
           finish = resolve;
         }),
     );
-    renderWithPreferences(
-      <TauriWorkspace session={session} onClose={vi.fn()} whileChecking={<h2>Opening save</h2>} />,
-    );
-    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
-    expect(screen.queryByTestId("workspace")).toBeNull();
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
     await act(() =>
       finish({
         enabled: true,
@@ -96,7 +94,7 @@ describe("native upgrade drafts", () => {
       }),
     );
     expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Opening save" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Edit this save" })).toBeTruthy();
     expect(screen.getByTestId("health-status").hasAttribute("hidden")).toBe(true);
   });
 
@@ -166,6 +164,51 @@ describe("native upgrade drafts", () => {
         name: "Strength for Alpha",
       });
       expect(upgrade.hasAttribute("readonly")).toBe(!upgradesApproved);
+    },
+  );
+
+  it.each([false, true])(
+    "reports private Items compatibility by domain (approved: %s)",
+    async (approved) => {
+      vi.mocked(tauriHealthApi.state).mockResolvedValue({
+        enabled: true,
+        production: true,
+        domains: approved
+          ? ["health", "upgrades", "run", "refillToFull"]
+          : ["health", "upgrades", "run"],
+        state: "idle",
+        pending: null,
+        canonical: { opened: openResult().data, players, upgrades, run: runState },
+        upgradeSession: "editor-session",
+      });
+      vi.mocked(tauriReadApi.advanced.get).mockResolvedValue({
+        ok: true,
+        data: {
+          ...advanced,
+          items: [{ ...advanced.items[0]!, rechargeCapability: "unknown", canRefillToFull: false }],
+        },
+      });
+      renderWithPreferences(
+        <TauriWorkspace
+          session={session}
+          onClose={vi.fn()}
+          compatibility={{
+            gameDetected: true,
+            healthWriteCompatibility: {
+              buildId: "26732417",
+              status: "unsupported",
+              supported: false,
+            },
+          }}
+        />,
+      );
+      await userEvent.setup().click(screen.getByRole("tab", { name: "Items" }));
+      await screen.findByTestId("item-group-Melee Inflatable Hammer");
+      const notice = screen.queryByRole("complementary", {
+        name: "Game compatibility restriction",
+      });
+      if (approved) expect(notice).toBeNull();
+      else expect(within(notice!).getByText("Items · R.E.P.O. build 26732417")).toBeTruthy();
     },
   );
 

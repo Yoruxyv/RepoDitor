@@ -3,38 +3,31 @@ import type {
   DesktopOperationResult,
   SaveOpenResult,
 } from "@electron/contracts";
-import type { HealthState } from "@/app/tauriHealthApi";
 import {
   tauriReadApi,
   type NativeInstalledMaps,
   type NativeSaveOpenResult,
 } from "@/app/tauriReadApi";
 import {
+  clearEntryArtwork,
   preloadEntryArtwork,
   rememberEntryArtwork,
   restoreEntryArtwork,
+  type EntryArtworkProgress,
   type EntryArtworkResults,
 } from "@/app/tauriArtwork";
 import { prefetchInitialAvatar, type AvatarPrefetch } from "@/features/players/usePlayerAvatars";
 import type { RunEntryData, RunEntryTask } from "./runEntryPreparation";
 
-const TASKS = ["players", "upgrades", "run", "items", "maps"] as const;
-type Status = "waiting" | "running" | "completed" | "degraded";
-export type TauriEntryProgress = Readonly<Record<RunEntryTask, Status>>;
-export type TauriEntrySnapshot = Pick<RunEntryData, RunEntryTask> & {
-  readonly initialHealth?: HealthState;
-  readonly session: SaveOpenResult["session"];
+type EntryProjections = Pick<RunEntryData, RunEntryTask>;
+export type TauriEntryProgress = {
+  stage: "data" | "artwork" | "verifying";
+  artwork?: EntryArtworkProgress;
+};
+export type TauriEntrySnapshot = EntryProjections & {
   readonly artwork: EntryArtworkResults;
   readonly artworkRevision: string | undefined;
-  readonly avatarPrefetch: AvatarPrefetch | undefined;
-};
-
-const WAITING: TauriEntryProgress = {
-  players: "waiting",
-  upgrades: "waiting",
-  run: "waiting",
-  items: "waiting",
-  maps: "waiting",
+  readonly avatarPrefetch?: AvatarPrefetch;
 };
 
 class EntrySourceError extends Error {
@@ -46,16 +39,17 @@ class EntrySourceError extends Error {
   }
 }
 
-function prepareArtworkPlan(
-  { id, fingerprint }: SaveOpenResult["session"],
-  {
-    upgrades,
-    items,
-    maps,
-  }: Pick<RunEntryData, "upgrades" | "items"> & {
-    maps: DesktopOperationResult<NativeInstalledMaps>;
-  },
-) {
+function isSourceError({ code }: DesktopOperationError) {
+  return ["save_stale", "save_source_unverified", "save_missing", "invalid_request"].includes(code);
+}
+
+function prepareArtworkPlan({
+  upgrades,
+  items,
+  maps,
+}: Pick<RunEntryData, "upgrades" | "items"> & {
+  maps: DesktopOperationResult<NativeInstalledMaps>;
+}) {
   // Keep the first instance of each name, in the initial Items list order.
   const groups = new Map<string, string | null>();
   if (items.ok) {
@@ -69,11 +63,11 @@ function prepareArtworkPlan(
     item: itemGroups.map(([, token]) => token),
   };
   const revision = maps.ok ? maps.data.entryArtworkRevision : undefined;
+  // Native projections bind current-session tokens to these installed artwork identities.
+  // The Run's save and player data never enter the artwork cache.
   const key =
     revision && upgrades.ok && items.ok && maps.ok
       ? JSON.stringify([
-          id,
-          fingerprint,
           revision,
           upgrades.data.map((row) => row.key),
           maps.data.maps.map((row) => row.internalName),
@@ -88,22 +82,16 @@ async function verifyEntrySources(
   signal: AbortSignal,
   revision: string | undefined,
   saveVerified: boolean,
-): Promise<DesktopOperationResult<null>> {
+): Promise<DesktopOperationResult<boolean>> {
+  let artworkVerified = true;
   if (revision !== undefined) {
     const verified = await tauriReadApi.maps.list("verify", save);
     signal.throwIfAborted();
-    if (!verified.ok) return verified;
-    if (verified.data.entryArtworkRevision !== revision)
-      return {
-        ok: false,
-        error: {
-          code: "invalid_response",
-          message: "Installed artwork changed during preparation.",
-        },
-      };
-    saveVerified = verified.data.entrySaveVerified === true;
+    if (!verified.ok && isSourceError(verified.error)) return verified;
+    artworkVerified = verified.ok && verified.data.entryArtworkRevision === revision;
+    saveVerified = verified.ok && verified.data.entrySaveVerified === true;
   }
-  if (saveVerified) return { ok: true, data: null };
+  if (saveVerified) return { ok: true, data: artworkVerified };
   const current = await tauriReadApi.saves.open(save.id, save.fingerprint);
   signal.throwIfAborted();
   if (!current.ok) return current;
@@ -114,33 +102,21 @@ async function verifyEntrySources(
     };
   if (current.data.session.fingerprint !== save.fingerprint)
     return { ok: false, error: { code: "save_stale", message: "The selected save changed." } };
-  return { ok: true, data: null };
+  return { ok: true, data: artworkVerified };
 }
 
 export async function prepareTauriEntry(
   opened: NativeSaveOpenResult,
   signal: AbortSignal,
   report: (progress: TauriEntryProgress) => void,
-  reportArtwork: Parameters<typeof preloadEntryArtwork>[2],
-  confirmArtwork: (result: EntryArtworkResults) => Promise<void>,
 ): Promise<DesktopOperationResult<TauriEntrySnapshot>> {
   const { id, fingerprint } = opened.session;
   const saveProof = { id, fingerprint };
-  const tasks = { ...WAITING };
-  function update(task: RunEntryTask, status: Status) {
-    tasks[task] = status;
-    report({ ...tasks });
-  }
-  async function load<T>(
-    task: RunEntryTask,
-    request: () => Promise<DesktopOperationResult<T>>,
-    available: (value: T) => boolean = () => true,
-  ) {
+  let avatarPrefetch: AvatarPrefetch | undefined;
+  async function load<T>(request: () => Promise<DesktopOperationResult<T>>) {
     signal.throwIfAborted();
-    update(task, "running");
     const result = await request();
     signal.throwIfAborted();
-    update(task, result.ok && available(result.data) ? "completed" : "degraded");
     if (
       !result.ok &&
       (result.error.code === "save_stale" || result.error.code === "save_source_unverified")
@@ -151,89 +127,83 @@ export async function prepareTauriEntry(
 
   async function loadProjections() {
     if (opened.supportsEntryBatch) {
-      update("upgrades", "running");
       const entry = await tauriReadApi.saves.prepareEntry(saveProof);
       signal.throwIfAborted();
-      if (!entry.ok) throw new EntrySourceError(entry.error);
-      for (const task of TASKS) {
-        const projection = entry.data[task];
-        const available = task !== "maps" || (entry.data.maps.ok && entry.data.maps.data.available);
-        update(task, projection.ok && available ? "completed" : "degraded");
+      if (!entry.ok) {
+        if (isSourceError(entry.error)) throw new EntrySourceError(entry.error);
+        // A failed batch has no trustworthy projections. Verify the open save separately.
+        return { players: entry, upgrades: entry, run: entry, items: entry, maps: entry };
       }
-      return {
-        ...entry.data,
-        avatarPrefetch: prefetchInitialAvatar(id, entry.data.players, tauriReadApi.players.avatar),
-      };
+      avatarPrefetch = prefetchInitialAvatar(id, entry.data.players, tauriReadApi.players.avatar);
+      return entry.data;
     }
-    const players = await load("players", () => tauriReadApi.players.list(id, fingerprint));
-    const avatarPrefetch = prefetchInitialAvatar(id, players, tauriReadApi.players.avatar);
+    const players = await load(() => tauriReadApi.players.list(id, fingerprint));
+    avatarPrefetch = prefetchInitialAvatar(id, players, tauriReadApi.players.avatar);
     // Item artwork can reference tokens registered by the Upgrade read.
-    const upgrades = await load("upgrades", () => tauriReadApi.upgrades.list(id, fingerprint));
+    const upgrades = await load(() => tauriReadApi.upgrades.list(id, fingerprint));
     const [run, items] = await Promise.all([
-      load("run", () => tauriReadApi.run.get(id, fingerprint)),
-      load("items", () => tauriReadApi.advanced.get(id, fingerprint, true)),
+      load(() => tauriReadApi.run.get(id, fingerprint)),
+      load(() => tauriReadApi.advanced.get(id, fingerprint, true)),
     ]);
-    const maps = await load(
-      "maps",
-      () => tauriReadApi.maps.list("entry", saveProof),
-      (catalog) => catalog.available,
-    );
-    return { players, upgrades, run, items, maps, avatarPrefetch };
+    const maps = await load(() => tauriReadApi.maps.list("entry", saveProof));
+    return { players, upgrades, run, items, maps };
   }
 
   try {
-    const { players, upgrades, run, items, maps, avatarPrefetch } = await loadProjections();
-    const { plan, revision, key } = prepareArtworkPlan(opened.session, { upgrades, items, maps });
-    const reused = restoreEntryArtwork(key, plan);
-    if (reused) {
-      const settled = Object.values(reused).reduce(
-        (sum, result) => sum + result.ready + result.unavailable,
-        0,
-      );
-      reportArtwork({ scope: null, settled, total: settled });
-    }
-    const artwork = reused ?? (await preloadEntryArtwork(plan, signal, reportArtwork));
+    report({ stage: "data" });
+    const projections = await loadProjections();
     signal.throwIfAborted();
+    const { plan, revision, key } = prepareArtworkPlan(projections);
+    const reused = restoreEntryArtwork(key, plan);
+    let artworkProgress: EntryArtworkProgress | undefined;
+    const artwork =
+      reused ??
+      (await preloadEntryArtwork(plan, signal, (progress) => {
+        if (signal.aborted) return;
+        artworkProgress = progress;
+        report({ stage: "artwork", artwork: progress });
+      }));
+    signal.throwIfAborted();
+    report(
+      artworkProgress ? { stage: "verifying", artwork: artworkProgress } : { stage: "verifying" },
+    );
     const incomplete = Object.values(artwork).some(({ issues }) => Object.keys(issues).length > 0);
-    if (incomplete) {
-      await confirmArtwork(artwork);
-      signal.throwIfAborted();
-    }
     const verification = await verifyEntrySources(
       saveProof,
       signal,
       key !== null && !reused && !incomplete ? revision : undefined,
-      reused !== null && maps.ok && maps.data.entrySaveVerified === true,
+      reused !== null && projections.maps.ok && projections.maps.data.entrySaveVerified === true,
     );
     signal.throwIfAborted();
     if (!verification.ok) return verification;
-    if (key !== null && !incomplete) rememberEntryArtwork(key, plan, artwork);
+    if (!verification.data) {
+      clearEntryArtwork();
+      for (const scope of Object.values(artwork)) {
+        if (!scope.ready) continue;
+        scope.issues.failed = (scope.issues.failed ?? 0) + scope.ready;
+        scope.ready = 0;
+      }
+    } else if (key !== null && !reused && !incomplete) rememberEntryArtwork(key, plan, artwork);
     return {
       ok: true,
       data: {
-        session: opened.session,
-        players,
-        upgrades,
-        run,
-        items,
-        maps,
+        ...projections,
         artwork,
-        artworkRevision: revision,
-        avatarPrefetch,
+        artworkRevision: verification.data ? revision : undefined,
+        ...(avatarPrefetch ? { avatarPrefetch } : {}),
       },
     };
   } catch (error) {
-    if (!(error instanceof EntrySourceError)) throw error;
-    return { ok: false, error: error.error };
+    if (signal.aborted) throw error;
+    return {
+      ok: false,
+      error:
+        error instanceof EntrySourceError
+          ? error.error
+          : {
+              code: "internal_error",
+              message: "The desktop editor preparation failed unexpectedly.",
+            },
+    };
   }
-}
-
-export function entryProgressCounts(progress: TauriEntryProgress) {
-  return {
-    current: TASKS.find((task) => progress[task] === "running"),
-    completed: TASKS.filter(
-      (task) => progress[task] === "completed" || progress[task] === "degraded",
-    ).length,
-    total: TASKS.length,
-  };
 }

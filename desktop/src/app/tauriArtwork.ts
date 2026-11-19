@@ -33,14 +33,16 @@ const entryArtwork = {
   item: new Map<string, NativeArtwork | null>(),
 };
 let entryWork: AbortController | null = null;
+const preparing = new Map<EntryArtworkScope, ReadonlySet<string>>();
+const PREPARING_IMAGE = { preparing: true } as const;
 let entryBytes = 0;
-let retainedEntry: {
+const retainedEntries: {
   key: string;
   plan: EntryArtworkPlan;
   images: Record<EntryArtworkScope, Map<string, NativeArtwork | null>>;
   results: EntryArtworkResults;
   bytes: number;
-} | null = null;
+}[] = [];
 // A validated 2 MiB Items frame has fewer rows than this even at 128 bytes per row.
 const REQUEST_LIMITS = { item: 16_384, map: 128, upgrade: 16, cosmetic: 2_000 };
 type ArtworkScope = keyof typeof REQUEST_LIMITS;
@@ -73,7 +75,9 @@ function subscribeActivity(listener: () => void): () => void {
 
 export function cancelEntryArtwork(): void {
   entryWork?.abort();
+  preparing.clear();
   clearEntryArtwork();
+  for (const listener of activityListeners) listener();
 }
 
 export function clearEntryArtwork(scope?: EntryArtworkScope): void {
@@ -92,7 +96,9 @@ export function rememberEntryArtwork(
   plan: EntryArtworkPlan,
   results: EntryArtworkResults,
 ): void {
-  retainedEntry = {
+  const previous = retainedEntries.findIndex((entry) => entry.key === key);
+  if (previous >= 0) retainedEntries.splice(previous, 1);
+  retainedEntries.unshift({
     key,
     plan,
     results,
@@ -102,14 +108,16 @@ export function rememberEntryArtwork(
       map: new Map(entryArtwork.map),
       item: new Map(entryArtwork.item),
     },
-  };
+  });
+  if (retainedEntries.length > 2) retainedEntries.pop();
 }
 
 export function restoreEntryArtwork(key: string | null, plan: EntryArtworkPlan) {
   cancelEntryArtwork();
-  const previous = retainedEntry;
-  retainedEntry = null;
-  if (key === null || previous?.key !== key) return null;
+  const index = retainedEntries.findIndex((entry) => entry.key === key);
+  if (index < 0) return null;
+  const previous = retainedEntries[index];
+  if (!previous) return null;
   for (const scope of ENTRY_ARTWORK_SCOPES) {
     if (
       previous.plan[scope].length !== plan[scope].length ||
@@ -127,6 +135,8 @@ export function restoreEntryArtwork(key: string | null, plan: EntryArtworkPlan) 
       if (image !== undefined) entryArtwork[scope].set(token, image && { ...image, token });
     }
   }
+  retainedEntries.splice(index, 1);
+  retainedEntries.unshift(previous);
   entryBytes = previous.bytes;
   return previous.results;
 }
@@ -155,7 +165,7 @@ function reuseUpgradeItemArtwork(tokens: readonly string[], result: EntryArtwork
 export async function preloadEntryArtwork(
   plan: EntryArtworkPlan,
   stop: AbortSignal,
-  report: (progress: EntryArtworkProgress) => void,
+  report?: (progress: EntryArtworkProgress) => void,
 ): Promise<EntryArtworkResults> {
   cancelEntryArtwork();
   const work = new AbortController();
@@ -186,6 +196,8 @@ export async function preloadEntryArtwork(
     (count, group) => count + group.admitted.length + group.aliases.length + group.unavailable,
     0,
   );
+  for (const { scope, aliases, admitted } of groups)
+    preparing.set(scope, new Set([...aliases, ...admitted.slice(0, ENTRY_ARTWORK_LIMIT[scope])]));
   let settled = 0;
   try {
     for (const { scope, admitted, aliases, unavailable } of groups) {
@@ -198,14 +210,22 @@ export async function preloadEntryArtwork(
       let groupSettled = 0;
       await prepareEntryGroup(scope, admitted.slice(0, limit), result, signal, (count) => {
         groupSettled = count;
-        report({ scope, settled: settled + count, total });
+        report?.({ scope, settled: settled + count, total });
       });
+      if (entryWork === work) {
+        preparing.delete(scope);
+        for (const listener of activityListeners) listener();
+      }
       settled += groupSettled;
     }
     return results;
   } finally {
-    if (entryWork === work) entryWork = null;
-    report({ scope: null, settled, total });
+    if (entryWork === work) {
+      entryWork = null;
+      preparing.clear();
+      for (const listener of activityListeners) listener();
+    }
+    report?.({ scope: null, settled, total });
   }
 }
 
@@ -327,7 +347,10 @@ export function useNativeArtwork(
     isNativeArtworkToken(token);
   const prepared = useSyncExternalStore(subscribeActivity, () => {
     if (!allowed) return undefined;
-    if (variant !== "cosmetic") return entryArtwork[variant].get(token);
+    if (variant !== "cosmetic") {
+      if (preparing.get(variant)?.has(token)) return PREPARING_IMAGE;
+      return entryArtwork[variant].get(token);
+    }
     const key = cosmeticReuseKey(token, reuseKey);
     return (key && cosmeticThumbnails.get(key)) || null;
   });
@@ -369,10 +392,11 @@ export function useNativeArtwork(
     };
   }, [allowed, element, hasObserver, prepared, scope, token, variant]);
   const current = resolved && token && resolved.token === token ? resolved : null;
+  const ready = prepared && "preparing" in prepared ? null : prepared;
   return {
     native,
-    image: prepared === undefined ? (current?.image ?? null) : prepared,
-    prepared: prepared != null,
+    image: ready === undefined ? (current?.image ?? null) : ready,
+    prepared: ready != null,
     unavailable:
       native &&
       (!allowed || prepared === null || (prepared === undefined && current?.image === null)),

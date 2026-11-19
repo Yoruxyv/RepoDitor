@@ -320,7 +320,6 @@ export function useTauriHealth(
     Partial<
       Pick<typeof tauriHealthApi, "writeUpgrades" | "writeRun" | "writeRefills" | "writeMixed">
     > = tauriHealthApi,
-  initialHealth?: HealthState,
 ) {
   const [state, setState] = useState<State>(INITIAL);
   const [invalid, setInvalid] = useState(false);
@@ -329,7 +328,6 @@ export function useTauriHealth(
   const mounted = useRef(false);
   const inFlight = useRef(false);
   const base = useRef(session);
-  const entryHealth = useRef(initialHealth);
   const accept = useRef(onCanonical);
   useEffect(() => {
     accept.current = onCanonical;
@@ -407,9 +405,8 @@ export function useTauriHealth(
     let timer: number | undefined;
     let cancelled = false;
     async function load() {
-      const result = await (entryHealth.current ?? api.state(session.id));
+      const result = await api.state(session.id);
       if (cancelled) return;
-      entryHealth.current = undefined;
       restore(result);
       if (result.enabled && result.state === "busy")
         timer = window.setTimeout(() => void load(), 1000);

@@ -43,6 +43,7 @@ fn only_project_and_single_release_tag_urls_reach_the_system_browser_handoff() {
         "https://github.com@example.com/Yoruxyv/RepoDitor",
         "https://github.com.evil.example/Yoruxyv/RepoDitor",
         "https://github.com/Yoruxyv/RepoDitor/releases/download/v0.3.0/setup.exe",
+        "https://github.com/Yoruxyv/RepoDitor/releases?redirect=other",
         "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0/asset",
         "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0?redirect=other",
         "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0#changes",
@@ -58,6 +59,7 @@ fn only_project_and_single_release_tag_urls_reach_the_system_browser_handoff() {
     }
     for expected in [
         "https://github.com/Yoruxyv/RepoDitor",
+        "https://github.com/Yoruxyv/RepoDitor/releases",
         "https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.0",
     ] {
         let url = expected.parse().unwrap();

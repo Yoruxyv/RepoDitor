@@ -169,13 +169,13 @@ function PreparationProgressDisplay({
           "aria-valuemin": 0,
           "aria-valuemax": progress.total,
           "aria-valuenow": progress.completed,
-          "aria-valuetext": progressCount,
+          "aria-valuetext": progressCount || undefined,
         }
       : undefined;
   const progressAttributes = {
     role: "progressbar" as const,
     "aria-label": progressLabel ?? t(labelKey),
-    "aria-describedby": compact && progress === null ? statusId : undefined,
+    "aria-describedby": compact && progress === null && progressText !== "" ? statusId : undefined,
     ...valueAttributes,
   };
   const liveStatus = compact ? { "aria-atomic": true, "aria-live": "polite" as const } : undefined;
@@ -207,27 +207,29 @@ function PreparationProgressDisplay({
         ) : null}
       </div>
 
-      <div
-        {...liveStatus}
-        className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
-        data-testid="asset-progress-status"
-        id={statusId}
-      >
-        <span className="relative grid min-w-32 text-right">
-          <span
-            className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${workingClass}`}
-          >
-            {t(PREPARATION_TRANSLATION_KEY.working)}
+      {progressText !== "" ? (
+        <div
+          {...liveStatus}
+          className="mt-3 flex min-h-6 items-center justify-end text-xs font-semibold uppercase tracking-[0.12em] text-secondary"
+          data-testid="asset-progress-status"
+          id={statusId}
+        >
+          <span className="relative grid min-w-32 text-right">
+            <span
+              className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${workingClass}`}
+            >
+              {t(PREPARATION_TRANSLATION_KEY.working)}
+            </span>
+            <span
+              aria-hidden={progress === null}
+              className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${countClass}`}
+              data-testid={progress === null ? undefined : "asset-progress-count"}
+            >
+              {progressCount}
+            </span>
           </span>
-          <span
-            aria-hidden={progress === null}
-            className={`col-start-1 row-start-1 transition-opacity duration-150 motion-reduce:transition-none ${countClass}`}
-            data-testid={progress === null ? undefined : "asset-progress-count"}
-          >
-            {progressCount}
-          </span>
-        </span>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

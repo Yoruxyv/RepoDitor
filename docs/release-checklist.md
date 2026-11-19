@@ -642,7 +642,13 @@ and independent recovery. The maintainer reported loading a Tauri-edited save in
 R.E.P.O. on Steam build `26407089`. A normal game resave, reload, and restoration
 with recorded results by editing domain are still required for public approval.
 
-Editor entry batches projections and reuses source-validated metadata and artwork.
+Run entry validates the save, prepares one projection batch, and checks artwork
+before making the workspace available. The preparation bar reports checked
+artwork once the roster is known. Fresh sessions reuse decoded artwork when the
+installed revision and artwork roster match. The editor admits writes after its
+native safety checks succeed. A save that changes during preparation must be
+reopened. Cosmetics keeps its completed catalog visible during revalidation and
+replaces it when the verified sources change.
 Run writes reuse preflight work and still wait for independent verification and
 canonical refresh. The W8 Windows benchmark used five runs per host and a matched
 disposable fixture. Values are medians in seconds from those packaged builds.

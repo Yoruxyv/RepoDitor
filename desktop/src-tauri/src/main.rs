@@ -9,6 +9,7 @@ use backend::{artwork, HostState, Operation};
 use error::{BackendError, Outcome, Service};
 use projections::{cosmetics, discovery, game, items, maps, players, run, saves, upgrades};
 use std::{
+    collections::VecDeque,
     sync::{atomic::Ordering, Arc, Mutex},
     time::Instant,
 };
@@ -30,7 +31,10 @@ fn handle_project_window(url: &tauri::Url, open: impl FnOnce(&str)) {
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || b".+-".contains(&byte))
         });
-    if target == PROJECT_SOURCE_URL || release {
+    if target == PROJECT_SOURCE_URL
+        || target.strip_prefix(PROJECT_SOURCE_URL) == Some("/releases")
+        || release
+    {
         open(target);
     }
 }
@@ -134,9 +138,10 @@ async fn saves_open(
         app.state::<Mutex<EntryCache>>()
             .lock()
             .unwrap()
-            .snapshot
-            .clone()
-            .filter(|entry| entry.save == id)
+            .snapshots
+            .iter()
+            .find(|entry| entry.save == id)
+            .cloned()
     } else {
         None
     };
@@ -186,9 +191,9 @@ async fn saves_open(
                     opened.fingerprint() == entry.fingerprint
                         && opened.verified_entry_revision.as_ref() == Some(&entry.revision)
                         && cache
-                            .snapshot
-                            .as_ref()
-                            .is_some_and(|current| Arc::ptr_eq(entry, current))
+                            .snapshots
+                            .iter()
+                            .any(|current| Arc::ptr_eq(entry, current))
                 })
                 .and_then(|_| registry.generation(&id));
             #[cfg(feature = "health-transport")]
@@ -219,7 +224,7 @@ struct EditorEntry {
 
 #[derive(Default)]
 struct EntryCache {
-    snapshot: Option<Arc<CachedEntry>>,
+    snapshots: VecDeque<Arc<CachedEntry>>,
     verified: Option<uuid::Uuid>,
 }
 
@@ -308,9 +313,9 @@ async fn editor_entry(
         let cache = app.state::<Mutex<EntryCache>>();
         let cache = cache.lock().unwrap();
         cache
-            .snapshot
-            .as_ref()
-            .filter(|entry| {
+            .snapshots
+            .iter()
+            .find(|entry| {
                 cache.verified == generation
                     && entry.save == save_id
                     && entry.fingerprint == fingerprint
@@ -337,7 +342,8 @@ async fn editor_entry(
         let cache = handle.state::<Mutex<EntryCache>>();
         let mut cache = cache.lock().unwrap();
         cache.verified = None;
-        cache.snapshot = raw["cacheRevision"]
+        cache.snapshots.retain(|entry| entry.save != save_id);
+        let snapshot = raw["cacheRevision"]
             .as_str()
             .filter(|revision| {
                 complete
@@ -353,6 +359,10 @@ async fn editor_entry(
                     raw,
                 })
             });
+        if let Some(snapshot) = snapshot {
+            cache.snapshots.push_front(snapshot);
+            cache.snapshots.truncate(2);
+        }
         Ok(entry)
     })
     .await

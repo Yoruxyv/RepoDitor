@@ -272,13 +272,7 @@ test("save-open failure recovery and unknown game states remain fail closed", as
   }
 });
 
-for (const [command, detail] of [
-  ["saves-open", "Reading and validating save data…"],
-  ["players-list", "Loading player data…"],
-  ["upgrades-list", "Loading upgrade data…"],
-  ["run-get", "Loading run data…"],
-  ["advanced-get", "Loading item data…"],
-] as const)
+for (const command of ["saves-open", "players-list", "upgrades-list", "run-get", "advanced-get"])
   test(`closing during ${command} reclaims its backend and descendant`, async ({
     browserName,
   }, info) => {
@@ -304,7 +298,9 @@ for (const [command, detail] of [
           }
         })
         .toBe(2);
-      await expect(page.getByTestId("entry-loading-detail")).toHaveText(detail);
+      await expect(page.getByTestId("entry-loading-detail")).toHaveText(
+        command === "saves-open" ? "Reading and validating save data…" : "Preparing editor data…",
+      );
       await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
       expect(await native(page, command.replace("-", "_"), { saveId: E2E_SAVE_ID })).toMatchObject({
         ok: false,
@@ -410,11 +406,11 @@ test("Players validates failures, empty data and retry while game status remains
   }
 });
 
-for (const [feature, command, detail] of [
-  ["Players", "players-list", "Loading player data…"],
-  ["Upgrades", "upgrades-list", "Loading upgrade data…"],
-  ["Run", "run-get", "Loading run data…"],
-  ["Items", "advanced-get", "Loading item data…"],
+for (const [feature, command] of [
+  ["Players", "players-list"],
+  ["Upgrades", "upgrades-list"],
+  ["Run", "run-get"],
+  ["Items", "advanced-get"],
 ] as const)
   test(`${feature} deadline reclaims descendants and allows retry`, async ({
     browserName,
@@ -432,11 +428,11 @@ for (const [feature, command, detail] of [
     });
     try {
       await page.getByRole("button", { name: /Open workspace/ }).click();
-      await expect(page.getByTestId("entry-loading-detail")).toHaveText(detail);
+      await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
       const tab = page.getByRole("tab", { name: feature });
       await expect(tab).toBeVisible({ timeout: 35_000 });
       await tab.click();
-      await expect(page.getByRole("alert")).toBeVisible();
+      await expect(page.getByRole("alert")).toBeVisible({ timeout: 35_000 });
       const pids = JSON.parse(await readFile(pidFile, "utf8")) as number[];
       expect(pids).toHaveLength(2);
       for (const pid of pids) expect(() => process.kill(pid, 0)).toThrow(/ESRCH/);

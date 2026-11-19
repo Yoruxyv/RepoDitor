@@ -7,23 +7,13 @@ import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { ThemeMenu } from "@/app/ThemeMenu";
 import { TauriUpdateNotice } from "@/app/TauriUpdateNotice";
 import { usePreferences } from "@/app/preferences";
-import type { TranslationKey } from "@/app/i18n";
-import { tauriHealthApi } from "@/app/tauriHealthApi";
 import { closeTauriPreview, tauriReadApi } from "@/app/tauriReadApi";
-import {
-  cancelEntryArtwork,
-  clearEntryArtwork,
-  closeNativeWorkspace,
-  ENTRY_ARTWORK_SCOPES,
-  type EntryArtworkProgress,
-  type EntryArtworkResults,
-} from "@/app/tauriArtwork";
+import { cancelEntryArtwork, clearEntryArtwork, closeNativeWorkspace } from "@/app/tauriArtwork";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { TauriWorkspace } from "@/features/editor/TauriWorkspace";
 import { TauriCosmeticsWorkspace } from "@/features/cosmetics/TauriCosmeticsWorkspace";
 import { useSaveSession } from "@/features/editor/useSaveSession";
 import {
-  entryProgressCounts,
   prepareTauriEntry,
   type TauriEntryProgress,
   type TauriEntrySnapshot,
@@ -37,41 +27,8 @@ type NavigationFocus =
   | { kind: "workspace" }
   | { kind: "discovery"; saveId: string; refreshRevision: number; headingFocused: boolean };
 
-type ArtworkDecision = { readonly result: EntryArtworkResults; readonly proceed: () => void };
 type EditMode = "checking" | "readonly" | "test" | "production";
 const READ_ONLY = "app.discoveryPreview";
-
-function waitForArtworkDecision(
-  result: EntryArtworkResults,
-  signal: AbortSignal,
-  show: (decision: ArtworkDecision) => void,
-) {
-  return new Promise<void>((resolve) => {
-    function proceed() {
-      signal.removeEventListener("abort", proceed);
-      resolve();
-    }
-    signal.addEventListener("abort", proceed, { once: true });
-    show({ result, proceed });
-  });
-}
-
-function ArtworkIssues({ result }: { readonly result: EntryArtworkResults }) {
-  const { t } = usePreferences();
-  return (
-    <output className="mt-2 block space-y-1 text-sm text-secondary">
-      {ENTRY_ARTWORK_SCOPES.flatMap((scope) => {
-        const { issues } = result[scope];
-        return (Object.keys(issues) as (keyof typeof issues)[]).map((reason) => (
-          <span className="block" key={scope + reason}>
-            {t(`nav.${scope}s`)} ·{" "}
-            {t(`entry.artworkIssue.${reason}`, { count: issues[reason] ?? 0 })}
-          </span>
-        ));
-      })}
-    </output>
-  );
-}
 
 function focusNavigationTarget(target: HTMLElement | null | undefined): boolean {
   if (
@@ -87,54 +44,28 @@ function focusNavigationTarget(target: HTMLElement | null | undefined): boolean 
 
 function OpeningSavePreparation({
   progress,
-  artworkProgress,
-  artworkDecision,
   onCancel,
 }: {
   readonly progress: TauriEntryProgress | null;
-  readonly artworkProgress: EntryArtworkProgress | null;
-  readonly artworkDecision: ArtworkDecision | null;
   readonly onCancel: () => void;
 }) {
   const { t } = usePreferences();
-  const counts = progress && entryProgressCounts(progress);
-  let detail: TranslationKey = counts ? "entry.detail.finalizing" : "entry.detail.readingSave";
-  if (counts?.current) detail = `entry.detail.${counts.current}`;
-  if (artworkProgress?.scope) detail = `entry.artwork.${artworkProgress.scope}`;
-  if (artworkDecision) detail = "entry.artworkIncomplete";
-  const artworkCounts = artworkProgress && {
-    completed: artworkProgress.settled,
-    total: artworkProgress.total,
-  };
-  // Reserve one phase for artwork before its roster exists, so the data fill is retained.
-  let artworkCompletion = 0;
-  if (artworkCounts) {
-    artworkCompletion =
-      artworkCounts.total === 0 ? 1 : artworkCounts.completed / artworkCounts.total;
-  }
-  const combined = counts && {
-    completed: counts.completed / counts.total + artworkCompletion,
-    total: 2,
-  };
-  const progressText = [
-    counts && t("entry.editorDataCompact", { completed: counts.completed, total: counts.total }),
-    artworkCounts && t("entry.artworkCompact", artworkCounts),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const details = {
+    data: "entry.detail.editorData",
+    artwork: "entry.detail.artworkAfterData",
+    verifying: "entry.detail.finalizing",
+  } as const;
+  const counts = progress?.artwork;
+  const artwork = counts?.total ? { completed: counts.settled, total: counts.total } : null;
   return (
     <AssetPreparationView
       compact
       mode="save"
-      saveDetail={t(detail)}
-      editorProgress={combined}
-      progressText={progressText}
+      saveDetail={t(progress ? details[progress.stage] : "entry.detail.readingSave")}
+      editorProgress={artwork}
+      progressText={artwork ? t("entry.artworkCompact", artwork) : ""}
       onCancel={onCancel}
-      {...(artworkDecision ? { onContinue: artworkDecision.proceed } : {})}
-      continueLabel={t("entry.artworkContinue")}
-    >
-      {artworkDecision ? <ArtworkIssues result={artworkDecision.result} /> : null}
-    </AssetPreparationView>
+    />
   );
 }
 
@@ -142,10 +73,8 @@ function RunSaveContent({
   discovery,
   save,
   active,
-  prepared,
   progress,
-  artworkProgress,
-  artworkDecision,
+  prepared,
   onOpen,
   onCancel,
   onClose,
@@ -154,10 +83,8 @@ function RunSaveContent({
   readonly discovery: ReturnType<typeof useEnvironmentDiscovery>;
   readonly save: ReturnType<typeof useSaveSession>;
   readonly active: boolean;
-  readonly prepared: TauriEntrySnapshot | null;
   readonly progress: TauriEntryProgress | null;
-  readonly artworkProgress: EntryArtworkProgress | null;
-  readonly artworkDecision: ArtworkDecision | null;
+  readonly prepared: TauriEntrySnapshot | null;
   readonly onOpen: (saveId: string) => void;
   readonly onCancel: (saveId: string) => void;
   readonly onClose: () => void;
@@ -166,14 +93,7 @@ function RunSaveContent({
   const { t } = usePreferences();
   const openingId = save.openingSaveId;
   if (openingId !== null) {
-    return (
-      <OpeningSavePreparation
-        progress={progress}
-        artworkProgress={artworkProgress}
-        artworkDecision={artworkDecision}
-        onCancel={() => onCancel(openingId)}
-      />
-    );
+    return <OpeningSavePreparation progress={progress} onCancel={() => onCancel(openingId)} />;
   }
   if (save.session !== null) {
     return (
@@ -185,14 +105,7 @@ function RunSaveContent({
         onClose={onClose}
         onCanonical={save.enter}
         onHealthAvailability={onHealthAvailability}
-        whileChecking={
-          <OpeningSavePreparation
-            progress={progress}
-            artworkProgress={artworkProgress}
-            artworkDecision={null}
-            onCancel={onClose}
-          />
-        }
+        compatibility={discovery.data}
       />
     );
   }
@@ -219,35 +132,23 @@ function DiscoveryPreview() {
   const [cosmeticsEditing, setCosmeticsEditing] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<TauriEntryProgress | null>(null);
   const [prepared, setPrepared] = useState<TauriEntrySnapshot | null>(null);
-  const [artworkProgress, setArtworkProgress] = useState<EntryArtworkProgress | null>(null);
-  const [artworkDecision, setArtworkDecision] = useState<ArtworkDecision | null>(null);
   const safety = useGameSafety(tauriReadApi.game.status);
   const closingWorkspace = useRef(false);
   const [closeFailed, setCloseFailed] = useState(false);
   const save = useSaveSession(async (id, signal) => {
     setProgress(null);
-    setArtworkProgress(null);
-    setArtworkDecision(null);
-    setPrepared(null);
     signal.throwIfAborted();
     const opened = await tauriReadApi.saves.open(id);
     if (!opened.ok) return opened;
     let keep = false;
     try {
       signal.throwIfAborted();
-      const entry = await prepareTauriEntry(
-        opened.data,
-        signal,
-        setProgress,
-        (status) => {
-          if (!signal.aborted) setArtworkProgress(status);
-        },
-        (result) => waitForArtworkDecision(result, signal, setArtworkDecision),
-      );
-      if (!entry.ok) return entry;
-      const [initialHealth] = await Promise.all([tauriHealthApi.state(id), safety.check()]);
+      await safety.check();
       signal.throwIfAborted();
-      setPrepared({ ...entry.data, initialHealth });
+      const entry = await prepareTauriEntry(opened.data, signal, setProgress);
+      if (!entry.ok) return entry;
+      signal.throwIfAborted();
+      setPrepared(entry.data);
       keep = true;
       return opened;
     } finally {
@@ -268,7 +169,6 @@ function DiscoveryPreview() {
   const navigationFocus = useRef<NavigationFocus | null>(null);
   useEffect(() => {
     return () => {
-      cancelEntryArtwork();
       generation.current += 1;
     };
   }, []);
@@ -280,9 +180,30 @@ function DiscoveryPreview() {
       : null;
   const { isRefreshing, refreshRevision } = discovery;
   const inSave = save.session !== null;
-  useEffect(() => {
-    if (inSave) return cancelEntryArtwork;
-  }, [inSave]);
+  function focusDiscoveryAfterRefresh(saveId: string) {
+    navigationFocus.current = {
+      kind: "discovery",
+      saveId,
+      refreshRevision,
+      headingFocused: false,
+    };
+  }
+  async function close(id: string) {
+    if (closingWorkspace.current) return;
+    closingWorkspace.current = true;
+    setCloseFailed(false);
+    const closed = await closeNativeWorkspace(id);
+    closingWorkspace.current = false;
+    if (!closed) {
+      setCloseFailed(true);
+      return;
+    }
+    generation.current += 1;
+    cancelEntryArtwork();
+    setPrepared(null);
+    focusDiscoveryAfterRefresh(id);
+    save.close();
+  }
   useEffect(() => {
     const revision = prepared?.artworkRevision;
     if (!inSave || !revision) return;
@@ -310,10 +231,7 @@ function DiscoveryPreview() {
     };
   }, [inSave, prepared]);
   const focusPreparation =
-    workspace === "run-saves" &&
-    (opening || (inSave && editMode === "checking")) &&
-    !initialCheck &&
-    blocked === null;
+    workspace === "run-saves" && opening && !initialCheck && blocked === null;
   const waitingForDiscovery = isRefreshing || save.drainingOpen;
   useLayoutEffect(() => {
     if (focusPreparation)
@@ -327,7 +245,7 @@ function DiscoveryPreview() {
       navigationFocus.current = null;
       return;
     }
-    if (opening || (inSave && editMode === "checking") || initialCheck || blocked !== null) return;
+    if (opening || initialCheck || blocked !== null) return;
     if (request.kind === "workspace") {
       if (inSave && focusNavigationTarget(root.querySelector("#native-overview-tab")))
         navigationFocus.current = null;
@@ -346,16 +264,7 @@ function DiscoveryPreview() {
       root.querySelectorAll<HTMLButtonElement>("button[data-save-id]"),
     ).find((candidate) => candidate.dataset["saveId"] === request.saveId);
     if (!focusNavigationTarget(button)) focusNavigationTarget(heading);
-  }, [
-    workspace,
-    opening,
-    initialCheck,
-    blocked,
-    inSave,
-    editMode,
-    waitingForDiscovery,
-    refreshRevision,
-  ]);
+  }, [workspace, opening, initialCheck, blocked, inSave, waitingForDiscovery, refreshRevision]);
 
   async function open(saveId: string) {
     const request = generation.current;
@@ -368,14 +277,6 @@ function DiscoveryPreview() {
       save.enter(result);
     }
   }
-  function focusDiscoveryAfterRefresh(saveId: string) {
-    navigationFocus.current = {
-      kind: "discovery",
-      saveId,
-      refreshRevision,
-      headingFocused: false,
-    };
-  }
   function cancelOpen(saveId: string) {
     generation.current += 1;
     cancelEntryArtwork();
@@ -384,22 +285,6 @@ function DiscoveryPreview() {
     // End cancellable native reads now. The opening callback also cleans up if the
     // initial save read completed after this cancellation.
     void closeNativeWorkspace(saveId);
-  }
-  async function close() {
-    const id = save.session?.id;
-    if (!id || closingWorkspace.current) return;
-    closingWorkspace.current = true;
-    setCloseFailed(false);
-    const closed = await closeNativeWorkspace(id);
-    closingWorkspace.current = false;
-    if (!closed) {
-      setCloseFailed(true);
-      return;
-    }
-    generation.current += 1;
-    setPrepared(null);
-    focusDiscoveryAfterRefresh(id);
-    save.close();
   }
   const { t } = usePreferences();
   const readOnly =
@@ -458,25 +343,19 @@ function DiscoveryPreview() {
             save={save}
             prepared={prepared}
             progress={progress}
-            artworkProgress={artworkProgress}
-            artworkDecision={
-              artworkDecision && {
-                result: artworkDecision.result,
-                proceed: () => {
-                  setArtworkDecision(null);
-                  artworkDecision.proceed();
-                },
-              }
-            }
             active={workspace === "run-saves" && !initialCheck && blocked === null}
             onOpen={(id) => void open(id)}
             onCancel={cancelOpen}
-            onClose={() => void close()}
+            onClose={() => {
+              if (save.session) void close(save.session.id);
+            }}
             onHealthAvailability={setEditMode}
           />
         </div>
         <TauriCosmeticsWorkspace
           active={workspace === "cosmetics"}
+          compatibility={discovery.data}
+          onCancel={() => setWorkspace("run-saves")}
           recoveryGeneration={safety.recoveryGeneration}
           onEditingAvailability={setCosmeticsEditing}
         />

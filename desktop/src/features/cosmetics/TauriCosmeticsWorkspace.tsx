@@ -7,6 +7,11 @@ import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
 import { INITIAL_STATE } from "@/features/assets/useAssetPreparation";
+import {
+  GameCompatibilityNotice,
+  installedWriteRestriction,
+  type CompatibilityEnvironment,
+} from "@/features/editor/GameCompatibilityNotice";
 import { CosmeticsView } from "./CosmeticsView";
 import { useCosmeticsRead } from "./useCosmeticsRead";
 import { useTauriCosmetics } from "./useTauriCosmetics";
@@ -16,10 +21,14 @@ export function TauriCosmeticsWorkspace({
   active,
   recoveryGeneration,
   onEditingAvailability,
+  compatibility,
+  onCancel,
 }: {
   readonly active: boolean;
   readonly recoveryGeneration: number;
   readonly onEditingAvailability?: (enabled: boolean | null) => void;
+  readonly compatibility?: CompatibilityEnvironment | null;
+  readonly onCancel?: () => void;
 }) {
   const { t } = usePreferences();
   useEffect(() => (active ? closeNativeCosmeticArtwork : undefined), [active]);
@@ -30,43 +39,47 @@ export function TauriCosmeticsWorkspace({
     onEditingAvailability?.(meta.authorizationPending ? null : editing);
     return () => onEditingAvailability?.(null);
   }, [meta.authorizationPending, editing, onEditingAvailability]);
-  const { view, error, loading, artwork, preparing, refresh } = useCosmeticsPresentation(
-    meta,
-    production,
-    recoveryGeneration,
-  );
+  const { view, error, loading, artwork, preparing, replacing, incompatible, refresh } =
+    useCosmeticsPresentation(meta, production, recoveryGeneration);
   const action = meta.intent?.metaCosmetics.action;
   const actions = mutationActions(meta);
   const title = t("cosmetics.artwork.title");
   const label = t("app.cosmetics");
   const preparationState = artwork ? { ...INITIAL_STATE, ...artwork } : INITIAL_STATE;
   const progressCopy = artwork ? { progressText: t("entry.artworkCompact", artwork) } : {};
+  const showPreparation = active && preparing;
+  const issue = compatibilityIssue(incompatible, view, compatibility);
   return (
     <>
-      {active && preparing ? (
+      {showPreparation ? (
         <AssetPreparationView
           compact
           state={preparationState}
           progressLabel={title}
           {...progressCopy}
+          {...(onCancel ? { onCancel } : {})}
           copyOverrides={{
             title,
             preparing: label,
-            detail: t("cosmetics.artwork.checking"),
+            detail: t(artwork ? "cosmetics.artwork.scanning" : "cosmetics.loading"),
           }}
         />
       ) : null}
-      <section aria-label={label} data-testid="cosmetics-workspace" hidden={!active || preparing}>
+      <section
+        aria-label={label}
+        data-testid="cosmetics-workspace"
+        hidden={!active || showPreparation}
+      >
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 text-xs text-secondary">
           <span className="font-mono text-ink">MetaSave.es3</span>
           <div className="flex items-center gap-4">
-            {view && (meta.enabled || !loading) ? (
+            {!preparing && view && (meta.enabled || !loading) ? (
               <span className="inline-flex items-center gap-1.5 text-success">
                 <ShieldCheckIcon aria-hidden="true" size={15} />
                 {t("cosmetics.validatedShort")}
               </span>
             ) : null}
-            {view ? (
+            {view && !preparing ? (
               <button
                 className="ui-feedback inline-flex items-center gap-2 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent disabled:opacity-50"
                 disabled={loading || !!meta.intent || meta.recovery}
@@ -79,20 +92,37 @@ export function TauriCosmeticsWorkspace({
             ) : null}
           </div>
         </div>
+        {active &&
+        compatibility &&
+        !preparing &&
+        !meta.authorizationPending &&
+        !editing &&
+        (view || incompatible) ? (
+          <GameCompatibilityNotice
+            build={compatibility.healthWriteCompatibility?.buildId}
+            issue={issue}
+            features={["app.cosmetics"]}
+          />
+        ) : null}
         {meta.enabled ? <TauriCosmeticsStatus meta={meta} /> : null}
+        {view && error ? (
+          <p role="alert" className="mb-4 text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
         <fieldset
           disabled={meta.enabled && meta.locked}
           className="m-0 min-w-0 border-0 p-0"
           aria-busy={loading}
         >
           <CosmeticsView
-            view={view}
-            artworkActive={active && !preparing}
+            view={preparing && !replacing ? null : view}
+            artworkActive={!preparing}
             knownOwnedCount={view?.knownOwnedCount ?? 0}
             knownLockedCount={view?.knownLockedCount ?? 0}
             savedPresetCount={view?.savedPresetCount ?? 0}
-            loading={loading}
-            error={error}
+            loading={loading && !preparing}
+            error={view ? null : error}
             unlockAllPending={action === "unlockAll"}
             lockAllPending={action === "lockAll"}
             clearAllPresetsPending={action === "clearPresets"}
@@ -110,6 +140,16 @@ export function TauriCosmeticsWorkspace({
   );
 }
 
+function compatibilityIssue(
+  incompatible: boolean,
+  view: CosmeticsViewDto | null,
+  environment?: CompatibilityEnvironment | null,
+) {
+  if (incompatible || view?.catalogIssue === "incompatible") return "incompatible";
+  if (view?.catalogAvailable === false) return "missing";
+  return environment ? installedWriteRestriction(environment) : "unknown";
+}
+
 function useCosmeticsPresentation(
   meta: ReturnType<typeof useTauriCosmetics>,
   production: boolean,
@@ -122,9 +162,19 @@ function useCosmeticsPresentation(
     tauriReadApi.cosmetics.get,
     production ? meta.view?.fingerprint : undefined,
   );
-  const artwork = cosmetics.loading ? null : cosmetics.view;
-  const view = meta.enabled ? withNativeArtwork(meta.view, artwork) : cosmetics.view;
+  const source = cosmetics.view;
+  const view = meta.enabled ? withNativePresentation(meta.view, source) : source;
   const loading = meta.enabled ? meta.loading || meta.saving : cosmetics.loading;
+  const needsArtwork = production && !source && cosmetics.loading;
+  const replacing =
+    cosmetics.replacing ||
+    Boolean(
+      production &&
+      cosmetics.loading &&
+      source &&
+      meta.view &&
+      source.fingerprint !== meta.view.fingerprint,
+    );
   let nativeError = meta.state.state === "blocked" ? t("health.conflict") : null;
   if (meta.state.state === "busy") nativeError = t("health.checking");
   return {
@@ -132,7 +182,9 @@ function useCosmeticsPresentation(
     loading,
     error: meta.enabled ? nativeError : cosmetics.error,
     artwork: cosmetics.artwork,
-    preparing: !meta.saving && !meta.recovery && (loading || (production && cosmetics.loading)),
+    incompatible: cosmetics.incompatible,
+    preparing: !meta.saving && !meta.recovery && ((!view && loading) || needsArtwork || replacing),
+    replacing,
     refresh() {
       void (meta.enabled ? meta.reload() : cosmetics.reload());
     },
@@ -155,8 +207,11 @@ function mutationActions(meta: ReturnType<typeof useTauriCosmetics>) {
   };
 }
 
-function withNativeArtwork(view: CosmeticsViewDto | null, source: CosmeticsViewDto | null) {
+function withNativePresentation(view: CosmeticsViewDto | null, source: CosmeticsViewDto | null) {
   if (!view || source?.fingerprint !== view.fingerprint) return view;
+  if (!view.catalogAvailable && source.catalogAvailable) {
+    return { ...source, capabilities: view.capabilities };
+  }
   const icons = new Map(
     source.cosmetics.map(({ id, iconToken, iconReuseKey }) => [id, { iconToken, iconReuseKey }]),
   );

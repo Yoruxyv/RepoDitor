@@ -18,6 +18,17 @@ export const en = {
     "A newer version is available. View the release notes and download the update.",
   "update.viewRelease": "View release",
   "update.later": "Later",
+  "compatibility.title": "Game compatibility restriction",
+  "compatibility.dismiss": "Dismiss notice",
+  "compatibility.build": "R.E.P.O. build {build}",
+  "compatibility.unapproved": "Editing is restricted on this game build until it is approved.",
+  "compatibility.unknown":
+    "RepoDitor could not verify compatibility for these edits on this installation.",
+  "compatibility.incompatible":
+    "The installed assets or save structure could not be read safely. Affected edits are unavailable.",
+  "compatibility.missing":
+    "Required game data is missing or unavailable. Affected edits are unavailable.",
+  "compatibility.updates": "Check for updates",
   "app.workspaces": "RepoDitor workspaces",
   "app.runSaves": "Run Saves",
   "cosmetics.artwork.title": "Preparing cosmetic artwork",
@@ -272,7 +283,7 @@ export const en = {
     "Installed names and metadata are shown when available. Numeric IDs remain the canonical identity.",
   "cosmetics.catalogCount": "{count} installed",
   "cosmetics.catalogUnavailableMetadata":
-    "Installed cosmetic metadata is unavailable. Save-owned IDs remain visible as unknown and read-only.",
+    "Installed cosmetic metadata is unavailable. This R.E.P.O. build may be unsupported or its files may be incomplete. Saved IDs remain visible as unknown and read-only.",
   "cosmetics.catalogList": "Cosmetic catalog entries",
   "cosmetics.itemLabel": "{name}, ID {id}, {state}",
   "cosmetics.idLabel": "ID {id}",
@@ -309,7 +320,8 @@ export const en = {
   "entry.artwork.upgrade": "Preparing upgrade textures…",
   "entry.artwork.item": "Preparing installed item artwork…",
   "entry.artwork.map": "Preparing map previews…",
-  "entry.editorDataCompact": "Editor data {completed}/{total}",
+  "entry.detail.editorData": "Preparing editor data…",
+  "entry.detail.artworkAfterData": "Save data ready. Preparing artwork…",
   "entry.artworkCompact": "Artwork checked {completed}/{total}",
   "entry.artworkCompactLabel": "Artwork preparation progress",
   "entry.artworkIncomplete": "Some artwork could not be prepared",

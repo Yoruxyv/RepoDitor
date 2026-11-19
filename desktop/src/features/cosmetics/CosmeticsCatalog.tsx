@@ -370,7 +370,6 @@ export function CosmeticsCatalog({
               <div className="flex min-w-0 items-start gap-3">
                 {showArtwork ? (
                   <GameIcon
-                    key={artworkActive === undefined ? undefined : cosmetic.iconToken}
                     fallback={TShirtIcon}
                     fallbackSource="fallback"
                     loading="lazy"

@@ -1,12 +1,5 @@
 /** Native workspace with shared Run-save recovery. */
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactElement,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { SaveOpenResult, SaveSession } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { tauriHealthApi } from "@/app/tauriHealthApi";
@@ -27,6 +20,11 @@ import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
 import { OverviewView } from "./OverviewView";
 import { SaveHeader } from "./SaveHeader";
+import {
+  GameCompatibilityNotice,
+  installedWriteRestriction,
+  type CompatibilityEnvironment,
+} from "./GameCompatibilityNotice";
 import type { TauriEntrySnapshot } from "./tauriEntryPreparation";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
@@ -55,7 +53,7 @@ export function TauriWorkspace({
   onClose,
   onCanonical = () => undefined,
   onHealthAvailability,
-  whileChecking,
+  compatibility,
 }: {
   readonly session: SaveSession;
   readonly prepared?: TauriEntrySnapshot | null;
@@ -63,7 +61,7 @@ export function TauriWorkspace({
   readonly onClose: () => void;
   readonly onCanonical?: (opened: SaveOpenResult) => void;
   readonly onHealthAvailability?: (mode: "checking" | "readonly" | "test" | "production") => void;
-  readonly whileChecking?: ReactElement;
+  readonly compatibility?: CompatibilityEnvironment | null;
 }) {
   const { t } = usePreferences();
   const [section, setSection] = useState<Section>("overview");
@@ -80,29 +78,28 @@ export function TauriWorkspace({
       tab.focus();
   }, [section]);
   const [initialHealthKnown, setInitialHealthKnown] = useState(false);
-  const prepare = initialHealthKnown && active;
-  const entry =
-    prepared?.session.id === session.id && prepared.session.fingerprint === session.fingerprint
-      ? prepared
-      : null;
   const players = usePlayers(
     session.id,
-    entry?.players ?? null,
+    prepared?.players ?? null,
     tauriReadApi.players.list,
     initialHealthKnown,
   );
   const upgrades = useUpgrades(
     session.id,
-    entry?.upgrades ?? null,
+    prepared?.upgrades ?? null,
     tauriReadApi.upgrades.list,
-    prepare,
+    initialHealthKnown && active,
     tauriReadApi.upgrades.prepare,
   );
-  // Cold projections share the native worker with Save and its acknowledgement.
-  const run = useRunState(session.id, entry?.run ?? null, tauriReadApi.run.get, section === "run");
+  const run = useRunState(
+    session.id,
+    prepared?.run ?? null,
+    tauriReadApi.run.get,
+    section === "run",
+  );
   const items = useItems(
     session.id,
-    entry?.items ?? null,
+    prepared?.items ?? null,
     tauriReadApi.advanced.get,
     section === "items",
   );
@@ -117,14 +114,13 @@ export function TauriWorkspace({
       onCanonical(projection.opened);
     },
     tauriHealthApi,
-    entry?.initialHealth,
   );
   useEffect(() => {
     if (health.phase !== "checking") setInitialHealthKnown(true);
   }, [health.phase]);
   const canLoadMaps = health.phase !== "saving" && health.phase !== "reconciling";
   const maps = useMaps(
-    entry?.maps ?? null,
+    prepared?.maps ?? null,
     tauriReadApi.maps.list,
     canLoadMaps && section === "maps",
   );
@@ -193,7 +189,7 @@ export function TauriWorkspace({
     session.id,
     players.selectedPlayerId,
     tauriReadApi.players.avatar,
-    entry?.avatarPrefetch,
+    prepared?.avatarPrefetch,
   );
   const avatarUrls = avatars.avatarUrls;
   function selectTabWithFocus(next: Section) {
@@ -211,26 +207,52 @@ export function TauriWorkspace({
     event.preventDefault();
     selectTabWithFocus(SECTIONS[next]!);
   }
-  if (!initialHealthKnown && whileChecking) return whileChecking;
+  const domains = [
+    ["nav.players", health.healthEnabled, prepared?.players],
+    ["nav.upgrades", health.upgradesEnabled, prepared?.upgrades],
+    ["nav.run", health.runEnabled, prepared?.run],
+    ["nav.items", health.refillsEnabled, prepared?.items],
+  ] as const;
+  const incompatible = domains
+    .filter(([, , dto]) => dto?.ok === false && dto.error.code === "save_unsupported")
+    .map(([feature]) => feature);
+  const restricted = domains
+    .filter(([feature, enabled]) => !enabled && !incompatible.includes(feature))
+    .map(([feature]) => feature);
+  const build = compatibility?.healthWriteCompatibility?.buildId;
   return (
     <section
       aria-labelledby="workspace-title"
       className="pb-4"
       data-testid="workspace"
       data-session-fingerprint={currentSession.fingerprint}
+      data-artwork-preparation={prepared ? "settled" : undefined}
     >
       <SaveHeader session={currentSession} onClose={onClose} />
       <TauriHealthControls health={health} />
-      {entry &&
-      Object.values(entry.artwork).some(({ issues }) => Object.keys(issues).length > 0) ? (
+      {active && incompatible.length > 0 ? (
+        <GameCompatibilityNotice build={build} issue="incompatible" features={incompatible} />
+      ) : null}
+      {active &&
+      compatibility &&
+      (health.phase === "disabled" || health.production) &&
+      restricted.length > 0 ? (
+        <GameCompatibilityNotice
+          build={build}
+          issue={health.enabled ? "unknown" : installedWriteRestriction(compatibility)}
+          features={restricted}
+        />
+      ) : null}
+      {prepared &&
+      Object.values(prepared.artwork).some(({ issues }) => Object.keys(issues).length > 0) ? (
         <output className="mb-4 block border-l-2 border-accent bg-accent-muted px-4 py-3 text-sm text-secondary">
           {(["upgrade", "item", "map"] as const)
-            .filter((scope) => Object.keys(entry.artwork[scope].issues).length > 0)
+            .filter((scope) => Object.keys(prepared.artwork[scope].issues).length > 0)
             .map((scope) => (
               <span className="block" key={scope}>
                 {t(`nav.${scope}s`)} ·{" "}
                 {t("entry.artworkDeferred", {
-                  count: Object.values(entry.artwork[scope].issues).reduce(
+                  count: Object.values(prepared.artwork[scope].issues).reduce(
                     (total, count) => total + count,
                     0,
                   ),

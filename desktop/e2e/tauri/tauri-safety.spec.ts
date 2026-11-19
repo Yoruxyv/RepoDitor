@@ -9,6 +9,7 @@ import {
   rename,
   stat,
   truncate,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -94,20 +95,82 @@ async function exactBackup(source: string, before: Buffer) {
   expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
 }
 
-async function holdEditorEntry(page: Page) {
-  await page.evaluate(() => {
+async function holdEntryRequest(page: Page, endpoint = "/editor_entry") {
+  await page.evaluate((path) => {
     const original = window.fetch.bind(window);
     const gate = new Promise<void>((resolve) => {
-      window.addEventListener("repoditor-entry-release", () => resolve(), { once: true });
+      window.addEventListener(`repoditor-entry-release:${path}`, () => resolve(), { once: true });
     });
     window.fetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-      if (url.hostname === "ipc.localhost" && url.pathname === "/editor_entry") await gate;
+      if (url.hostname === "ipc.localhost" && url.pathname === path) await gate;
       return original(input, init);
     };
-  });
-  return () => page.evaluate(() => window.dispatchEvent(new Event("repoditor-entry-release")));
+  }, endpoint);
+  return () =>
+    page.evaluate(
+      (path) => window.dispatchEvent(new Event(`repoditor-entry-release:${path}`)),
+      endpoint,
+    );
 }
+
+test("ordinary packaged opening distinguishes completed data from pending artwork", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("progressive-artwork");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const upgrade = f.upgrades[0];
+  const revision = "a".repeat(64);
+  await writeFile(
+    path.join(home, "upgrade-artwork.json"),
+    JSON.stringify({
+      ok: true,
+      artwork: {
+        upgradeKey: upgrade.key,
+        sourceIdentity: revision,
+        width: 1,
+        height: 1,
+        pngBase64:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+      },
+    }),
+  );
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    const releaseData = await holdEntryRequest(page, "/upgrades_list");
+    const releaseArtwork = await holdEntryRequest(page, "/upgrade_artwork_get");
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    const workspace = page.getByTestId("workspace");
+    const detail = page.getByTestId("entry-loading-detail");
+    const bar = page.getByRole("progressbar", { name: "Editor preparation progress" });
+    await expect(detail).toHaveText("Preparing editor data…");
+    await expect(workspace).toHaveCount(0);
+    await expect(bar).not.toHaveAttribute("aria-valuenow");
+    await page.screenshot({ path: info.outputPath("opening-data.png") });
+    await releaseData();
+    await expect(detail).toHaveText("Save data ready. Preparing artwork…");
+    await expect(bar).toHaveAttribute("aria-valuenow", "0");
+    await expect(bar).toHaveAttribute(
+      "aria-valuemax",
+      String(1 + f.maps.maps.length + f.advanced.items.length),
+    );
+    await expect(workspace).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Cancel opening" })).toBeEnabled();
+    await page.screenshot({ path: info.outputPath("opening-artwork.png") });
+    await releaseArtwork();
+    await expect(workspace).toHaveAttribute("data-artwork-preparation", "settled");
+    await page.getByRole("button", { name: "Open Upgrades" }).click();
+    await expect(page.getByTestId("upgrades-skeleton")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+    const icon = page.getByTestId(`upgrade-icon-${upgrade.key}`);
+    await expect(icon).toHaveAttribute("data-artwork-revision", revision);
+    await expect(icon.locator("img.opacity-100")).toBeVisible();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
 
 test("packaged release notification leaves discovery and editor opening usable", async ({
   browserName,
@@ -250,12 +313,12 @@ test("ordinary packaged preparation rejects a changed save and retries with fres
     page.on("request", (request) => {
       if (new URL(request.url()).pathname === "/editor_entry") entryReads += 1;
     });
-    const releaseEntry = await holdEditorEntry(page);
+    const releaseEntry = await holdEntryRequest(page);
     const open = page.getByRole("button", { name: /Open workspace/ });
     await open.click();
-    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading upgrade data…");
-    await expect(page.getByText("Editor data 0/5")).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Preparing editor data…");
+    await expect(page.getByTestId("workspace")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save Changes" })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("preparation-waiting-for-data.png") });
     expect(await readFile(f.source)).toEqual(f.before);
     await writeFile(f.source, replacement);
@@ -318,48 +381,114 @@ test("ordinary packaged preparation reports missing fingerprint evidence without
   }
 });
 
+async function addAlternateRun(source: string) {
+  const id = E2E_SAVE_ID.replace(/30$/, "31");
+  const file = path.join(path.dirname(path.dirname(source)), id, `${id}.es3`);
+  await mkdir(path.dirname(file), { recursive: true });
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-B",
+      "-c",
+      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save, encrypt_save; save = decrypt_save(Path(sys.argv[1]).read_bytes()); save['dictionaryOfDictionaries']['value']['playerHealth']['111'] = 37; Path(sys.argv[2]).write_bytes(encrypt_save(save))",
+      source,
+      file,
+    ],
+    { env: { ...process.env, PYTHONPATH: PYTHON_ROOT }, windowsHide: true },
+  );
+  return { id, file, bytes: await readFile(file) };
+}
+
+test("a discovery refresh cannot retarget a press on the newest save", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const alternate = await addAlternateRun(f.source);
+  const earlier = new Date("2026-08-09T00:00:00Z");
+  const later = new Date("2026-08-10T00:00:00Z");
+  await utimes(f.source, later, later);
+  await utimes(alternate.file, earlier, earlier);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    const latest = page.getByRole("button", { name: /Open workspace/ });
+    await expect(latest).toHaveAttribute("data-save-id", E2E_SAVE_ID);
+    const newest = new Date("2026-08-11T00:00:00Z");
+    await utimes(alternate.file, newest, newest);
+    const releaseDiscovery = await holdEntryRequest(page, "/environment_detect");
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.locator("section[aria-labelledby='discovery-title']")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    await latest.hover();
+    await page.mouse.down();
+    await releaseDiscovery();
+    await expect(latest).toHaveAttribute("data-save-id", alternate.id);
+    await page.mouse.up();
+
+    await expect(latest).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Opening save" })).toHaveCount(0);
+    await latest.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      digest(alternate.bytes),
+      { timeout: 15_000 },
+    );
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await readFile(alternate.file)).toEqual(alternate.bytes);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
 test("ordinary packaged opening cancels before switching saves and can reopen the original", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
   const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
-  const alternateId = E2E_SAVE_ID.replace(/30$/, "31");
-  const alternate = path.join(
-    path.dirname(path.dirname(f.source)),
-    alternateId,
-    alternateId + ".es3",
-  );
-  const alternateBytes = await readFile(await createRunSaveFixture(info.outputPath("alternate")));
-  await mkdir(path.dirname(alternate), { recursive: true });
-  await writeFile(alternate, alternateBytes);
-  expect(digest(alternateBytes)).not.toBe(digest(f.before));
+  const alternate = await addAlternateRun(f.source);
   const app = await launch(f.executable, f.home);
   try {
     const { page } = app;
-    const releaseEntry = await holdEditorEntry(page);
     const first = page.locator(`button[data-save-id="${E2E_SAVE_ID}"]`);
-    const other = page.locator(`button[data-save-id="${alternateId}"]`);
+    const other = page.locator(`button[data-save-id="${alternate.id}"]`);
+    const workspace = page.getByTestId("workspace");
+    const players = page.getByRole("tab", { name: "Players", exact: true });
+    const health = page.getByRole("spinbutton", { name: "Current health", exact: true });
     await first.click();
-    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Loading upgrade data…", {
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(f.before), {
       timeout: 15_000,
     });
+    await players.click();
+    await expect(health).toHaveValue("80");
+    await page.getByRole("button", { name: "Change save" }).click();
+
+    const releaseEntry = await holdEntryRequest(page);
+    await first.click();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Preparing editor data…");
     await page.getByRole("button", { name: "Cancel opening" }).click();
     await expect(other).toBeDisabled();
     await releaseEntry();
     await expect(other).toBeEnabled();
     await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
     await other.click();
-    const workspace = page.getByTestId("workspace");
-    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(alternateBytes), {
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(alternate.bytes), {
       timeout: 15_000,
     });
+    await players.click();
+    await expect(health).toHaveValue("37");
     await page.getByRole("button", { name: "Change save" }).click();
     await first.click();
     await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(f.before), {
       timeout: 15_000,
     });
+    await players.click();
+    await expect(health).toHaveValue("80");
     const [otherPlayers, verified] = await Promise.all([
-      native(page, "players_list", { saveId: alternateId }),
+      native(page, "players_list", { saveId: alternate.id }),
       native(page, "saves_open", { saveId: E2E_SAVE_ID, verifyFingerprint: digest(f.before) }),
     ]);
     expect(otherPlayers).toMatchObject({ ok: true });
@@ -368,7 +497,7 @@ test("ordinary packaged opening cancels before switching saves and can reopen th
       data: { session: { fingerprint: digest(f.before) } },
     });
     expect(await readFile(f.source)).toEqual(f.before);
-    expect(await readFile(alternate)).toEqual(alternateBytes);
+    expect(await readFile(alternate.file)).toEqual(alternate.bytes);
   } finally {
     await close(app.child, app.browser);
   }
@@ -530,7 +659,46 @@ test("ordinary packaged read-only states explain pending safety and recover Maps
   }
 });
 
-test("ordinary packaged avatar prefetch supplies the first Players view", async ({
+test("closing the workspace cancels the optional avatar process", async ({ browserName }, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-cancel");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const marker = path.join(home, "avatar-started.json");
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_DELAY_COMMAND: "players-avatar",
+    REPODITOR_TEST_DELAY_MS: "4000",
+    REPODITOR_TEST_STARTED_FILE: marker,
+  });
+  try {
+    const { page } = app;
+    const response = page.waitForResponse((reply) => reply.url().endsWith("/players_avatar"));
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
+    await expect.poll(() => readFile(marker, "utf8").catch(() => "")).toBe("players-avatar");
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    expect(await (await response).json()).toMatchObject({
+      ok: false,
+      error: { code: "process_cancelled" },
+    });
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+const AVATAR_FIXTURE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+async function avatarLookupCount(timing: string): Promise<number> {
+  return (await readdir(timing)).filter((file) => file.startsWith("players-avatar-")).length;
+}
+
+test("ordinary packaged avatars render and honor Steam cooldown across players, saves and restart", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -556,27 +724,42 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
   );
   const timing = path.join(home, "timing");
   await mkdir(timing);
+  const alpha = "76561197960287930";
+  const beta = "76561198000000001";
+  await writeFile(
+    path.join(home, "players-list.json"),
+    JSON.stringify({
+      ok: true,
+      fingerprint: fixture.opened.session.fingerprint,
+      players: [
+        { id: alpha, name: "Alpha", health: 80, maxHealth: 100 },
+        { id: beta, name: "Beta", health: 0, maxHealth: 100 },
+      ],
+    }),
+  );
   const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
+  const betaAvatarUrl = "https://avatars.fastly.steamstatic.com/synthetic-beta.png";
   await writeFile(
     path.join(home, "players-avatar.json"),
     JSON.stringify({
       ok: true,
-      avatar: { playerId: "111", avatarUrl, status: "available", retryAfterMs: null },
+      avatar: { playerId: alpha, avatarUrl, status: "available", retryAfterMs: null },
     }),
   );
-  const app = await launch(fixture.executable, home, {
+  const avatarEnvironment = {
     ...fixture.environment,
     REPODITOR_TEST_TIMING_DIR: timing,
-  });
+    WEBVIEW2_USER_DATA_FOLDER: path.join(home, "webview"),
+  };
+  const app = await launch(fixture.executable, home, avatarEnvironment);
   const installAvatarImage = (page: Page) =>
-    page.route(avatarUrl, (route) =>
-      route.fulfill({
-        contentType: "image/png",
-        body: Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
-          "base64",
-        ),
-      }),
+    page.route(
+      (url) => [avatarUrl, betaAvatarUrl].includes(url.href),
+      (route) =>
+        route.fulfill({
+          contentType: "image/png",
+          body: AVATAR_FIXTURE_PNG,
+        }),
     );
   const openPlayers = async (page: Page, id: string) => {
     await page.locator(`button[data-save-id="${id}"]`).click();
@@ -585,6 +768,7 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
   };
   try {
     const { page } = app;
+    await page.clock.install({ time: new Date(Date.now() - 60_000) });
     await installAvatarImage(page);
     await openPlayers(page, E2E_SAVE_ID);
     const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
@@ -614,46 +798,66 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
       path.join(home, "players-avatar.json"),
       JSON.stringify({
         ok: true,
-        avatar: { playerId: "222", avatarUrl: null, status: "transient", retryAfterMs: 60_000 },
+        avatar: { playerId: beta, avatarUrl: null, status: "transient", retryAfterMs: 60_000 },
       }),
     );
     await page.getByRole("button", { name: /Beta/ }).click();
     await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
     // A rate-limited lookup does not disable the selected player's editor projection.
     await expect(page.getByRole("spinbutton", { name: "Current health" })).toBeVisible();
-    const timed = (await readdir(timing)).filter((file) => file.startsWith("players-avatar-"));
-    expect(timed).toHaveLength(2);
+    expect(await avatarLookupCount(timing)).toBe(2);
+    await page.getByRole("button", { name: /Alpha/ }).click();
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
 
     await page.getByRole("button", { name: "Change save", exact: true }).click();
     await writeFile(
       path.join(home, "saves-open.json"),
-      JSON.stringify({
-        ...fixture.opened,
-        session: alternate,
-      }),
+      JSON.stringify({ ...fixture.opened, session: alternate }),
     );
+    await openPlayers(page, alternateId);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(2);
+
     await writeFile(
       path.join(home, "players-avatar.json"),
       JSON.stringify({
         ok: true,
-        avatar: { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null },
+        avatar: {
+          playerId: beta,
+          avatarUrl: betaAvatarUrl,
+          status: "available",
+          retryAfterMs: null,
+        },
+      }),
+    );
+    await page.clock.fastForward(30_000);
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(2);
+    await page.clock.fastForward(30_000);
+    await expect(avatar).toHaveAttribute("src", betaAvatarUrl);
+    await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
+
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: { playerId: alpha, avatarUrl: null, status: "unavailable", retryAfterMs: null },
       }),
     );
     await openPlayers(page, alternateId);
-    await expect(page.getByTestId("avatar-fallback")).toHaveText("A");
-    await expect(avatar).toHaveCount(0);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await openPlayers(page, alternateId);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
   } finally {
     await close(app.child, app.browser);
   }
   await writeFile(path.join(home, "saves-open.json"), JSON.stringify(fixture.opened));
-  await writeFile(
-    path.join(home, "players-avatar.json"),
-    JSON.stringify({
-      ok: true,
-      avatar: { playerId: "111", avatarUrl, status: "available", retryAfterMs: null },
-    }),
-  );
-  const restarted = await launch(fixture.executable, home, fixture.environment);
+  const restarted = await launch(fixture.executable, home, avatarEnvironment);
   try {
     const { page } = restarted;
     await installAvatarImage(page);
@@ -662,8 +866,76 @@ test("ordinary packaged avatar prefetch supplies the first Players view", async 
     await expect(avatar).toHaveAttribute("src", avatarUrl);
     await page.bringToFront();
     expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
+    await expect(avatar).toHaveAttribute("src", betaAvatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
   } finally {
     await close(restarted.child, restarted.browser);
+  }
+});
+
+test("ordinary packaged avatars recover from an image network failure and reject untrusted URLs", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-image-failure");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const timing = path.join(home, "timing");
+  await mkdir(timing);
+  const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
+  const untrustedUrl = "https://example.com/blocked.png";
+  const respond = (playerId: string, url: string) =>
+    writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({ ok: true, avatar: { playerId, avatarUrl: url, status: "available" } }),
+    );
+  await respond("111", avatarUrl);
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_TIMING_DIR: timing,
+  });
+  try {
+    const { page } = app;
+    await page.clock.install();
+    let imageRequests = 0;
+    let untrustedRequests = 0;
+    await page.route(avatarUrl, (route) => {
+      if (++imageRequests === 1) return route.abort("internetdisconnected");
+      return route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG });
+    });
+    await page.route(untrustedUrl, (route) => {
+      untrustedRequests += 1;
+      return route.abort();
+    });
+    await openRunWorkspace(page);
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+    const fallback = page.getByTestId("avatar-fallback");
+    await expect(fallback).toHaveText("A");
+    expect(imageRequests).toBe(1);
+    expect(await avatarLookupCount(timing)).toBe(1);
+    await page.clock.fastForward(30_000);
+    expect(await avatarLookupCount(timing)).toBe(1);
+    await page.clock.fastForward(31_000);
+    const image = page.getByTestId("selected-player-identity").locator("img.opacity-100");
+    await expect(image).toBeVisible();
+    expect(await image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    expect(imageRequests).toBe(2);
+    expect(await avatarLookupCount(timing)).toBe(2);
+
+    await respond("222", untrustedUrl);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(fallback).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(3);
+    expect(untrustedRequests).toBe(0);
+    await page.getByRole("button", { name: /Alpha/ }).click();
+    await expect(image).toHaveAttribute("src", avatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
+  } finally {
+    await close(app.child, app.browser);
   }
 });
 
@@ -697,18 +969,14 @@ test("ordinary packaged avatars validate save membership and retain read-only fa
       });
     }
     // Synthetic pixels exercise the real packaged CSP without any external service.
-    const png = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
-      "base64",
-    );
     let forbiddenRequests = 0;
     await page.route("https://example.com/blocked.png", async (route) => {
       forbiddenRequests++;
-      await route.fulfill({ contentType: "image/png", body: png });
+      await route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG });
     });
     for (const host of ["avatars.akamai.steamstatic.com", "avatars.fastly.steamstatic.com"]) {
       await page.route(`https://${host}/synthetic.png`, (route) =>
-        route.fulfill({ contentType: "image/png", body: png }),
+        route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG }),
       );
     }
     const imageLoads = await page.evaluate(async () => {

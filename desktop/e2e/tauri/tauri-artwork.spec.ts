@@ -143,10 +143,19 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await open.click();
     const preparation = page.getByRole("heading", { name: "Preparing cosmetic artwork" });
     await expect(preparation).toBeVisible();
+    await expect(page.getByTestId("cosmetics-skeleton")).toHaveCount(0);
+    const coldPanel = await preparation.elementHandle();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText(
+      "Reading MetaSave cosmetics…",
+    );
     await expect(search).toBeHidden();
     await catalog.evaluate(({ release }) => release.initial());
     await expect.poll(() => catalog.evaluate(({ artworkStarted }) => artworkStarted)).toBe(true);
     await expect(preparation).toBeVisible();
+    expect(await preparation.evaluate((node, initial) => node === initial, coldPanel)).toBe(true);
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText(
+      "Scanning installed game assets and decoding missing icons.",
+    );
     await expect(search).toBeHidden();
     await catalog.evaluate(({ release }) => release.artwork());
     await expectArtwork("a");
@@ -160,8 +169,10 @@ test("ordinary native Cosmetics revisit reads once and uses only current artwork
     await setSource("b");
     await open.click();
     await expect.poll(catalogReads).toBe(2);
-    await expect(preparation).toBeVisible();
-    await expect(search).toBeHidden();
+    await expect(preparation).toHaveCount(0);
+    await expect(search).toBeVisible();
+    await expect(search).toHaveValue("Installed Cosmetic 0");
+    await expectArtwork("a");
     expect(artworkTokens).toHaveLength(1);
     await catalog.evaluate(({ release }) => release.revisit());
     await expectArtwork("b");
@@ -625,12 +636,15 @@ test("ordinary native upgrade artwork groups settle valid and missing images tog
     });
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
-    expect(calls).toEqual([2]);
     const tab = page.getByRole("tab", { name: "Upgrades", exact: true });
     const image = page.getByTestId(`upgrade-icon-${first.key}`);
     const fallback = page.getByTestId(`upgrade-icon-${missing.key}`);
     await tab.click();
-    expect(await image.getAttribute("aria-busy")).toBe("false");
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-artwork-preparation",
+      "settled",
+    );
+    await expect(image).toHaveAttribute("aria-busy", "false");
     await expect(image.locator("img.opacity-100")).toBeVisible();
     await expect(fallback).toHaveAttribute("data-icon-source", /category|specific|fallback/);
     expect(calls).toEqual([2]);
@@ -668,6 +682,10 @@ test("ordinary native upgrade artwork groups settle valid and missing images tog
     await tab.click();
     await expect(image).toHaveAttribute("data-artwork-revision", "a".repeat(64));
     expect(calls).toEqual([2]);
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-artwork-preparation",
+      "settled",
+    );
     await closeEditor();
 
     await setSource("2".repeat(64));
@@ -676,22 +694,21 @@ test("ordinary native upgrade artwork groups settle valid and missing images tog
     await tab.click();
     await expect(image).toHaveAttribute("data-artwork-revision", "b".repeat(64));
     expect(calls).toEqual([2, 2]);
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-artwork-preparation",
+      "settled",
+    );
     await closeEditor();
 
     await setSource("3".repeat(64));
     await writeFile(batch, JSON.stringify({ ok: true, artworks: [] }));
     await open.click();
-    await expect(
-      page.getByText("Upgrades · 2 previews could not be extracted or validated"),
-    ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Run snapshot" })).toHaveCount(0);
-    await page.screenshot({ path: info.outputPath("artwork-defer-choice.png") });
-    await setArtwork("b".repeat(64));
-    await page.getByRole("button", { name: "Continue without remaining artwork" }).click();
     await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
     await expect(page.getByText(/2 artwork previews deferred/)).toBeVisible();
+    await page.screenshot({ path: info.outputPath("artwork-deferred.png") });
+    await setArtwork("c".repeat(64));
     await tab.click();
-    await expect(image).toHaveAttribute("data-artwork-revision", "b".repeat(64));
+    await expect(image).toHaveAttribute("data-artwork-revision", "c".repeat(64));
     expect(calls).toEqual([2, 2, 2, 2]);
     await expect(native(page, "test_health_write", { request: {} })).rejects.toBeDefined();
   } finally {

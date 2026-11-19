@@ -192,6 +192,15 @@ describe("CosmeticsView", () => {
     expect(button(screen.getByRole("button", { name: "Lock All Cosmetics" })).disabled).toBe(true);
     expect(button(screen.getByRole("button", { name: "Clear All Presets" })).disabled).toBe(false);
     expect(screen.getByRole("listitem", { name: "Cosmetic #27, ID 27, Unknown" })).toBeTruthy();
+    for (const label of ["Known catalog", "Owned", "Locked"]) {
+      expect(screen.getByText(label, { selector: "dt" }).nextElementSibling?.textContent).toBe(
+        "Unknown",
+      );
+    }
+    expect(
+      screen.getByText("Saved presets", { selector: "dt" }).nextElementSibling?.textContent,
+    ).toBe("1");
+    expect(screen.getByText(/this R\.E\.P\.O\. build may be unsupported/i)).toBeTruthy();
   });
 
   it("exposes the Lock All blocker independently of the disabled button", () => {

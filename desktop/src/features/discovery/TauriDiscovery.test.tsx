@@ -104,6 +104,30 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     expect(screen.getByTestId("discovery-skeleton").getAttribute("aria-busy")).toBe("true");
   });
+  it("preserves the newest save button only while it represents the same slot", async () => {
+    const first = environment.saves[0]!;
+    const second = { ...first, id: "another", name: "Newer save" };
+    vi.mocked(tauriReadApi.environment.detect)
+      .mockResolvedValueOnce({ ok: true, data: environment })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { ...environment, saves: [{ ...first, name: "Refreshed save" }] },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { ...environment, saves: [second, first] } });
+
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    const newest = await screen.findByRole("button", { name: /Open workspace/ });
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByRole("button", { name: /Refreshed save.*Open workspace/ })).toBe(
+      newest,
+    );
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    const replacement = await screen.findByRole("button", { name: /Newer save.*Open workspace/ });
+    expect(newest.isConnected).toBe(false);
+    expect(replacement.getAttribute("data-save-id")).toBe(second.id);
+    expect(tauriReadApi.saves.open).not.toHaveBeenCalled();
+  });
   it("leaves the workspace only after native revocation succeeds", async () => {
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     let finishClose!: (closed: boolean) => void;
@@ -145,8 +169,9 @@ describe("read-only native discovery", () => {
         fingerprint: session.fingerprint,
       }),
     );
-    expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
+    expect(screen.getByText("Preparing editor data…")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Run snapshot" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
     await act(() =>
       finish({
         ok: true,
@@ -159,14 +184,16 @@ describe("read-only native discovery", () => {
         },
       }),
     );
-    expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace").dataset["artworkPreparation"]).toBe("settled"),
+    );
     expect(tauriReadApi.players.list).not.toHaveBeenCalled();
     expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     expect(tauriReadApi.advanced.get).not.toHaveBeenCalled();
     expect(tauriReadApi.run.get).not.toHaveBeenCalled();
   });
 
-  it("waits for concurrent game safety and fresh editing admission before showing the workspace", async () => {
+  it("shows Overview after game safety while fresh editing admission is pending", async () => {
     let finishAdmission!: (state: HealthState) => void;
     let finishStatus!: (result: Awaited<ReturnType<typeof tauriReadApi.game.status>>) => void;
     const eligibility = new Promise<HealthState>((resolve) => (finishAdmission = resolve));
@@ -181,24 +208,51 @@ describe("read-only native discovery", () => {
       const firstCheck = vi.mocked(tauriReadApi.game.status).mock.calls.length;
       vi.mocked(tauriReadApi.game.status).mockReturnValueOnce(status);
       await userEvent.setup().click(workspace);
-      await waitFor(() => {
-        expect(admission).toHaveBeenCalledExactlyOnceWith(session.id);
-        expect(tauriReadApi.game.status).toHaveBeenCalledTimes(firstCheck + 1);
-      });
+      await waitFor(() => expect(tauriReadApi.game.status).toHaveBeenCalledTimes(firstCheck + 1));
+      expect(admission).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("workspace")).toBeNull();
+      await act(() => finishStatus({ ok: true, data: { status: "not_running", running: false } }));
+      expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
+      await waitFor(() => expect(admission).toHaveBeenCalledExactlyOnceWith(session.id));
+      await userEvent.setup().click(screen.getByRole("tab", { name: "Players" }));
+      expect((await screen.findByRole("spinbutton")).hasAttribute("readonly")).toBe(true);
+      expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
       await act(() =>
         finishAdmission({ enabled: false, state: "disabled", pending: null, canonical: null }),
       );
-      expect(screen.getByRole("heading", { name: "Opening save" })).toBeTruthy();
-      expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
-      await act(() => finishStatus({ ok: true, data: { status: "not_running", running: false } }));
-      expect(await screen.findByRole("tab", { name: "Overview" })).toBeTruthy();
       expect(admission).toHaveBeenCalledTimes(1);
     } finally {
       admission.mockRestore();
     }
   });
 
-  it("shows only preparation until the editor projections settle", async () => {
+  it("keeps the verified Overview when a batch deadline prevents optional projections", async () => {
+    const opened = openResult();
+    vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
+    vi.mocked(tauriReadApi.saves.open).mockResolvedValue({
+      ...opened,
+      data: { ...opened.data, supportsEntryBatch: true },
+    });
+    vi.mocked(tauriReadApi.saves.prepareEntry).mockResolvedValue({
+      ok: false,
+      error: { code: "process_timeout", message: "private diagnostic" },
+    });
+    render(<TauriDiscovery />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace").dataset["artworkPreparation"]).toBe("settled"),
+    );
+    expect(screen.getByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    expect(tauriReadApi.saves.open).toHaveBeenLastCalledWith(session.id, session.fingerprint);
+    await user.click(screen.getByRole("button", { name: "Open Items" }));
+    expect((await screen.findByRole("alert")).textContent).not.toContain("private diagnostic");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("searchbox", { name: "Search items" })).toBeTruthy();
+    expect(closeNativeWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("keeps the preparation view until the required projections settle", async () => {
     let complete!: (result: Awaited<ReturnType<typeof tauriReadApi.saves.open>>) => void;
     vi.mocked(tauriReadApi.environment.detect).mockResolvedValue({ ok: true, data: environment });
     vi.mocked(tauriReadApi.saves.open).mockReturnValueOnce(
@@ -227,20 +281,17 @@ describe("read-only native discovery", () => {
     ).toBe(false);
     expect(tauriReadApi.players.list).not.toHaveBeenCalled();
     await act(() => complete(openResult(undefined, "unresolved")));
-    expect(await screen.findByText("Loading item data…")).toBeTruthy();
-    expect(screen.getByText("Editor data 3/5")).toBeTruthy();
-    expect(screen.queryByText("Items · Running")).toBeNull();
-    expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(session.id, players[0]!.id);
+    expect(await screen.findByText("Preparing editor data…")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Run snapshot" })).toBeNull();
-    expect(screen.queryByTestId("workspace")).toBeNull();
-    expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+    const user = userEvent.setup();
+    expect(tauriReadApi.players.avatar).toHaveBeenCalledExactlyOnceWith(session.id, players[0]!.id);
     expect(tauriReadApi.maps.list).not.toHaveBeenCalled();
     await act(() => finishItems({ ok: true, data: advanced }));
-    expect(await screen.findByRole("heading", { name: "Run snapshot" })).toBeTruthy();
+    await user.click(await screen.findByRole("button", { name: "Open Items" }));
+    expect(screen.getByRole("searchbox", { name: "Search items" })).toBeTruthy();
     expect(await screen.findByText(/Read-only preview/)).toBeTruthy();
     expect(screen.queryByTestId("opening-overview")).toBeNull();
     expect(screen.queryByTestId("asset-preparation")).toBeNull();
-    const user = userEvent.setup();
     for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
       await user.click(screen.getByRole("tab", { name }));
       expect(screen.queryByTestId(`${name.toLowerCase()}-skeleton`)).toBeNull();
@@ -261,7 +312,9 @@ describe("read-only native discovery", () => {
     const user = userEvent.setup();
     const open = async () => {
       await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-      await screen.findByRole("tab", { name: "Overview" });
+      await waitFor(() =>
+        expect(screen.getByTestId("workspace").dataset["artworkPreparation"]).toBe("settled"),
+      );
     };
     const saveProof = { id: session.id, fingerprint: session.fingerprint };
     await open();
@@ -369,19 +422,16 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    await screen.findByText("Loading player data…");
+    await screen.findByText("Preparing editor data…");
     expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
     await user.click(screen.getByRole("button", { name: "Cancel opening" }));
     expect(closeNativeWorkspace).toHaveBeenCalledExactlyOnceWith(opened.data.session.id);
     expect(screen.queryByTestId("opening-overview")).toBeNull();
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: /Earlier save/ }).disabled).toBe(
-      true,
-    );
+    expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     await act(() =>
       complete({ ok: true, data: [{ ...players[0]!, name: "Previous session player" }] }),
     );
-    expect(tauriReadApi.upgrades.list).not.toHaveBeenCalled();
     await user.click(await screen.findByRole("button", { name: /Earlier save/ }));
     await user.click(await screen.findByRole("tab", { name: "Players" }));
     await screen.findByRole("button", { name: /Alpha/ });
@@ -672,8 +722,8 @@ describe("read-only native discovery", () => {
     render(<TauriDiscovery />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: /Open workspace/ }));
-    expect(await screen.findByText("Loading player data…")).toBeTruthy();
-    expect(screen.getByText("Editor data 0/5")).toBeTruthy();
+    expect(await screen.findByText("Preparing editor data…")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Run snapshot" })).toBeNull();
     await act(() => complete({ ok: false, error: { code: "process_failed", message: "private" } }));
     await user.click(await screen.findByRole("tab", { name: "Players" }));
     expect(await screen.findByRole("alert")).toBeTruthy();

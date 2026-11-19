@@ -19,6 +19,17 @@ export const id: Record<keyof typeof en, string> = {
   "update.description": "Versi baru tersedia. Lihat catatan rilis dan unduh pembaruan.",
   "update.viewRelease": "Lihat rilis",
   "update.later": "Nanti",
+  "compatibility.title": "Pembatasan kompatibilitas game",
+  "compatibility.dismiss": "Tutup pemberitahuan",
+  "compatibility.build": "Build R.E.P.O. {build}",
+  "compatibility.unapproved": "Pengeditan dibatasi hingga build game ini disetujui.",
+  "compatibility.unknown":
+    "RepoDitor tidak dapat memverifikasi kompatibilitas pengeditan ini pada instalasi tersebut.",
+  "compatibility.incompatible":
+    "Aset terpasang atau struktur save tidak dapat dibaca dengan aman. Pengeditan terkait tidak tersedia.",
+  "compatibility.missing":
+    "Data game yang diperlukan tidak tersedia. Pengeditan terkait tidak tersedia.",
+  "compatibility.updates": "Periksa pembaruan",
   "app.workspaces": "Ruang kerja RepoDitor",
   "app.runSaves": "Save Run",
   "cosmetics.artwork.title": "Menyiapkan gambar kosmetik",
@@ -273,7 +284,7 @@ export const id: Record<keyof typeof en, string> = {
     "Nama terpasang dan metadata ditampilkan jika tersedia. ID numerik tetap menjadi identitas kanonis.",
   "cosmetics.catalogCount": "{count} terpasang",
   "cosmetics.catalogUnavailableMetadata":
-    "Metadata kosmetik terpasang tidak tersedia. ID yang dimiliki di save tetap terlihat sebagai tidak dikenal dan hanya-baca.",
+    "Metadata kosmetik terpasang tidak tersedia. Build R.E.P.O. ini mungkin tidak didukung atau berkasnya tidak lengkap. ID yang tersimpan tetap ditampilkan sebagai tidak dikenal dan hanya-baca.",
   "cosmetics.catalogList": "Entri katalog kosmetik",
   "cosmetics.itemLabel": "{name}, ID {id}, {state}",
   "cosmetics.idLabel": "ID {id}",
@@ -310,7 +321,8 @@ export const id: Record<keyof typeof en, string> = {
   "entry.artwork.upgrade": "Menyiapkan tekstur upgrade…",
   "entry.artwork.item": "Menyiapkan gambar item terpasang…",
   "entry.artwork.map": "Menyiapkan pratinjau peta…",
-  "entry.editorDataCompact": "Data editor {completed}/{total}",
+  "entry.detail.editorData": "Menyiapkan data editor…",
+  "entry.detail.artworkAfterData": "Data simpanan siap. Menyiapkan gambar…",
   "entry.artworkCompact": "Gambar diperiksa {completed}/{total}",
   "entry.artworkCompactLabel": "Progres penyiapan gambar",
   "entry.artworkIncomplete": "Sebagian gambar tidak dapat disiapkan",

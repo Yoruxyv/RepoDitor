@@ -1,9 +1,30 @@
-/** Validate the current MetaSave and prepare its artwork before publishing the catalog. */
+/** Keep the last complete catalog visible while checking its sources. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CosmeticsViewDto, RepoDitorApi } from "@electron/contracts";
+import type {
+  CosmeticsViewDto,
+  DesktopOperationErrorCode,
+  RepoDitorApi,
+} from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 import { prepareNativeCosmeticArtwork } from "@/app/tauriArtwork";
-import { operationErrorKey, type TranslationKey } from "@/app/i18n";
+import { operationErrorKey } from "@/app/i18n";
+
+function samePresentation(previous: CosmeticsViewDto, current: CosmeticsViewDto) {
+  return (
+    previous.fingerprint === current.fingerprint &&
+    previous.cosmetics.length === current.cosmetics.length &&
+    previous.cosmetics.every((row, index) => {
+      const next = current.cosmetics[index];
+      return row.id === next?.id && row.iconReuseKey === next.iconReuseKey;
+    })
+  );
+}
+
+function canRetryRead(error: DesktopOperationErrorCode) {
+  return ["process_timeout", "process_failed", "process_cancelled", "backend_unavailable"].includes(
+    error,
+  );
+}
 
 export function useCosmeticsRead(
   active: boolean,
@@ -13,7 +34,7 @@ export function useCosmeticsRead(
 ) {
   const { t } = usePreferences();
   const [refresh, setRefresh] = useState(0);
-  // Hide retained tokens in the commit that precedes the read which revokes them.
+  // Each visit revalidates the sources. Retained thumbnails are already decoded.
   const request = useMemo(
     () => ({ active, recoveryGeneration, refresh, get, sourceFingerprint }),
     [active, recoveryGeneration, refresh, get, sourceFingerprint],
@@ -21,7 +42,8 @@ export function useCosmeticsRead(
   const [state, setState] = useState<{
     request: typeof request;
     view: CosmeticsViewDto | null;
-    error: TranslationKey | null;
+    error: DesktopOperationErrorCode | null;
+    replacing?: boolean;
   } | null>(null);
   const [artwork, setArtwork] = useState<{
     request: typeof request;
@@ -45,15 +67,25 @@ export function useCosmeticsRead(
         const result = await request.get();
         if (!isCurrent()) return;
         if (!result.ok) {
-          setState({ request, view: null, error: operationErrorKey(result.error.code) });
+          const code = result.error.code;
+          setState((previous) => ({
+            request,
+            view: canRetryRead(code) && !previous?.replacing ? (previous?.view ?? null) : null,
+            error: code,
+          }));
           return;
         }
+        setState((previous) => {
+          if (!previous?.view || previous.replacing || samePresentation(previous.view, result.data))
+            return previous;
+          return { ...previous, replacing: true };
+        });
         const view = await prepareNativeCosmeticArtwork(result.data, work.signal, (progress) => {
           if (isCurrent()) setArtwork({ request, ...progress });
         });
         if (isCurrent()) setState({ request, view, error: null });
       } catch {
-        if (isCurrent()) setState({ request, view: null, error: "error.service" });
+        if (isCurrent()) setState({ request, view: null, error: "internal_error" });
       }
     }
     async function load() {
@@ -70,8 +102,10 @@ export function useCosmeticsRead(
   const current = active && state?.request === request;
   return {
     view: state?.view ?? null,
-    error: current && state.error ? t(state.error) : null,
+    error: current && state.error ? t(operationErrorKey(state.error)) : null,
+    incompatible: current && state.error === "save_unsupported",
     loading: !current,
+    replacing: state?.replacing === true,
     artwork:
       artwork?.request === request ? { completed: artwork.completed, total: artwork.total } : null,
     reload() {
