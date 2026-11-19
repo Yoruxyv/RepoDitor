@@ -14,7 +14,11 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from repo_save_editor.desktop_api import production_health as admission
-from repo_save_editor.services.game.discovery import APP_MANIFEST_NAME, CATALOG_RELATIVE_PATH
+from repo_save_editor.services.game.discovery import (
+    APP_MANIFEST_NAME,
+    CATALOG_RELATIVE_PATH,
+    discover_game_installation,
+)
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.saves.private_health import Bundle
 from repo_save_editor.storage import health_recovery as storage
@@ -34,6 +38,79 @@ def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
         admission.production_health("write", SAVE, OPERATION)["transaction"]["reason"]
         == "save_unsupported"
     )
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        ("unchanged", {"health"}),
+        ("manifest-only", set()),
+        ("managed-source", set()),
+        ("presentation-only", {"health"}),
+        ("run-only", {"run"}),
+    ],
+)
+def test_write_admission_requires_the_reviewed_build_sources_and_domain(
+    tmp_path, monkeypatch, change, expected
+):
+    steam = tmp_path / "Steam"
+    game = steam / "steamapps/common/REPO"
+    catalog = game / CATALOG_RELATIVE_PATH
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("{}", encoding="utf-8")
+    manifest = steam / "steamapps" / APP_MANIFEST_NAME
+    build_id = "26732418" if change == "manifest-only" else "26732417"
+    manifest.write_text(
+        f'"appid" "3241660"\n"installdir" "REPO"\n"buildid" "{build_id}"\n',
+        encoding="utf-8",
+    )
+    for name in admission.HEALTH_BUILD_SOURCES:
+        source = game / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(name.encode())
+    pins = tuple(sha256(name.encode()).hexdigest() for name in admission.HEALTH_BUILD_SOURCES)
+    picture = game / "REPO_Data/StreamingAssets/BakedIcons/Items/fixture.png"
+    picture.parent.mkdir(parents=True)
+    picture.write_bytes(b"presentation v1")
+    if change == "presentation-only":
+        picture.write_bytes(b"presentation v2")
+    if change == "managed-source":
+        (game / "REPO_Data/Managed/Assembly-CSharp.dll").write_bytes(b"changed writer code")
+
+    monkeypatch.delenv("REPODITOR_E2E", raising=False)
+    monkeypatch.setattr(admission, "platform", "win32")
+    monkeypatch.setattr(
+        admission,
+        "discover_game_installation",
+        lambda: discover_game_installation(steam_roots=(steam,), environment={}),
+    )
+    monkeypatch.setattr(
+        admission, "APPROVED_HEALTH_BUILDS", {} if change == "run-only" else {"26732417": pins}
+    )
+    monkeypatch.setattr(
+        admission,
+        "APPROVED_RUN_BUILDS",
+        {"26732417": (pins, frozenset({"run"}))} if change == "run-only" else {},
+    )
+    installed, build = admission._installed_game()
+    assert build.build_id == build_id
+    assert (admission._source_pins(installed, build) == pins) == (change != "managed-source")
+
+    if not expected:
+        with pytest.raises(admission.RecoveryError) as denied:
+            admission._game()
+        assert denied.value.code == "save_unsupported"
+        return
+
+    _, _, domains = admission._game()
+    assert domains == expected
+    health = {"health": [{"playerId": "111", "before": 80, "value": 79}]}
+    run = {"run": [{"field": "currency", "before": 12, "value": 13}]}
+    allowed, blocked = (health, run) if "health" in expected else (run, health)
+    assert admission._admit_request(allowed, "a" * 64, domains, None) in expected
+    with pytest.raises(admission.RecoveryError) as denied:
+        admission._admit_request(blocked, "a" * 64, domains, None)
+    assert denied.value.code == "save_unsupported"
 
 
 @pytest.mark.parametrize(

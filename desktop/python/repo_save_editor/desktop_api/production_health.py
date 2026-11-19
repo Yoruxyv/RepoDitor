@@ -139,11 +139,11 @@ def _process_status(executable: Path) -> GameProcessStatus:
     return status
 
 
-def _digest(root: Path, path: Path) -> str:
+def _digest(root: Path, path: Path, *, max_bytes: int = 256 * 1024 * 1024) -> str:
     source = owned_file(root, path)
     with source.open("rb") as stream:
         before = os.fstat(stream.fileno())
-        if before.st_size > 256 * 1024 * 1024:
+        if before.st_size > max_bytes:
             raise ValueError("Installed game source exceeds its hash budget.")
         hashed = sha256()
         remaining = before.st_size
