@@ -216,7 +216,7 @@ describe("ItemsView", () => {
     expect(screen.getByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
     expect(within(item).getByText("Current charge: 99")).toBeTruthy();
     expect(
-      screen.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+      screen.getByText("Recharge is available only for supported tools with a saved charge value."),
     ).toBeTruthy();
     expect(screen.queryByRole("spinbutton")).toBeNull();
     expect(screen.queryByText("#1")).toBeNull();

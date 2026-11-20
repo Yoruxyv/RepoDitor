@@ -705,6 +705,42 @@ describe("native upgrade drafts", () => {
     },
   );
 
+  it("reviews and saves the latest Health draft directly from the focused input", async () => {
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: true,
+      production: true,
+      domains: ["health"],
+      state: "idle",
+      pending: null,
+      canonical: { opened: openResult().data, players, upgrades, run: runState },
+      upgradeSession: "production-session",
+    });
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    const input = await screen.findByRole("spinbutton", { name: "Current health" });
+    await waitFor(() => expect(input.hasAttribute("readonly")).toBe(false));
+    await user.clear(input);
+    await user.type(input, "17");
+    const save = screen.getByRole("button", { name: "Save Changes" });
+    expect(document.activeElement).toBe(input);
+    expect(save.matches(":disabled")).toBe(false);
+    await user.click(save);
+    const review = within(screen.getByTestId("workspace-review"));
+    expect(review.getByText("80 → 17")).toBeTruthy();
+    await user.clear(input);
+    await user.type(input, "12");
+    expect(document.activeElement).toBe(input);
+    expect(review.getByText("80 → 12")).toBeTruthy();
+    expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
+
+    await user.click(save);
+    expect(tauriHealthApi.writeHealthBatch).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ health: [{ playerId: "111", before: 80, value: 12 }] }),
+      true,
+    );
+  });
+
   it("marks Health drafts on the Players tab across selection, navigation, Revert and Save", async () => {
     renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
     const user = userEvent.setup();
@@ -717,12 +753,19 @@ describe("native upgrade drafts", () => {
     expect(tab.getAttribute("aria-describedby")).toBeNull();
     health.focus();
     fireEvent.change(health, { target: { value: "17" } });
-    await user.tab();
+    expect(document.activeElement).toBe(health);
+    expect(screen.getByTestId("pending-health-edit").textContent).toContain("80 → 17");
     expect(indicator()).toBeNull();
     expect(tab.getAttribute("aria-describedby")).toBe("native-players-pending");
     expect(document.getElementById("native-players-pending")?.textContent).toBe("1 pending change");
+    fireEvent.change(health, { target: { value: "1.5" } });
+    expect(screen.getByRole("button", { name: "Save Changes" }).matches(":disabled")).toBe(true);
+    expect(screen.getByTestId("pending-health-edit").textContent).toContain("80 → 17");
     await user.click(screen.getByRole("button", { name: /Beta/ }));
-    expect(health.hasAttribute("readonly")).toBe(false);
+    const betaHealth = screen.getByRole("spinbutton", { name: "Current health" });
+    expect(betaHealth.getAttribute("value")).toBe("0");
+    expect(betaHealth.hasAttribute("aria-invalid")).toBe(false);
+    expect(screen.queryByTestId("pending-health-edit")).toBeNull();
     tab.focus();
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(upgradesTab);
@@ -738,6 +781,9 @@ describe("native upgrade drafts", () => {
       "17",
     );
     await user.click(screen.getByRole("button", { name: "Revert" }));
+    expect(screen.getByRole("spinbutton", { name: "Current health" }).getAttribute("value")).toBe(
+      "80",
+    );
     expect(tab.getAttribute("aria-describedby")).toBeNull();
     expect(document.getElementById("native-players-pending")).toBeNull();
     const stage = async () => {

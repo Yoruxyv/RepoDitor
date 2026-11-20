@@ -173,8 +173,7 @@ export const ko: Record<keyof typeof en, string> = {
   "players.emptyDescription": "이 세이브에는 플레이어 기록이 없습니다.",
   "players.selected": "선택한 플레이어",
   "players.currentHealth": "현재 체력",
-  "players.healthHelper":
-    "메모리에 대기 중인 변경 사항을 만듭니다. 세이브 파일에는 아직 쓰지 않습니다.",
+  "players.healthHelper": "변경 사항은 ‘변경 사항 저장’을 선택할 때만 저장됩니다.",
   "players.maximumHealth": "최대 체력 {value}",
   "players.healFull": "완전히 회복",
   "players.healthError": "체력은 0에서 {max} 사이의 정수여야 합니다.",
@@ -212,7 +211,7 @@ export const ko: Record<keyof typeof en, string> = {
   "items.unavailable": "아이템을 사용할 수 없음",
   "items.description":
     "아이템을 검색하고 지원되는 도구를 충전하세요. 변경 사항은 저장할 때까지 대기합니다.",
-  "items.safety": "RepoDitor가 안전하게 충전할 수 있는 도구에만 충전 기능이 표시됩니다.",
+  "items.safety": "지원되는 도구 중 충전량이 세이브에 기록된 도구만 충전할 수 있습니다.",
   "items.instances": "아이템 인스턴스",
   "items.missingContainer": "이 세이브에서는 아이템을 사용할 수 없습니다.",
   "items.empty": "이 세이브에는 아이템 인스턴스가 없습니다.",

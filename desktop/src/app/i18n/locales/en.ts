@@ -176,11 +176,10 @@ export const en = {
   "players.emptyDescription": "This save does not contain player records.",
   "players.selected": "Selected player",
   "players.currentHealth": "Current health",
-  "players.healthHelper":
-    "This creates an in-memory pending edit. It does not write to the save file.",
+  "players.healthHelper": "Changes are saved only when you select Save Changes.",
   "players.maximumHealth": "Maximum health {value}",
   "players.healFull": "Heal to Full",
-  "players.healthError": "Health must be between 0 and {max}.",
+  "players.healthError": "Health must be a whole number between 0 and {max}.",
   "players.noPendingHealth": "No pending health edit",
   "players.avatar": "{player} avatar",
   "upgrades.loading": "Loading upgrades…",
@@ -215,7 +214,7 @@ export const en = {
   "items.unavailable": "Items unavailable",
   "items.description":
     "Search item instances and recharge supported tools. Changes stay pending until you save.",
-  "items.safety": "Recharge appears only for tools RepoDitor can safely refill.",
+  "items.safety": "Recharge is available only for supported tools with a saved charge value.",
   "items.instances": "Item instances",
   "items.missingContainer": "Items are unavailable for this save.",
   "items.empty": "This save contains no item instances.",

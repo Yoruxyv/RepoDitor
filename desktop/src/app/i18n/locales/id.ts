@@ -177,10 +177,10 @@ export const id: Record<keyof typeof en, string> = {
   "players.emptyDescription": "Save ini tidak berisi data pemain.",
   "players.selected": "Pemain terpilih",
   "players.currentHealth": "Kesehatan saat ini",
-  "players.healthHelper": "Ini membuat perubahan tertunda di memori. File save belum ditulis.",
+  "players.healthHelper": "Perubahan disimpan hanya saat Anda memilih Simpan Perubahan.",
   "players.maximumHealth": "Kesehatan maksimum {value}",
   "players.healFull": "Pulihkan Penuh",
-  "players.healthError": "Kesehatan harus antara 0 dan {max}.",
+  "players.healthError": "Kesehatan harus berupa bilangan bulat antara 0 dan {max}.",
   "players.noPendingHealth": "Tidak ada perubahan kesehatan tertunda",
   "players.avatar": "Avatar {player}",
   "upgrades.loading": "Memuat upgrade…",
@@ -215,7 +215,7 @@ export const id: Record<keyof typeof en, string> = {
   "items.description":
     "Cari item dan isi ulang alat yang didukung. Perubahan tetap tertunda sampai Anda menyimpan.",
   "items.safety":
-    "Isi ulang hanya tampil untuk alat yang dapat diisi penuh dengan aman oleh RepoDitor.",
+    "Isi ulang hanya tersedia untuk alat yang didukung dan memiliki nilai daya tersimpan.",
   "items.instances": "Instance item",
   "items.missingContainer": "Item tidak tersedia untuk save ini.",
   "items.empty": "Save ini tidak berisi instance item.",

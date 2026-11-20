@@ -136,8 +136,9 @@ describe("run-save workspace integration", () => {
     health.focus();
     fireEvent.change(health, { target: { value: "17" } });
     await user.click(screen.getByRole("button", { name: /Beta/ }));
-    health.focus();
-    fireEvent.change(health, { target: { value: "42" } });
+    const betaHealth = screen.getByRole("spinbutton", { name: "Current health" });
+    betaHealth.focus();
+    fireEvent.change(betaHealth, { target: { value: "42" } });
     await user.tab();
     await user.click(screen.getByRole("button", { name: "Review" }));
     expect(screen.getByText("Alpha · Health")).toBeTruthy();
@@ -254,7 +255,7 @@ describe("run-save workspace integration", () => {
     ).toContain("Current charge: 99");
     expect(screen.queryByText("#1")).toBeNull();
     expect(
-      screen.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+      screen.getByText("Recharge is available only for supported tools with a saved charge value."),
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Recharge All Tools" }));
     expect(screen.getByTestId("workspace-pending-edit-count").textContent).toBe(

@@ -172,7 +172,7 @@ export const ja: Record<keyof typeof en, string> = {
   "players.emptyDescription": "このセーブにプレイヤー記録はありません。",
   "players.selected": "選択中のプレイヤー",
   "players.currentHealth": "現在の体力",
-  "players.healthHelper": "メモリ内の保留変更を作成します。セーブファイルにはまだ書き込みません。",
+  "players.healthHelper": "変更は「変更を保存」を選んだときにだけ保存されます。",
   "players.maximumHealth": "最大体力 {value}",
   "players.healFull": "全回復",
   "players.healthError": "体力は 0 から {max} の整数で入力してください。",
@@ -209,7 +209,8 @@ export const ja: Record<keyof typeof en, string> = {
   "items.unavailable": "アイテムを利用できません",
   "items.description":
     "アイテムを検索し、対応するツールを充電できます。変更は保存するまで保留されます。",
-  "items.safety": "充電は、RepoDitor が安全に満充電へ戻せるツールにのみ表示されます。",
+  "items.safety":
+    "充電できるのは、対応していて充電量がセーブデータに記録されているツールだけです。",
   "items.instances": "アイテムインスタンス",
   "items.missingContainer": "このセーブではアイテムを利用できません。",
   "items.empty": "このセーブにアイテムインスタンスはありません。",

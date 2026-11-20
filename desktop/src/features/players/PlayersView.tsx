@@ -25,27 +25,11 @@ interface PlayersViewProps {
   readonly onRetry: () => void;
 }
 
-interface HealthPresentation {
-  readonly parsed: number;
-  readonly invalid: boolean;
-  readonly value: number;
-  readonly percent: number;
-}
-
-function deriveHealthPresentation(
-  input: string,
-  fallback: number,
-  maximum: number,
-  readOnly: boolean,
-): HealthPresentation {
+function parseHealth(input: string, maximum: number): number | null {
   const parsed = Number(input);
-  const invalid =
-    input.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 0 || parsed > maximum;
-  const effective = invalid ? fallback : parsed;
-  const value = Math.min(Math.max(effective, 0), maximum);
-  const percent = maximum > 0 ? Math.round((value / maximum) * 100) : 0;
-
-  return { parsed, invalid: invalid && !readOnly, value, percent };
+  return input.trim() !== "" && Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= maximum
+    ? parsed
+    : null;
 }
 
 function PlayersSkeleton({ label }: { readonly label: string }) {
@@ -194,6 +178,7 @@ export function PlayersView({
         />
 
         <PlayerHealth
+          key={player.id}
           player={player}
           pendingByPlayer={pendingByPlayer}
           resetVersion={resetVersion}
@@ -229,25 +214,18 @@ function PlayerHealth({
   const currentHealthLabel = t("players.currentHealth");
   const pending = readOnly ? undefined : pendingByPlayer[player.id];
   const health = pending?.after ?? player.health;
-  const [healthInputs, setHealthInputs] = useState<Record<string, string>>({});
-  useEffect(() => setHealthInputs({}), [resetVersion]);
-  const healthInput = !readOnly ? (healthInputs[player.id] ?? String(health)) : String(health);
-  const healthPresentation = deriveHealthPresentation(
-    healthInput,
-    health,
-    player.maxHealth,
-    readOnly,
-  );
-  const parsedHealth = healthPresentation.parsed;
-  const healthError = healthPresentation.invalid
-    ? t("players.healthError", { max: player.maxHealth })
-    : null;
+  const [input, setInput] = useState<string | null>(null);
+  useEffect(() => setInput(null), [resetVersion]);
+  const healthInput = readOnly ? String(health) : (input ?? String(health));
+  const parsedHealth = parseHealth(healthInput, player.maxHealth);
+  const invalid = !readOnly && parsedHealth === null;
+  const healthError = invalid ? t("players.healthError", { max: player.maxHealth }) : null;
   useEffect(() => {
-    onHealthValidityChange?.(healthPresentation.invalid);
-  }, [healthPresentation.invalid, onHealthValidityChange]);
-  const visualHealth = healthPresentation.value;
-  const healthPercent = healthPresentation.percent;
-  const isAtFullHealth = !healthError && parsedHealth === player.maxHealth;
+    onHealthValidityChange?.(invalid);
+  }, [invalid, onHealthValidityChange]);
+  const visualHealth = Math.min(Math.max(parsedHealth ?? health, 0), player.maxHealth);
+  const healthPercent = Math.round((visualHealth * 100) / Math.max(1, player.maxHealth));
+  const isAtFullHealth = parsedHealth === player.maxHealth;
   const healthDescription = [
     "player-health-help",
     healthError ? "player-health-error" : null,
@@ -257,31 +235,10 @@ function PlayerHealth({
     .join(" ");
 
   function editHealth(value: string): void {
-    if (readOnly || healthEditingDisabled) {
-      return;
-    }
-    setHealthInputs((current) => ({ ...current, [player.id]: value }));
-  }
-
-  function commitHealth(): void {
-    if (readOnly || healthEditingDisabled || healthInputs[player.id] === undefined) return;
-    const parsed = Number(healthInputs[player.id]);
-    if (!Number.isSafeInteger(parsed)) {
-      setHealthInputs((current) => ({ ...current, [player.id]: String(health) }));
-      return;
-    }
-    const next = Math.min(Math.max(parsed, 0), player.maxHealth);
-    setHealthInputs((current) => ({ ...current, [player.id]: String(next) }));
-    onHealthChange?.(player, next);
-  }
-
-  function revertHealth(playerId: string): void {
-    setHealthInputs((current) => {
-      const next = { ...current };
-      delete next[playerId];
-      return next;
-    });
-    onRevertHealth?.(playerId);
+    if (!onHealthChange || healthEditingDisabled) return;
+    setInput(value);
+    const next = parseHealth(value, player.maxHealth);
+    if (next !== null) onHealthChange(player, next);
   }
 
   return (
@@ -313,7 +270,7 @@ function PlayerHealth({
             step="1"
             type="number"
             value={healthInput}
-            onBlur={commitHealth}
+            onBlur={() => setInput(null)}
             onChange={(event) => editHealth(event.target.value)}
           />
           <span
@@ -328,13 +285,7 @@ function PlayerHealth({
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
             disabled={isAtFullHealth || healthEditingDisabled}
             type="button"
-            onClick={() => {
-              setHealthInputs((current) => ({
-                ...current,
-                [player.id]: String(player.maxHealth),
-              }));
-              onHealthChange?.(player, player.maxHealth);
-            }}
+            onClick={() => editHealth(String(player.maxHealth))}
           >
             {t("players.healFull")}
           </button>
@@ -344,7 +295,10 @@ function PlayerHealth({
             className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
             disabled={healthEditingDisabled}
             type="button"
-            onClick={() => revertHealth(player.id)}
+            onClick={() => {
+              setInput(null);
+              onRevertHealth?.(player.id);
+            }}
           >
             {t("action.revert")}
           </button>

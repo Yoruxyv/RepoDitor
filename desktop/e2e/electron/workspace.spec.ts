@@ -248,7 +248,7 @@ test("covers the source workspace, shell, and editor domains", async () => {
     expect(iconBoundary).toContain("iconToken");
     expect(iconBoundary).not.toMatch(/iconKey|AppData|LocalLow|\.png/);
     await expect(
-      page.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+      page.getByText("Recharge is available only for supported tools with a saved charge value."),
     ).toBeVisible();
     const cartGroup = page.getByTestId("item-group-Cart Medium");
     await expect(cartGroup.getByLabel("2 items")).toBeVisible();

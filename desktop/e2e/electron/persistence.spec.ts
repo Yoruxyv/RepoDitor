@@ -132,7 +132,7 @@ test("preserves safe writes, exact backups, and stale-save rejection", async () 
       page.getByRole("heading", { name: "Melee Inflatable Hammer", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText("Recharge appears only for tools RepoDitor can safely refill."),
+      page.getByText("Recharge is available only for supported tools with a saved charge value."),
     ).toBeVisible();
     const refilledHammer = page.getByTestId("item-instance-Item Melee Inflatable Hammer/1");
     await expect(refilledHammer.getByText("Full")).toBeVisible();

@@ -129,7 +129,7 @@ describe("PlayersView", () => {
 
     expect(progress.getAttribute("aria-valuenow")).toBe("70");
     expect(screen.getByTestId("player-health-progress-fill").style.width).toBe("70%");
-    fireEvent.blur(input);
+    expect(document.activeElement).toBe(input);
     expect(onHealthChange).toHaveBeenLastCalledWith(player, 70);
 
     await user.click(screen.getByRole("button", { name: "Heal to Full" }));
@@ -202,14 +202,10 @@ describe("PlayersView", () => {
     const progress = screen.getByRole("progressbar", { name: "Current health" });
     expect(progress.getAttribute("aria-valuenow")).toBe("80");
     expect(screen.getByTestId("player-health-progress-fill").style.width).toBe("80%");
-    expect(screen.getByText("Health must be between 0 and 100.")).toBeTruthy();
+    expect(screen.getByText("Health must be a whole number between 0 and 100.")).toBeTruthy();
   });
 
-  it.each([
-    ["101", 100],
-    ["-1", 0],
-    ["100", 100],
-  ])("clamps explicit health %s to %i on commit", (value, expected) => {
+  it.each(["", "101", "-1", "1.5", "1e"])("does not stage invalid input %j", (value) => {
     const onHealthChange = vi.fn();
     renderWithPreferences(
       <PlayersView
@@ -226,12 +222,13 @@ describe("PlayersView", () => {
     const input = screen.getByRole("spinbutton");
     fireEvent.change(input, { target: { value } });
 
+    expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(onHealthChange).not.toHaveBeenCalled();
     fireEvent.blur(input);
 
     expect(input.getAttribute("aria-invalid")).toBeNull();
-    expect((input as HTMLInputElement).value).toBe(String(expected));
-    expect(onHealthChange).toHaveBeenCalledWith(player, expected);
+    expect((input as HTMLInputElement).value).toBe("80");
+    expect(onHealthChange).not.toHaveBeenCalled();
   });
 
   it("does not turn malformed loaded health into an edit until the user changes it", () => {
