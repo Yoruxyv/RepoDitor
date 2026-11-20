@@ -47,14 +47,8 @@ export function TauriCosmeticsStatus({ meta }: { readonly meta: Meta }) {
 export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
   const { t } = usePreferences();
   const dialog = useRef<HTMLDialogElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
   const action = meta.intent?.metaCosmetics;
-  const affected =
-    action?.action === "unlockIds"
-      ? action.ids.length
-      : (meta.state.view?.cosmetics.filter(
-          (c) =>
-            c.known && c.mutationEligible && (action?.action === "lockAll" ? c.owned : !c.owned),
-        ).length ?? 0);
   return (
     <>
       <PendingChangesBar
@@ -67,27 +61,33 @@ export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
         blocked={meta.locked}
         saveUnavailableReason={meta.state.session ? null : t(APPROVAL_NEEDED)}
         onRevert={meta.revert}
-        onSave={() => dialog.current?.showModal()}
+        onSave={() => {
+          if (!action || meta.locked || !dialog.current || dialog.current.open) return;
+          dialog.current.showModal();
+          cancelButton.current?.focus();
+        }}
       />
       <dialog
         ref={dialog}
-        className="max-w-lg rounded-sm border border-control bg-surface p-6 text-ink backdrop:bg-black/60"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-sm border border-control bg-surface p-4 text-ink backdrop:bg-black/60 sm:p-6"
         aria-labelledby="meta-confirm-title"
+        aria-describedby="meta-confirm-description"
       >
         <form method="dialog">
           <h2 id="meta-confirm-title" className="text-lg font-semibold">
             {t(meta.state.production ? SAVE_CHANGES : "cosmetics.confirmTitle")}
           </h2>
-          <p className="mt-3 text-sm/6">
+          <p className="mt-3 text-sm/6" id="meta-confirm-description">
             {t(
               action?.action === "clearPresets"
                 ? "cosmetics.confirmPresets"
                 : "cosmetics.confirmOwnership",
-              { count: affected },
+              { count: meta.affectedOwnershipCount },
             )}
           </p>
-          <div className="mt-5 flex justify-end gap-3">
+          <div className="mt-5 flex flex-wrap justify-end gap-3">
             <button
+              ref={cancelButton}
               type="submit"
               className="ui-feedback rounded-sm border border-control px-3 py-2"
             >
@@ -96,7 +96,7 @@ export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
             <button
               type="submit"
               className="ui-feedback rounded-sm bg-accent px-3 py-2 text-accent-ink"
-              disabled={meta.locked}
+              disabled={meta.locked || !action}
               onClick={() => {
                 dialog.current?.close();
                 void meta.save();

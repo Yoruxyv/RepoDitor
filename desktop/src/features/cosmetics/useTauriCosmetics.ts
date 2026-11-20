@@ -130,6 +130,27 @@ function retargetIntent(intent: MetaIntent | null, admission: MetaState["admissi
     : intent;
 }
 
+function ownershipCount(view: CosmeticsViewDto, owned: boolean) {
+  return view.cosmetics.filter(
+    (item) => item.known && item.mutationEligible && item.owned === owned,
+  ).length;
+}
+
+function canStageBulkAction(
+  view: CosmeticsViewDto,
+  action: Exclude<MetaAction["action"], "unlockIds">,
+  lockBlocked: boolean,
+) {
+  switch (action) {
+    case "unlockAll":
+      return view.capabilities.canUnlockAll && ownershipCount(view, false) > 0;
+    case "lockAll":
+      return view.capabilities.canRemoveOwnership && !lockBlocked && ownershipCount(view, true) > 0;
+    case "clearPresets":
+      return view.capabilities.canClearPresets && view.savedPresetCount > 0;
+  }
+}
+
 export function useTauriCosmetics(
   active: boolean,
   recoveryGeneration: number,
@@ -218,16 +239,7 @@ export function useTauriCosmetics(
       (c) => c.known && c.mutationEligible && c.owned && c.removalBlockedReason,
     )?.removalBlockedReason ?? null;
   function stage(action: MetaAction["action"], id?: number) {
-    const presetsDenied = action === "clearPresets" && !state.view?.capabilities.canClearPresets;
-    if (
-      locked ||
-      inFlight.current ||
-      !state.session ||
-      !state.admission ||
-      !state.view ||
-      presetsDenied
-    )
-      return;
+    if (locked || inFlight.current || !state.session || !state.admission || !state.view) return;
     let next: MetaAction;
     if (action === "unlockIds") {
       const item = state.view.cosmetics.find((c) => c.id === id);
@@ -243,7 +255,7 @@ export function useTauriCosmetics(
       if (ids.includes(item.id)) return;
       next = { action, admission: state.admission.digest, ids: [...ids, item.id] };
     } else {
-      if (intent || (action === "lockAll" && lockAllBlockedReason)) return;
+      if (intent || !canStageBulkAction(state.view, action, lockAllBlockedReason !== null)) return;
       next = { action, admission: state.admission.digest };
     }
     const value = { metaCosmetics: next };
@@ -346,6 +358,13 @@ export function useTauriCosmetics(
     setSaved(false);
   }
   const view = projected(state.view, intent);
+  const action = intent?.metaCosmetics;
+  let affectedOwnershipCount = 0;
+  if (action?.action === "unlockIds") {
+    affectedOwnershipCount = action.ids.length;
+  } else if (state.view && (action?.action === "unlockAll" || action?.action === "lockAll")) {
+    affectedOwnershipCount = ownershipCount(state.view, action.action === "lockAll");
+  }
   return {
     state,
     view,
@@ -355,6 +374,7 @@ export function useTauriCosmetics(
     error,
     saved,
     intent,
+    affectedOwnershipCount,
     stage,
     revert,
     save,

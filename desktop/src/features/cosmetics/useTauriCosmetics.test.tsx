@@ -27,6 +27,43 @@ function api(initial = state()) {
   };
 }
 describe("independent synthetic MetaSave drafts", () => {
+  it("leaves a fully owned catalog alone and counts only eligible ownership changes", async () => {
+    const initial = state();
+    initial.view!.cosmetics = Array.from({ length: 557 }, (_, id) => ({
+      ...cosmetics.cosmetics[0]!,
+      id,
+    }));
+    initial.view!.knownOwnedCount = initial.view!.knownCatalogCount = 557;
+    initial.view!.knownLockedCount = 0;
+    const backend = api(initial);
+    const { result, rerender } = renderHook(
+      ({ generation }) => useTauriCosmetics(true, generation, backend),
+      {
+        initialProps: { generation: 0 },
+      },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.stage("unlockAll"));
+    expect(result.current.intent).toBeNull();
+
+    const next = structuredClone(initial);
+    Object.assign(next.view!.cosmetics[1]!, { owned: false, state: "locked" });
+    Object.assign(next.view!.cosmetics[2]!, {
+      owned: false,
+      state: "locked",
+      mutationEligible: false,
+    });
+    next.view!.knownOwnedCount = 555;
+    next.view!.knownLockedCount = 2;
+    backend.state.mockResolvedValue(next);
+    rerender({ generation: 1 });
+    await waitFor(() => expect(result.current.state.view?.knownLockedCount).toBe(2));
+    act(() => result.current.stage("unlockAll"));
+    expect(result.current.affectedOwnershipCount).toBe(1);
+    expect(result.current.view?.knownLockedCount).toBe(1);
+    expect(backend.write).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])(
     "uses independent preset authority even without ownership eligibility: %s",
     async (allowed) => {
