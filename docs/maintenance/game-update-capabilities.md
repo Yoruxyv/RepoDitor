@@ -18,6 +18,36 @@ policy modules from those files. Generated files must not be edited by hand. Out
 deterministic, contains no timestamps, and preserves non-contiguous cosmetic IDs exactly; a gap is
 never inferred to be an owned or mutable ID.
 
+## Private Tauri editing across Steam patches
+
+The `26732417` private preview has direct in-game acceptance for Health, Upgrades,
+Run and Normal/Shop resume, Item Recharge, and Cosmetics. The frozen private
+backend can carry that approval to a new Steam BuildID when the installation has
+valid Steam provenance and the SHA-256 pins for the required domains still match.
+The live BuildID remains part of session checks. Reopen the editor and the save
+after a Steam update. Public build approval is separate.
+
+| Domain                           | Evidence carried forward                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All edits                        | The game executable, Unity player, `Assembly-CSharp.dll`, and `globalgamemanagers`, plus the ES3 serializer in `Assembly-CSharp-firstpass.dll` and the managed and Mono runtime files it uses. These files cover the game code, ES3 field layout, and crypto implementation reviewed for the private build. |
+| Health, Upgrades, Run and Resume | The reviewed player IDs and fields, upgrade keys and limits, Run field types, and Normal/Shop resume behavior are covered by the shared pins. Existing per-save checks still constrain each edit.                                                                                                           |
+| Item Recharge                    | The shared pins plus `resources.assets` and `globalgamemanagers.assets`, which establish the exact qualified `ItemBattery` identities. Each save still has to contain the exact eligible instance and previous charge.                                                                                      |
+| Cosmetics                        | The shared pins plus `level0`, `globalgamemanagers.assets`, and `sharedassets0.assets`, with the reviewed 557-entry catalog digest. Ownership, equipment, and preset checks still apply to the target MetaSave.                                                                                             |
+
+A manifest-only update or a baked-icon change outside the pinned files can keep
+editing enabled with the existing binary. A changed Item or Cosmetics source
+blocks the affected domain. A changed shared pin blocks all five domains, including
+a change in an ES3 or crypto dependency. The pins cover whole files, so an
+unrelated change inside one of those files also requires review. Missing evidence
+cannot carry an older exact-build approval forward.
+
+Review changed sources against the existing save-field, encryption, serializer, and
+gameplay contracts. Confirm newly affected operations in the game, including
+normal resave and reload where applicable, before replacing the frozen evidence.
+Parsing, artwork availability, and synthetic round trips alone do not grant write
+approval. Full-profile protection and per-edit backups, fingerprints, receipts,
+and closed-game checks continue to apply.
+
 ## Routine checks
 
 ### Public Steam build monitoring

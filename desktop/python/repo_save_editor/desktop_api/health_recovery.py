@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from functools import partial
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
@@ -29,6 +30,7 @@ from repo_save_editor.services.game.processes import GameProcessStatus, get_game
 from repo_save_editor.services.items.discovery import discover_advanced_save
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_item_metadata_with_evidence,
     discover_installed_recharge_capabilities,
 )
 from repo_save_editor.services.player.state import get_player_health, get_players
@@ -498,6 +500,7 @@ def recover_health(
     root: Path,
     *,
     canonical: bool = False,
+    reuse_native_metadata: bool = False,
     acknowledge: bool = True,
     intent_allowed: Callable[[object], bool] | None = None,
     approval: Approval | None = None,
@@ -522,7 +525,12 @@ def recover_health(
             result = transaction.recover(acknowledge=not canonical)
             if canonical:
                 result["canonical"] = _canonical(
-                    save_id, root, cast(str, result["fingerprint"]), directory, transaction.intent
+                    save_id,
+                    root,
+                    cast(str, result["fingerprint"]),
+                    directory,
+                    transaction.intent,
+                    reuse_native_metadata=reuse_native_metadata,
                 )
                 if acknowledge:
                     transaction.recover()
@@ -543,6 +551,8 @@ def _canonical(
     fingerprint: str | None = None,
     directory: SaveDirectory | None = None,
     intent: dict[str, object] | None = None,
+    *,
+    reuse_native_metadata: bool = False,
 ) -> dict[str, object]:
     save, data, source = load_discovered_save(save_id, root, directory=directory)
     if fingerprint is not None and sha256(source).hexdigest() != fingerprint:
@@ -558,7 +568,13 @@ def _canonical(
         and valid_mixed_intent(intent)
         and cast(dict[str, object], intent["mixed"])["refillToFull"]
     ):
-        advanced = serialize_advanced_save(data)
+        advanced = serialize_advanced_save(
+            data,
+            metadata_evidence_loader=partial(
+                discover_installed_item_metadata_with_evidence,
+                reuse_native_metadata=reuse_native_metadata,
+            ),
+        )
         if advanced.get("ok") is not True:
             raise DesktopSaveError("save_unsupported", "Canonical item state is unavailable.")
         result["advanced"] = advanced["advanced"]

@@ -219,8 +219,8 @@ def test_acknowledgement_rechecks_external_modification(
     changed = deepcopy(sample_save)
     changed["teamName"]["value"] = "external owner"
 
-    def change_after_projection(*args):
-        result = original(*args)
+    def change_after_projection(*args, **kwargs):
+        result = original(*args, **kwargs)
         SaveRepository(root).save_as(path, changed)
         return result
 

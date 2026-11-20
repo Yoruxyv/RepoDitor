@@ -111,7 +111,9 @@ def resolve_recharge_source_context(
         if private or presentation_only
         else validated_installed_build(installation)
     )
-    if build is None or (private and bundle is not None and build.build_id != bundle.build):
+    if build is None or (
+        private and bundle is not None and not bundle.accepts_build_id(build.build_id)
+    ):
         return None
 
     resources_path = installation.root / RESOURCES_RELATIVE_PATH

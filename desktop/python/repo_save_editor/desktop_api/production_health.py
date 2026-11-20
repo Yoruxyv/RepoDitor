@@ -33,6 +33,9 @@ from repo_save_editor.services.game.processes import (
     classify_game_process,
     inspect_windows_processes,
 )
+from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_recharge_capabilities,
+)
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.services.saves.private_health import (
     Approval,
@@ -54,6 +57,16 @@ HEALTH_BUILD_SOURCES: Final = (
     "UnityPlayer.dll",
     "REPO_Data/Managed/Assembly-CSharp.dll",
     "REPO_Data/globalgamemanagers",
+)
+SAVE_FORMAT_SOURCES: Final = (
+    "REPO_Data/Managed/Assembly-CSharp-firstpass.dll",
+    "REPO_Data/Managed/netstandard.dll",
+    "REPO_Data/Managed/mscorlib.dll",
+    "REPO_Data/Managed/System.dll",
+    "REPO_Data/Managed/UnityEngine.CoreModule.dll",
+    "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll",
+    "MonoBleedingEdge/etc/mono/config",
+    "MonoBleedingEdge/etc/mono/4.5/machine.config",
 )
 # Each approved entry pins HEALTH_BUILD_SOURCES in order to reviewed Health evidence.
 # Build 26407089 has disposable mutation evidence; game persistence and release approval are pending.
@@ -115,17 +128,32 @@ def _game() -> tuple[Path, str, frozenset[str]]:
     return game.root / HEALTH_BUILD_SOURCES[0], build.build_id, frozenset(domains)
 
 
-def _source_pins(game: GameInstallation, build: ValidatedInstalledBuild) -> tuple[str, ...]:
+def _source_pins(
+    game: GameInstallation,
+    build: ValidatedInstalledBuild,
+    sources: tuple[str, ...] = HEALTH_BUILD_SOURCES,
+) -> tuple[str, ...]:
     if game.steam_library_root is None:
         raise RecoveryError("save_verification_unavailable")
     manifest = _digest(game.steam_library_root, build.manifest_path)
-    sources = tuple(_digest(game.root, game.root / name) for name in HEALTH_BUILD_SOURCES)
+    pins = tuple(_digest(game.root, game.root / name) for name in sources)
     if (
         installed_build_identity(game) != build
         or _digest(game.steam_library_root, build.manifest_path) != manifest
     ):
         raise RecoveryError("save_verification_unavailable")
-    return sources
+    return pins
+
+
+def _verify_private_sources(
+    game: GameInstallation, build: ValidatedInstalledBuild, bundle: Bundle
+) -> None:
+    sources = HEALTH_BUILD_SOURCES + (SAVE_FORMAT_SOURCES if bundle.save_format_pins else ())
+    if (
+        not bundle.accepts_build_id(build.build_id)
+        or _source_pins(game, build, sources) != bundle.source_pins + bundle.save_format_pins
+    ):
+        raise RecoveryError("save_unsupported")
 
 
 def _process_status(executable: Path) -> GameProcessStatus:
@@ -175,14 +203,20 @@ def _qualification_game(
     return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset({"health"})
 
 
+def private_sources_match(root: Path, pins: tuple[tuple[str, str], ...]) -> bool:
+    try:
+        return bool(pins) and all(
+            _digest(root, root / name, max_bytes=512 * 1024 * 1024) == digest
+            for name, digest in pins
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def verified_private_game(bundle: Bundle) -> tuple[GameInstallation, ValidatedInstalledBuild]:
     try:
         game, installed = _installed_game()
-        if (
-            installed.build_id != bundle.build
-            or _source_pins(game, installed) != bundle.source_pins
-        ):
-            raise RecoveryError("save_unsupported")
+        _verify_private_sources(game, installed, bundle)
     except (OSError, ValueError) as exc:
         if isinstance(exc, RecoveryError):
             raise
@@ -233,11 +267,10 @@ def _authorize_build(
     if not bundle.session:
         return _qualification_game(bundle, approval, save)
     game, installed = verified_private_game(bundle)
-    return (
-        game.root / HEALTH_BUILD_SOURCES[0],
-        installed.build_id,
-        frozenset({"health", "upgrades", "run", "refillToFull"}),
-    )
+    domains = {"health", "upgrades", "run"}
+    if bundle.recharge_identities and private_sources_match(game.root, bundle.item_sources):
+        domains.add("refillToFull")
+    return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset(domains)
 
 
 def production_health(
@@ -287,6 +320,7 @@ def production_health(
             operation,
             root,
             canonical=True,
+            reuse_native_metadata=True,
             acknowledge=action == "acknowledge",
             intent_allowed=intent_allowed,
             approval=approval,
@@ -302,6 +336,12 @@ def production_health(
     changes = cast(dict[str, object], payload)[domain]
     # Private editor sessions support Electron's zero default for absent Health.
     allow_missing_health = bundle is not None and bundle.session
+    # Private Recharge admission and publication both verify the compiled identities' sources.
+    recharge_loader = (
+        bundle.reviewed_recharge
+        if bundle is not None and bundle.session
+        else discover_installed_recharge_capabilities
+    )
 
     if action in {"prepare", "apply"}:
         prepared = prepare_health(
@@ -313,6 +353,7 @@ def production_health(
             game_status_loader=game_status,
             verify_source_identity=True,
             allow_missing_health=allow_missing_health,
+            recharge_capability_loader=recharge_loader,
             approval=approval,
             health_batch=domain == "health",
             upgrade_batch=domain == "upgrades",
@@ -335,6 +376,7 @@ def production_health(
         game_status_loader=game_status,
         verify_source_identity=True,
         allow_missing_health=allow_missing_health,
+        recharge_capability_loader=recharge_loader,
         verify_build=verify_build if action == "apply" else None,
         approval=approval,
         reserved=True,

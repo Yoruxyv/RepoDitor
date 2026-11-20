@@ -14,12 +14,14 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from repo_save_editor.desktop_api import production_health as admission
+from repo_save_editor.desktop_api import production_meta as meta_admission
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
     CATALOG_RELATIVE_PATH,
     discover_game_installation,
 )
 from repo_save_editor.services.game.processes import GameProcessStatus
+from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.saves.private_health import Bundle
 from repo_save_editor.storage import health_recovery as storage
 from repo_save_editor.storage.repository import SaveRepository
@@ -111,6 +113,127 @@ def test_write_admission_requires_the_reviewed_build_sources_and_domain(
     with pytest.raises(admission.RecoveryError) as denied:
         admission._admit_request(blocked, "a" * 64, domains, None)
     assert denied.value.code == "save_unsupported"
+
+
+@pytest.mark.parametrize(
+    ("change", "run_and_players", "recharge", "cosmetics"),
+    [
+        ("none", True, True, True),
+        ("build-only", True, True, True),
+        ("presentation", True, True, True),
+        ("item", True, False, True),
+        ("cosmetics", True, True, False),
+        ("item-and-cosmetics", True, False, False),
+        ("game-code", False, False, False),
+        ("es3-serializer", False, False, False),
+        ("crypto-runtime", False, False, False),
+        ("legacy-approval", False, False, False),
+        ("incomplete-evidence", False, False, False),
+    ],
+)
+def test_private_write_admission_reuses_only_the_reviewed_domain_evidence(
+    tmp_path, monkeypatch, change, run_and_players, recharge, cosmetics
+):
+    steam = tmp_path / "Steam"
+    game = steam / "steamapps/common/REPO"
+    catalog = game / CATALOG_RELATIVE_PATH
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("{}", encoding="utf-8")
+    build_id = "26732417" if change == "none" else "26732418"
+    (steam / "steamapps" / APP_MANIFEST_NAME).write_text(
+        f'"appid" "3241660"\n"installdir" "REPO"\n"buildid" "{build_id}"\n',
+        encoding="utf-8",
+    )
+    item = "REPO_Data/resources.assets"
+    cosmetics_source = "REPO_Data/level0"
+    managers = "REPO_Data/globalgamemanagers.assets"
+    changes = {
+        "presentation": "REPO_Data/StreamingAssets/BakedIcons/Items/fixture.png",
+        "item": item,
+        "cosmetics": cosmetics_source,
+        "item-and-cosmetics": managers,
+        "game-code": "REPO_Data/Managed/Assembly-CSharp.dll",
+        "es3-serializer": "REPO_Data/Managed/Assembly-CSharp-firstpass.dll",
+        "crypto-runtime": "REPO_Data/Managed/mscorlib.dll",
+    }
+    for name in (
+        *admission.HEALTH_BUILD_SOURCES,
+        *admission.SAVE_FORMAT_SOURCES,
+        item,
+        cosmetics_source,
+        managers,
+    ):
+        source = game / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(name.encode())
+    if change in changes:
+        source = game / changes[change]
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(b"changed source")
+
+    def pin(name):
+        return sha256(name.encode()).hexdigest()
+
+    format_pins = tuple(map(pin, admission.SAVE_FORMAT_SOURCES))
+    if change == "legacy-approval":
+        format_pins = ()
+    if change == "incomplete-evidence":
+        format_pins = format_pins[:-1]
+    reviewed = "Item Melee Inflatable Hammer"
+    bundle = Bundle(
+        tmp_path,
+        b"",
+        "26732417",
+        tuple(map(pin, admission.HEALTH_BUILD_SOURCES)),
+        session=True,
+        save_format_pins=format_pins,
+        item_sources=((item, pin(item)), (managers, pin(managers))),
+        recharge_identities=frozenset({reviewed}),
+        cosmetic_sources=((cosmetics_source, pin(cosmetics_source)), (managers, pin(managers))),
+        cosmetic_catalog_digest=sha256(b"[]").hexdigest(),
+    )
+    monkeypatch.delenv("REPODITOR_E2E", raising=False)
+    monkeypatch.setattr(admission, "platform", "win32")
+    monkeypatch.setattr(
+        admission,
+        "discover_game_installation",
+        lambda: discover_game_installation(steam_roots=(steam,), environment={}),
+    )
+    monkeypatch.setattr(meta_admission, "private_bundle", lambda: bundle)
+    if not run_and_players:
+        with pytest.raises(admission.RecoveryError, match="save_unsupported"):
+            admission._authorize_build(bundle, None, SAVE)
+        assert meta_admission.production_meta("state", None) == {"ok": True, "state": "disabled"}
+        return
+
+    _, current_build, domains = admission._authorize_build(bundle, None, SAVE)
+    assert current_build == build_id
+    assert domains == {"health", "upgrades", "run"} | ({"refillToFull"} if recharge else set())
+    assert bundle.reviewed_recharge((reviewed, "Item Unknown")) == {
+        reviewed: ItemRechargeCapability.RECHARGEABLE
+    }
+    if build_id != bundle.build:
+        assert not bundle._replace(session=False).accepts_build_id(build_id)
+
+    reads = []
+
+    def read_catalog(root):
+        reads.append(root)
+        return (), ()
+
+    monkeypatch.setattr(meta_admission, "read_installed_catalog", read_catalog)
+    if not cosmetics:
+        with pytest.raises(admission.RecoveryError, match="save_unsupported"):
+            meta_admission.verified_private_cosmetics(game, bundle)
+        assert reads == []
+        return
+
+    assert meta_admission.verified_private_cosmetics(game, bundle) == ()
+    assert meta_admission.verified_private_cosmetics(game, bundle) == ()
+    assert reads == [game]
+    (game / cosmetics_source).write_bytes(b"changed after decoding")
+    with pytest.raises(admission.RecoveryError, match="save_unsupported"):
+        meta_admission.verified_private_cosmetics(game, bundle)
 
 
 @pytest.mark.parametrize(
@@ -217,8 +340,7 @@ health.platform = "win32"
 health.APPROVED_HEALTH_BUILDS = {"901": tuple(sha256(name.encode()).hexdigest() for name in health.HEALTH_BUILD_SOURCES)}
 health.APPROVED_RUN_BUILDS = {"901": (health.APPROVED_HEALTH_BUILDS["901"], frozenset({"upgrades", "run", "refillToFull"}))}
 capabilities = lambda names: {name: ItemRechargeCapability.RECHARGEABLE for name in names}
-health.prepare_health = partial(health.prepare_health, recharge_capability_loader=capabilities)
-health.write_health = partial(health.write_health, recharge_capability_loader=capabilities)
+health.discover_installed_recharge_capabilities = capabilities
 transactions.serialize_advanced_save = partial(transactions.serialize_advanced_save, capability_loader=capabilities)
 if sys.argv[4] == "health-only":
     health.APPROVED_RUN_BUILDS = {}

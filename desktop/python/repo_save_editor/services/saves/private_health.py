@@ -1,4 +1,4 @@
-"""Read the one-edit approval carried by a private frozen Health bundle."""
+"""Read compatibility evidence and one-edit approvals from private frozen bundles."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from pathlib import Path
 from re import fullmatch
 from typing import NamedTuple
 
+from repo_save_editor.services.items.models import ItemRechargeCapability
+
 
 class Bundle(NamedTuple):
     directory: Path
@@ -20,10 +22,25 @@ class Bundle(NamedTuple):
     live: bool = False
     session: bool = False
     item_unity: str | None = None
+    item_sources: tuple[tuple[str, str], ...] = ()
+    recharge_identities: frozenset[str] = frozenset()
+    cosmetic_sources: tuple[tuple[str, str], ...] = ()
+    cosmetic_catalog_digest: str = ""
+    save_format_pins: tuple[str, ...] = ()
 
     @property
     def local_low(self) -> Path:
         return self.directory / "profile/AppData/LocalLow"
+
+    def accepts_build_id(self, build_id: str) -> bool:
+        return build_id == self.build or (self.session and bool(self.save_format_pins))
+
+    def reviewed_recharge(self, names: tuple[str, ...]) -> dict[str, ItemRechargeCapability]:
+        return {
+            name: ItemRechargeCapability.RECHARGEABLE
+            for name in names
+            if name in self.recharge_identities
+        }
 
 
 def private_bundle() -> Bundle | None:
@@ -43,6 +60,11 @@ def private_bundle() -> Bundle | None:
         getattr(data, "LIVE", False) is True,
         getattr(data, "SESSION", False) is True,
         getattr(data, "ITEM_UNITY", None),
+        tuple(getattr(data, "ITEM_SOURCES", {}).items()),
+        frozenset(getattr(data, "RECHARGE_IDENTITIES", ())),
+        tuple(getattr(data, "COSMETIC_SOURCES", {}).items()),
+        getattr(data, "COSMETIC_CATALOG_DIGEST", ""),
+        getattr(data, "SAVE_FORMAT_PINS", ()),
     )
 
 
