@@ -23,6 +23,12 @@ design in [application architecture](../docs/architecture/architecture.md).
   Python execution, or unrestricted network-fetch APIs.
 - Dynamic upgrades remain dynamic. Maps remain discovery/listing only: no BepInEx,
   C#, Harmony, runtime injection, or unreliable map forcing.
+- Verify the target save fingerprint and edited fields. Preserve exact encrypted
+  backups and receipt-based recovery.
+- For authorized private acceptance using a maintainer's profile, require a
+  verified full-profile backup before enabling edits and confirm the game is
+  closed before writing. Keep private authorization separate from public write
+  approval.
 
 ## Local presentation assets
 
