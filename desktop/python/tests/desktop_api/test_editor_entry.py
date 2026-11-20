@@ -5,7 +5,7 @@ import pytest
 
 from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api import __main__ as cli
-from repo_save_editor.desktop_api import editor_entry, saves
+from repo_save_editor.desktop_api import editor_entry, items, saves
 from repo_save_editor.desktop_api.player.players import list_players
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.services import baked_artwork
@@ -36,14 +36,14 @@ def test_editor_entry_projects_one_snapshot_and_rechecks_it(
             path.write_bytes(encrypt_save(sample_save))
         return {"ok": True, "available": False, "catalogPath": None, "maps": []}
 
-    monkeypatch.setattr(editor_entry, "discover_installed_item_metadata", metadata)
+    monkeypatch.setattr(items, "discover_installed_item_metadata", metadata)
     monkeypatch.setattr(editor_entry, "list_maps", maps)
     monkeypatch.setattr(editor_entry, "entry_artwork_revision", lambda: None)
     result = editor_entry.prepare_editor_entry(save_id, fingerprint, tmp_path)
-    assert discoveries == [
-        set(discover_item_type_names(sample_save))
-        | set(upgrade_item_candidates("playerUpgradeStrength"))
-    ]
+    names = set(discover_item_type_names(sample_save)) | set(
+        upgrade_item_candidates("playerUpgradeStrength")
+    )
+    assert discoveries == [names]
     if changed:
         assert result["error"]["code"] == "save_stale"
         assert "players" not in result
@@ -56,6 +56,11 @@ def test_editor_entry_projects_one_snapshot_and_rechecks_it(
         assert result["items"]["ok"] is True
         assert result["cacheRevision"] is None
         assert path.read_bytes() == original
+        monkeypatch.setattr(items, "entry_artwork_revision", lambda: "c" * 64)
+        refreshed = items.get_advanced_save(save_id, tmp_path, reuse_native_metadata=True)
+        assert discoveries == [names, names]
+        assert refreshed["advanced"] == result["items"]["advanced"]
+        assert refreshed["artworkRevision"] == "c" * 64
 
 
 @pytest.mark.parametrize("matches", [True, False])

@@ -22,13 +22,18 @@ from repo_save_editor.desktop_api.production_health import (
     private_sources_match,
     verified_private_game,
 )
-from repo_save_editor.services.cosmetics.installed_catalog import _catalog_payload
+from repo_save_editor.services.baked_artwork import entry_artwork_revision
+from repo_save_editor.services.cosmetics.installed_catalog import (
+    _catalog_payload,
+    _parse_cached_catalog,
+)
 from repo_save_editor.services.cosmetics.installed_reader import read_installed_catalog
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_BUILD_IDS
 from repo_save_editor.services.cosmetics.presentation_catalog import (
     discover_cosmetic_mutation_catalog,
 )
+from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.services.saves.private_health import Bundle, private_bundle
 from repo_save_editor.storage.health_recovery import RecoveryError
@@ -38,18 +43,29 @@ APPROVED_META_BUILDS: Final[dict[str, tuple[str, ...]]] = {}
 
 
 @lru_cache(maxsize=1)
-def _read_private_catalog(root: Path, digest: str) -> tuple[InstalledCosmeticMetadata, ...]:
-    catalog, _ = read_installed_catalog(root)
-    actual = sha256(json.dumps(_catalog_payload(catalog), sort_keys=True).encode()).hexdigest()
-    if actual != digest:
-        raise RecoveryError("save_unsupported")
-    return catalog
+def _read_private_catalog(
+    root: Path, digest: str, isolated: bool
+) -> tuple[InstalledCosmeticMetadata, ...]:
+    with native_artwork_cache("cosmetic-metadata", isolated=isolated) as cache:
+        encoded = cache.editor_frame("cosmetic-metadata", digest) if cache else None
+        # Every cached frame must match the frozen review digest before it can be parsed.
+        if encoded is not None and sha256(encoded).hexdigest() == digest:
+            catalog = _parse_cached_catalog(json.loads(encoded))
+            if catalog is not None:
+                return catalog
+        catalog, _ = read_installed_catalog(root)
+        encoded = json.dumps(_catalog_payload(catalog), sort_keys=True).encode()
+        if sha256(encoded).hexdigest() != digest:
+            raise RecoveryError("save_unsupported")
+        if cache is not None:
+            cache.publish_editor_frame("cosmetic-metadata", digest, encoded)
+        return catalog
 
 
 def verified_private_cosmetics(root: Path, bundle: Bundle) -> tuple[InstalledCosmeticMetadata, ...]:
     if not private_sources_match(root, bundle.cosmetic_sources):
         raise RecoveryError("save_unsupported")
-    catalog = _read_private_catalog(root, bundle.cosmetic_catalog_digest)
+    catalog = _read_private_catalog(root, bundle.cosmetic_catalog_digest, not bundle.live)
     if not private_sources_match(root, bundle.cosmetic_sources):
         raise RecoveryError("save_unsupported")
     return catalog
@@ -114,16 +130,17 @@ def production_meta(
         ).hexdigest()
         return admission, catalog
 
-    if action == "state":
-        return {
-            **meta_state(root, operation, admit=admit),
-            "sourcePath": str(root.parent / "MetaSave.es3"),
-        }
-    if action == "recover":
-        return {
-            **meta_recover(root, operation or "", proof, admit=admit),
-            "sourcePath": str(root.parent / "MetaSave.es3"),
-        }
+    if action in {"state", "recover"}:
+        revision = entry_artwork_revision(game.root)
+        result = (
+            meta_state(root, operation, admit=admit)
+            if action == "state"
+            else meta_recover(root, operation or "", proof, admit=admit)
+        )
+        view = result.get("view")
+        if isinstance(view, dict) and revision and revision == entry_artwork_revision(game.root):
+            view["artworkRevision"] = revision
+        return {**result, "sourcePath": str(root.parent / "MetaSave.es3")}
     return meta_write(
         root,
         operation or "",

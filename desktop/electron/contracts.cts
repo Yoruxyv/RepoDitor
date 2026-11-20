@@ -309,6 +309,7 @@ export interface CosmeticDto {
 
 export interface CosmeticsViewDto {
   catalogIssue?: "incompatible";
+  artworkRevision?: string;
   fingerprint: string;
   catalogAvailable: boolean;
   knownCatalogCount: number;

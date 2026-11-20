@@ -296,14 +296,14 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     let generation = registry.generation("save");
     let mut upgraded = upgrades(1);
     registry.register("save", generation, Some(&"a".repeat(64)), &mut upgraded);
-    registry.register_items("save", generation, Some(&"b".repeat(64)), &mut items);
+    registry.register_items("save", generation, Some(&"b".repeat(64)), None, &mut items);
     assert_eq!(*items.upgrade_icons().next().unwrap().1, None);
-    registry.register_items("save", generation, Some(&"a".repeat(64)), &mut items);
+    registry.register_items("save", generation, Some(&"a".repeat(64)), None, &mut items);
     assert_eq!(
         *items.upgrade_icons().next().unwrap().1,
         upgraded[0].icon_token
     );
-    registry.register_items("save", generation, Some(&"b".repeat(64)), &mut items);
+    registry.register_items("save", generation, Some(&"b".repeat(64)), None, &mut items);
     let tokens: Vec<_> = items
         .item_icons()
         .map(|(_, token)| token.clone().unwrap())
@@ -324,12 +324,52 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     let batch = registry.begin_artwork_batch(Scope::Item, pair).unwrap();
     assert_eq!(batch.fingerprint, fingerprint);
     assert_eq!(batch.members[0].key, "Item Tool 0");
-    registry.register_items("save", generation, Some(&"c".repeat(64)), &mut items);
+    registry.register_items("save", generation, Some(&"c".repeat(64)), None, &mut items);
     assert!(batch.cancelled.load(Ordering::SeqCst));
     registry.finish_artwork_batch(&batch, None);
     assert!(cancelled.load(Ordering::SeqCst));
     assert!(registry.begin(token).is_err());
     assert_eq!(registry.items.len(), 70);
+    #[cfg(feature = "production-health")]
+    {
+        let before = "a".repeat(64);
+        let after = "b".repeat(64);
+        let revision = "c".repeat(64);
+        registry.register_items(
+            "save",
+            generation,
+            Some(&before),
+            Some(&revision),
+            &mut items,
+        );
+        let token = items.item_icons().next().unwrap().1.clone().unwrap();
+        assert!(!registry.retain_item_artwork(
+            "save",
+            generation,
+            &after,
+            Some(&before),
+            &mut items
+        ));
+        assert!(!registry.retain_item_artwork(
+            "other",
+            generation,
+            &after,
+            Some(&revision),
+            &mut items
+        ));
+        assert!(registry.retain_item_artwork(
+            "save",
+            generation,
+            &after,
+            Some(&revision),
+            &mut items
+        ));
+        assert_eq!(
+            items.item_icons().next().unwrap().1.as_deref(),
+            Some(token.as_str())
+        );
+        assert_eq!(registry.begin(&token).unwrap().1, after);
+    }
     registry.open("save", &"a".repeat(64));
     assert!(registry.items.is_empty());
 }

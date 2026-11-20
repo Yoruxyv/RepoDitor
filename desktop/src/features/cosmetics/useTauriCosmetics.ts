@@ -76,24 +76,21 @@ function projected(
 ): CosmeticsViewDto | null {
   if (!view || !intent) return view;
   const action = intent.metaCosmetics;
+  if (action.action === "clearPresets") return { ...view, savedPresetCount: 0 };
+  const selected = action.action === "unlockIds" ? new Set(action.ids) : null;
+  let knownOwnedCount = view.knownOwnedCount;
   const cosmetics = view.cosmetics.map((c) => {
-    if (!c.mutationEligible || !c.known) return c;
-    let owned = c.owned;
-    if (
-      action.action === "unlockAll" ||
-      (action.action === "unlockIds" && action.ids.includes(c.id))
-    )
-      owned = true;
-    if (action.action === "lockAll") owned = false;
+    if (!c.mutationEligible || !c.known || (selected && !selected.has(c.id))) return c;
+    const owned = action.action !== "lockAll";
+    if (owned === c.owned) return c;
+    knownOwnedCount += owned ? 1 : -1;
     return { ...c, owned, state: owned ? ("owned" as const) : ("locked" as const) };
   });
-  const knownOwnedCount = cosmetics.filter((c) => c.known && c.owned).length;
   return {
     ...view,
     cosmetics,
     knownOwnedCount,
     knownLockedCount: view.knownCatalogCount - knownOwnedCount,
-    savedPresetCount: action.action === "clearPresets" ? 0 : view.savedPresetCount,
   };
 }
 
@@ -357,7 +354,7 @@ export function useTauriCosmetics(
     setError(null);
     setSaved(false);
   }
-  const view = projected(state.view, intent);
+  const view = useMemo(() => projected(state.view, intent), [state.view, intent]);
   const action = intent?.metaCosmetics;
   let affectedOwnershipCount = 0;
   if (action?.action === "unlockIds") {

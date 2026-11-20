@@ -9,13 +9,19 @@ import { usePreferences } from "@/app/preferences";
 import { prepareNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { operationErrorKey } from "@/app/i18n";
 
+export function sameCosmeticsSource(previous: CosmeticsViewDto, current: CosmeticsViewDto) {
+  return previous.artworkRevision && current.artworkRevision
+    ? previous.artworkRevision === current.artworkRevision
+    : previous.fingerprint === current.fingerprint;
+}
+
 function samePresentation(previous: CosmeticsViewDto, current: CosmeticsViewDto) {
   return (
-    previous.fingerprint === current.fingerprint &&
+    sameCosmeticsSource(previous, current) &&
     previous.cosmetics.length === current.cosmetics.length &&
     previous.cosmetics.every((row, index) => {
       const next = current.cosmetics[index];
-      return row.id === next?.id && row.iconReuseKey === next.iconReuseKey;
+      return row.id === next?.id && row.iconReuseKey?.slice(65) === next.iconReuseKey?.slice(65);
     })
   );
 }
@@ -30,14 +36,14 @@ export function useCosmeticsRead(
   active: boolean,
   recoveryGeneration: number,
   get: RepoDitorApi["cosmetics"]["get"],
-  sourceFingerprint?: string,
+  sourceIdentity?: string,
 ) {
   const { t } = usePreferences();
   const [refresh, setRefresh] = useState(0);
   // Each visit revalidates the sources. Retained thumbnails are already decoded.
   const request = useMemo(
-    () => ({ active, recoveryGeneration, refresh, get, sourceFingerprint }),
-    [active, recoveryGeneration, refresh, get, sourceFingerprint],
+    () => ({ active, recoveryGeneration, refresh, get, sourceIdentity }),
+    [active, recoveryGeneration, refresh, get, sourceIdentity],
   );
   const [state, setState] = useState<{
     request: typeof request;

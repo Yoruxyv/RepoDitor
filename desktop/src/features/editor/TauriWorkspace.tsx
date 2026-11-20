@@ -149,6 +149,7 @@ export function TauriWorkspace({
   const refreshUpgrades = upgrades.refreshArtwork;
   const refreshItems = items.refreshArtwork;
   const hasCanonicalItems = health.canonical?.advanced != null;
+  const itemArtworkRetained = health.canonical?.itemArtworkRetained === true;
   useEffect(() => {
     if (health.locked) return;
     if (
@@ -164,12 +165,13 @@ export function TauriWorkspace({
       artworkFingerprint.current.items !== currentSession.fingerprint
     ) {
       artworkFingerprint.current.items = currentSession.fingerprint;
-      void refreshItems(currentSession.fingerprint);
+      if (!itemArtworkRetained) void refreshItems(currentSession.fingerprint);
     }
   }, [
     currentSession.fingerprint,
     hasCanonicalItems,
     health.locked,
+    itemArtworkRetained,
     refreshItems,
     refreshUpgrades,
     section,

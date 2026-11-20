@@ -1,6 +1,6 @@
 /** Global Cosmetics presentation with independently admitted MetaSave editing. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { CosmeticsViewDto } from "@electron/contracts";
 import { closeNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { usePreferences } from "@/app/preferences";
@@ -13,7 +13,7 @@ import {
   type CompatibilityEnvironment,
 } from "@/features/editor/GameCompatibilityNotice";
 import { CosmeticsView } from "./CosmeticsView";
-import { useCosmeticsRead } from "./useCosmeticsRead";
+import { sameCosmeticsSource, useCosmeticsRead } from "./useCosmeticsRead";
 import { useTauriCosmetics } from "./useTauriCosmetics";
 import { TauriCosmeticsActions, TauriCosmeticsStatus } from "./TauriCosmeticsActions";
 
@@ -160,10 +160,13 @@ function useCosmeticsPresentation(
     meta.readOnlyReady || (production && !meta.authorizationPending),
     recoveryGeneration,
     tauriReadApi.cosmetics.get,
-    production ? meta.view?.fingerprint : undefined,
+    production ? (meta.view?.artworkRevision ?? meta.view?.fingerprint) : undefined,
   );
   const source = cosmetics.view;
-  const view = meta.enabled ? withNativePresentation(meta.view, source) : source;
+  const view = useMemo(
+    () => (meta.enabled ? withNativePresentation(meta.view, source) : source),
+    [meta.enabled, meta.view, source],
+  );
   const loading = meta.enabled ? meta.loading || meta.saving : cosmetics.loading;
   const needsArtwork = production && !source && cosmetics.loading;
   const replacing =
@@ -173,7 +176,7 @@ function useCosmeticsPresentation(
       cosmetics.loading &&
       source &&
       meta.view &&
-      source.fingerprint !== meta.view.fingerprint,
+      !sameCosmeticsSource(source, meta.view),
     );
   let nativeError = meta.state.state === "blocked" ? t("health.conflict") : null;
   if (meta.state.state === "busy") nativeError = t("health.checking");
@@ -208,15 +211,25 @@ function mutationActions(meta: ReturnType<typeof useTauriCosmetics>) {
 }
 
 function withNativePresentation(view: CosmeticsViewDto | null, source: CosmeticsViewDto | null) {
-  if (!view || source?.fingerprint !== view.fingerprint) return view;
-  if (!view.catalogAvailable && source.catalogAvailable) {
+  if (!view || !source || !sameCosmeticsSource(source, view)) return view;
+  if (
+    !view.catalogAvailable &&
+    source.catalogAvailable &&
+    view.fingerprint === source.fingerprint
+  ) {
     return { ...source, capabilities: view.capabilities };
   }
-  const icons = new Map(
-    source.cosmetics.map(({ id, iconToken, iconReuseKey }) => [id, { iconToken, iconReuseKey }]),
-  );
+  const rows = new Map(source.cosmetics.map((row) => [row.id, row]));
   return {
     ...view,
-    cosmetics: view.cosmetics.map((row) => ({ ...row, ...icons.get(row.id) })),
+    cosmetics: view.cosmetics.map((row) => {
+      const prepared = rows.get(row.id);
+      return prepared?.known &&
+        prepared.iconReuseKey &&
+        row.known &&
+        prepared.displayName === row.displayName
+        ? { ...row, iconToken: prepared.iconToken, iconReuseKey: prepared.iconReuseKey }
+        : row;
+    }),
   };
 }

@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import nullcontext
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from repo_save_editor.desktop_api import production_health as admission
 from repo_save_editor.desktop_api import production_meta as meta_admission
+from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
     CATALOG_RELATIVE_PATH,
@@ -28,6 +30,33 @@ from repo_save_editor.storage.repository import SaveRepository
 
 SAVE = "REPO_SAVE_2026_08_08_10_20_30"
 OPERATION = "a" * 32
+
+
+def test_private_catalog_checks_cached_bytes_against_reviewed_digest(tmp_path, monkeypatch):
+    catalog = (InstalledCosmeticMetadata(0, "Reviewed", 1, 2, 0, None),)
+    payload = json.dumps(meta_admission._catalog_payload(catalog), sort_keys=True).encode()
+    digest = sha256(payload).hexdigest()
+    frame = payload.replace(b"Reviewed", b"Unreviewed")
+    decodes = []
+
+    def publish(_scope, _revision, encoded):
+        nonlocal frame
+        frame = encoded
+
+    cache = SimpleNamespace(editor_frame=lambda *_: frame, publish_editor_frame=publish)
+    monkeypatch.setattr(meta_admission, "native_artwork_cache", lambda *_, **__: nullcontext(cache))
+    monkeypatch.setattr(
+        meta_admission, "read_installed_catalog", lambda root: (catalog, decodes.append(root))
+    )
+    try:
+        assert meta_admission._read_private_catalog(tmp_path, digest, True) == catalog
+        assert decodes == [tmp_path]
+        assert frame == payload
+        meta_admission._read_private_catalog.cache_clear()
+        assert meta_admission._read_private_catalog(tmp_path, digest, True) == catalog
+        assert decodes == [tmp_path]
+    finally:
+        meta_admission._read_private_catalog.cache_clear()
 
 
 def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):

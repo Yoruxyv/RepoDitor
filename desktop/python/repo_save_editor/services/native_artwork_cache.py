@@ -32,14 +32,24 @@ DIAGNOSTICS_RECORDS: Final = 48
 PUBLISH_LOCK: Final = "publish.lock"
 PUBLISH_TEMP: Final = "publish.tmp"
 EditorScope = Literal["upgrade", "item", "map"]
-EditorFrame = Literal["upgrade", "item", "map", "metadata"]
+EditorFrame = Literal["upgrade", "item", "map", "metadata", "cosmetic-metadata"]
 EDITOR_CACHE_LIMITS: Final[dict[EditorFrame, int]] = {
     "upgrade": 4 * 1024 * 1024,
     "item": 8 * 1024 * 1024,
     "map": 8 * 1024 * 1024,
     "metadata": 256 * 1024,
+    "cosmetic-metadata": CATALOG_LIMIT,
 }
-Operation = Literal["initial_catalog", "catalog", "thumbnail", "upgrade", "item", "map", "metadata"]
+Operation = Literal[
+    "initial_catalog",
+    "catalog",
+    "thumbnail",
+    "upgrade",
+    "item",
+    "map",
+    "metadata",
+    "cosmetic-metadata",
+]
 EVENTS: Final = frozenset(
     {
         "entry_missing",

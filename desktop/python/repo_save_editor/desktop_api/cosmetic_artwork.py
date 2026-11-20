@@ -15,6 +15,7 @@ from repo_save_editor.desktop_api.cosmetics import _meta_path, get_cosmetics
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
 from repo_save_editor.services.baked_artwork import (
     MAX_IDENTITIES,
+    entry_artwork_revision,
     native_cosmetic_catalog,
     read_bound_cosmetic_png,
     read_bound_cosmetic_pngs,
@@ -96,6 +97,7 @@ def _signature(key: bytes, fingerprint: str, identity: str, binding: str) -> str
 def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
     """Attach private artwork proofs to the independently validated MetaSave view."""
     key = _host_key()
+    artwork_revision = entry_artwork_revision() if key is not None else None
     snapshot = None
     incompatible = False
 
@@ -132,6 +134,8 @@ def get_native_cosmetics(*, warm_artwork: bool = False) -> dict[str, object]:
                 "ok": False,
                 "error": {"code": "save_stale", "message": "MetaSave changed during validation."},
             }
+        if artwork_revision and artwork_revision == entry_artwork_revision():
+            view["artworkRevision"] = artwork_revision
         proofs = {}
         for identity, (filename, png_revision) in mappings.items():
             binding = f"{revision}:{filename}:{png_revision}"

@@ -6,7 +6,7 @@ from hashlib import sha256
 from typing import TYPE_CHECKING
 
 from repo_save_editor.desktop_api.discovery.maps import list_maps
-from repo_save_editor.desktop_api.items import serialize_advanced_save
+from repo_save_editor.desktop_api.items import editor_item_metadata, serialize_advanced_save
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.player.upgrades import serialize_upgrades
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
@@ -15,10 +15,8 @@ from repo_save_editor.desktop_api.saves import load_discovered_save, open_save
 from repo_save_editor.services.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.items.discovery import discover_item_type_names
 from repo_save_editor.services.items.models import AdvancedSaveError
-from repo_save_editor.services.items.recharge_capability import discover_installed_item_metadata
 from repo_save_editor.services.player.installed_upgrades import (
     discover_installed_upgrade_presentations,
-    upgrade_item_candidates,
 )
 from repo_save_editor.services.player.upgrades import discover_player_upgrades
 
@@ -44,11 +42,7 @@ def prepare_editor_entry(
     except AdvancedSaveError:
         # The item projection still reports its own domain error below.
         item_names = ()
-    names = (
-        *item_names,
-        *(name for key in keys for name in upgrade_item_candidates(key)),
-    )
-    metadata = discover_installed_item_metadata(names, reuse_native_metadata=True)
+    metadata = editor_item_metadata(item_names, keys)
     presentation = discover_installed_upgrade_presentations(
         keys, metadata_loader=lambda _: metadata
     )
@@ -68,7 +62,7 @@ def prepare_editor_entry(
     cache_revision = (
         initial_revision
         if initial_revision == prepared["maps"].get("entryArtworkRevision")
-        and (not names or any(item.canonical_name is not None for item in metadata.values()))
+        and (not metadata or any(item.canonical_name is not None for item in metadata.values()))
         else None
     )
     return {"ok": True, "fingerprint": fingerprint, "cacheRevision": cache_revision, **prepared}

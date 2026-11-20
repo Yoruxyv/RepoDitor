@@ -9,6 +9,8 @@ use std::collections::{HashMap, HashSet};
 #[serde(rename_all = "camelCase")]
 pub struct Cosmetics {
     fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artwork_revision: Option<String>,
     catalog_available: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     catalog_issue: Option<CatalogIssue>,
@@ -166,11 +168,11 @@ pub fn parse(bytes: &[u8]) -> Result<Cosmetics, BackendError> {
             .take(),
     )
     .map_err(|_| BackendError::Invalid)?;
-    if view.fingerprint.len() != 64
-        || !view
-            .fingerprint
-            .bytes()
-            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+    if !saves::valid_fingerprint(&view.fingerprint)
+        || view
+            .artwork_revision
+            .as_deref()
+            .is_some_and(|rev| !saves::valid_fingerprint(rev))
     {
         return Err(BackendError::Invalid);
     }

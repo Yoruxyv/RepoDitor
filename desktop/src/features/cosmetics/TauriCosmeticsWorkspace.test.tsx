@@ -50,6 +50,97 @@ describe("native Cosmetics composition", () => {
       .mockReset()
       .mockResolvedValue({ ok: true, data: cosmetics });
   });
+
+  it.each([false, true])(
+    "reconciles a single unlock and prepares artwork only on source drift (%s)",
+    async (changed) => {
+      const source = { ...withArtwork(["1", "2"]), artworkRevision: "3".repeat(64) };
+      const next: CosmeticsViewDto = {
+        ...cosmetics,
+        artworkRevision: changed ? "4".repeat(64) : source.artworkRevision,
+        fingerprint: "b".repeat(64),
+        knownOwnedCount: 2,
+        knownLockedCount: 0,
+        cosmetics: cosmetics.cosmetics.map((row) =>
+          row.id === 28 ? { ...row, state: "owned", owned: true } : row,
+        ),
+      };
+      const initial: MetaState = {
+        ...disabledMeta(),
+        state: "idle",
+        session: "editor",
+        admission: {
+          build: "26732417",
+          identity: "production",
+          manifest: "manifest",
+          digest: "digest",
+        },
+        view: {
+          ...cosmetics,
+          fingerprint: source.fingerprint,
+          artworkRevision: source.artworkRevision,
+        },
+      };
+      let operationId = "";
+      vi.mocked(invoke).mockImplementation(async (command, args) => {
+        if (command === "test_meta_state") return disabledMeta();
+        if (command === "production_meta_state") return initial;
+        if (command === "production_meta_write") {
+          operationId = (args as { request: { operationId: string } }).request.operationId;
+          return {
+            operationId,
+            status: "applied",
+            view: next,
+            fingerprint: next.fingerprint,
+            recoverySession: "proof",
+          };
+        }
+        if (command === "production_meta_recover") {
+          return {
+            operationId,
+            status: "applied",
+            fingerprint: next.fingerprint,
+            fresh: { ...initial, view: next },
+          };
+        }
+        if (command === "cosmetic_artwork_get") {
+          const { token, tokens } = args as { token?: string; tokens?: string[] };
+          const image = (id: string) => ({
+            token: id,
+            revision: id.slice(-1).repeat(64),
+            dataUrl: "data:image/png;base64,AAAA",
+          });
+          return { ok: true, data: tokens ? tokens.map(image) : image(token!) };
+        }
+      });
+      const get = vi.mocked(tauriReadApi.cosmetics.get);
+      get.mockResolvedValueOnce({ ok: true, data: source });
+      get.mockResolvedValue({
+        ok: true,
+        data: { ...next, cosmetics: withArtwork(["5", "6"], "b").cosmetics },
+      });
+      renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+      const unlock = await screen.findByRole("button", { name: "Unlock Installed Cosmetic 28" });
+      const icon = () => screen.getByTestId("cosmetic-icon-28").querySelector("img");
+      const original = icon();
+      expect(original).toBeTruthy();
+      fireEvent.click(unlock);
+      expect(screen.queryByRole("button", { name: "Unlock Installed Cosmetic 28" })).toBeNull();
+      expect(get).toHaveBeenCalledOnce();
+      const save = screen.getByRole("button", { name: "Save Changes" });
+      fireEvent.click(save);
+      fireEvent.click(save);
+      fireEvent.click(screen.getAllByRole("button", { name: "Save Changes" }).at(-1)!);
+      await screen.findByText(/Changes saved and verified/);
+      if (changed) {
+        await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+      } else {
+        expect(get).toHaveBeenCalledOnce();
+        expect(icon()).toBe(original);
+        expect(screen.queryByRole("heading", { name: "Preparing cosmetic artwork" })).toBeNull();
+      }
+    },
+  );
   it("prepares a complete batch before rendering and only fetches changed bindings on revisit", async () => {
     const first = withArtwork(["a", "b"]);
     const warm = deferred<DesktopOperationResult<CosmeticsViewDto>>();

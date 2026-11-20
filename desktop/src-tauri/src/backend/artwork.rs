@@ -72,6 +72,7 @@ pub struct Registry {
     fingerprint: String,
     entries: HashMap<String, Entry>,
     item_fingerprint: String,
+    item_revision: Option<String>,
     items: HashMap<String, Entry>,
     maps: HashMap<String, Entry>,
     cosmetics: HashMap<String, Entry>,
@@ -99,6 +100,7 @@ impl Registry {
         }
         self.fingerprint.clear();
         self.item_fingerprint.clear();
+        self.item_revision = None;
     }
     pub fn begin_open(&mut self, save: &str) -> Result<Arc<AtomicBool>, BackendError> {
         if self.pending_open.is_some() {
@@ -195,6 +197,7 @@ impl Registry {
         save: &str,
         generation: Option<Uuid>,
         fingerprint: Option<&str>,
+        artwork_revision: Option<&str>,
         projection: &mut crate::projections::items::Advanced,
     ) {
         if generation.is_none() || generation != self.generation(save) {
@@ -206,6 +209,9 @@ impl Registry {
             return;
         };
         self.item_fingerprint = fingerprint.into();
+        self.item_revision = artwork_revision
+            .filter(|revision| valid_revision(revision))
+            .map(str::to_owned);
         if self.fingerprint == fingerprint {
             for (key, icon) in projection.upgrade_icons() {
                 *icon = self
@@ -223,6 +229,50 @@ impl Registry {
                 .or_insert_with_key(|name| register(&mut self.items, Scope::Item, name, None));
             *icon = Some(token.clone());
         }
+    }
+    #[cfg(feature = "production-health")]
+    pub fn retain_item_artwork(
+        &mut self,
+        save: &str,
+        generation: Option<Uuid>,
+        fingerprint: &str,
+        artwork_revision: Option<&str>,
+        projection: &mut crate::projections::items::Advanced,
+    ) -> bool {
+        if generation.is_none()
+            || generation != self.generation(save)
+            || artwork_revision.is_none()
+            || artwork_revision != self.item_revision.as_deref()
+        {
+            return false;
+        }
+        let tokens: HashMap<_, _> = self
+            .items
+            .iter()
+            .map(|(token, entry)| (&entry.key, token))
+            .collect();
+        if projection
+            .item_icons()
+            .any(|(name, _)| !tokens.contains_key(&name))
+        {
+            return false;
+        }
+        for (name, icon) in projection.item_icons() {
+            *icon = tokens.get(&name).map(|token| (*token).clone());
+        }
+        if self.fingerprint == self.item_fingerprint {
+            self.fingerprint = fingerprint.into();
+            for (key, icon) in projection.upgrade_icons() {
+                *icon = self
+                    .entries
+                    .iter()
+                    .find(|(_, entry)| entry.key == key)
+                    .map(|(token, _)| token.clone());
+            }
+        }
+        // Keep the already decoded tokens, while subsequent reads verify the new save bytes.
+        self.item_fingerprint = fingerprint.into();
+        true
     }
     pub fn register_maps(&mut self, projection: &mut crate::projections::maps::InstalledMaps) {
         revoke(&mut self.maps);

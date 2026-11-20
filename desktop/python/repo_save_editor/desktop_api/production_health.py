@@ -320,7 +320,7 @@ def production_health(
             operation,
             root,
             canonical=True,
-            reuse_native_metadata=True,
+            game_root=executable.parent,
             acknowledge=action == "acknowledge",
             intent_allowed=intent_allowed,
             approval=approval,

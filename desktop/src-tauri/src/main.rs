@@ -272,7 +272,10 @@ fn bind_editor_entry(
         registry.register(save, generation, Some(fingerprint), rows);
     }
     if let Ok(rows) = &mut items {
-        registry.register_items(save, generation, Some(fingerprint), rows);
+        let revision = raw["cacheRevision"]
+            .as_str()
+            .filter(|revision| raw["maps"]["entryArtworkRevision"] == *revision);
+        registry.register_items(save, generation, Some(fingerprint), revision, rows);
     }
     if let Ok(catalog) = &mut maps {
         registry.register_maps(catalog);
@@ -824,7 +827,13 @@ async fn advanced_get(
                 return Err(BackendError::Cancelled);
             }
             check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
-            registry.register_items(&id, generation, raw["fingerprint"].as_str(), &mut values);
+            registry.register_items(
+                &id,
+                generation,
+                raw["fingerprint"].as_str(),
+                raw["artworkRevision"].as_str(),
+                &mut values,
+            );
             Ok(values)
         },
     )

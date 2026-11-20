@@ -189,20 +189,10 @@ def _run_state(args: argparse.Namespace) -> dict[str, object]:
 
 def _advanced_save(args: argparse.Namespace) -> dict[str, object]:
     from repo_save_editor.desktop_api.items import get_advanced_save
-    from repo_save_editor.services.items.recharge_capability import (
-        discover_installed_item_metadata_with_evidence,
-    )
 
     if args.save_id is None:
         return _missing_save()
-    if not args.reuse_installed_metadata:
-        return get_advanced_save(args.save_id)
-    return get_advanced_save(
-        args.save_id,
-        metadata_evidence_loader=partial(
-            discover_installed_item_metadata_with_evidence, reuse_native_metadata=True
-        ),
-    )
+    return get_advanced_save(args.save_id, reuse_native_metadata=args.reuse_installed_metadata)
 
 
 def _parse_changes(payload: str) -> object:
