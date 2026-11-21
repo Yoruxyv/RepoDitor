@@ -36,7 +36,7 @@ function registered(name: "RepoDitor" | typeof product) {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      `Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | Where-Object DisplayName -eq '${name}' | Select-Object DisplayVersion,Publisher,UninstallString | ConvertTo-Json -Compress`,
+      `if (Test-Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall') { Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | Where-Object DisplayName -eq '${name}' | Select-Object DisplayVersion,Publisher,UninstallString | ConvertTo-Json -Compress }`,
     ],
     { encoding: "utf8", timeout: 15_000 },
   ).trim();
@@ -80,7 +80,8 @@ async function uninstall(name: "RepoDitor" | typeof product, localAppData: strin
   await expect.poll(() => existsSync(exe), { timeout: 30_000 }).toBe(false);
 }
 
-test("packaged production commands are scoped and reject an unapproved fixture", async ({}, info) => {
+test("packaged production commands are scoped and reject an unapproved fixture", async ({ browserName }, info) => {
+  expect(browserName).toBe("chromium");
   const profile = info.outputPath("profile");
   await mkdir(profile, { recursive: true });
   const run = await createRunSaveFixture(profile);

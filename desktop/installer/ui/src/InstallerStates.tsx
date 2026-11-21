@@ -156,11 +156,12 @@ export function ProgressState({
           ? "Removing the application. Your R.E.P.O. saves and game data are not being modified."
           : "Setting up the application. Your game data is not being modified."}
       </p>
-      {!uninstalling && !determinate ? (
+      {!uninstalling && !determinate && (
         <div className="progress-row">
           <progress aria-label="Installation progress" />
         </div>
-      ) : !uninstalling ? (
+      )}
+      {!uninstalling && determinate && (
         <div className="progress-row">
           <div className="progress-track">
             <progress
@@ -182,7 +183,7 @@ export function ProgressState({
             {value}%
           </span>
         </div>
-      ) : null}
+      )}
       <output className="status-note">{status}</output>
       <div className="spacer" />
     </div>
