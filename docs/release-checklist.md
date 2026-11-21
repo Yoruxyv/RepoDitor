@@ -792,7 +792,7 @@ interactive pass.
 
 #### v0.3.0 release notes
 
-Use the [v0.3.0 release notes](release-notes-v0.3.0.md) for the GitHub Release.
+Use the [v0.3.0 release notes](changelog/v0.3.0.md) for the GitHub Release.
 If the approved installer changes, update its SHA-256 there after validation.
 
 #### v0.3.0 distribution
