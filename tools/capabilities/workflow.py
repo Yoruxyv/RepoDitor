@@ -71,9 +71,6 @@ DESKTOP_COSMETICS_PATH: Final = (
     / "cosmetics"
     / "known_cosmetics.py"
 )
-ELECTRON_COSMETICS_PATH: Final = (
-    REPOSITORY_ROOT / "desktop" / "electron" / "ipc" / "known-cosmetics.cts"
-)
 RECHARGE_PARSER_SOURCE_PATHS: Final = (
     "desktop/python/repo_save_editor/services/items/installed_metadata.py",
     "desktop/python/repo_save_editor/services/items/models.py",
@@ -104,7 +101,6 @@ class ExpectedArtifacts:
     recharge: dict[str, object]
     cosmetics: dict[str, object]
     desktop_cosmetics: str
-    electron_cosmetics: str
 
 
 def _parser_source_digests(paths: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
@@ -136,18 +132,6 @@ def _desktop_cosmetics_module(evidence: CosmeticsEvidence) -> str:
     ]
     lines.extend(f"    {value}," for value in evidence.cosmetic_ids)
     lines.extend((")", ""))
-    return "\n".join(lines)
-
-
-def _electron_cosmetics_module(evidence: CosmeticsEvidence) -> str:
-    lines = [
-        "/** Generated exact cosmetic mutation capability. Do not edit by hand. */",
-        f"export const SNAPSHOT_VERSION = {SCHEMA_VERSION};",
-        'export const SOURCE_EVIDENCE = "tools/capabilities/evidence/cosmetics.v2.json";',
-        "export const PROVEN_COSMETIC_IDS = new Set<number>([",
-    ]
-    lines.extend(f"  {value}," for value in evidence.cosmetic_ids)
-    lines.extend(("]);", ""))
     return "\n".join(lines)
 
 
@@ -203,7 +187,6 @@ def expected_artifacts() -> ExpectedArtifacts:
         recharge_snapshot(recharge_evidence, RECHARGE_EVIDENCE_PATH),
         cosmetics_snapshot(cosmetics_evidence, COSMETICS_EVIDENCE_PATH),
         _desktop_cosmetics_module(cosmetics_evidence),
-        _electron_cosmetics_module(cosmetics_evidence),
     )
 
 
@@ -250,7 +233,6 @@ def check() -> int:
         actual_recharge = read_json(WEB_RECHARGE_PATH)
         actual_cosmetics = read_json(WEB_COSMETICS_PATH)
         actual_desktop = _read_text(DESKTOP_COSMETICS_PATH)
-        actual_electron = _read_text(ELECTRON_COSMETICS_PATH)
     except CapabilityDataError as error:
         print("Desktop <-> Web capability alignment FAILED")
         print(f"\nEvidence/schema\n  {error}")
@@ -273,8 +255,7 @@ def check() -> int:
             )
         )
     desktop_changed = actual_desktop != expected.desktop_cosmetics
-    electron_changed = actual_electron != expected.electron_cosmetics
-    if failures or desktop_changed or electron_changed:
+    if failures or desktop_changed:
         print("Desktop <-> Web capability alignment FAILED")
         for name, difference in failures:
             print()
@@ -283,8 +264,6 @@ def check() -> int:
                 print("  Snapshot metadata or schema differs from approved evidence.")
         if desktop_changed:
             print("\nDesktop Cosmetics\n  Generated exact-ID module is stale or invalid.")
-        if electron_changed:
-            print("\nElectron Cosmetics\n  Generated exact-ID module is stale or invalid.")
         print("\nSnapshots were not modified.")
         print("After evidence review, run `npm run capabilities:update`.")
         return 1
@@ -339,7 +318,6 @@ def update() -> int:
                 (WEB_RECHARGE_PATH, _json_text(expected.recharge)),
                 (WEB_COSMETICS_PATH, _json_text(expected.cosmetics)),
                 (DESKTOP_COSMETICS_PATH, expected.desktop_cosmetics),
-                (ELECTRON_COSMETICS_PATH, expected.electron_cosmetics),
             )
             if _write_if_changed(path, content)
         ]
@@ -361,7 +339,6 @@ def _write_approved_evidence(evidence_path: Path, evidence_value: object) -> int
         WEB_RECHARGE_PATH,
         WEB_COSMETICS_PATH,
         DESKTOP_COSMETICS_PATH,
-        ELECTRON_COSMETICS_PATH,
     )
     previous = {path: _read_text(path) if path.is_file() else None for path in paths}
 

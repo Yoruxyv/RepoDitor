@@ -1,8 +1,16 @@
+from datetime import UTC, datetime, timedelta
+from email.message import Message
+from email.utils import format_datetime
+from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
+
 import pytest
 
+from repo_save_editor.services.player import profiles
 from repo_save_editor.services.player.profiles import (
     STEAM_AVATAR_HOSTS,
     _fetch_profile,
+    get_steam_avatar,
     get_steam_avatar_url,
     is_plausible_steam_id,
 )
@@ -94,6 +102,74 @@ def test_profile_fetch_rejects_unsafe_urls_before_network() -> None:
     ):
         with pytest.raises(ValueError, match=r"^Steam profile URL is not allowed\.$"):
             _fetch_profile(url, 1.5)
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        (None, 60_000),
+        ("invalid", 60_000),
+        ("0", 60_000),
+        ("-1", 60_000),
+        ("1", 30_000),
+        ("45", 45_000),
+        ("300", 300_000),
+        ("301", None),
+        ("9" * 129, None),
+    ],
+)
+def test_rate_limit_retry_is_bounded_without_exposing_http_errors(header, expected):
+    headers = Message()
+    if header is not None:
+        headers["Retry-After"] = header
+
+    def limited(_url, _timeout):
+        raise HTTPError("https://steamcommunity.com", 429, "private profile detail", headers, None)
+
+    result = get_steam_avatar(STEAM_ID, fetch_profile=limited)
+    assert result.url is None
+    assert result.status == "transient"
+    assert result.retry_after_ms == expected
+    assert "private" not in repr(result)
+
+
+def test_http_date_retry_after_uses_a_finite_budget(monkeypatch):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    monkeypatch.setattr(profiles, "datetime", SimpleNamespace(now=lambda _tz: now))
+    assert (
+        profiles._retry_delay(format_datetime(now + timedelta(seconds=90), usegmt=True)) == 90_000
+    )
+    assert profiles._retry_delay(format_datetime(now + timedelta(seconds=301), usegmt=True)) is None
+
+
+@pytest.mark.parametrize("code", [301, 302, 401, 403, 404])
+def test_unavailable_profiles_and_redirects_never_request_retry(code):
+    def missing(_url, _timeout):
+        raise HTTPError("https://steamcommunity.com", code, "private", Message(), None)
+
+    result = get_steam_avatar(STEAM_ID, fetch_profile=missing)
+    assert result.status == "unavailable"
+    assert result.retry_after_ms is None
+    assert result.url is None
+
+
+@pytest.mark.parametrize("failure", [TimeoutError(), URLError("offline"), ConnectionResetError()])
+def test_transient_transport_errors_request_only_the_conservative_delay(failure):
+    def failed(_url, _timeout):
+        raise failure
+
+    result = get_steam_avatar(STEAM_ID, fetch_profile=failed)
+    assert (result.status, result.retry_after_ms, result.url) == ("transient", 60_000, None)
+
+
+def test_profile_redirect_policy_never_follows_another_location():
+    handler = profiles._NoProfileRedirect()
+    for url in [
+        "https://example.com",
+        "http://steamcommunity.com",
+        "https://steamcommunity.com/login",
+    ]:
+        assert handler.redirect_request(None, None, 302, "", Message(), url) is None
 
 
 def test_avatar_lookup_rejects_xml_entities_fail_softly() -> None:

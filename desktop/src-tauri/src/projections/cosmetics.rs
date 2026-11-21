@@ -1,0 +1,258 @@
+//! Validate the public MetaSave projection; Python owns catalog and ownership semantics.
+use super::{artwork::valid_icon_key, saves};
+use crate::error::{json, BackendError};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::{Number, Value};
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cosmetics {
+    fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artwork_revision: Option<String>,
+    catalog_available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    catalog_issue: Option<CatalogIssue>,
+    #[serde(deserialize_with = "safe_integer")]
+    known_catalog_count: i64,
+    #[serde(deserialize_with = "safe_integer")]
+    known_owned_count: i64,
+    #[serde(deserialize_with = "safe_integer")]
+    known_locked_count: i64,
+    #[serde(deserialize_with = "safe_integer")]
+    saved_preset_count: i64,
+    #[serde(deserialize_with = "safe_ids")]
+    unknown_owned_ids: Vec<i64>,
+    capabilities: Capabilities,
+    cosmetics: Vec<Cosmetic>,
+    #[serde(default, skip_serializing)]
+    artwork_proofs: HashMap<String, String>,
+    #[serde(default, skip_serializing)]
+    artwork_previews: HashMap<String, Value>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum CatalogIssue {
+    Incompatible,
+}
+
+impl Cosmetics {
+    pub fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+
+    pub fn artwork_rows(
+        &mut self,
+    ) -> impl Iterator<Item = (String, String, Option<Value>, &mut Cosmetic)> {
+        let mut proofs = std::mem::take(&mut self.artwork_proofs);
+        if proofs.len() > 2_000 {
+            proofs.clear();
+        }
+        let mut previews = std::mem::take(&mut self.artwork_previews);
+        if previews.len() > 8 {
+            previews.clear();
+        }
+        self.cosmetics.iter_mut().filter_map(move |cosmetic| {
+            if !cosmetic.known || !(0..2_000).contains(&cosmetic.id) {
+                return None;
+            }
+            let id = cosmetic.id.to_string();
+            let proof = proofs.remove(&id)?;
+            let preview = previews.remove(&id);
+            Some((id, proof, preview, cosmetic))
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Capabilities {
+    can_read_cosmetics: bool,
+    can_unlock_cosmetic: bool,
+    can_unlock_all: bool,
+    can_remove_ownership: bool,
+    can_clear_presets: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Cosmetic {
+    #[serde(deserialize_with = "safe_integer")]
+    id: i64,
+    display_name: String,
+    #[serde(rename = "type", deserialize_with = "nullable_integer")]
+    cosmetic_type: Option<i64>,
+    #[serde(deserialize_with = "nullable_integer")]
+    rarity: Option<i64>,
+    #[serde(deserialize_with = "nullable_integer")]
+    status: Option<i64>,
+    owned: bool,
+    known: bool,
+    state: String,
+    mutation_eligible: bool,
+    #[serde(deserialize_with = "nullable_string")]
+    removal_blocked_reason: Option<String>,
+    #[serde(skip_serializing)]
+    icon_key: Value,
+    #[serde(skip_deserializing)]
+    pub icon_token: Option<String>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub icon_reuse_key: Option<String>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub icon_preview: Option<crate::backend::artwork::Image>,
+}
+
+fn integer<E: serde::de::Error>(value: Number) -> Result<i64, E> {
+    value
+        .as_f64()
+        .filter(|n| n.fract() == 0.0 && n.abs() <= 9_007_199_254_740_991.0)
+        .map(|n| n as i64)
+        .ok_or_else(|| E::custom("Expected a JavaScript-safe integer"))
+}
+fn safe_integer<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i64, D::Error> {
+    integer(Number::deserialize(deserializer)?)
+}
+fn nullable_integer<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<i64>, D::Error> {
+    Option::<Number>::deserialize(deserializer)?
+        .map(integer)
+        .transpose()
+}
+fn safe_ids<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<i64>, D::Error> {
+    Vec::<Number>::deserialize(deserializer)?
+        .into_iter()
+        .map(integer)
+        .collect()
+}
+fn nullable_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
+}
+fn nonblank(value: &str) -> bool {
+    !value
+        .trim_matches(|c: char| (c.is_whitespace() && c != '\u{0085}') || c == '\u{feff}')
+        .is_empty()
+}
+
+pub fn parse(bytes: &[u8]) -> Result<Cosmetics, BackendError> {
+    let mut raw = json(bytes)?;
+    if raw.get("ok") == Some(&Value::Bool(false)) {
+        if !matches!(
+            raw.pointer("/error/code").and_then(Value::as_str),
+            Some(
+                "invalid_request"
+                    | "game_running"
+                    | "game_status_unknown"
+                    | "save_missing"
+                    | "meta_missing"
+                    | "save_decrypt_failed"
+                    | "save_unsupported"
+                    | "backend_unavailable"
+                    | "save_stale"
+                    | "save_validation_failed"
+                    | "backup_failed"
+                    | "save_write_failed"
+                    | "save_verification_failed"
+            )
+        ) {
+            return Err(BackendError::Invalid);
+        }
+        return Err(saves::domain_error(&raw)?);
+    }
+    if raw.get("ok") != Some(&Value::Bool(true)) {
+        return Err(BackendError::Invalid);
+    }
+    let view: Cosmetics = serde_json::from_value(
+        raw.get_mut("cosmetics")
+            .ok_or(BackendError::Invalid)?
+            .take(),
+    )
+    .map_err(|_| BackendError::Invalid)?;
+    if !saves::valid_fingerprint(&view.fingerprint)
+        || view
+            .artwork_revision
+            .as_deref()
+            .is_some_and(|rev| !saves::valid_fingerprint(rev))
+    {
+        return Err(BackendError::Invalid);
+    }
+    // Reuse the exact evidence behind the generated Python policy, never a catalog/range.
+    let evidence: Value = serde_json::from_str(include_str!(
+        "../../../../tools/capabilities/evidence/cosmetics.v2.json"
+    ))
+    .map_err(|_| BackendError::Invalid)?;
+    let proven: HashSet<i64> = evidence
+        .pointer("/installedCatalog/exactIds")
+        .and_then(Value::as_array)
+        .ok_or(BackendError::Invalid)?
+        .iter()
+        .map(|id| id.as_i64().ok_or(BackendError::Invalid))
+        .collect::<Result<_, _>>()?;
+    let mut identities = HashSet::new();
+    let mut known = 0;
+    let mut owned = 0;
+    let mut mutation_available = false;
+    let mut unknown = Vec::new();
+    for cosmetic in &view.cosmetics {
+        if !identities.insert(cosmetic.id)
+            || !nonblank(&cosmetic.display_name)
+            || !valid_icon_key(&cosmetic.icon_key)
+            || cosmetic
+                .removal_blocked_reason
+                .as_deref()
+                .is_some_and(|reason| !nonblank(reason))
+        {
+            return Err(BackendError::Invalid);
+        }
+        if cosmetic.known {
+            if cosmetic.id != known
+                || cosmetic.cosmetic_type.is_none()
+                || cosmetic.rarity.is_none()
+                || cosmetic.status.is_none()
+                || cosmetic.state != if cosmetic.owned { "owned" } else { "locked" }
+                || (cosmetic.mutation_eligible && !proven.contains(&cosmetic.id))
+                || (!cosmetic.mutation_eligible && cosmetic.removal_blocked_reason.is_none())
+            {
+                return Err(BackendError::Invalid);
+            }
+            known += 1;
+            owned += i64::from(cosmetic.owned);
+            mutation_available |= cosmetic.mutation_eligible;
+        } else {
+            if !cosmetic.owned
+                || cosmetic.display_name != format!("Cosmetic #{}", cosmetic.id)
+                || cosmetic.cosmetic_type.is_some()
+                || cosmetic.rarity.is_some()
+                || cosmetic.status.is_some()
+                || cosmetic.state != "unknown"
+                || cosmetic.mutation_eligible
+                || cosmetic.removal_blocked_reason.is_none()
+            {
+                return Err(BackendError::Invalid);
+            }
+            unknown.push(cosmetic.id);
+        }
+    }
+    if view.known_catalog_count < 0
+        || view.known_owned_count < 0
+        || view.known_locked_count < 0
+        || view.saved_preset_count < 0
+        || view.known_owned_count + view.known_locked_count != view.known_catalog_count
+        || known != view.known_catalog_count
+        || owned != view.known_owned_count
+        || known - owned != view.known_locked_count
+        || view.catalog_available != (known > 0)
+        || view.unknown_owned_ids != unknown
+        || !view.capabilities.can_read_cosmetics
+        || view.capabilities.can_unlock_cosmetic != mutation_available
+        || view.capabilities.can_unlock_all != mutation_available
+        || view.capabilities.can_remove_ownership != mutation_available
+    {
+        return Err(BackendError::Invalid);
+    }
+    Ok(view)
+}
+
+#[cfg(test)]
+#[path = "../../tests/unit/projections/cosmetics.rs"]
+mod tests;

@@ -6,7 +6,7 @@ import type {
   AdvancedSaveDto,
   DesktopOperationResult,
   SaveCanonicalAdvanced,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
@@ -26,8 +26,14 @@ function initialState(result: DesktopOperationResult<AdvancedSaveDto> | null): S
     : { advanced: null, error: operationErrorKey(result.error.code), loading: false };
 }
 
-function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
-  if (!item.canRefillToFull || item.chargeState !== "stored" || item.storedCharge === null)
+export function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
+  if (
+    !item.canRefillToFull ||
+    item.rechargeCapability !== "rechargeable" ||
+    item.chargeState !== "stored" ||
+    item.storedCharge === null ||
+    !Number.isSafeInteger(item.storedCharge)
+  )
     return null;
   return {
     feature: "advanced",
@@ -43,18 +49,30 @@ function refillEdit(item: AdvancedItemDto): AdvancedRefillEdit | null {
 export function useItems(
   saveId: string,
   initialResult: DesktopOperationResult<AdvancedSaveDto> | null = null,
+  get: (
+    saveId: string,
+    fingerprint?: string,
+    background?: boolean,
+  ) => Promise<DesktopOperationResult<AdvancedSaveDto>>,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const [pendingByItem, setPendingByItem] = useState<Record<string, AdvancedRefillEdit>>({});
   const mounted = useRef(false);
+  const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
+      if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
+      requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
-        const result = await window.repoditor.advanced.get(saveId);
-        if (!mounted.current) return result.ok;
+        const result = await get(saveId);
+        if (!mounted.current || version !== snapshotVersion.current) return result.ok;
         if (result.ok) {
           setState({ advanced: result.data, error: null, loading: false });
           return true;
@@ -66,7 +84,7 @@ export function useItems(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             advanced: preserveExisting ? current.advanced : null,
             error: "error.service",
@@ -74,18 +92,27 @@ export function useItems(
           }));
         }
         return false;
+      } finally {
+        requestInFlight.current = false;
       }
     },
-    [saveId],
+    [get, saveId],
   );
 
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false);
+    });
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially]);
 
   function refillToFull(item: AdvancedItemDto): void {
     const edit = refillEdit(item);
@@ -159,6 +186,26 @@ export function useItems(
     setPendingByItem({});
   }
 
+  async function refreshArtwork(fingerprint: string): Promise<void> {
+    const version = snapshotVersion.current;
+    const result = await get(saveId, fingerprint, true);
+    if (!mounted.current || version !== snapshotVersion.current || !result.ok) return;
+    const tokens = new Map(result.data.items.map((item) => [item.saveKey, item.iconToken]));
+    setState((current) => {
+      if (!current.advanced) return current;
+      return {
+        ...current,
+        advanced: {
+          ...current.advanced,
+          items: current.advanced.items.map((item) => ({
+            ...item,
+            iconToken: tokens.get(item.saveKey) ?? null,
+          })),
+        },
+      };
+    });
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -169,7 +216,13 @@ export function useItems(
     revertRefill,
     revertAll,
     applyAfterSave,
+    acceptSnapshot: (advanced: AdvancedSaveDto) => {
+      needsInitialLoad.current = false;
+      snapshotVersion.current += 1;
+      setState({ advanced, error: null, loading: false });
+    },
     reload: () => load(false),
     refreshAfterSave: () => load(true),
+    refreshArtwork,
   };
 }

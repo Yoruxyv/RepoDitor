@@ -33,11 +33,13 @@ export default defineConfig([
     "build",
     "coverage",
     "dist",
-    "dist-electron",
+    "dist-electron", // Local output from the published legacy build.
     "node_modules",
     "playwright-report",
     "python/",
     "test-results",
+    "src-tauri/target",
+    "src-tauri/gen",
   ]),
   {
     files: ["**/*.{js,mjs,cjs}"],
@@ -95,26 +97,6 @@ export default defineConfig([
       "sonarjs/prefer-regexp-exec": "warn",
       "sonarjs/void-use": "error",
       "sonarjs/no-duplicate-string": ["warn", { threshold: 2 }],
-    },
-  },
-  {
-    files: ["electron/**/*.cts"],
-    languageOptions: {
-      parserOptions: {
-        project: "./tsconfig.electron.json",
-        projectService: false,
-        tsconfigRootDir: configDirectory,
-      },
-    },
-  },
-  {
-    files: ["electron/**/*.test.ts"],
-    languageOptions: {
-      parserOptions: {
-        project: "./electron/tsconfig.json",
-        projectService: false,
-        tsconfigRootDir: configDirectory,
-      },
     },
   },
   {

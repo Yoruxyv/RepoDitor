@@ -1,10 +1,26 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import type { PlayerDto, PlayerUpgradeDto } from "@/app/desktopContracts";
 import { renderWithPreferences } from "@/test/render";
 import { UpgradesView } from "./UpgradesView";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+const healthIconToken = `upgrade-artwork:${"a".repeat(32)}`;
+beforeEach(() => {
+  vi.mocked(invoke)
+    .mockReset()
+    .mockResolvedValue({
+      ok: true,
+      data: {
+        token: healthIconToken,
+        revision: "a".repeat(64),
+        dataUrl: "data:image/png;base64,AAAA",
+      },
+    });
+});
 
 const player: PlayerDto = { id: "1", name: "Alpha", health: 100, maxHealth: 100 };
 const secondPlayer: PlayerDto = { id: "2", name: "Beta User", health: 80, maxHealth: 100 };
@@ -14,7 +30,7 @@ const upgrades: PlayerUpgradeDto[] = [
     label: "Health",
     presentationSource: "installed",
     gameplayCap: 10,
-    iconToken: "health-token",
+    iconToken: healthIconToken,
     values: [{ playerId: "1", value: 2 }],
   },
   {
@@ -28,6 +44,45 @@ const upgrades: PlayerUpgradeDto[] = [
 ];
 
 describe("UpgradesView", () => {
+  it("shows accessible saved values above caps without inputs, pending edits or artwork requests", async () => {
+    const user = userEvent.setup();
+    const value = {
+      ...upgrades[0]!,
+      iconToken: null,
+      values: [{ playerId: "1", value: 2_147_483_648 }],
+    };
+    renderWithPreferences(
+      <UpgradesView
+        avatarUrls={{ "1": null }}
+        error={null}
+        loading={false}
+        pendingByUpgrade={{}}
+        players={[player]}
+        selectedPlayerId={player.id}
+        upgrades={[value]}
+        onChange={null}
+        onRevert={null}
+        onRejectAvatar={vi.fn()}
+        onRetry={vi.fn()}
+        onSelectPlayer={vi.fn()}
+      />,
+    );
+    const output = screen.getByRole("textbox", { name: "Health for Alpha" });
+    expect(output.getAttribute("value")).toBe("2147483648");
+    expect(output.tabIndex).toBe(0);
+    expect(output.hasAttribute("readonly")).toBe(true);
+    output.focus();
+    await user.keyboard("{ArrowUp}123");
+    expect(output.getAttribute("value")).toBe("2147483648");
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revert" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByTestId("pending-upgrade-playerUpgradeHealth")).toBeNull();
+    expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe(
+      "specific",
+    );
+    expect(screen.queryByRole("img")).toBeNull();
+  });
   it("matches the player selector and upgrade-row geometry while loading", () => {
     renderWithPreferences(
       <UpgradesView
@@ -72,7 +127,11 @@ describe("UpgradesView", () => {
       />,
     );
 
-    expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe("local");
+    await waitFor(() =>
+      expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe(
+        "local",
+      ),
+    );
     fireEvent.load(screen.getByTestId("upgrade-icon-playerUpgradeHealth").querySelector("img")!);
     expect(screen.getByTestId("upgrade-icon-playerUpgradeSuperMegaJump").dataset.iconSource).toBe(
       "fallback",

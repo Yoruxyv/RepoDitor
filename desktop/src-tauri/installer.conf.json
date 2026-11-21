@@ -1,0 +1,22 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "template": "../build/release-installer/installer.nsi",
+        "installerHooks": "../installer/nsis/tauri-host.nsh",
+        "installerIcon": "../public/icon.ico",
+        "uninstallerIcon": "../public/icon.ico"
+      }
+    },
+    "resources": {
+      "../../LICENSE": "licenses/RepoDitor-MIT.txt",
+      "../../THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md",
+      "../src/assets/fonts/teko/OFL.txt": "licenses/Teko-OFL.txt"
+    }
+  }
+}

@@ -3,185 +3,110 @@ name: Installer lifecycle
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "desktop/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "LICENSE"
-      - ".github/workflows/installer-lifecycle.yml"
-      - ".github/workflows/quality.yml"
-      - ".github/workflows/release.yml"
-      - ".github/workflows/release-unsigned.yml"
   push:
     branches: [main]
-    paths:
-      - "desktop/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "LICENSE"
-      - ".github/workflows/installer-lifecycle.yml"
-      - ".github/workflows/quality.yml"
-      - ".github/workflows/release.yml"
-      - ".github/workflows/release-unsigned.yml"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: installer-lifecycle-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   current-user-lifecycle:
-    name: Current-user production installer lifecycle
+    name: Current-user Tauri installer lifecycle
     runs-on: windows-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: desktop
-
+        shell: pwsh
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           python-version: "3.13"
-
-      - name: Sync locked Python and packaging dependencies
+      - name: Sync locked packaging dependencies
         working-directory: .
         run: uv sync --locked --group package
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-
-      - name: Install desktop dependencies
-        run: npm ci
-
-      - name: Verify installer configuration
-        run: npm run release:check
-
-      - name: Verify lifecycle supervision failure paths
-        shell: pwsh
-        run: ./scripts/test-installer-lifecycle-process.ps1
-
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Verify versions and retained installer host
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run release:check
+          npm run test:installer:host
+          npm run test:installer:layout
+          npm run installer:host
+          npm run installer:verify:host
+      - name: Verify installer supervision failure paths
+        run: ./installer/scripts/test-installer-lifecycle-process.ps1
       - name: Verify installer UI diagnostics and action eligibility
         shell: powershell
-        run: ./scripts/test-installer-lifecycle-ui.ps1
-
-      - name: Verify native installer stages and completion checks
-        run: npm run test:installer:host
-
-      - name: Verify real extraction callbacks and authenticated progress transport
-        run: npm run test:installer:extraction
-
-      - name: Verify production installer composition at normal and maximized sizes
-        run: npm run test:installer:layout
-
-      - name: Build, package, and verify the production installer
-        run: npm run package
-
-      - name: Exercise the production installer as an unelevated user
-        timeout-minutes: 12
-        shell: pwsh
+        run: ./installer/scripts/test-installer-lifecycle-ui.ps1
+      - name: Build and verify the production NSIS installer and portable payload
+        run: npm run package:installer
+      - name: Fetch published v0.2.1 for migration
         run: |
-          $ciUser = "rdci$([Guid]::NewGuid().ToString('N').Substring(0, 12))"
-          $passwordText = "Rdc1!$([Guid]::NewGuid().ToString('N').Substring(0, 9))"
-          $stage = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle"
-          New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item scripts/test-installer-lifecycle.ps1 (Join-Path $stage "lifecycle.ps1")
-          Copy-Item scripts/installer-lifecycle-ui.ps1 $stage
-          Copy-Item (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName (Join-Path $stage "setup.exe")
-
-          . ./scripts/installer-lifecycle-process.ps1
-          Copy-Item scripts/installer-lifecycle-process.ps1 $stage
-          $controlRoot = Join-Path $env:RUNNER_TEMP "repoditor-installer-lifecycle-control"
-          New-Item -ItemType Directory -Path $controlRoot | Out-Null
-          $acl = [Security.AccessControl.DirectorySecurity]::new()
-          $acl.SetAccessRuleProtection($true, $false)
-          foreach ($ownerSID in @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-32-544', 'S-1-5-18')) {
-            $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
-              [Security.Principal.SecurityIdentifier]::new($ownerSID),
-              'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
-            ))
-          }
-          Set-Acl -LiteralPath $controlRoot -AclObject $acl
-          $control = Join-Path $controlRoot "run.json"
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $setup = Get-Item -LiteralPath "build/installer/RepoDitor-Setup-$version-x64.exe"
+          $legacy = Join-Path $env:RUNNER_TEMP 'RepoDitor-Setup-0.2.1-x64.exe'
+          Invoke-WebRequest 'https://github.com/Yoruxyv/RepoDitor/releases/download/v0.2.1/RepoDitor-Setup-0.2.1-x64.exe' -OutFile $legacy
+          "REPODITOR_CI_SETUP=$($setup.FullName)" >> $env:GITHUB_ENV
+          "REPODITOR_LEGACY_SETUP=$legacy" >> $env:GITHUB_ENV
+      - name: Build test-only public-editing UI host (never packaged)
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $config = Get-Content -LiteralPath 'build/release-installer/public-editing.json' -Raw | ConvertFrom-Json
+          $browser = Get-Content -LiteralPath 'src-tauri/startup.test.conf.json' -Raw | ConvertFrom-Json
+          $config.app | Add-Member -NotePropertyName windows -NotePropertyValue $browser.app.windows -Force
+          $previousTauriConfig = $env:TAURI_CONFIG
           try {
-            & net.exe user $ciUser $passwordText /add /passwordchg:no
-            if ($LASTEXITCODE -ne 0) { throw "Could not create isolated standard lifecycle user." }
-            $sid = (Get-LocalUser -Name $ciUser).SID.Value
-            $profileRoot = Join-Path 'C:\Users' $ciUser
-            # Kept outside the worker-writable stage; never store credentials.
-            @{ account=$ciUser; sid=$sid; profile=$profileRoot; cleaned=$false } |
-              ConvertTo-Json | Set-Content -LiteralPath $control
-
-            & icacls.exe $stage /grant "${ciUser}:(OI)(CI)M" /T /Q
-            if ($LASTEXITCODE -ne 0) { throw "Could not grant the lifecycle user access to its QA stage." }
-
-            $credential = [PSCredential]::new(
-              "$env:COMPUTERNAME\$ciUser",
-              (ConvertTo-SecureString $passwordText -AsPlainText -Force)
-            )
-            $workerEnvironment = @{
-              USERPROFILE = $profileRoot
-              HOMEDRIVE = $env:SystemDrive
-              HOMEPATH = "\Users\$ciUser"
-              APPDATA = Join-Path $profileRoot "AppData\Roaming"
-              LOCALAPPDATA = Join-Path $profileRoot "AppData\Local"
-              TEMP = Join-Path $profileRoot "AppData\Local\Temp"
-              TMP = Join-Path $profileRoot "AppData\Local\Temp"
-              PSModulePath = "$env:WINDIR\System32\WindowsPowerShell\v1.0\Modules;$env:PSModulePath"
-            }
-            $worker = Start-Process powershell.exe `
-              -Credential $credential `
-              -LoadUserProfile `
-              -Environment $workerEnvironment `
-              -WindowStyle Hidden `
-              -ArgumentList @(
-                "-NoProfile",
-                "-Mta",
-                "-ExecutionPolicy Bypass",
-                ('-File "' + $stage + '\lifecycle.ps1"'),
-                ('-SetupPath "' + $stage + '\setup.exe"'),
-                ('-ResultsPath "' + $stage + '\results"'),
-                "-RequireUnelevated",
-                "-ObserveSetupUi",
-                ('-ExpectedDisposableProfile "' + $profileRoot + '"'),
-                "-ExpectedDisposableSID $sid"
-              ) `
-              -RedirectStandardOutput (Join-Path $stage "worker.stdout.log") `
-              -RedirectStandardError (Join-Path $stage "worker.stderr.log") `
-              -PassThru
-
-            Wait-LifecycleWorker $worker $stage
+            $env:TAURI_CONFIG = $config | ConvertTo-Json -Depth 12 -Compress
+            cargo build --manifest-path src-tauri/Cargo.toml --release --locked --features tauri/custom-protocol,public-editing,native-ui-test
+          } finally {
+            $env:TAURI_CONFIG = $previousTauriConfig
           }
-          finally {
-            ./scripts/cleanup-installer-lifecycle-ci.ps1
+          $uiHostDir = Join-Path (Get-Location) 'build/test-only-public-editing-ui-host'
+          Remove-Item -LiteralPath $uiHostDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $uiHostDir | Out-Null
+          $uiHostExe = Join-Path $uiHostDir 'repoditor-preview.exe'
+          Copy-Item -LiteralPath 'src-tauri/target/release/repoditor-preview.exe' -Destination $uiHostExe -Force
+          $backendTarget = (Resolve-Path -LiteralPath 'build/tauri-release/backend').Path
+          New-Item -ItemType Junction -Path (Join-Path $uiHostDir 'backend') -Target $backendTarget | Out-Null
+          $artifact = Get-Content -LiteralPath 'build/tauri-release/artifact-check.json' -Raw | ConvertFrom-Json
+          $actualProdHash = (Get-FileHash -LiteralPath 'build/tauri-release/RepoDitor.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualProdHash -ne $artifact.hostSha256) {
+            throw 'Production portable host hash changed while building the test-only UI host.'
           }
-
-      - name: Clean up disposable installer account after interruption
-        if: ${{ always() }}
-        shell: pwsh
-        run: ./scripts/cleanup-installer-lifecycle-ci.ps1
-
-      - name: Upload installer lifecycle diagnostics
+          "REPODITOR_E2E_UI_EXECUTABLE=$uiHostExe" >> $env:GITHUB_ENV
+      - name: Install, launch WebView2, uninstall and verify synthetic game data
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
+          npm run typecheck:e2e
+          npm exec -- playwright test e2e/installer/tauri-installer.spec.ts --output=test-results/tauri-installer --retries=0
+      - name: Retain checksums and test diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: installer-lifecycle-diagnostics
           path: |
-            ${{ runner.temp }}/repoditor-installer-lifecycle/results
-            ${{ runner.temp }}/repoditor-installer-lifecycle/worker-timeout-processes.json
-            ${{ runner.temp }}/repoditor-installer-lifecycle/worker.stdout.log
-            ${{ runner.temp }}/repoditor-installer-lifecycle/worker.stderr.log
+            desktop/build/tauri-release/artifact-check.json
+            desktop/build/installer/*.sha256
+            desktop/test-results/tauri-installer/**/*.png
+            desktop/test-results/tauri-installer/**/trace.zip
+            desktop/test-results/tauri-installer/**/error-context.md
+            desktop/test-results/tauri-installer/**/startup-*.json
           if-no-files-found: warn
           retention-days: 14

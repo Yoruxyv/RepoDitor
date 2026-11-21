@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-test-run-write"
+description = "Enables the test_run_write command without any pre-configured scope."
+commands.allow = ["test_run_write"]
+
+[[permission]]
+identifier = "deny-test-run-write"
+description = "Denies the test_run_write command without any pre-configured scope."
+commands.deny = ["test_run_write"]

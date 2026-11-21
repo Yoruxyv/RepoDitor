@@ -1,7 +1,7 @@
 /** Owns fail-soft renderer loading state for the read-only installed map catalog. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { DesktopOperationResult, InstalledMapsDto } from "@electron/contracts";
+import type { DesktopOperationResult, InstalledMapsDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
@@ -26,17 +26,22 @@ function initialState(result: DesktopOperationResult<InstalledMapsDto> | null): 
       };
 }
 
-export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> | null = null) {
+export function useMaps(
+  initialResult: DesktopOperationResult<InstalledMapsDto> | null = null,
+  list: () => Promise<DesktopOperationResult<InstalledMapsDto>>,
+  loadInitially = true,
+) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const mounted = useRef(false);
   const request = useRef(0);
   const load = useCallback(async () => {
+    needsInitialLoad.current = false;
     const current = ++request.current;
     setState((old) => ({ ...old, loading: true, error: null }));
     try {
-      const result = await window.repoditor.maps.list();
+      const result = await list();
       if (mounted.current && current === request.current) {
         setState(
           result.ok
@@ -48,14 +53,21 @@ export function useMaps(initialResult: DesktopOperationResult<InstalledMapsDto> 
       if (mounted.current && current === request.current)
         setState((old) => ({ ...old, error: "error.service", loading: false }));
     }
-  }, []);
+  }, [list]);
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load();
     return () => {
       mounted.current = false;
       request.current += 1;
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const initialRequest = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load();
+    });
+    return () => window.clearTimeout(initialRequest);
+  }, [load, loadInitially]);
   return { ...state, error: state.error ? t(state.error) : null, reload: load };
 }

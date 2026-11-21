@@ -1,0 +1,11 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --remote-debugging-port={{CDP_PORT}} --remote-debugging-address=127.0.0.1"
+      }
+    ]
+  }
+}

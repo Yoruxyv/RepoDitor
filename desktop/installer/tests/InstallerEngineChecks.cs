@@ -10,7 +10,7 @@ internal static class InstallerEngineChecks
 {
     private static int Main(string[] args)
     {
-        if (args.Contains("/currentuser"))
+        if (args.Contains("/currentuser") || args.Contains("/RDREMOVE"))
         {
             File.WriteAllLines(Environment.GetEnvironmentVariable("REPODITOR_CHECK_ARGUMENTS"), args);
             return int.Parse(Environment.GetEnvironmentVariable("REPODITOR_CHECK_EXIT_CODE"));
@@ -114,6 +114,34 @@ internal static class InstallerEngineChecks
                 Check(stages.SequenceEqual(new[] {
                     InstallerState.Preparing, InstallerState.Installing, InstallerState.Finalizing
                 }), "Removal must verify the handoff before returning.");
+            }
+
+            var tauriRemoval = Arguments.Parse(new[] {
+                "--mode", "uninstall", "--tauri", "true", "--engine", enginePath,
+                "--registry-key", registryPath
+            });
+            var installedUninstaller = Path.Combine(installPath, "uninstall.exe");
+            var backend = Path.Combine(installPath, "backend", "repoditor-backend.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(backend));
+            File.WriteAllText(installedUninstaller, "synthetic installed entry");
+            File.WriteAllText(backend, "synthetic backend");
+            using (var engine = new InstallerEngine(tauriRemoval, stages.Add))
+            {
+                await ExpectFailureAsync(engine, installPath);
+                var arguments = File.ReadAllLines(argumentPath);
+                Check(arguments.Take(2).SequenceEqual(new[] { "/S", "/RDREMOVE" }) &&
+                    string.Join(" ", arguments.Skip(2)) == "_?=" + installPath,
+                    "The temporary NSIS worker must wait in place on the exact registered install.");
+                File.Delete(installedUninstaller);
+                await ExpectFailureAsync(engine, installPath);
+                File.Delete(backend);
+                using (Registry.CurrentUser.CreateSubKey(registryPath))
+                {
+                    await ExpectFailureAsync(engine, installPath);
+                }
+                Registry.CurrentUser.DeleteSubKey(registryPath);
+                await engine.RunAsync("current", installPath);
+                Check(File.Exists(enginePath), "Success must not depend on deleting the temporary worker.");
             }
         }
         finally

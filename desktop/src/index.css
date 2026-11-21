@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Keep dependency-glob enumeration inside the shared renderer source tree. */
+@import "tailwindcss" source("./");
 @import "./styles/fonts.css";
 @import "./styles/theme.css";
 

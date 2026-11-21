@@ -4,7 +4,7 @@
  * The natural-flow review list and sticky controls are presentation only; callers own
  * pending state and route save actions through their authoritative session boundary.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/i18n";
@@ -18,6 +18,10 @@ interface PendingChangesBarProps {
   readonly onRevert: () => void;
   readonly onSave: () => void;
   readonly testIdPrefix?: string;
+  readonly blocked?: boolean;
+  readonly invalid?: boolean;
+  readonly saveUnavailableReason?: string | null;
+  readonly reviewPath?: string | undefined;
 }
 
 function changeCount(count: number, t: Translate): string {
@@ -69,6 +73,28 @@ function displayLabel(edit: PendingEdit, t: Translate): string {
   return edit.label;
 }
 
+function usePendingReview(hasEdits: boolean, required: boolean, onSave: () => void) {
+  const [reviewing, setReviewing] = useState(false);
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  const opensReview = required && !reviewing;
+
+  useEffect(() => {
+    if (!hasEdits) setReviewing(false);
+  }, [hasEdits]);
+
+  function saveOrReview(event: MouseEvent<HTMLButtonElement>) {
+    if (opensReview) {
+      setReviewing(true);
+      reviewButton.current?.focus();
+    } else if (!required || event.detail < 2) {
+      // A double-click that opens review must not also confirm it.
+      onSave();
+    }
+  }
+
+  return { reviewing, setReviewing, reviewButton, saveOrReview };
+}
+
 export function PendingChangesBar({
   edits,
   saving,
@@ -77,15 +103,19 @@ export function PendingChangesBar({
   onRevert,
   onSave,
   testIdPrefix = "workspace",
+  blocked = false,
+  invalid = false,
+  saveUnavailableReason = null,
+  reviewPath,
 }: PendingChangesBarProps) {
   const { t } = usePreferences();
-  const [reviewing, setReviewing] = useState(false);
+  const { reviewing, setReviewing, reviewButton, saveOrReview } = usePendingReview(
+    edits.length > 0,
+    reviewPath !== undefined,
+    onSave,
+  );
   const savingSafelyLabel = t("status.savingSafely");
   const visible = edits.length > 0 || saving || error !== null || backupPath !== null;
-
-  useEffect(() => {
-    if (edits.length === 0) setReviewing(false);
-  }, [edits.length]);
 
   if (!visible) {
     return (
@@ -124,6 +154,11 @@ export function PendingChangesBar({
               hidden={!reviewing}
               id={`${testIdPrefix}-review`}
             >
+              {reviewPath ? (
+                <p className="mb-3 wrap-break-word font-mono text-xs text-secondary">
+                  {t("workspace.source")} {reviewPath}
+                </p>
+              ) : null}
               <ul className="grid max-h-[min(45dvh,24rem)] gap-3 overflow-y-auto overscroll-contain pr-1">
                 {edits.map((edit) => (
                   <li
@@ -156,6 +191,11 @@ export function PendingChangesBar({
                   {error}
                 </p>
               ) : null}
+              {saveUnavailableReason ? (
+                <p className="mt-1 text-xs text-secondary" id={`${testIdPrefix}-save-unavailable`}>
+                  {saveUnavailableReason}
+                </p>
+              ) : null}
               {backupPath ? (
                 <output
                   aria-atomic="true"
@@ -169,6 +209,7 @@ export function PendingChangesBar({
             {edits.length > 0 ? (
               <div className="flex flex-wrap gap-2 md:justify-end">
                 <button
+                  ref={reviewButton}
                   aria-controls={`${testIdPrefix}-review`}
                   aria-expanded={reviewing}
                   className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent aria-expanded:border-accent aria-expanded:text-accent disabled:cursor-not-allowed disabled:opacity-50"
@@ -180,7 +221,7 @@ export function PendingChangesBar({
                 </button>
                 <button
                   className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving}
+                  disabled={saving || blocked}
                   type="button"
                   onClick={onRevert}
                 >
@@ -188,9 +229,12 @@ export function PendingChangesBar({
                 </button>
                 <button
                   className="ui-feedback rounded-sm bg-accent px-3 py-2 font-semibold text-accent-ink hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving}
+                  aria-describedby={
+                    saveUnavailableReason ? `${testIdPrefix}-save-unavailable` : undefined
+                  }
+                  disabled={saving || blocked || invalid || saveUnavailableReason !== null}
                   type="button"
-                  onClick={onSave}
+                  onClick={saveOrReview}
                 >
                   {t(saving ? "action.saving" : "action.saveChanges")}
                 </button>

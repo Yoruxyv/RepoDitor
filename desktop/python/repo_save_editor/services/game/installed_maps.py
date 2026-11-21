@@ -9,12 +9,14 @@ from pathlib import Path
 
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
-    SUNSTONE_ARTWORK_BUILD_ID,
+    VALIDATED_BUILD_ID,
+    artwork_assembly_matches,
+    installed_build_identity,
     owned_file,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     ObjectRecord,
     PPtr,
@@ -108,30 +110,49 @@ def level_metadata(reader: _Reader, asset_name: str) -> InstalledLevel:
     return InstalledLevel(family, name, paths)
 
 
+def _verify_reviewed_assembly(assembly: Path, build_id: str) -> None:
+    if assembly.stat().st_size > 32 * 1024 * 1024:
+        raise UnityMetadataError("Installed level assembly exceeds its bound.")
+    with assembly.open("rb") as handle:
+        raw = handle.read(32 * 1024 * 1024 + 1)
+    if len(raw) > 32 * 1024 * 1024 or not artwork_assembly_matches(
+        build_id, hashlib.sha256(raw).hexdigest()
+    ):
+        raise UnityMetadataError("Unsupported installed level assembly.")
+
+
 def read_installed_levels(
     installation: GameInstallation,
+    *,
+    presentation: bool = False,
 ) -> tuple[tuple[InstalledLevel, ...], tuple[Path, ...]] | None:
-    """Return reviewed installed membership; unsupported builds retain JSON discovery."""
-    build = validated_installed_artwork_build(installation)
-    if build is None or build.build_id != SUNSTONE_ARTWORK_BUILD_ID:
+    """Validate the roster independently of other artwork; fail soft to JSON discovery."""
+    build = (
+        installed_build_identity(installation)
+        if presentation
+        else validated_installed_artwork_build(installation)
+    )
+    if build is None or build.build_id == VALIDATED_BUILD_ID:
         return None
     root = installation.root
     library = root.parents[2]
     data = root / "REPO_Data"
-    assembly = owned_file(library, data / "Managed/Assembly-CSharp.dll")
-    sources = (build.manifest_path, assembly, *(data / name for name in SOURCE_NAMES))
+    sources = (build.manifest_path, *(data / name for name in SOURCE_NAMES))
+    if not presentation:
+        sources = (*sources, data / "Managed/Assembly-CSharp.dll")
     before = [(p, owned_file(library, p).stat()) for p in sources]
-    if assembly.stat().st_size > 32 * 1024 * 1024:
-        raise UnityMetadataError("Installed level assembly exceeds its bound.")
-    with assembly.open("rb") as handle:
-        if hashlib.file_digest(handle, "sha256").hexdigest() != SUNSTONE_ARTWORK_ASSEMBLY_SHA256:
-            raise UnityMetadataError("Unsupported installed level assembly.")
+    if not presentation:
+        _verify_reviewed_assembly(sources[-1], build.build_id)
     with ExitStack() as stack:
+        index_type = PresentationFileIndex if presentation else ArtworkFileIndex
         indexes = {
-            name: stack.enter_context(ArtworkFileIndex(owned_file(library, data / name)))
+            name: stack.enter_context(index_type(owned_file(library, data / name)))
             for name in SOURCE_NAMES
         }
-        if any(i.unity_version != SUNSTONE_UNITY_VERSION for i in indexes.values()):
+        version = indexes["level0"].unity_version
+        if (
+            not is_sunstone_layout(version) if presentation else version != SUNSTONE_UNITY_VERSION
+        ) or any(i.unity_version != version for i in indexes.values()):
             raise UnityMetadataError("Unsupported installed level layout.")
 
         def resolve(

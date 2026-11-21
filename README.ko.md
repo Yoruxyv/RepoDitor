@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-43.3.0-47848F?style=flat-square&labelColor=1a1a2e&logo=electron&logoColor=white" alt="Electron 43.3.0">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&labelColor=1a1a2e&logo=tauri&logoColor=white" alt="Tauri 2">
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&labelColor=1a1a2e&logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&labelColor=1a1a2e&logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?style=flat-square&label=release&labelColor=1a1a2e" alt="Latest release">
@@ -41,7 +41,7 @@
 
 ### 집중된 Windows 데스크톱 앱에서 로컬 R.E.P.O. 세이브를 확인하고 편집 — BepInEx 불필요
 
-RepoDitor는 로컬 R.E.P.O. `.es3` 데이터를 위한 비공식 독립 실행형 Electron 세이브 에디터입니다.
+RepoDitor는 로컬 R.E.P.O. `.es3` 데이터를 위한 비공식 독립 실행형 Tauri 세이브 에디터입니다.
 
 데스크톱 인터페이스는 범위가 제한된 타입 기반 작업만 제공하며, 번들된 Python 백엔드가 세이브 파싱, 검증, 백업, 게임 의미 규칙, 암호화 쓰기를 담당합니다.
 
@@ -190,21 +190,13 @@ Get-Content .\RepoDitor-Setup-<version>-x64.exe.sha256
 
 ## 🔐 보안 모델
 
-renderer는 `contextIsolation: true`와 `nodeIntegration: false`로 sandbox 처리됩니다.
-임의 파일 읽기, 프로세스 실행, 세이브 복호화, 임의 IPC 호출 또는 원시 복호화 세이브 JSON 수신을 할 수 없습니다.
+WebView2 renderer에는 CSP와 제한된 Tauri 명령이 적용됩니다. GitHub 릴리스는 고정된 endpoint에서 확인합니다.
 
-Steam 아바타 보강은 선택 기능이며 fail-soft로 동작합니다. 타당한 Steam ID만 조회하며 반환된 이미지 URL은 제한된 HTTPS 호스트에 대해 검증되고,
-프로필 데이터는 세이브에 기록되지 않습니다. GitHub Stars는 타입이 지정된 Electron IPC를 통해 하나의 고정된 메타데이터 endpoint만 사용하며,
-성공 결과는 세션 동안 캐시됩니다. renderer에는 임의 network-fetch API가 제공되지 않습니다.
-
-현재 선택적 백그라운드 네트워크 요청은 이것뿐입니다. 프로젝트 링크는 사용자 작업 후에만 외부에서 열리고,
-현재 소스에는 analytics 또는 telemetry 통합이 없습니다.
-
-취약점을 비공개로 신고하려면 [SECURITY.md](SECURITY.md)를 참조하세요.
+[SECURITY.md](SECURITY.md)
 
 ## 🔎 오픈 소스 및 로컬 데이터
 
-RepoDitor는 오픈 소스입니다. Electron 데스크톱 앱, Python 세이브 백엔드, 패키징 구성, CI/release 워크플로를 이 리포지토리에서 확인할 수 있으며,
+RepoDitor는 오픈 소스입니다. Tauri 데스크톱 앱, Python 세이브 백엔드, 패키징 구성, CI/release 워크플로를 이 리포지토리에서 확인할 수 있으며,
 문서화된 개발 및 패키징 명령으로 소스에서 직접 빌드할 수 있습니다. 공개 소스만으로 다운로드한 바이너리가 그 소스와 동일함을 증명할 수는 없습니다.
 게시된 체크섬은 artifact 무결성을 검증하며 코드 안전성이나 게시자 신원을 증명하지 않습니다.
 
@@ -226,7 +218,7 @@ Steam 아바타 보강은 세이브에서 파생된 타당한 Steam ID를 해당
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **세이브 상태**                | 명시적으로 열 때마다 Python이 현재 `.es3`를 읽고 복호화/검증한 후 타입이 지정된 projection과 소스 fingerprint만 반환합니다. 복호화된 원시 세이브 JSON은 영구 저장하지 않습니다. renderer는 같은 fingerprint가 다시 확인된 경우에만 현재 앱 세션에서 타입이 지정된 editor-entry 데이터를 재사용할 수 있으며, 쓰기에 성공하면 해당 항목을 무효화합니다. |
 | **아이템/코스메틱 이미지**     | 설치된 게임의 검증된 baked PNG를 우선합니다. 코스메틱은 로컬 Sprite 디코딩으로, 이미지가 없는 아이템은 Phosphor로 대체합니다. 두 종류 모두 LocalLow 이미지 캐시를 읽지 않습니다. React에는 불투명 토큰만 전달합니다.                                                                                                                                  |
-| **파생 업그레이드 이미지**     | Python이 설치된 게임에서 지원되는 texture를 찾아 디코딩합니다. Electron은 검증된 파생 PNG를 `%APPDATA%\repoditor-desktop\presentation`에 저장하고 감시 중인 소스 identity가 변경되지 않은 동안만 재사용합니다. 참조되지 않는 PNG를 정리하고 항목이 없거나 변경되었거나 잘못되었거나 읽을 수 없으면 재생성하거나 Phosphor로 fallback합니다.            |
+| **파생 업그레이드 이미지**     | [Artwork cache](docs/architecture/architecture.md#desktop-local-presentation-assets) |
 | **설치된 코스메틱 메타데이터** | 지원 빌드의 `baked-artwork.json`은 schema, 설치 위치와 소스 identity를 검증합니다. 과거 빌드는 별도 카탈로그 캐시를 사용합니다. 표시용 메타데이터는 보유 증거나 변경 권한이 아닙니다.                                                                                                                                                                 |
 
 테마와 언어 설정은 renderer storage를 사용합니다. RepoDitor는 명시적인 지원 저장 작업 후에만 R.E.P.O. 데이터를 쓰며,
@@ -235,7 +227,7 @@ Steam 아바타 보강은 세이브에서 파생된 타당한 Steam ID를 해당
 RepoDitor를 다시 시작한 뒤 파생 표시 캐시를 점검하려면 다음을 실행합니다.
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 이 읽기 전용 스크립트는 `manifest.json`과 저장된 hash 이름 PNG를 비교해 참조되지 않거나 누락된 artifact를 보고합니다.
@@ -263,9 +255,9 @@ RepoDitor 소유 인터페이스는 다음 언어로 제공됩니다.
 ```text
 React renderer
   ↓ typed feature calls
-Sandboxed Electron preload
-  ↓ narrow IPC contracts
-Electron main process
+WebView2 with scoped Tauri commands
+  ↓ Rust admission and process supervision
+Tauri native host
   ↓ structured requests
 Bundled Python desktop API
   ↓
@@ -282,7 +274,7 @@ RepoDitor Desktop에서는 게임 및 세이브 의미 규칙에 대해 Python�
 ## 🧪 품질 및 테스트
 
 자동 테스트는 생성되었거나 정리된 fixture와 임시 복사본을 사용하며 실제 사용자 세이브는 사용하지 않습니다.
-리포지토리는 Python formatting/tests, renderer import 경계, lint, TypeScript build, component/contract tests, Windows Electron E2E,
+리포지토리는 Python formatting/tests, renderer import 경계, lint, TypeScript build, component/contract tests, Windows packaged Tauri E2E,
 package 내용, Vite 없는 packaged E2E 및 installer 구조를 확인합니다.
 
 ```powershell
@@ -299,7 +291,8 @@ npm run release:check
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
+npm run package:tauri
+npm run test:e2e:tauri
 ```
 
 ## 🛠️ 개발
@@ -313,6 +306,7 @@ uv sync --locked
 
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
@@ -320,15 +314,7 @@ npm run dev
 
 ## 📦 패키징 및 릴리스
 
-`desktop/`에서 `npm run package`를 실행하면 locked Python 3.13 PyInstaller **onedir** sidecar, production Electron app,
-unpacked packaged smoke test, 마법사형 NSIS installer 및 `desktop/release/`의 로컬 artifact 검증을 빌드합니다.
-Electron Builder는 sidecar directory를 `resources/backend/` 아래에 설치하면서 고정 진입점 `resources/backend/repoditor-backend.exe`를 유지합니다.
-이 로컬 경로는 의도적으로 서명되지 않습니다.
-
-공식 태그 GitHub release는 별도의 fail-closed signing command를 사용하고 SHA-256 파일 생성 전에 Authenticode signature를 검증하며,
-기존 package check가 끝난 뒤에만 게시합니다. 서명 승인 또는 credential을 사용할 수 없는 동안에는 별도의 임시 manual workflow로
-명확히 표시된 unsigned release를 게시할 수 있습니다. 이 workflow는 quality, package, packaged-E2E, installer 및 checksum gate를 유지하지만
-signature verification은 생략합니다. 현재 요구 사항과 보존된 과거 v0.1.0 baseline은 [release checklist](docs/release-checklist.md)를 참조하세요.
+`desktop/`에서 `npm run package:tauri`를 실행하면 Python backend를 포함한 포터블 패키지가 생성됩니다. 설치 프로그램과 v0.2.1 마이그레이션은 [릴리스 체크리스트](docs/release-checklist.md)를 참조하세요.
 
 ## ⚠️ 제한 사항
 
@@ -346,7 +332,7 @@ signature verification은 생략합니다. 현재 요구 사항과 보존된 과
 | --------------------------------------------------------- | ---------------------------------------- |
 | [문서 인덱스](docs/README.md)                             | 기술 및 릴리스 문서의 정리된 진입점      |
 | [아키텍처](docs/architecture/architecture.md)             | Desktop 경계, 소유권, 데이터 흐름        |
-| [Electron UI](docs/architecture/electron-ui.md)           | renderer 역할, 반응형 동작, 외형, 접근성 |
+| [Desktop UI](docs/architecture/electron-ui.md)           | renderer 역할, 반응형 동작, 외형, 접근성 |
 | [세이브 형식](docs/research/save-format.md)               | 확인된 암호화 세이브 구조                |
 | [리버스 엔지니어링](docs/research/reverse-engineering.md) | 과거 근거, 현재 지원, 미해결 의미 규칙   |
 | [릴리스 체크리스트](docs/release-checklist.md)            | 현재 릴리스 gate와 과거 v0.1.0 baseline  |

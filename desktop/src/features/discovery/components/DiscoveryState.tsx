@@ -6,7 +6,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 
-import type { DesktopOperationError, SaveRootStatus } from "@electron/contracts";
+import type { DesktopOperationError, SaveRootStatus } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/i18n";
 

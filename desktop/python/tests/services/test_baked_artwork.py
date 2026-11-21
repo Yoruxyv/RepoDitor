@@ -13,12 +13,17 @@ from types import SimpleNamespace
 import pytest
 
 from repo_save_editor.services import baked_artwork as baked
+from repo_save_editor.services.cosmetics import presentation_catalog as presentation
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
+from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
+from repo_save_editor.services.native_artwork_cache import native_artwork_cache
+from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_hash import unity_hash128
+from tests.services.test_installed_cosmetic_catalog import _build_install, _cosmetic_asset
 from tests.unity_serialized_fixture import (
     aligned_string,
     mono_script,
@@ -145,7 +150,9 @@ def test_item_keys_follow_authored_prefab_identity_including_removed_subfolder(
     assert baked._item_keys(tmp_path) == expected
 
 
-def _installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+def _installation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str = "26294889"
+) -> tuple[Path, Path]:
     library = tmp_path / "library"
     root = library / "steamapps/common/REPO"
     for name in (*baked._SOURCE_NAMES, "REPO_Data/sharedassets0.assets"):
@@ -154,21 +161,29 @@ def _installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
         source.write_bytes(b"synthetic source")
     manifest = library / "steamapps/appmanifest_3241660.acf"
     manifest.write_text(
-        '"AppState" {"appid" "3241660" "installdir" "REPO" "buildid" "26294889"}', encoding="utf-8"
+        f'"AppState" {{"appid" "3241660" "installdir" "REPO" "buildid" "{build_id}"}}',
+        encoding="utf-8",
     )
     (root / "REPO_Data/StreamingAssets/aa").mkdir(parents=True)
     (root / "REPO_Data/StreamingAssets/aa/catalog.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(baked, "ASSEMBLY_SHA256", hashlib.sha256(b"synthetic source").hexdigest())
+    expected = hashlib.sha256(b"synthetic source").hexdigest()
+    monkeypatch.setitem(
+        installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+        "26407089" if build_id == "99999999" else build_id,
+        expected,
+    )
     monkeypatch.setattr(
         baked,
         "_cosmetic_keys",
-        lambda _: (
+        lambda _, **_options: (
             {"0": "First", "547": "New", "556": "Last"},
             {root / "REPO_Data/sharedassets0.assets"},
             tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in range(557)),
         ),
     )
-    monkeypatch.setattr(baked, "_item_keys", lambda _: {"Item Tool": "Item Tool|Prefab"})
+    monkeypatch.setattr(
+        baked, "_item_keys", lambda _, **_options: {"Item Tool": "Item Tool|Prefab"}
+    )
     return root, tmp_path / "metadata-cache"
 
 
@@ -191,10 +206,266 @@ def test_dynamic_discovery_from_existing_installation_and_steam_manifest(
     assert not (root / "REPO_Data/StreamingAssets/BakedIcons").exists()
 
 
-def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
+def test_entry_artwork_proof_changes_for_edited_and_new_owned_inputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    directory = root / "REPO_Data/StreamingAssets/BakedIcons/Items"
+    directory.mkdir(parents=True)
+    path = directory / "fixture.png"
+    path.write_bytes(encode_rgba_png(bytes((0, 0, 0, 255)), 1, 1))
+    first = baked.entry_artwork_revision()
+    assert first is not None
+    assert baked.entry_artwork_revision() == first
+    info = path.stat()
+    path.write_bytes(encode_rgba_png(bytes((1, 0, 0, 255)), 1, 1))
+    assert path.stat().st_size == info.st_size
+    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+    modified = baked.entry_artwork_revision()
+    assert modified is not None
+    assert modified != first
+    (directory / "new.png").write_bytes(path.read_bytes())
+    expanded = baked.entry_artwork_revision()
+    assert expanded is not None
+    assert expanded != modified
+
+
+def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    monkeypatch.setattr(baked, "_cached_keys", lambda *_: pytest.fail("Native cache trust"))
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Last"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+    snapshot = baked.native_cosmetic_catalog()
+    assert snapshot is not None
+    catalog, revision, images, _previews = snapshot
+    assert len(catalog) == 557
+    assert list(images) == ["556"]
+    key, png_revision = images["556"]
+    assert key == unity_hash128("Last")
+    monkeypatch.setattr(baked, "_cosmetic_keys", lambda *_: pytest.fail("Repeated catalog scan"))
+    assert baked.read_bound_cosmetic_png(revision, key, png_revision) == png
+    replacement = path.with_suffix(".replacement")
+    replacement.write_bytes(png)
+    old = path.stat()
+    os.utime(replacement, ns=(old.st_atime_ns, old.st_mtime_ns))
+    read = baked._read_png_snapshot
+
+    def replace_during_batch(source: Path, stamp: tuple[int, ...]) -> bytes | None:
+        result = read(source, stamp)
+        replacement.replace(source)
+        return result
+
+    with monkeypatch.context() as changes:
+        changes.setattr(baked, "_read_png_snapshot", replace_during_batch)
+        assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
+    assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
+    stamp = baked._png_revision(path, baked._png_stamp(path.stat()))
+    (root / "REPO_Data/level0").write_bytes(b"changed source")
+    assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
+    path.unlink()
+    assert baked.read_bound_cosmetic_png(revision, key, stamp) is None
+
+
+def test_compatible_cosmetics_survive_game_updates_without_granting_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    version = "6000.3.28f1"
+    root, level, target, manifest = _build_install(
+        tmp_path, build_id="26732417", unity_version=version
+    )
+    write_serialized_file(
+        target,
+        [
+            (7000 + 17 * i, 114, _cosmetic_asset(name, object_name=f"Object {i}"))
+            for i, name in enumerate(("Hat", "Hat", "Glasses"))
+        ],
+        externals=(("globalgamemanagers.assets", "globalgamemanagers.assets"),),
+        unity_version=version,
+    )
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Object 0"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+
+    snapshot = baked.native_cosmetic_catalog()
+    assert snapshot is not None
+    catalog, revision, images, _ = snapshot
+    assert [(entry.cosmetic_id, entry.asset_name) for entry in catalog] == [
+        (0, "Hat"),
+        (1, "Hat"),
+        (2, "Glasses"),
+    ]
+    assert list(images) == ["0"]
+    assert baked.read_bound_cosmetic_png(revision, *images["0"]) == png
+    assert baked.discover_baked_artwork(root) is None
+    with pytest.raises(ValueError, match="not approved"):
+        presentation.discover_cosmetic_mutation_catalog(root)
+
+    # A Steam build-only update invalidates old bindings but can reconstruct the same view.
+    manifest.write_bytes(manifest.read_bytes().replace(b"26732417", b"26732418"))
+    updated = baked.native_cosmetic_catalog()
+    assert updated is not None
+    assert updated[0] == catalog
+    assert updated[1] != revision
+    assert baked.read_bound_cosmetic_png(revision, *images["0"]) is None
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) == png
+    with pytest.raises(ValueError, match="not approved"):
+        presentation.discover_cosmetic_mutation_catalog(root)
+
+    # An authored order change rebinds images to the new ordinal identities.
+    previous_order = pptr(2, 7000) + pptr(2, 7017) + pptr(2, 7034)
+    new_order = pptr(2, 7034) + pptr(2, 7017) + pptr(2, 7000)
+    level.write_bytes(level.read_bytes().replace(previous_order, new_order))
+    reordered = baked.native_cosmetic_catalog()
+    assert reordered is not None
+    assert reordered[0][0].asset_name == "Glasses"
+    assert list(reordered[2]) == ["2"]
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) is None
+
+    # Compatible metadata edits are reflected; stale proofs no longer validate.
+    target.write_bytes(target.read_bytes().replace(b"Hat", b"Cap"))
+    level.write_bytes(level.read_bytes().replace(version.encode(), b"6000.3.29f1"))
+    changed = baked.native_cosmetic_catalog()
+    assert changed is not None
+    assert changed[0][2].asset_name == "Cap"
+    assert baked.read_bound_cosmetic_png(updated[1], *updated[2]["0"]) is None
+
+    # An incompatible header or missing required target cannot claim known ownership.
+    level.write_bytes(level.read_bytes().replace(b"6000.3.29f1", b"6000.4.29f1"))
+    incompatibilities: list[bool] = []
+    assert (
+        baked.native_cosmetic_catalog(on_incompatible=lambda: incompatibilities.append(True))
+        is None
+    )
+    assert incompatibilities == [True]
+    level.write_bytes(level.read_bytes().replace(b"6000.4.29f1", b"6000.3.29f1"))
+    scripts = level.parent / "globalgamemanagers.assets"
+    original_scripts = scripts.read_bytes()
+    scripts.write_bytes(original_scripts.replace(b"CosmeticAsset", b"DifferentType"))
+    assert baked.native_cosmetic_catalog() is None
+    scripts.write_bytes(original_scripts)
+    target.unlink()
+    assert baked.native_cosmetic_catalog() is None
+    assert baked.read_bound_cosmetic_png(changed[1], *changed[2]["2"]) is None
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native artwork cache uses Windows DPAPI")
+def test_native_catalog_and_artwork_warm_restart_and_source_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _installation(tmp_path, monkeypatch, "26407089")
+    discovery = SimpleNamespace(
+        installation=GameInstallation(root, root / "REPO_Data/StreamingAssets/aa/catalog.json")
+    )
+    monkeypatch.setattr(installed_build, "discover_game_installation", lambda _: discovery)
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    (tmp_path / "RepoDitorPreview").mkdir()
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    path = baked._cosmetic_png(root, unity_hash128("Last"))
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png)
+    extract = baked._cosmetic_keys
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        snapshot = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert snapshot is not None
+        _catalog, revision, images, previews = snapshot
+        assert previews == {}
+        key, png_revision = images["556"]
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+        cache_root = cache.root
+    with monkeypatch.context() as warm_check, native_artwork_cache() as cache:
+        assert cache is not None
+        warm_check.setattr(
+            baked, "_cosmetic_keys", lambda *_, **_options: pytest.fail("Rescanned valid catalog")
+        )
+        warm_check.setattr(baked, "_read_owned_png", lambda *_: pytest.fail("Read installed PNG"))
+        warm = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert warm == (*snapshot[:3], {"556": png})
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+
+    (cache_root / f"png-{556 % 32:02d}.bin").write_bytes(b"0556" + b"corrupt")
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        invalid = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert invalid is not None
+        assert invalid[3] == {}
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            == png
+        )
+        rebuilt = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert rebuilt is not None
+        assert rebuilt[3] == {"556": png}
+
+    old = path.stat()
+    path.write_bytes(bytes([0]) + png[1:])
+    os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+    with native_artwork_cache() as cache:
+        assert cache is not None
+        changed_png = baked.native_cosmetic_catalog(cache, warm_artwork=True)
+        assert changed_png is not None
+        assert changed_png[3] == {}
+        assert changed_png[2]["556"][1] != png_revision
+        assert (
+            baked.read_bound_cosmetic_png(revision, key, png_revision, cache=cache, identity="556")
+            is None
+        )
+
+    catalog_file = cache_root / "catalog.bin"
+    for invalidate in (lambda: catalog_file.write_bytes(b"forged"), catalog_file.unlink):
+        invalidate()
+        with native_artwork_cache() as cache:
+            assert cache is not None
+            assert baked.native_cosmetic_catalog(cache) is not None
+        assert catalog_file.stat().st_size > 6
+
+    with monkeypatch.context() as update, native_artwork_cache() as cache:
+        assert cache is not None
+        calls = []
+
+        def rescan(game: Path, **options):
+            calls.append(game)
+            return extract(game, **options)
+
+        update.setattr(baked, "_cosmetic_keys", rescan)
+        (root / "REPO_Data/alternate.assets").write_bytes(b"new external candidate")
+        assert baked.native_cosmetic_catalog(cache) is not None
+        assert calls == [root]
+        (root / "REPO_Data/level0").write_bytes(b"updated source")
+        assert baked.native_cosmetic_catalog(cache) is not None
+        assert calls == [root, root]
+
+
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
+def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
+) -> None:
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     catalog = tuple(InstalledCosmeticMetadata(i, str(i), 0, 0, 0) for i in (0, 546, 547, 556, 557))
     before = mutation_eligible_ids(catalog)
     cold = baked.discover_baked_artwork(root, cache_dir=cache)
@@ -210,19 +481,43 @@ def test_warm_launch_reuses_metadata_and_preserves_mutation_authority(
     assert {p.suffix for p in cache.iterdir()} == {".json"}
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 @pytest.mark.parametrize(
     "source", ["REPO_Data/level0", "REPO_Data/resources.assets", "REPO_Data/sharedassets0.assets"]
 )
 def test_changed_source_invalidates_identity_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str, build_id: str
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
     (root / source).write_bytes(b"changed source")
     seen: list[Path] = []
     monkeypatch.setattr(baked, "_item_keys", lambda p: seen.append(p) or {})
     assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
     assert seen == [root]
+
+
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
+@pytest.mark.parametrize("change", ["timestamp", "identity"])
+def test_same_content_source_change_rebuilds_cached_mappings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str, change: str
+) -> None:
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
+    assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
+    source = root / "REPO_Data/level0"
+    before = source.stat()
+    if change == "identity":
+        replacement = source.with_suffix(".replacement")
+        replacement.write_bytes(source.read_bytes())
+        os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+        replacement.replace(source)
+        assert source.stat().st_ino != before.st_ino
+    else:
+        os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+    scans = []
+    monkeypatch.setattr(baked, "_item_keys", lambda p: scans.append(p) or {})
+    assert baked.discover_baked_artwork(root, cache_dir=cache) is not None
+    assert scans == [root]
 
 
 @pytest.mark.parametrize(
@@ -256,10 +551,11 @@ def test_catalog_cache_migration_and_invalid_projection_rebuild(
     assert scans == [root]
 
 
+@pytest.mark.parametrize("build_id", ["26294889", "26407089", "99999999"])
 def test_bad_assembly_unsupported_build_and_missing_installation_fail_soft(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build_id: str
 ) -> None:
-    root, cache = _installation(tmp_path, monkeypatch)
+    root, cache = _installation(tmp_path, monkeypatch, build_id)
     (root / baked._SOURCE_NAMES[0]).write_bytes(b"unsupported assembly")
     assert baked.discover_baked_artwork(root, cache_dir=cache) is None
     monkeypatch.setattr(

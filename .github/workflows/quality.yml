@@ -117,50 +117,6 @@ jobs:
       - name: Component and contract tests
         run: npm test
 
-  windows-e2e:
-    name: Windows Electron E2E
-    runs-on: windows-latest
-
-    defaults:
-      run:
-        working-directory: desktop
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.13"
-
-      - name: Sync locked Python and packaging dependencies
-        working-directory: .
-        run: uv sync --locked --group package
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Install desktop dependencies
-        run: npm ci
-
-      - name: Electron E2E
-        run: npm run test:e2e
-
-      - name: Upload Electron E2E diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-e2e-diagnostics
-          path: desktop/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
   package-smoke:
     name: Windows package smoke
     runs-on: windows-latest
@@ -193,17 +149,52 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
 
-      - name: Build Python sidecar
-        run: npm run build:sidecar
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
 
-      - name: Build Electron application
-        run: npm run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
 
-      - name: Package unpacked application
-        run: npm run package:dir
+      - name: Build and verify portable Tauri package
+        run: npm run package:tauri
 
-      - name: Packaged Electron E2E
-        run: npm run test:e2e:packaged
+      - name: Build test-only read-only UI host (never staged)
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $previousTauriConfig = $env:TAURI_CONFIG
+          try {
+            $env:TAURI_CONFIG = Get-Content -LiteralPath 'src-tauri/startup.test.conf.json' -Raw
+            cargo build --manifest-path src-tauri/Cargo.toml --release --locked --features tauri/custom-protocol,native-ui-test
+          } finally {
+            $env:TAURI_CONFIG = $previousTauriConfig
+          }
+          $uiHostDir = Join-Path (Get-Location) 'build/test-only-portable-ui-host'
+          Remove-Item -LiteralPath $uiHostDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $uiHostDir | Out-Null
+          $uiHostExe = Join-Path $uiHostDir 'repoditor-preview.exe'
+          Copy-Item -LiteralPath 'src-tauri/target/release/repoditor-preview.exe' -Destination $uiHostExe -Force
+          $backendTarget = (Resolve-Path -LiteralPath 'build/tauri-portable/backend').Path
+          New-Item -ItemType Junction -Path (Join-Path $uiHostDir 'backend') -Target $backendTarget | Out-Null
+          $artifact = Get-Content -LiteralPath 'build/tauri-portable/artifact-check.json' -Raw | ConvertFrom-Json
+          $actualProdHash = (Get-FileHash -LiteralPath 'build/tauri-portable/RepoDitor.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualProdHash -ne $artifact.hostSha256) {
+            throw 'Portable production host hash changed while building the test-only UI host.'
+          }
+
+      - name: Packaged Tauri desktop journeys
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run test:tauri
+          npm run typecheck:e2e
+          $env:REPODITOR_PRODUCTION_EXECUTABLE = 'build/tauri-portable/RepoDitor.exe'
+          npm exec -- playwright test e2e/tauri/tauri-portable-launch.spec.ts --output=test-results/tauri-portable-production --retries=0
+          $env:REPODITOR_E2E_EXECUTABLE = 'build/test-only-portable-ui-host/repoditor-preview.exe'
+          $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
+          npm exec -- playwright test e2e/tauri/tauri-preview.spec.ts e2e/tauri/tauri-upgrades.spec.ts e2e/tauri/tauri-run.spec.ts e2e/tauri/tauri-items.spec.ts e2e/tauri/tauri-maps.spec.ts e2e/tauri/tauri-cosmetics.spec.ts e2e/tauri/tauri-status.spec.ts --output=test-results/tauri-preview
 
       - name: Upload package smoke diagnostics
         if: ${{ failure() }}
@@ -214,9 +205,120 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  windows-tauri-safety:
+    name: Windows Tauri save safety
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Sync locked test and packaging dependencies
+        working-directory: .
+        run: uv sync --locked --group test --group package
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Install validated Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies and builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Ensure WebView2 test runtime
+        run: |
+          $keys = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          )
+          $installed = @($keys | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
+            (Get-ItemProperty -LiteralPath $_ -Name pv).pv
+          } | Where-Object { $_ -and $_ -ne '0.0.0.0' })
+          if ($installed.Count -eq 0) {
+            $bootstrapper = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2Setup.exe'
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $bootstrapper
+            $signature = Get-AuthenticodeSignature -LiteralPath $bootstrapper
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+              throw 'WebView2 bootstrapper signature is invalid.'
+            }
+            $installer = Start-Process -FilePath $bootstrapper -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
+            if ($installer.ExitCode -ne 0) { throw "WebView2 setup failed: $($installer.ExitCode)" }
+          }
+
+      - name: Windows Python, Rust, artifact and native safety gate
+        run: npm run test:tauri-safety
+
+      - name: Rust formatting and Clippy
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets
+
+      - name: Preserve safety diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-tauri-safety-diagnostics
+          path: |
+            desktop/build/tauri-safety/validation.log
+            desktop/build/tauri-safety/retention-tests.xml
+            desktop/build/tauri-safety/artifact-retention.json
+            desktop/build/tauri-safety/executable-manifest.jsonl
+            desktop/build/tauri-safety/validation-passed.json
+            desktop/build/tauri-safety/probe-transport.json
+            desktop/build/tauri-safety/python.xml
+            desktop/build/tauri-safety/native.json
+            desktop/build/tauri-safety/startup.json
+            desktop/build/tauri-safety/artifact-tests/**/artifact-check.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/trace.zip
+            desktop/build/recovery-checkpoint/tauri-safety/**/test-failed-*.png
+            desktop/build/recovery-checkpoint/tauri-safety/**/error-context.md
+            desktop/build/recovery-checkpoint/tauri-safety/**/phase.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/startup-*.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/.*.health-*.json
+            desktop/build/recovery-checkpoint/tauri-safety/**/*.receipt.tmp
+            desktop/build/recovery-checkpoint/tauri-safety/**/*.bak-health-*
+            desktop/build/recovery-checkpoint/tauri-safety/**/AppData/LocalLow/**/saves/**/*.es3
+            "!desktop/build/recovery-checkpoint/tauri-safety/**/backend/**"
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   quality-gate:
     name: Quality gate
-    needs: [python-quality, python-tests, desktop-quality, windows-e2e, package-smoke]
+    needs:
+      [
+        python-quality,
+        python-tests,
+        desktop-quality,
+        package-smoke,
+        windows-tauri-safety,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
@@ -238,13 +340,13 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ needs.windows-e2e.result }}" != "success" ]; then
-            echo "Windows Electron E2E failed."
+          if [ "${{ needs.package-smoke.result }}" != "success" ]; then
+            echo "Windows package smoke failed."
             exit 1
           fi
 
-          if [ "${{ needs.package-smoke.result }}" != "success" ]; then
-            echo "Windows package smoke failed."
+          if [ "${{ needs.windows-tauri-safety.result }}" != "success" ]; then
+            echo "Windows Tauri save safety failed."
             exit 1
           fi
 

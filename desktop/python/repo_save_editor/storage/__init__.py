@@ -1,6 +1,7 @@
 """Encrypted save persistence and recoverability guarantees.
 
 Storage owns source fingerprint checks, exact-byte backups, staged encrypted
-verification, and atomic replacement. Callers own domain/schema validation and
-must establish game-process safety before invoking a write.
+verification, and atomic replacement within the admitted Windows namespace.
+Callers own domain/schema validation, write
+admission and game-process safety, including its final check before replacement.
 """

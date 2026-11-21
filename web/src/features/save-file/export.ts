@@ -1,5 +1,6 @@
 import { decryptEs3, encryptEs3 } from "@/features/save-file/es3";
 import { classifySave } from "@/features/save-file/classification";
+import { validatePendingHealthEdits } from "@/features/run-save/runSave";
 import type { EditSession } from "@/features/save-file/session";
 import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
 
@@ -52,6 +53,9 @@ export function deriveExportFileName(originalFileName: string): string {
 export async function prepareVerifiedExport(session: EditSession): Promise<VerifiedExport> {
   const source = serializeSaveJson(session.working);
   requireOriginalKind(source, session);
+  if (session.originalKind === "run") {
+    validatePendingHealthEdits(parseSaveJson(session.baselineSource), session.working);
+  }
 
   const plaintext = encoder.encode(source);
   const encrypted = await encryptEs3(plaintext);

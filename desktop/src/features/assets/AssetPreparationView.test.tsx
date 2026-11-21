@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AssetPreparationState } from "@electron/contracts";
+import type { AssetPreparationState } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { AssetPreparationNotice, AssetPreparationView } from "./AssetPreparationView";
 
@@ -163,6 +163,41 @@ describe("AssetPreparationView", () => {
       "3 of 6 editor tasks completed",
     );
     expect(progress.querySelectorAll(".bg-accent")).toHaveLength(9);
+  });
+
+  it("keeps compact progress static until completed work advances the fill", () => {
+    const view = (completed: number | null, text = "") => (
+      <PreferencesProvider>
+        <AssetPreparationView
+          compact
+          mode="save"
+          editorProgress={completed === null ? null : { completed, total: 2 }}
+          progressText={text}
+        />
+      </PreferencesProvider>
+    );
+    const { rerender } = render(view(null));
+    const bar = screen.getByRole("progressbar");
+    expect(bar.querySelector(".asset-preparation-sweep")).toBeNull();
+    expect(bar.hasAttribute("aria-valuenow")).toBe(false);
+    rerender(view(1, "Editor data 5/5"));
+    expect(bar.querySelectorAll(".bg-accent")).toHaveLength(9);
+
+    rerender(view(1, "Editor data 5/5 · Artwork checked 0/64"));
+    expect(screen.getByRole("progressbar")).toBe(bar);
+    expect(bar.getAttribute("aria-valuenow")).toBe("1");
+    expect(bar.querySelectorAll(".bg-accent")).toHaveLength(9);
+    expect(screen.getByTestId("asset-progress-count").textContent).toContain(
+      "Artwork checked 0/64",
+    );
+
+    rerender(view(1 + 63 / 64, "Editor data 5/5 · Artwork checked 63/64"));
+    expect(bar.querySelectorAll(".bg-accent")).toHaveLength(17);
+
+    rerender(view(2, "Editor data 5/5 · Artwork checked 64/64"));
+    expect(bar.getAttribute("aria-valuenow")).toBe("2");
+    expect(bar.querySelectorAll(".bg-accent")).toHaveLength(18);
+    expect(bar.querySelector(".asset-preparation-sweep")).toBeNull();
   });
 
   it("keeps artwork counts secondary to editor-task progress", () => {

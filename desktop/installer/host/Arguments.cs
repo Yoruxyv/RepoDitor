@@ -16,6 +16,7 @@ internal sealed class Arguments
     internal readonly bool ScopeLocked;
     internal readonly bool ShowScope = true;
     internal readonly bool Cleanup;
+    internal readonly bool Tauri;
 
     internal static Arguments Parse(string[] args)
     {
@@ -47,6 +48,7 @@ internal sealed class Arguments
         ScopeLocked = GetBool(values, "scope-locked");
         ShowScope = !values.ContainsKey("show-scope") || GetBool(values, "show-scope");
         Cleanup = GetBool(values, "cleanup");
+        Tauri = GetBool(values, "tauri");
         int.TryParse(Get(values, "parent-pid", "0"), out ParentProcessId);
     }
 

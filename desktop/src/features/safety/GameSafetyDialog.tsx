@@ -4,7 +4,7 @@
  */
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
-import type { GameProcessStatus } from "@electron/contracts";
+import type { GameProcessStatus } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 
 interface GameSafetyDialogProps {
@@ -62,6 +62,14 @@ export function GameSafetyDialog({
       if (modal.open) modal.close();
       queueMicrotask(() => {
         if (modal.open) return;
+        const focused = document.activeElement;
+        if (
+          focused &&
+          focused !== document.body &&
+          !modal.contains(focused) &&
+          !focused.closest("[hidden], [inert]")
+        )
+          return;
         const returnTarget =
           previouslyFocused?.isConnected && !previouslyFocused.closest("[inert]")
             ? previouslyFocused

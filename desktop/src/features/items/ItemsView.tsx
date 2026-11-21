@@ -1,7 +1,7 @@
 /** Items section shell that presents support state and delegates exact instances. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
-import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";
+import type { AdvancedItemDto, AdvancedSaveDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
@@ -12,10 +12,10 @@ interface ItemsViewProps {
   readonly loading: boolean;
   readonly error: string | null;
   readonly pendingByItem: Readonly<Record<string, AdvancedRefillEdit>>;
-  readonly onRefillAllToFull: () => void;
-  readonly onRefillToFull: (item: AdvancedItemDto) => void;
+  readonly onRefillAllToFull: (() => void) | null;
+  readonly onRefillToFull: ((item: AdvancedItemDto) => void) | null;
   readonly onRetry: () => void;
-  readonly onRevertRefill: (saveKey: string) => void;
+  readonly onRevertRefill: ((saveKey: string) => void) | null;
 }
 
 function AdvancedSkeleton({ label }: { readonly label: string }) {
@@ -120,11 +120,13 @@ export function ItemsView({
       <h2 className="text-2xl font-semibold text-ink" id="advanced-title">
         {t("nav.items")}
       </h2>
-      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">{t("items.description")}</p>
+      <p className="mt-2 max-w-[62ch] text-sm/6 text-secondary">
+        {t(onRefillToFull === null ? "items.readOnlyDescription" : "items.description")}
+      </p>
 
       <div className="mt-6 flex items-start gap-2 border-l-2 border-success px-3 py-2 text-xs/5 text-secondary">
         <ShieldCheckIcon aria-hidden="true" className="mt-0.5 shrink-0 text-success" size={17} />
-        <p>{t("items.safety")}</p>
+        <p>{t(onRefillToFull === null ? "items.readOnlySafety" : "items.safety")}</p>
       </div>
 
       <div className="mt-7 border-t border-line pt-6">

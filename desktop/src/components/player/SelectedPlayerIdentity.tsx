@@ -1,5 +1,5 @@
 /** Shared selected-player identity block used by player-scoped editor features. */
-import type { PlayerDto } from "@electron/contracts";
+import type { PlayerDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
@@ -8,7 +8,7 @@ interface SelectedPlayerIdentityProps {
   readonly avatarUrl: string | null | undefined;
   readonly fallbackTestId: string;
   readonly headingId?: string;
-  readonly onRejectAvatar: () => void;
+  readonly onRejectAvatar: (url: string) => void;
 }
 
 export function SelectedPlayerIdentity({
@@ -27,6 +27,7 @@ export function SelectedPlayerIdentity({
         avatarUrl={avatarUrl}
         className="size-14 text-xl"
         fallbackTestId={fallbackTestId}
+        key={player.id}
         name={player.name}
         onError={onRejectAvatar}
       />

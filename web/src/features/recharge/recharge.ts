@@ -33,7 +33,7 @@ export class RechargeEditError extends Error {
 }
 
 interface RechargeInspection extends RechargeState {
-  readonly chargeEntries: SaveObject;
+  readonly chargeEntries: SaveObject | null;
   readonly rechargeableKeys: readonly string[];
 }
 
@@ -69,7 +69,9 @@ function requireSignedInt32(value: unknown, label: string): void {
 function inspect(data: SaveObject): RechargeInspection {
   const values = runDictionaries(data);
   const itemEntries = requireDictionary(values, "item", "Item inventory");
-  const chargeEntries = requireDictionary(values, "itemStatBattery", "itemStatBattery");
+  const chargeEntries = Object.hasOwn(values, "itemStatBattery")
+    ? requireDictionary(values, "itemStatBattery", "itemStatBattery")
+    : null;
   const rechargeableKeys: string[] = [];
 
   for (const [saveKey, value] of Object.entries(itemEntries)) {
@@ -83,14 +85,15 @@ function inspect(data: SaveObject): RechargeInspection {
     }
   }
 
-  for (const value of Object.values(chargeEntries)) {
+  for (const value of Object.values(chargeEntries ?? {})) {
     requireSignedInt32(value, "Stored charge data");
   }
 
   return {
     chargeEntries,
-    needingRechargeCount: rechargeableKeys.filter((key) => Object.hasOwn(chargeEntries, key))
-      .length,
+    needingRechargeCount: chargeEntries
+      ? rechargeableKeys.filter((key) => Object.hasOwn(chargeEntries, key)).length
+      : 0,
     rechargeableKeys,
     supportedItemCount: rechargeableKeys.length,
   };
@@ -103,6 +106,7 @@ export function inspectRecharge(data: SaveObject): RechargeState {
 
 export function rechargeAllSupportedItems(data: SaveObject): boolean {
   const { chargeEntries, rechargeableKeys } = inspect(data);
+  if (!chargeEntries) return false;
   let changed = false;
   for (const saveKey of rechargeableKeys) {
     if (Object.hasOwn(chargeEntries, saveKey)) {

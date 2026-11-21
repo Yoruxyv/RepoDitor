@@ -337,7 +337,7 @@ For opt-in integration checks, point `REPODITOR_MAPS_GAME_ROOT` at the verified
 installation and run `npm run test:e2e` from `desktop`. Test saves, LocalLow and app
 profiles remain disposable fixtures. The installed-artwork test can also run
 against the unpacked app using `REPODITOR_E2E_EXECUTABLE` and
-`playwright test e2e/maps.spec.ts`. Comparison images and screenshots must stay in
+`playwright test e2e/electron/maps.spec.ts`. Comparison images and screenshots must stay in
 ignored local output; they must never enter fixtures, Git or application resources.
 
 Cold measurements mean a new backend process and an empty RepoDitor presentation
@@ -467,9 +467,10 @@ finding: locally discovered R.E.P.O. assets are research references and are not 
 
 The upgrade fallback resolves installed upgrade identity through prefab, material
 and Texture2D metadata, validates local stream ranges, and decodes supported
-DXT1/DXT5 payloads. Its source identity includes artifact-producing Unity files;
-Steam manifest/build metadata remains compatibility provenance rather than a pixel
-cache dependency. See [upgrade cache diagnostics](../architecture/architecture.md#upgrade-cache-diagnostics).
+DXT1/DXT5 payloads. Historical cache format 2 watched artifact-producing Unity files
+without Steam compatibility metadata. Format 3 also watches the assembly and Steam
+manifest so source changes force admission validation before pixel reuse. See
+[upgrade cache diagnostics](../architecture/architecture.md#upgrade-cache-diagnostics).
 
 The all-black `WalkieTalkieBox` LocalLow output was an unusable research candidate.
 Regular-item and cosmetic resolution no longer reads that cache: installed baked

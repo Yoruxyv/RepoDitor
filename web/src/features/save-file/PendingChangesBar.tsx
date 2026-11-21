@@ -7,7 +7,7 @@ import type { PendingEdit } from "@/features/save-file/pendingEdits";
 export type WorkspaceExportState =
   | { readonly status: "idle" }
   | { readonly status: "preparing" }
-  | { readonly status: "error" }
+  | { readonly status: "error"; readonly healthMaximum?: number }
   | { readonly fileName: string; readonly status: "success" };
 
 interface PendingChangesBarProps {
@@ -19,7 +19,7 @@ interface PendingChangesBarProps {
 }
 
 function ExportFeedback({ state }: { readonly state: WorkspaceExportState }) {
-  const { t } = useI18n();
+  const { formatNumber, t } = useI18n();
   if (state.status === "idle") {
     return null;
   }
@@ -30,14 +30,18 @@ function ExportFeedback({ state }: { readonly state: WorkspaceExportState }) {
       </output>
     );
   }
+  let description = t("save.pending.exportError");
+  if (state.status === "success") {
+    description = t("save.pending.exportSuccess", { fileName: state.fileName });
+  } else if (state.healthMaximum !== undefined) {
+    description = t("run.players.healthError", { maximum: formatNumber(state.healthMaximum) });
+  }
   return (
     <output
       aria-live={state.status === "error" ? "assertive" : "polite"}
       className="text-xs/5 text-secondary"
     >
-      {state.status === "success"
-        ? t("save.pending.exportSuccess", { fileName: state.fileName })
-        : t("save.pending.exportError")}
+      {description}
     </output>
   );
 }

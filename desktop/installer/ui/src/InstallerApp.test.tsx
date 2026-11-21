@@ -15,7 +15,11 @@ function sendFromHost(data: unknown) {
   });
 }
 
-function initialize(mode: "install" | "uninstall" = "install", updated = false) {
+function initialize(
+  mode: "install" | "uninstall" = "install",
+  updated = false,
+  stageProgress = false,
+) {
   sendFromHost({
     type: "initialize",
     mode,
@@ -24,6 +28,7 @@ function initialize(mode: "install" | "uninstall" = "install", updated = false) 
     scope: "current",
     scopeLocked: updated,
     showScope: true,
+    stageProgress,
     path: "C:\\RepoDitor",
   });
 }
@@ -198,6 +203,22 @@ test.each([false, true])(
     expect(screen.getByRole("heading", { name: "RepoDitor is ready" }).isConnected).toBe(true);
   },
 );
+
+test("native Tauri setup reports stages without inventing extraction percentages", () => {
+  render(<InstallerApp />);
+  initialize("install", false, true);
+  stage("preparing");
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBeNull();
+  stage("installing");
+  expect(screen.getByText("Running installation…")).toBeTruthy();
+  expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBeNull();
+  extraction(75);
+  expect(screen.getByRole("progressbar").getAttribute("value")).toBeNull();
+  stage("finalizing");
+  expect(screen.getByText("Verifying installation…")).toBeTruthy();
+  stage("success");
+  expect(screen.getByRole("button", { name: "Launch RepoDitor" })).toBeTruthy();
+});
 
 test("failure stops measured progress and real Retry requires a fresh session", () => {
   render(<InstallerApp />);

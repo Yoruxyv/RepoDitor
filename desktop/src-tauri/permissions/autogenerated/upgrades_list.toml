@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-upgrades-list"
+description = "Enables the upgrades_list command without any pre-configured scope."
+commands.allow = ["upgrades_list"]
+
+[[permission]]
+identifier = "deny-upgrades-list"
+description = "Denies the upgrades_list command without any pre-configured scope."
+commands.deny = ["upgrades_list"]

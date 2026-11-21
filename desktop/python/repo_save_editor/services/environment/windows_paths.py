@@ -24,6 +24,12 @@ FOLDER_ID_LOCAL_APP_DATA_LOW = _Guid(
     0x4FF6,
     (ctypes.c_ubyte * 8)(0xBD, 0x18, 0x16, 0x73, 0x43, 0xC5, 0xAF, 0x16),
 )
+FOLDER_ID_LOCAL_APP_DATA = _Guid(
+    0xF1B32785,
+    0x6FBA,
+    0x4FCF,
+    (ctypes.c_ubyte * 8)(0x9D, 0x55, 0x7B, 0x8E, 0x7F, 0x15, 0x70, 0x91),
+)
 
 
 def resolve_windows_local_app_data_low(
@@ -41,6 +47,15 @@ def resolve_windows_local_app_data_low(
         if test_root:
             return Path(test_root)
 
+    return _known_folder(FOLDER_ID_LOCAL_APP_DATA_LOW)
+
+
+def resolve_windows_local_app_data() -> Path | None:
+    """Resolve the Windows profile directory used by installed Tauri."""
+    return _known_folder(FOLDER_ID_LOCAL_APP_DATA)
+
+
+def _known_folder(folder: _Guid) -> Path | None:
     if sys.platform != "win32":
         return None
 
@@ -57,7 +72,7 @@ def resolve_windows_local_app_data_low(
         shell32.SHGetKnownFolderPath.restype = ctypes.c_long
         ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
         result = shell32.SHGetKnownFolderPath(
-            ctypes.byref(FOLDER_ID_LOCAL_APP_DATA_LOW),
+            ctypes.byref(folder),
             0,
             None,
             ctypes.byref(output),
@@ -72,4 +87,4 @@ def resolve_windows_local_app_data_low(
         return None
 
 
-__all__ = ["resolve_windows_local_app_data_low"]
+__all__ = ["resolve_windows_local_app_data", "resolve_windows_local_app_data_low"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-test-health-recover"
+description = "Enables the test_health_recover command without any pre-configured scope."
+commands.allow = ["test_health_recover"]
+
+[[permission]]
+identifier = "deny-test-health-recover"
+description = "Denies the test_health_recover command without any pre-configured scope."
+commands.deny = ["test_health_recover"]

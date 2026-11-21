@@ -1,14 +1,14 @@
 /** Compact list of additional discovered save slots and explicit open actions. */
 import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
-import type { SaveSummary } from "@electron/contracts";
+import type { SaveSummary } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { formatDateTime, formatFileSize } from "@/features/discovery/formatters";
 
 interface RecentSaveListProps {
   readonly saves: SaveSummary[];
   readonly openingSaveId: string | null;
-  readonly onOpen: (saveId: string) => void;
+  readonly onOpen: ((saveId: string) => void) | null;
 }
 
 export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListProps) {
@@ -32,9 +32,10 @@ export function RecentSaveList({ saves, openingSaveId, onOpen }: RecentSaveListP
             <li className="border-b border-line py-4 last:border-b-0" key={save.id}>
               <button
                 className="grid w-full gap-3 text-left transition duration-150 hover:text-accent active:translate-y-px disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                disabled={openingSaveId !== null}
+                data-save-id={save.id}
+                disabled={openingSaveId !== null || onOpen === null}
                 type="button"
-                onClick={() => onOpen(save.id)}
+                onClick={() => onOpen?.(save.id)}
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <FileIcon

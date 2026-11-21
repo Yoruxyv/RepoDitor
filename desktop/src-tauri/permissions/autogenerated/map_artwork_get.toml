@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-map-artwork-get"
+description = "Enables the map_artwork_get command without any pre-configured scope."
+commands.allow = ["map_artwork_get"]
+
+[[permission]]
+identifier = "deny-map-artwork-get"
+description = "Denies the map_artwork_get command without any pre-configured scope."
+commands.deny = ["map_artwork_get"]

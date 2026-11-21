@@ -1,24 +1,44 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WrenchIcon } from "@phosphor-icons/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { invoke } from "@tauri-apps/api/core";
 import { GameIcon } from "./GameIcon";
 
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+
+const dataUrl = "data:image/png;base64,AAAA";
+const nativeToken = (scope: string) => `${scope}-artwork:${"a".repeat(32)}`;
+beforeEach(() => {
+  vi.mocked(invoke).mockImplementation(async (_command, args) => ({
+    ok: true,
+    data: {
+      token: args && typeof args === "object" && "token" in args ? args.token : undefined,
+      revision: "b".repeat(64),
+      dataUrl,
+    },
+  }));
+});
+
 describe("GameIcon", () => {
-  it("skeletonizes only the known thumbnail until its local image loads", () => {
+  it("skeletonizes only the known thumbnail until its local image loads", async () => {
     render(
       <GameIcon
         fallback={WrenchIcon}
         fallbackSource="fallback"
         loading="lazy"
         testId="game-icon"
-        token="opaque-token"
+        token={nativeToken("item")}
         variant="item"
       />,
     );
 
-    const image = screen.getByTestId("game-icon").querySelector("img")!;
-    expect(image.getAttribute("src")).toBe("repoditor-icon://local/opaque-token");
+    const image = await waitFor(() => {
+      const image = screen.getByTestId("game-icon").querySelector("img");
+      expect(image).not.toBeNull();
+      return image!;
+    });
+    expect(image.getAttribute("src")).toBe(dataUrl);
     expect(image.getAttribute("loading")).toBe("lazy");
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("local");
     expect(screen.getByTestId("game-icon-loading").getAttribute("aria-hidden")).toBe("true");
@@ -51,31 +71,52 @@ describe("GameIcon", () => {
         variant="item"
       />,
     );
-    expect(screen.getByTestId("game-icon-loading")).toBeTruthy();
-    fireEvent.error(screen.getByTestId("game-icon").querySelector("img")!);
+    expect(screen.getByTestId("game-icon").querySelector("img")).toBeNull();
     expect(screen.getByTestId("game-icon").getAttribute("data-icon-source")).toBe("specific");
     expect(screen.queryByTestId("game-icon-loading")).toBeNull();
   });
 
-  it("remembers a successfully loaded opaque token across component remounts", () => {
-    const icon = (
-      <GameIcon
-        fallback={WrenchIcon}
-        fallbackSource="fallback"
-        loading="lazy"
-        testId="remounted-icon"
-        token="session-loaded-token"
-        variant="cosmetic"
-      />
-    );
-    const first = render(icon);
-    fireEvent.load(screen.getByTestId("remounted-icon").querySelector("img")!);
-    first.unmount();
-
-    render(icon);
-    expect(screen.queryByTestId("remounted-icon-loading")).toBeNull();
-    expect(screen.getByTestId("remounted-icon").getAttribute("aria-busy")).toBe("false");
-  });
+  it.each([
+    ["item", "size-14"],
+    ["map", "aspect-2/1"],
+  ] as const)(
+    "keeps the %s frame through loading, decoding and fallback",
+    async (variant, sizeClass) => {
+      const icon = (token: string | null) => (
+        <GameIcon
+          fallback={WrenchIcon}
+          fallbackSource="fallback"
+          testId="frame"
+          token={token}
+          variant={variant}
+        />
+      );
+      function expectFrame(source: string) {
+        const frame = screen.getByTestId("frame");
+        expect(frame.classList.contains(sizeClass)).toBe(true);
+        if (variant === "map") expect(frame.classList.contains("w-full")).toBe(true);
+        expect(frame.getAttribute("aria-hidden")).toBe("true");
+        expect(frame.dataset.iconSource).toBe(source);
+      }
+      const { rerender } = render(icon(nativeToken(variant)));
+      const image = await waitFor(() => {
+        const image = screen.getByTestId("frame").querySelector("img");
+        expect(image).not.toBeNull();
+        return image!;
+      });
+      expect(image.alt).toBe("");
+      expect(screen.getByTestId("frame-loading")).toBeTruthy();
+      expectFrame("local");
+      fireEvent.load(image);
+      expect(screen.queryByTestId("frame-loading")).toBeNull();
+      expectFrame("local");
+      fireEvent.error(image);
+      expect(screen.getByTestId("frame").querySelector("img")).toBeNull();
+      expectFrame("fallback");
+      rerender(icon(null));
+      expectFrame("fallback");
+    },
+  );
 
   it("keeps upgrade thumbnail and fallback geometry aligned", () => {
     const { rerender } = render(
@@ -83,14 +124,11 @@ describe("GameIcon", () => {
         fallback={WrenchIcon}
         fallbackSource="specific"
         testId="upgrade-icon"
-        token="upgrade-token"
+        token={nativeToken("upgrade")}
         variant="upgrade"
       />,
     );
     expect(screen.getByTestId("upgrade-icon").className).toContain("size-20");
-    expect(screen.getByTestId("upgrade-icon").querySelector("img")?.getAttribute("loading")).toBe(
-      "lazy",
-    );
     const loadingSkeleton = screen.getByTestId("upgrade-icon-loading");
     expect(loadingSkeleton.className).toContain("w-2/3");
     expect(loadingSkeleton.className).toContain("h-full");

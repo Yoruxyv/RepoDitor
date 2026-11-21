@@ -6,7 +6,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GameProcessStatus } from "@electron/contracts";
+import type {
+  DesktopOperationResult,
+  GameProcessState,
+  GameProcessStatus,
+} from "@/app/desktopContracts";
 
 export type GameSafetyStatus = GameProcessStatus | null;
 
@@ -15,7 +19,7 @@ export type GameSafetyStatus = GameProcessStatus | null;
  *
  * @returns Current status, check state, recovery generation, and a manual check action.
  */
-export function useGameSafety() {
+export function useGameSafety(getStatus: () => Promise<DesktopOperationResult<GameProcessState>>) {
   const [status, setStatus] = useState<GameSafetyStatus>(null);
   const [checking, setChecking] = useState(true);
   const [recoveryGeneration, setRecoveryGeneration] = useState(0);
@@ -28,7 +32,7 @@ export function useGameSafety() {
     if (mounted.current) setChecking(true);
 
     try {
-      const result = await window.repoditor.game.status();
+      const result = await getStatus();
       if (mounted.current && sequence.current === request) {
         const nextStatus = result.ok ? result.data.status : "unknown";
         if (
@@ -48,7 +52,7 @@ export function useGameSafety() {
     } finally {
       if (mounted.current && sequence.current === request) setChecking(false);
     }
-  }, []);
+  }, [getStatus]);
 
   useEffect(() => {
     mounted.current = true;

@@ -1,10 +1,10 @@
 /**
  * Fixed-geometry optional player avatar with bounded retry and local fallback.
  *
- * URLs are already validated by Electron. Image failure remains presentation-only and
+ * URLs are already validated by the desktop backend. Image failure remains presentation-only and
  * never prevents the player projection from rendering.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { usePreferences } from "@/app/preferences";
 import { Skeleton } from "@/components/Skeleton";
@@ -14,7 +14,7 @@ interface PlayerAvatarProps {
   readonly name: string;
   readonly className: string;
   readonly fallbackTestId?: string;
-  readonly onError: () => void;
+  readonly onError: (url: string) => void;
 }
 
 function initials(name: string): string {
@@ -37,11 +37,10 @@ export function PlayerAvatar({
   onError,
 }: PlayerAvatarProps) {
   const { t } = usePreferences();
-  const [loaded, setLoaded] = useState(false);
+  const [loadedUrl, setLoadedUrl] = useState<string>();
+  const loaded = avatarUrl === loadedUrl;
   const label = t("players.avatar", { player: name });
   const loading = avatarUrl === undefined || (avatarUrl !== null && !loaded);
-
-  useEffect(() => setLoaded(false), [avatarUrl]);
 
   return (
     <figure
@@ -59,8 +58,9 @@ export function PlayerAvatar({
           alt={label}
           className={`absolute inset-0 size-full object-cover ${loaded ? "opacity-100" : "opacity-0"}`}
           src={avatarUrl}
-          onError={onError}
-          onLoad={() => setLoaded(true)}
+          key={avatarUrl}
+          onError={() => onError(avatarUrl)}
+          onLoad={() => setLoadedUrl(avatarUrl)}
         />
       ) : null}
       {avatarUrl === null ? (

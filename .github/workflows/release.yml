@@ -1,157 +1,30 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type VALIDATE to authorize a Windows build and checksum check
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-windows:
-    name: Build Windows desktop application
-    runs-on: windows-latest
-    environment: release-signing
-
+  authorize-validation:
+    name: Authorize release validation
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.13"
-
-      - name: Sync locked Python and packaging dependencies
-        working-directory: .
-        run: uv sync --locked --group package
-
-      - name: Python quality and tests
-        working-directory: .
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-          uv run --with "pytest>=8.3,<9" pytest
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Install desktop dependencies
-        working-directory: desktop
-        run: npm ci
-
-      - name: Desktop quality and tests
-        working-directory: desktop
-        run: |
-          npm run imports:check
-          npm run lint
-          npm run release:check
-          npm test
-
-      - name: Build Python sidecar
-        working-directory: desktop
-        run: npm run build:sidecar
-
-      - name: Build Electron application
-        working-directory: desktop
-        run: npm run build
-
-      - name: Check renderer bundle budget
-        working-directory: desktop
-        run: npm run bundle:check
-
-      - name: Package signed unpacked application
-        working-directory: desktop
+      - name: Require main and explicit confirmation
         env:
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: npm run package:dir:signed
-
-      - name: Verify packaged executable signatures
-        working-directory: desktop
-        shell: pwsh
-        env:
-          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
+          CONFIRM: ${{ inputs.confirm }}
         run: |
-          $executables = @(
-            "release/win-unpacked/RepoDitor.exe"
-            "release/win-unpacked/resources/backend/repoditor-backend.exe"
-          )
-          ./scripts/verify-authenticode.ps1 -Path $executables -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
-
-      - name: Run packaged smoke test
-        working-directory: desktop
-        run: npm run test:e2e:packaged
-
-      - name: Upload packaged smoke diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-smoke-diagnostics
-          path: desktop/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Build and verify signed Windows installer
-        working-directory: desktop
-        env:
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: npm run package:installer:signed
-
-      - name: Verify installer and WebView2 host Authenticode signatures
-        working-directory: desktop
-        shell: pwsh
-        env:
-          AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME }}
-        run: |
-          $artifacts = @(
-            (Get-Item release/RepoDitor-Setup-*-x64.exe).FullName
-            (Get-Item build/installer-host/RepoDitorInstallerHost.exe).FullName
-          )
-          ./scripts/verify-authenticode.ps1 `
-            -Path $artifacts `
-            -ExpectedPublisher $env:AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME
-
-      - name: Create installer checksum
-        working-directory: desktop
-        shell: pwsh
-        run: |
-          $installer = Get-Item release/RepoDitor-Setup-*-x64.exe
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256"
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: RepoDitor-windows
-          path: |
-            desktop/release/RepoDitor-Setup-*-x64.exe
-            desktop/release/*.sha256
-          if-no-files-found: error
-
-      - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            desktop/release/RepoDitor-Setup-*-x64.exe
-            desktop/release/*.sha256
-          generate_release_notes: true
+          if [[ "$GITHUB_REF" != refs/heads/main || "$CONFIRM" != VALIDATE ]]; then
+            echo 'Run from main with confirm=VALIDATE.'
+            exit 1
+          fi
+  validate:
+    name: Validate Windows binaries and installer
+    needs: authorize-validation
+    uses: ./.github/workflows/installer-lifecycle.yml

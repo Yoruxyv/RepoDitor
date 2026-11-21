@@ -1,23 +1,26 @@
 # RepoDitor desktop
 
-The renderer uses `@/` for `src` imports and `@electron/` for shared Electron contracts. Parent-directory renderer imports are not allowed; same-directory relatives remain valid.
+RepoDitor Desktop uses React in the Tauri WebView2 host on Windows. Rust validates
+requests, supervises the bundled sidecar, and returns typed projections. Python
+owns save discovery, game semantics, validation, and transactions. Renderer DTOs
+live in `src/app/desktopContracts.ts` and use the existing `@/` alias.
 
 ## Development
 
-Run these commands from the repository root:
+Use Node.js 24, Rust/MSVC, WebView2, and the locked Python environment.
 
 ```powershell
 uv sync --locked
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
-Development launches the Python desktop API from the repository-root `.venv`.
+The host launches the frozen `build/backend/repoditor-backend/` payload. Use
+`npm run build:sidecar` after Python changes.
 
-## Quality gate
-
-Ordinary Desktop development changes should keep the fast application gates green:
+## Validation and portable Windows package
 
 ```powershell
 npm run imports:check
@@ -26,60 +29,33 @@ npm run lint
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
-```
-
-Run build and tests sequentially: build cleanup removes compiled Electron modules,
-and overlapping validation can cause missing-module failures or process timeouts.
-
-Packaging and installer changes additionally use the native/package gates:
-
-```powershell
 npm run release:check
-npm run test:installer:host
-npm run test:installer:extraction
-npm run test:installer:layout
-npm run package
-npm run test:installer:lifecycle
+npm run package:tauri
+npm run test:e2e:tauri
+npm run test:tauri-safety
 ```
 
-`npm run package` already runs the packaged Electron smoke test. The lifecycle command uses the
-repository's disposable-account isolation; do not run destructive lifecycle acceptance against a
-normal user profile.
+The read-only development package is staged under `build/tauri-portable/`.
+Synthetic E2E uses isolated profiles and fixtures.
 
-## Windows package
+Run `npm run package:installer` for the branded Windows setup and its SHA-256
+file in `build/installer/`. Its verified portable payload is in
+`build/tauri-release/`. The release enables Health, Upgrades, Run/Resume,
+eligible Item Recharge, and supported Cosmetics operations when the
+[reviewed game fingerprints](../docs/maintenance/game-update-capabilities.md#tauri-editing-across-steam-patches)
+match. The hosted Windows workflow exercises both installers on disposable data.
+See [Windows CI coverage](../docs/release-checklist.md#windows-ci-coverage) for
+the scope and the remaining release-candidate checks.
 
-```powershell
-npm run package
-```
+The preparation screen waits for required projections and artwork before opening a
+workspace. Valid warm navigation reuses prepared content. For cache locations and
+developer controls, see [local presentation assets](../docs/architecture/architecture.md#desktop-local-presentation-assets).
 
-The package command builds the locked PyInstaller sidecar, builds Electron, packages an unpacked application, runs the E2E flow without Vite against that application, and emits an assisted NSIS installer under `release/`.
+## v0.2.1 upgrade
 
-`npm run package` remains the unsigned local developer path. Official GitHub releases use the
-fail-closed `package:dir:signed` and `package:installer:signed` commands with Microsoft Artifact
-Signing values supplied through the protected `release-signing` environment. See the
-[release checklist](../docs/release-checklist.md#windows-code-signing-preparation) for the exact
-variables, secrets, role scope, and verification flow.
-
-Packaging first removes only the disposable `release/` directory. If a packaged RepoDitor process still holds the output open, packaging stops with an instruction to close it; the build never kills processes. The unpacked application is then checked for the executable, ASAR, bundled Python sidecar, RepoDitor MIT license, and Teko OFL license.
-
-Items exposes only the evidence-backed **Refill to Full** action. It remains a typed pending edit and uses the existing safe-write path; all other item mutation controls remain unavailable.
-
-Cosmetics is a global workspace backed by `MetaSave.es3`; it does not require a selected Run
-save. It uses separate `cosmetics:get` and `cosmetics:write` IPC calls, its own pending/save
-lifecycle, fingerprint, and exact-byte backup. Entering Cosmetics reads the current persisted
-MetaSave when there are no pending edits; window focus rechecks game safety instead of pretending
-to synchronize in-memory game state. Bulk ownership actions and
-**Clear All Presets** are supported for the observed catalog while token editing, equipping,
-and arbitrary preset editing remain unavailable.
-
-RepoDitor must be used while R.E.P.O. is closed. Startup and window-focus checks query only a
-narrow game-running status derived from the validated installation, and Python verifies that
-status again immediately before both Run-save and MetaSave writes. If status cannot be verified,
-the editor fails closed. Existing fingerprints, backups, staged verification, and atomic
-replacement remain independent safety layers.
-
-The renderer supports Dark, Light, and System themes plus English, Japanese, Korean, Chinese,
-and Indonesian RepoDitor-owned UI text. Game-derived strings remain unchanged. The top utility
-cluster obtains the repository star count through a single fixed, typed Electron metadata call;
-the renderer has no generic network API.
+The published v0.2.1 installer is the migration reference. Its installer packaging
+is available in the v0.2.1 source history. The Tauri portable package has a
+separate WebView2 profile and source-validated caches. Theme and language may
+need to be selected again. Save discovery continues to use the game's existing
+LocalLow profile. See the [installer migration gate](../docs/release-checklist.md#w9-b-installer-migration-acceptance)
+for installer identity, cleanup, and rollback checks.

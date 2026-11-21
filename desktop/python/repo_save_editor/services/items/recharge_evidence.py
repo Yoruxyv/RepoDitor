@@ -9,8 +9,19 @@ from pathlib import Path
 from typing import Final
 
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.game.installed_build import validated_installed_build
+from repo_save_editor.services.game.installed_build import (
+    artwork_installation,
+    installed_build_identity,
+    owned_file,
+    validated_installed_build,
+)
+from repo_save_editor.services.game.write_evidence import (
+    RECHARGE_SOURCES,
+    RECHARGE_UNITY,
+    source_pins_match,
+)
 from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.saves.private_health import private_bundle
 
 RECHARGE_EVIDENCE_VERSION: Final = 1
 RESOURCES_RELATIVE_PATH: Final = Path("REPO_Data/resources.assets")
@@ -43,6 +54,9 @@ class RechargeSourceContext:
     resources: InstalledFileIdentity
     global_managers_path: Path
     global_managers: InstalledFileIdentity
+    unity_version: str | None = None
+    presentation_only: bool = False
+    reviewed_recharge: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,18 +92,61 @@ def _source_identity(path: Path) -> InstalledFileIdentity | None:
     )
 
 
-def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSourceContext | None:
+def resolve_recharge_source_context(
+    game_dir: Path | None = None, *, presentation_only: bool = False
+) -> RechargeSourceContext | None:
     """Resolve the currently supported installed source identity without parsing Unity metadata."""
-    discovery = discover_game_installation(game_dir)
-    installation = discovery.installation
+    if presentation_only:
+        try:
+            installation = artwork_installation(game_dir)
+        except (OSError, ValueError):
+            return None
+    else:
+        installation = discover_game_installation(game_dir).installation
     if installation is None:
         return None
-    build = validated_installed_build(installation)
-    if build is None:
+    bundle = private_bundle()
+    private = (
+        not presentation_only
+        and bundle is not None
+        and bundle.session
+        and bundle.item_unity is not None
+    )
+    build = (
+        installed_build_identity(installation)
+        if private or presentation_only
+        else validated_installed_build(installation)
+    )
+    qualified_unity = bundle.item_unity if private and bundle is not None else None
+    if build is None and not presentation_only and bundle is None:
+        # The reviewed Unity layout is safe to read only from its pinned sources.
+        build = installed_build_identity(installation)
+        if build is not None and source_pins_match(installation.root, RECHARGE_SOURCES):
+            qualified_unity = RECHARGE_UNITY
+        else:
+            build = None
+    if build is None or (
+        private and bundle is not None and not bundle.accepts_build_id(build.build_id)
+    ):
         return None
 
     resources_path = installation.root / RESOURCES_RELATIVE_PATH
     global_managers_path = installation.root / GLOBAL_MANAGERS_RELATIVE_PATH
+    if presentation_only:
+        library = installation.steam_library_root
+        if library is None:
+            return None
+        try:
+            for path in (build.manifest_path, resources_path, global_managers_path):
+                owned_file(library, path)
+        except (OSError, ValueError):
+            return None
+    elif qualified_unity is not None:
+        try:
+            owned_file(installation.root, resources_path)
+            owned_file(installation.root, global_managers_path)
+        except (OSError, ValueError):
+            return None
     resources = _source_identity(resources_path)
     global_managers = _source_identity(global_managers_path)
     if resources is None or global_managers is None:
@@ -103,6 +160,9 @@ def resolve_recharge_source_context(game_dir: Path | None = None) -> RechargeSou
         resources=resources,
         global_managers_path=global_managers_path,
         global_managers=global_managers,
+        unity_version=qualified_unity,
+        presentation_only=presentation_only,
+        reviewed_recharge=qualified_unity is not None and not private,
     )
 
 

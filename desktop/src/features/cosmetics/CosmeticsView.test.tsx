@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
 
@@ -23,6 +23,7 @@ const blockedView: CosmeticsViewDto = {
     canUnlockCosmetic: true,
     canUnlockAll: true,
     canRemoveOwnership: true,
+    canClearPresets: true,
   },
   cosmetics: [
     {
@@ -54,6 +55,7 @@ const degradedView: CosmeticsViewDto = {
     canUnlockCosmetic: false,
     canUnlockAll: false,
     canRemoveOwnership: false,
+    canClearPresets: true,
   },
   cosmetics: [
     {
@@ -73,6 +75,49 @@ const degradedView: CosmeticsViewDto = {
 };
 
 describe("CosmeticsView", () => {
+  it.each([false, true])("gates nonempty presets independently of ownership: %s", (allowed) => {
+    const view: CosmeticsViewDto = {
+      ...blockedView,
+      savedPresetCount: 2,
+      capabilities: {
+        canReadCosmetics: true,
+        canUnlockCosmetic: false,
+        canUnlockAll: false,
+        canRemoveOwnership: false,
+        canClearPresets: allowed,
+      },
+      cosmetics: blockedView.cosmetics.map((c) => ({ ...c, mutationEligible: false })),
+    };
+    const clear = vi.fn();
+    render(
+      <PreferencesProvider>
+        <CosmeticsView
+          view={view}
+          savedPresetCount={2}
+          knownOwnedCount={1}
+          knownLockedCount={0}
+          loading={false}
+          error={null}
+          saving={false}
+          lockAllBlockedReason={null}
+          unlockAllPending={false}
+          lockAllPending={false}
+          clearAllPresetsPending={false}
+          hasPendingEdits={false}
+          hasBulkPending={false}
+          onRetry={vi.fn()}
+          onUnlockAll={vi.fn()}
+          onUnlockCosmetic={vi.fn()}
+          onLockAll={vi.fn()}
+          onClearAllPresets={clear}
+        />
+      </PreferencesProvider>,
+    );
+    const action = button(screen.getByRole("button", { name: "Clear All Presets" }));
+    expect(action.disabled).toBe(!allowed);
+    fireEvent.click(action);
+    expect(clear).toHaveBeenCalledTimes(allowed ? 1 : 0);
+  });
   it("uses a representative cosmetic-card skeleton only for initial loading", () => {
     const props = {
       clearAllPresetsPending: false,
@@ -147,6 +192,15 @@ describe("CosmeticsView", () => {
     expect(button(screen.getByRole("button", { name: "Lock All Cosmetics" })).disabled).toBe(true);
     expect(button(screen.getByRole("button", { name: "Clear All Presets" })).disabled).toBe(false);
     expect(screen.getByRole("listitem", { name: "Cosmetic #27, ID 27, Unknown" })).toBeTruthy();
+    for (const label of ["Known catalog", "Owned", "Locked"]) {
+      expect(screen.getByText(label, { selector: "dt" }).nextElementSibling?.textContent).toBe(
+        "Unknown",
+      );
+    }
+    expect(
+      screen.getByText("Saved presets", { selector: "dt" }).nextElementSibling?.textContent,
+    ).toBe("1");
+    expect(screen.getByText(/this R\.E\.P\.O\. build may be unsupported/i)).toBeTruthy();
   });
 
   it("exposes the Lock All blocker independently of the disabled button", () => {

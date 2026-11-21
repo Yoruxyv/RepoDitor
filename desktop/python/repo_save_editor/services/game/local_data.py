@@ -9,6 +9,7 @@ from pathlib import Path
 from repo_save_editor.services.environment.windows_paths import (
     resolve_windows_local_app_data_low,
 )
+from repo_save_editor.services.saves.private_health import private_bundle
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,7 +30,8 @@ def get_repo_local_data_roots(
     resolver: LocalAppDataLowResolver = resolve_windows_local_app_data_low,
 ) -> RepoLocalDataRoots | None:
     """Return fixed R.E.P.O. local-data suffixes beneath LocalAppDataLow."""
-    local_low = resolver()
+    bundle = private_bundle()
+    local_low = bundle.local_low if bundle and not bundle.live else resolver()
     if local_low is None:
         return None
     root = local_low / "semiwork" / "Repo"

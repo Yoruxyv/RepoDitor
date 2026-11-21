@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.player import upgrade_textures
 from repo_save_editor.services.player.upgrade_textures import (
@@ -27,7 +28,12 @@ from repo_save_editor.services.unity_textures import (
     parse_mesh_vertex_data,
     parse_texture2d,
 )
-from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
+from tests.unity_serialized_fixture import (
+    UNITY_VERSION,
+    aligned_string,
+    pptr,
+    write_serialized_file,
+)
 
 
 def _game_object(name: str, components: list[int]) -> bytes:
@@ -288,15 +294,19 @@ def _write_resource_manager(
     path: Path,
     *entries: tuple[str, int, int],
     external_name: str = "resources.assets",
+    unity_version: str = UNITY_VERSION,
 ) -> None:
     write_serialized_file(
         path,
         [(900, 147, _resource_manager(*entries))],
         externals=(("", external_name),),
+        unity_version=unity_version,
     )
 
 
-def _write_upgrade_assets(path: Path, *, texture: bytes | None = None) -> None:
+def _write_upgrade_assets(
+    path: Path, *, texture: bytes | None = None, unity_version: str = UNITY_VERSION
+) -> None:
     write_serialized_file(
         path,
         [
@@ -310,6 +320,7 @@ def _write_upgrade_assets(path: Path, *, texture: bytes | None = None) -> None:
             (40, 28, texture or _texture2d()),
             (50, 43, _upgrade_pack_mesh()),
         ],
+        unity_version=unity_version,
     )
 
 
@@ -667,18 +678,11 @@ def test_stream_size_outside_file_rejected(tmp_path: Path) -> None:
         _resolve_stream(data_root, _metadata(stream_size=9))
 
 
-@pytest.mark.parametrize(
-    ("build_id", "hash_constant"),
-    [
-        ("23363152", "VALIDATED_ASSEMBLY_SHA256"),
-        ("26294889", "SUNSTONE_ARTWORK_ASSEMBLY_SHA256"),
-    ],
-)
+@pytest.mark.parametrize("build_id", ["23363152", "26294889", "26407089", "99999999"])
 def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     build_id: str,
-    hash_constant: str,
 ) -> None:
     steamapps = tmp_path / "steamapps"
     game_root = steamapps / "common" / "REPO"
@@ -704,11 +708,15 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
     managed.mkdir()
     assembly = managed / "Assembly-CSharp.dll"
     assembly.write_bytes(b"synthetic assembly")
-    monkeypatch.setattr(
-        upgrade_textures,
-        hash_constant,
-        hashlib.sha256(assembly.read_bytes()).hexdigest(),
-    )
+    expected = hashlib.sha256(assembly.read_bytes()).hexdigest()
+    if build_id == "23363152":
+        monkeypatch.setattr(upgrade_textures, "VALIDATED_ASSEMBLY_SHA256", expected)
+    else:
+        monkeypatch.setitem(
+            installed_build._UNITY6_ARTWORK_ASSEMBLIES,
+            "26407089" if build_id == "99999999" else build_id,
+            expected,
+        )
     # One opaque-red DXT1 block; only the top mip is read even if stream metadata grows later.
     (data_root / "resources.assets.resS").write_bytes(struct.pack("<HHI", 0xF800, 0, 0))
 
@@ -729,8 +737,28 @@ def test_decode_installed_upgrade_texture_uses_synthetic_installed_files(
         "resources.assets",
         "globalgamemanagers",
         "resources.assets.resS",
+        "Assembly-CSharp.dll",
+        "appmanifest_3241660.acf",
     ]
     assert len(decoded.source_identity) == 64
+
+    manifest = steamapps / "appmanifest_3241660.acf"
+    manifest.write_text(manifest.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    refreshed = decode_installed_upgrade_texture("playerUpgradeHealth")
+    assert refreshed is not None
+    assert refreshed.png == decoded.png
+    assert refreshed.source_identity != decoded.source_identity
+    installation = discover_game_installation(steam_roots=(tmp_path,), environment={}).installation
+    assert installation is not None
+    build = installed_build.validated_installed_artwork_build(installation)
+    assert build is not None
+    interrupted = upgrade_textures.prepare_installed_upgrade_textures(
+        ("playerUpgradeHealth",),
+        installation,
+        build,
+        on_decode_start=lambda *_: assembly.write_bytes(b"changed during decoding"),
+    )
+    assert interrupted.textures == (("playerUpgradeHealth", None),)
 
     def unexpected_index(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("assembly validation must block extraction")

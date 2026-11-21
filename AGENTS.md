@@ -20,7 +20,6 @@ configuration. Keep combined chains small enough to load without truncation.
 | Domain                                                   | Specialized instructions                                   |
 | -------------------------------------------------------- | ---------------------------------------------------------- |
 | Desktop contracts and validation                         | [desktop/AGENTS.md](desktop/AGENTS.md)                     |
-| Electron IPC, protocols, processes                       | [desktop/electron/AGENTS.md](desktop/electron/AGENTS.md)   |
 | Python save semantics and asset parsing                  | [desktop/python/AGENTS.md](desktop/python/AGENTS.md)       |
 | Desktop React presentation                               | [desktop/src/AGENTS.md](desktop/src/AGENTS.md)             |
 | Source and packaged Desktop E2E                          | [desktop/e2e/AGENTS.md](desktop/e2e/AGENTS.md)             |
@@ -36,9 +35,16 @@ CI follows the validation rules below and the affected product's gates.
 
 ## Understand and bound the work
 
-- Trace actual contracts, callers, tests, fixtures, dependencies, and documentation
-  before editing. Unfamiliar code is not evidence of a defect. Separate verified
-  facts from assumptions; establish the root cause before fixing a bug.
+- Before investigating, review the existing implementation, documentation, test
+  results, recorded decisions, and previously validated behavior. Use that
+  evidence to trace current contracts, callers, fixtures, and dependencies.
+  Separate verified facts from assumptions and establish the root cause before
+  fixing a bug.
+- Carry accepted findings and documented maintainer decisions across tasks, tool
+  changes, and implementations. Reopen a settled question only when new evidence,
+  a changed dependency, a failed test, or a specific unresolved gap shows why the
+  previous conclusion may no longer apply. State the exact reason and investigate
+  only that gap.
 - Define observable acceptance criteria and relevant compatibility, security,
   data-integrity, and integration risks. Reproduce bugs and add regression coverage;
   define success/failure behavior for features; establish a baseline and preserve
@@ -46,6 +52,10 @@ CI follows the validation rules below and the affected product's gates.
 - Ask only when ambiguity materially affects correctness, safety, or the outcome.
   Resolve routine details from evidence. Explain architectural tradeoffs and push
   back on disproportionate complexity or weakened guarantees.
+- Deliver the complete requested scope and handle related changes together. Split
+  related work into separate research or approval milestones only when a concrete
+  dependency or required authorization demands it. Identify exactly what is
+  blocked and complete the work that can proceed.
 - For non-trivial work across files/layers, query Graphify before broad searches.
   Use a bounded relevant subgraph and verify inferred relationships in current
   files. After significant merged structural changes, refresh and verify the
@@ -56,10 +66,11 @@ CI follows the validation rules below and the affected product's gates.
 
 ## Small, maintainable changes
 
-Use the installed Ponytail skill for coding/refactoring when available. First ask
-whether the code is needed, then reuse an existing owner/helper, the platform,
-or an installed dependency before adding machinery. Prefer the smallest readable,
-testable, secure solution, not the fewest characters.
+Use the installed Ponytail skill for coding/refactoring when available. Decide
+whether the change is needed. Adapt working implementations, established
+protocols, proven algorithms, and existing tests where applicable. Reuse the
+existing owner, the platform, or an installed dependency before adding machinery.
+Prefer the smallest readable, testable, secure solution.
 
 Avoid speculative abstractions, unrequested options, duplicate managers/caches/
 protocols, single-use frameworks, ceremonial services/interfaces, wrappers,
@@ -84,13 +95,14 @@ phases, or incidental updates. Preserve meaningful version/build/hash/regression
 identities. Avoid cosmetic renames. Comments explain non-obvious rationale,
 contracts, security, or compatibility rather than restating syntax.
 
-Every changed line must serve the task; do not invent requirements or silently
-expand scope. Preserve conventions, unrelated edits,
-untracked files, staging, research, fixtures, and regression coverage. Avoid
-adjacent refactors or formatting; report unrelated problems separately. Broader
-refactors need scope and regression criteria. Remove only understood task-owned
-dead code, imports, debugging, or temporary artifacts. Never trade validation,
-types, error handling, accessibility, tests, or security for brevity.
+Every changed line must serve the task. Do not invent requirements or silently
+expand scope. Preserve conventions, unrelated edits, untracked files, staging,
+research, fixtures, and regression coverage. Keep unrelated refactors, formatting,
+performance experiments, architecture redesigns, and additional milestones
+outside the task. Report unrelated problems separately.
+Broader refactors need scope and regression criteria. Remove only understood
+task-owned dead code, imports, debugging, or temporary artifacts. Never trade
+validation, types, error handling, accessibility, tests, or security for brevity.
 
 ## Security and compatibility
 
@@ -98,16 +110,18 @@ Preserve the existing ownership and trust boundaries. Desktop and Web are
 independent implementations: no cross-importing implementation code; overlapping
 behavior must agree through evidence-backed semantics and fixtures. Discovery or
 presentation availability must never expand mutation authorization. Game updates
-require compatibility evidence, not automatic authorization. Future Tauri work
-must preserve behavioral/security contracts without an unrequested migration or
-mechanical reproduction of Electron internals.
+require compatibility evidence, not automatic authorization. When replacing an
+implementation, preserve its behavioral and security contracts, adapt to the
+target architecture, and keep the migration within the requested scope.
 
 Keep installed-game files read-only. Tests/research use synthetic fixtures and
 temporary copies; never modify real saves, game files, or R.E.P.O. LocalLow data
 without a separately authorized, validated operation. Preserve path/namespace
 authorization, bounded reads, source integrity, cache invalidation, sanitized
-errors, process cleanup, and failure isolation wherever applicable. Writes must
-leave the original recoverable. Never commit personal saves/backups, credentials,
+errors, process cleanup, and failure isolation wherever applicable. Preserve
+verified backup integrity, transaction correctness, validation, source identity,
+and atomic replacement when simplifying write workflows. Writes must leave the
+original recoverable. Never commit personal saves/backups, credentials,
 proprietary game files/artwork, personal data, or generated diagnostic artifacts.
 
 Before adding a dependency, inspect existing code/dependencies, explain why the
@@ -121,6 +135,10 @@ Add meaningful behavior tests with each behavior change, including relevant
 negative cases, boundary validation, timeouts, cancellation, partial initialization,
 cleanup, and resource ownership. Prefer deterministic controlled inputs. Do not
 duplicate coverage without a reason or test only implementation details.
+
+Use the simplest validation workflow that preserves essential safety and required
+checks. Add test environments, accounts, fixtures, approval systems, or procedures
+only when a concrete validation or safety need requires them.
 
 Investigate failed checks before changing code. Distinguish infrastructure failures
 from product defects; never weaken assertions, alter frozen evidence, suppress
@@ -140,7 +158,8 @@ required jobs and diagnostics; do not bypass checks to obtain green CI.
 
 Report exact checks run, results, skipped/unavailable checks, and uncertainty.
 Compilation, historical test results, or exit codes alone do not prove behavior.
-Report READY only with no known in-scope blockers; stop at the requested boundary.
+Report READY only with no known in-scope blockers. Close the task once its
+acceptance criteria are met. Proceed only to the next agreed milestone.
 
 ## Documentation and instruction maintenance
 

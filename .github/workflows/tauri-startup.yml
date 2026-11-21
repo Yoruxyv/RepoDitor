@@ -1,0 +1,60 @@
+name: Tauri packaged startup smoke (test-only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - desktop/**
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/tauri-startup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  startup-comparison:
+    name: Test-only packaged browser arguments
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Sync locked test and packaging dependencies
+        working-directory: .
+        run: uv sync --locked --group test --group package
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Test the ordinary read-only packaged startup
+        run: pwsh -NoProfile -File scripts/tauri/test-tauri-safety.ps1 -TestBrowserArgs -OutputDirectory build/tauri-startup-comparison
+      - name: Preserve bounded comparison evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-startup-comparison-diagnostics
+          path: |
+            desktop/build/tauri-startup-comparison/validation.log
+            desktop/build/tauri-startup-comparison/startup.json
+            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/startup-*.json
+            desktop/build/recovery-checkpoint/tauri-startup-comparison/**/trace.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

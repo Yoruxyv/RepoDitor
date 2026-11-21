@@ -6,7 +6,7 @@ import type {
   PlayerDto,
   PlayerUpgradeDto,
   SaveCanonicalUpgradeValue,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
@@ -57,6 +57,9 @@ function applyCanonicalUpgradeValues(
 export function useUpgrades(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
+  list: (saveId: string) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>,
+  loadInitially = true,
+  prepare = list,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<UpgradesState>(() => {
@@ -67,13 +70,19 @@ export function useUpgrades(
   });
   const [pendingByUpgrade, setPendingByUpgrade] = useState<Record<string, UpgradeValueEdit>>({});
   const mounted = useRef(false);
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
+  const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
-    async (preserveExisting = false): Promise<boolean> => {
+    async (preserveExisting = false, read = list): Promise<boolean> => {
+      if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
+      requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
-        const resolved = await window.repoditor.upgrades.list(saveId);
-        if (!mounted.current) return resolved.ok;
+        const resolved = await read(saveId);
+        if (!mounted.current || version !== snapshotVersion.current) return resolved.ok;
         if (resolved.ok) {
           setState({ upgrades: resolved.data, error: null, loading: false });
           return true;
@@ -85,7 +94,7 @@ export function useUpgrades(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             upgrades: preserveExisting ? current.upgrades : [],
             error: "error.service",
@@ -93,18 +102,26 @@ export function useUpgrades(
           }));
         }
         return false;
+      } finally {
+        requestInFlight.current = false;
       }
     },
-    [saveId],
+    [list, saveId],
   );
 
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };
-  }, [load]);
+  }, []);
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false, prepare);
+    });
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially, prepare]);
 
   function update(upgrade: PlayerUpgradeDto, player: PlayerDto, value: number): void {
     const before = upgrade.values.find((item) => item.playerId === player.id)?.value ?? 0;
@@ -150,6 +167,33 @@ export function useUpgrades(
     setPendingByUpgrade({});
   }
 
+  function acceptSnapshot(upgrades: PlayerUpgradeDto[]): void {
+    snapshotVersion.current += 1;
+    const known = new Map(state.upgrades.map((upgrade) => [upgrade.key, upgrade]));
+    setState({
+      loading: false,
+      error: null,
+      upgrades: upgrades.map((upgrade) => {
+        const presentation = known.get(upgrade.key);
+        return presentation ? { ...presentation, values: upgrade.values } : upgrade;
+      }),
+    });
+  }
+
+  async function refreshArtwork(): Promise<void> {
+    const version = snapshotVersion.current;
+    const result = await list(saveId);
+    if (!mounted.current || version !== snapshotVersion.current || !result.ok) return;
+    const tokens = new Map(result.data.map((upgrade) => [upgrade.key, upgrade.iconToken]));
+    setState((current) => ({
+      ...current,
+      upgrades: current.upgrades.map((upgrade) => ({
+        ...upgrade,
+        iconToken: tokens.get(upgrade.key) ?? null,
+      })),
+    }));
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -159,6 +203,8 @@ export function useUpgrades(
     revert,
     revertAll,
     applyAfterSave,
+    acceptSnapshot,
+    refreshArtwork,
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };

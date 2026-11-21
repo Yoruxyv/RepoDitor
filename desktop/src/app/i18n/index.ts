@@ -4,7 +4,7 @@
  * English defines the compile-time key set; every locale must implement that set.
  * Game-derived names and save values remain opaque data and are never translated here.
  */
-import type { DesktopOperationErrorCode } from "@electron/contracts";
+import type { DesktopOperationErrorCode } from "@/app/desktopContracts";
 import { zhCN } from "@/app/i18n/locales/zh-CN";
 import { en } from "@/app/i18n/locales/en";
 import { id } from "@/app/i18n/locales/id";
@@ -48,6 +48,7 @@ export const TRANSLATIONS: Record<Locale, Record<TranslationKey, string>> = {
 const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   python_unavailable: ERROR_TRANSLATION_KEY.service,
   process_failed: ERROR_TRANSLATION_KEY.service,
+  process_cancelled: "error.requestCancelled",
   process_timeout: ERROR_TRANSLATION_KEY.service,
   empty_response: ERROR_TRANSLATION_KEY.service,
   malformed_response: ERROR_TRANSLATION_KEY.service,
@@ -56,11 +57,12 @@ const ERROR_KEYS: Record<DesktopOperationErrorCode, TranslationKey> = {
   game_running: "error.gameRunning",
   game_status_unknown: "error.gameUnknown",
   save_missing: ERROR_TRANSLATION_KEY.saveMissing,
-  meta_missing: ERROR_TRANSLATION_KEY.saveMissing,
+  meta_missing: "error.metaMissing",
   save_corrupt: ERROR_TRANSLATION_KEY.saveInvalid,
   save_decrypt_failed: ERROR_TRANSLATION_KEY.saveInvalid,
   save_unsupported: ERROR_TRANSLATION_KEY.saveInvalid,
   save_stale: "error.saveStale",
+  save_source_unverified: "error.saveSourceUnverified",
   save_validation_failed: ERROR_TRANSLATION_KEY.saveInvalid,
   backup_failed: ERROR_TRANSLATION_KEY.write,
   save_write_failed: ERROR_TRANSLATION_KEY.write,

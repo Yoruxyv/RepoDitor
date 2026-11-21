@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import base64
+from hashlib import sha256, shake_128
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from repo_save_editor.desktop_api import cosmetic_artwork as native
 from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
 from repo_save_editor.services.cosmetics.installed_artwork import (
     ArtworkWatch,
     DecodedCosmeticArtwork,
 )
+from repo_save_editor.services.texture_codec import encode_rgba_png
 
 
 def test_invalid_ids_never_decode() -> None:
@@ -49,3 +55,169 @@ def test_unsupported_assets_fail_soft() -> None:
         side_effect=ImportError("optional dependencies"),
     ):
         assert get_cosmetic_artwork("0") == {"ok": True, "artwork": None}
+
+
+def test_native_proof_binds_exact_id_source_and_metasave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = bytes.fromhex("a" * 64)
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    meta = tmp_path / "MetaSave.es3"
+    meta.write_bytes(b"synthetic MetaSave bytes")
+    fingerprint = sha256(meta.read_bytes()).hexdigest()
+    revision, filename, png_revision = "b" * 64, "c" * 32, "d" * 64
+    binding = f"{revision}:{filename}:{png_revision}"
+    proof = f"{binding}:{native._signature(key, fingerprint, '556', binding)}"
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    with patch.object(native, "read_bound_cosmetic_png", return_value=png) as read:
+        unavailable = {"ok": True, "artwork": None}
+        for identity in ("0556", "555", "2000", "999", "../file"):
+            assert native.get_native_cosmetic_artwork(fingerprint, proof, identity) == unavailable
+        assert (
+            native.get_native_cosmetic_artwork(fingerprint, "e" + proof[1:], "556") == unavailable
+        )
+        read.assert_not_called()
+        response = native.get_native_cosmetic_artwork(fingerprint, proof, "556")
+        assert response["artwork"]["cosmeticId"] == 556
+        assert response["artwork"]["sourceIdentity"] == revision
+        assert "watches" not in response["artwork"]
+        read.assert_called_once_with(revision, filename, png_revision, cache=None, identity="556")
+        meta.write_bytes(b"changed")
+        assert native.get_native_cosmetic_artwork(fingerprint, proof, "556") == unavailable
+        meta.unlink()
+        assert native.get_native_cosmetic_artwork(fingerprint, proof, "556") == unavailable
+        read.assert_called_once()
+
+
+def test_native_batch_keeps_valid_members_bounds_bytes_and_rechecks_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = bytes.fromhex("a" * 64)
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic batch MetaSave"
+    meta.write_bytes(original)
+    fingerprint = sha256(original).hexdigest()
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    binding = f"{'b' * 64}:{'c' * 32}:{'d' * 64}"
+    members = [
+        value
+        for identity in ("1", "2")
+        for value in (
+            f"{binding}:{native._signature(key, fingerprint, identity, binding)}",
+            identity,
+        )
+    ]
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+    with patch.object(
+        native, "read_bound_cosmetic_pngs", return_value={"1": png, "2": png}
+    ) as read:
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 57) == {"ok": False}
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members[:2] * 2) == {
+            "ok": False
+        }
+        read.assert_not_called()
+        forged = [*members[:2], members[0], members[3]]
+        read.return_value = {"1": png}
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, forged)
+        assert result["artworks"][0]["cosmeticId"] == 1
+        assert result["artworks"][1] is None
+        read.assert_called_once_with("b" * 64, [("1", "c" * 32, "d" * 64)])
+        read.return_value = {"1": png, "2": png}
+        monkeypatch.setattr(native, "NATIVE_BATCH_BASE64_BUDGET", len(png) * 2)
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, members)
+        assert result["artworks"][0]["cosmeticId"] == 1
+        assert result["artworks"][1] is False
+        assert meta.read_bytes() == original
+
+    def replace_during_read(_revision, _group):
+        meta.write_bytes(b"changed")
+        return {"1": png, "2": png}
+
+    monkeypatch.setattr(native, "read_bound_cosmetic_pngs", replace_during_read)
+    assert native.get_native_cosmetic_artwork_batch(fingerprint, members) == {
+        "ok": True,
+        "artworks": [None, None],
+    }
+
+
+def test_native_batch_accepts_112_distinct_signed_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = bytes.fromhex("a" * 64)
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic batch MetaSave"
+    meta.write_bytes(original)
+    fingerprint = sha256(original).hexdigest()
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    binding = f"{'b' * 64}:{'c' * 32}:{'d' * 64}"
+    rgba = shake_128(b"bounded cosmetic transport fixture").digest(96 * 60 * 4)
+    png = encode_rgba_png(rgba, 96, 60)
+    members = [
+        part
+        for identity in map(str, range(113))
+        for part in (
+            f"{binding}:{native._signature(key, fingerprint, identity, binding)}",
+            identity,
+        )
+    ]
+    images = {str(identity): png for identity in range(112)}
+    with patch.object(native, "read_bound_cosmetic_pngs", return_value=images) as read:
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members) == {"ok": False}
+        read.assert_not_called()
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, members[:-2])
+        assert result["artworks"] == [
+            native._native_image(identity, "b" * 64, png) for identity in range(112)
+        ]
+        assert len(read.call_args.args[1]) == 112
+
+
+def test_native_preview_bounds_large_baked_png_for_the_catalog() -> None:
+    pytest.importorskip("PIL.Image")
+    png = encode_rgba_png(bytes((1, 2, 3, 255)) * (512 * 256), 512, 256)
+    thumbnail = native._native_image(1, "b" * 64, png)
+    assert thumbnail is not None
+    assert (thumbnail["width"], thumbnail["height"]) == (96, 48)
+    pixels = base64.b64decode(thumbnail["pngBase64"])
+    assert native._native_image(1, "b" * 64, pixels) == thumbnail
+    assert len(pixels) < len(png)
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_warm_artwork_requires_current_metasave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: bool
+) -> None:
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", "a" * 64)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic MetaSave bytes"
+    meta.write_bytes(original)
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    png = encode_rgba_png(bytes((1, 2, 3, 255)), 1, 1)
+
+    def catalog(_cache, *, warm_artwork, **_options):
+        assert warm_artwork
+        if changed:
+            meta.write_bytes(b"new source")
+        return (), "b" * 64, {"0": ("c" * 32, "d" * 64)}, {"0": png}
+
+    def projection(*, catalog_loader):
+        catalog_loader()
+        return {"ok": True, "cosmetics": {"fingerprint": sha256(original).hexdigest()}}
+
+    monkeypatch.setattr(native, "native_cosmetic_catalog", catalog)
+    monkeypatch.setattr(native, "get_cosmetics", projection)
+    result = native.get_native_cosmetics(warm_artwork=True)
+    if changed:
+        assert result["ok"] is False
+        assert result["error"]["code"] == "save_stale"
+    else:
+        assert result["ok"] is True
+        assert result["cosmetics"]["artworkPreviews"]["0"]["sourceIdentity"] == "b" * 64

@@ -25,7 +25,8 @@ from repo_save_editor.services.game.maps import (
     MapCatalog,
     discover_installed_maps,
 )
-from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
+from repo_save_editor.services.unity_artwork import ArtworkFileIndex
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     MAX_RESOURCE_MANAGER_BYTES,
     RESOURCE_MANAGER_CLASS_ID,
@@ -41,9 +42,10 @@ MAX_NATIVE_BYTES = 512 * 1024 * 1024
 MAX_STREAM_BYTES = 16 * 1024 * 1024
 MAX_OBJECT_BYTES = 64 * 1024
 MAX_PNG_BYTES = 2 * 1024 * 1024
+MAX_NATIVE_PNG_BYTES = 1024 * 1024
 
 
-class _MapSpriteIndex(ArtworkFileIndex):
+class _MapSpriteIndex(PresentationFileIndex):
     """Retain reviewed metadata while selecting native objects for UnityPy."""
 
     def _parse_types(self, reader: _Reader) -> None:
@@ -133,7 +135,14 @@ def _native_environment(
 
 def _watch(root: Path, path: Path) -> dict[str, str]:
     info = owned_file(root, path).stat()
-    return {"path": str(path), "size": str(info.st_size), "mtimeNs": str(info.st_mtime_ns)}
+    return {
+        "path": str(path),
+        "size": str(info.st_size),
+        "mtimeNs": str(info.st_mtime_ns),
+        "device": str(info.st_dev),
+        "inode": str(info.st_ino),
+        "ctimeNs": str(info.st_ctime_ns),
+    }
 
 
 def _preview(sprite: Any, texture: Any) -> tuple[bytes, int, int]:
@@ -194,36 +203,57 @@ def _revision(watches: list[dict[str, str]]) -> str:
     ).hexdigest()
 
 
-def decode_map_artwork() -> dict[str, object]:
+def decode_map_artwork(
+    *,
+    family: str | None = None,
+    expected_revision: str | None = None,
+    families: tuple[str, ...] = (),
+) -> dict[str, object]:
     """Decode a finite installed-map batch in one process; optional sources fail soft."""
     try:
-        catalog = discover_installed_maps()
+        catalog = discover_installed_maps(presentation=True)
         if catalog is None or not catalog.source_paths:
             return {}
-        return _decode(catalog)
+        return _decode(
+            catalog, family=family, expected_revision=expected_revision, families=families
+        )
     except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError, ImportError):
         return {}
 
 
-def _decode(catalog: MapCatalog) -> dict[str, object]:
+def _decode(
+    catalog: MapCatalog,
+    *,
+    family: str | None = None,
+    expected_revision: str | None = None,
+    families: tuple[str, ...] = (),
+) -> dict[str, object]:
     paths = artwork_sources(catalog)
     watches = _watches(catalog)
     if paths[-2].stat().st_size > MAX_NATIVE_BYTES:
         raise ValueError("Map serialized input exceeds its bound.")
     identity = _revision(watches)
+    if expected_revision is not None and identity != expected_revision:
+        return {}
+    selected = (family,) if family is not None else families
+    maps = tuple(
+        m for m in catalog.maps if m.loading_paths and (not selected or m.internal_name in selected)
+    )
+    if not maps or (family is not None and len(maps) != 1):
+        return {}
     result: dict[str, object] = {}
     total = 0
     with ExitStack() as stack:
-        manager = stack.enter_context(ArtworkFileIndex(paths[-3]))
+        manager = stack.enter_context(PresentationFileIndex(paths[-3]))
         index = _MapSpriteIndex(paths[-2])
         stack.enter_context(index)
         if (
-            index.unity_version != SUNSTONE_UNITY_VERSION
-            or manager.unity_version != SUNSTONE_UNITY_VERSION
+            not is_sunstone_layout(index.unity_version)
+            or manager.unity_version != index.unity_version
         ):
             raise ValueError("Unsupported loading-art source version.")
         # Avoid materializing millions of unrelated UnityPy ObjectReaders from the installed file.
-        asset_paths = tuple(m.loading_paths[0] for m in catalog.maps if m.loading_paths)
+        asset_paths = tuple(m.loading_paths[0] for m in maps)
         env = _native_environment(manager, index, asset_paths)
         if env is None:
             return {}
@@ -231,9 +261,7 @@ def _decode(catalog: MapCatalog) -> dict[str, object]:
         env.register_cab(
             paths[-1].name, import_module("UnityPy.streams").EndianBinaryReader(stream_handle)
         )
-        for game_map in catalog.maps:
-            if not game_map.loading_paths:
-                continue
+        for game_map in maps:
             asset_path = game_map.loading_paths[0]
             try:
                 png, width, height = _decode_sprite(manager, index, env, asset_path, paths[-1])
@@ -244,6 +272,8 @@ def _decode(catalog: MapCatalog) -> dict[str, object]:
                 for picture in env.file._cache.values():
                     picture.close()
                 env.file._cache.clear()
+            if selected and len(png) > MAX_NATIVE_PNG_BYTES:
+                continue
             total += len(png)
             if total > 8 * 1024 * 1024:
                 break

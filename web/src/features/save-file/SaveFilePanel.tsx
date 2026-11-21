@@ -3,6 +3,7 @@ import { lazy, Suspense, useState, type ChangeEvent } from "react";
 
 import { useI18n } from "@/app/i18n/context";
 import type { Translate, TranslationKey } from "@/app/i18n/catalog";
+import { PendingHealthLimitError } from "@/features/run-save/runSave";
 import type { WorkspaceExportState } from "@/features/save-file/PendingChangesBar";
 import { FindSaveDialog } from "@/features/save-file/FindSaveDialog";
 import {
@@ -129,8 +130,12 @@ export function SaveFilePanel({ onWorkspaceChange }: SaveFilePanelProps) {
         fileName: output.fileName,
         status: "success",
       });
-    } catch {
-      setExportState({ status: "error" });
+    } catch (error) {
+      setExportState(
+        error instanceof PendingHealthLimitError
+          ? { status: "error", healthMaximum: error.maximum }
+          : { status: "error" },
+      );
     }
   }
 

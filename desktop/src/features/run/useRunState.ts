@@ -6,7 +6,7 @@ import type {
   RunStateDto,
   RunStatDto,
   SaveCanonicalRun,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
@@ -29,18 +29,26 @@ function initialState(result: DesktopOperationResult<RunStateDto> | null): State
 export function useRunState(
   saveId: string,
   initialResult: DesktopOperationResult<RunStateDto> | null = null,
+  get: (saveId: string) => Promise<DesktopOperationResult<RunStateDto>>,
+  loadInitially = true,
 ) {
   const { t } = usePreferences();
   const [state, setState] = useState<State>(() => initialState(initialResult));
-  const initialResultRef = useRef(initialResult);
+  const needsInitialLoad = useRef(initialResult === null);
   const [pendingByField, setPendingByField] = useState<Record<string, RunStatEdit>>({});
   const mounted = useRef(false);
+  const requestInFlight = useRef(false);
+  const snapshotVersion = useRef(0);
 
   const load = useCallback(
     async (preserveExisting = false): Promise<boolean> => {
+      if (requestInFlight.current) return false;
+      needsInitialLoad.current = false;
+      requestInFlight.current = true;
+      const version = snapshotVersion.current;
       try {
-        const result = await window.repoditor.run.get(saveId);
-        if (!mounted.current) return result.ok;
+        const result = await get(saveId);
+        if (!mounted.current || version !== snapshotVersion.current) return result.ok;
         if (result.ok) {
           setState({ run: result.data, error: null, loading: false });
           return true;
@@ -52,7 +60,7 @@ export function useRunState(
         }));
         return false;
       } catch {
-        if (mounted.current) {
+        if (mounted.current && version === snapshotVersion.current) {
           setState((current) => ({
             run: preserveExisting ? current.run : null,
             error: "error.service",
@@ -60,18 +68,27 @@ export function useRunState(
           }));
         }
         return false;
+      } finally {
+        requestInFlight.current = false;
       }
     },
-    [saveId],
+    [get, saveId],
   );
 
   useEffect(() => {
     mounted.current = true;
-    if (initialResultRef.current === null) void load(false);
     return () => {
       mounted.current = false;
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!loadInitially || !needsInitialLoad.current) return;
+    const request = window.setTimeout(() => {
+      if (needsInitialLoad.current) void load(false);
+    });
+    return () => window.clearTimeout(request);
+  }, [load, loadInitially]);
 
   function updateStat(stat: RunStatDto, value: number): void {
     update({
@@ -151,6 +168,12 @@ export function useRunState(
     setPendingByField({});
   }
 
+  function acceptSnapshot(run: RunStateDto): void {
+    needsInitialLoad.current = false;
+    snapshotVersion.current += 1;
+    setState({ run, error: null, loading: false });
+  }
+
   return {
     ...state,
     error: state.error ? t(state.error) : null,
@@ -161,6 +184,7 @@ export function useRunState(
     revert,
     revertAll,
     applyAfterSave,
+    acceptSnapshot,
     reload: () => load(false),
     refreshAfterSave: () => load(true),
   };

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-game-status"
+description = "Enables the game_status command without any pre-configured scope."
+commands.allow = ["game_status"]
+
+[[permission]]
+identifier = "deny-game-status"
+description = "Denies the game_status command without any pre-configured scope."
+commands.deny = ["game_status"]

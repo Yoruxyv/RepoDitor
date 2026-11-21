@@ -1,5 +1,15 @@
 # Real installer extraction progress
 
+The electron-builder extraction integration below was developed after the
+published v0.2.1 installer. The hook sources and exact toolchain remain
+available in Git history at `752325a`. The current repository reuses the C# host and UI with the Tauri NSIS engine.
+The release installer shows preparation, installation and verification stages.
+Tauri copies files using NSIS File commands, so the Electron Nsis7z byte
+counters do not apply. Native installer integration is covered by the
+[W9-B gate](release-checklist.md#w9-b-installer-migration-acceptance).
+
+## Historical Electron extraction
+
 Install/update progress comes from native extraction byte counters. A narrow,
 version-guarded NSIS macro override supplies telemetry because electron-builder
 does not expose the required extraction callback through its supported hooks.
@@ -194,7 +204,7 @@ runner. Local interactive QA retains its stricter postflight-based account clean
 and keeps failed disposable profiles for diagnosis. Never run the worker directly
 against an existing Windows profile.
 
-Run `pwsh -NoProfile -File scripts/test-installer-lifecycle-process.ps1` from
+Run `pwsh -NoProfile -File installer/scripts/test-installer-lifecycle-process.ps1` from
 `desktop` for synthetic supervision regressions. These exercise process exit,
 nonzero status, missing/partial/failed output, missing postflight, timeout tree
 termination and a completed worker with a surviving descendant, without invoking

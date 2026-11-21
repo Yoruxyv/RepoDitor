@@ -17,6 +17,35 @@ const edit: PendingEdit = {
 };
 
 describe("PendingChangesBar", () => {
+  it("explains an unavailable Save while retaining Review and Revert", async () => {
+    const user = userEvent.setup();
+    const revert = vi.fn();
+    const save = vi.fn();
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          edits={[edit]}
+          saving={false}
+          error={null}
+          backupPath={null}
+          saveUnavailableReason="Saving this domain is unavailable."
+          onRevert={revert}
+          onSave={save}
+        />
+      </PreferencesProvider>,
+    );
+    const button = screen.getByRole("button", { name: "Save Changes" });
+    expect(button.matches(":disabled")).toBe(true);
+    expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Saving this domain is unavailable.",
+    );
+    await user.click(button);
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText("12 → 20")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(revert).toHaveBeenCalledOnce();
+    expect(save).not.toHaveBeenCalled();
+  });
   it("keeps exact changes collapsed until Review is requested", async () => {
     const user = userEvent.setup();
     render(
@@ -104,6 +133,39 @@ describe("PendingChangesBar", () => {
     await user.click(screen.getByRole("button", { name: "Revert all" }));
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(onRevert).toHaveBeenCalledOnce();
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("opens required review from Save and waits for a separate confirmation", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const reviewPath = "C:\\fixture\\save.es3";
+    render(
+      <PreferencesProvider>
+        <PendingChangesBar
+          backupPath={null}
+          edits={[edit]}
+          error={null}
+          saving={false}
+          reviewPath={reviewPath}
+          onRevert={vi.fn()}
+          onSave={onSave}
+        />
+      </PreferencesProvider>,
+    );
+
+    const save = screen.getByRole("button", { name: "Save Changes" });
+    const review = screen.getByRole("button", { name: "Review" });
+    await user.dblClick(save);
+    expect(screen.getByText(/Source .*save\.es3/)).toBeTruthy();
+    expect(review.getAttribute("aria-expanded")).toBe("true");
+    expect(onSave).not.toHaveBeenCalled();
+
+    review.focus();
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).toBe(save);
+    await user.keyboard("{Enter}");
     expect(onSave).toHaveBeenCalledOnce();
   });
 

@@ -3,37 +3,49 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from hashlib import sha256
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
-from repo_save_editor.services.player.profiles import get_steam_avatar_url
 from repo_save_editor.services.player.state import (
     get_player_health,
     get_player_max_health,
     get_players,
 )
 
+if TYPE_CHECKING:
+    from repo_save_editor.services.player.profiles import SteamAvatar
 
-def list_players(save_id: str, root: Path | None = None) -> dict[str, object]:
+
+def list_players(
+    save_id: str, root: Path | None = None, *, include_fingerprint: bool = False
+) -> dict[str, object]:
     """Return friendly player identity and current-health DTOs."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
     except DesktopSaveError as exc:
         return _failure(exc.code, exc.message)
 
-    return {
-        "ok": True,
-        "players": [
-            {
-                "id": player.player_id,
-                "name": player.name,
-                "health": get_player_health(data, player.player_id),
-                "maxHealth": get_player_max_health(data, player.player_id),
-            }
-            for player in get_players(data)
-        ],
-    }
+    result: dict[str, object] = {"ok": True, "players": serialize_players(data)}
+    if include_fingerprint:
+        result["fingerprint"] = sha256(source).hexdigest()
+    return result
+
+
+def serialize_players(data: SaveData) -> list[dict[str, object]]:
+    """Project player identity and health from one already validated save snapshot."""
+    return [
+        {
+            "id": player.player_id,
+            "name": player.name,
+            "health": get_player_health(data, player.player_id),
+            "maxHealth": get_player_max_health(data, player.player_id),
+        }
+        for player in get_players(data)
+    ]
 
 
 def get_player_avatar(
@@ -41,7 +53,7 @@ def get_player_avatar(
     player_id: str,
     root: Path | None = None,
     *,
-    resolver: Callable[[str], str | None] = get_steam_avatar_url,
+    resolver: Callable[[str], SteamAvatar | str | None] | None = None,
 ) -> dict[str, object]:
     """Resolve one optional avatar only for a player present in the selected save."""
     try:
@@ -52,10 +64,24 @@ def get_player_avatar(
     if player_id not in {player.player_id for player in get_players(data)}:
         return _failure("invalid_request", "The selected player is not present in this save.")
 
+    # Keep the HTTP and XML startup cost in the optional avatar command.
+    from repo_save_editor.services.player.profiles import (  # noqa: PLC0415
+        SteamAvatar,
+        get_steam_avatar,
+    )
+
+    resolved = (get_steam_avatar if resolver is None else resolver)(player_id)
+    avatar = (
+        resolved
+        if isinstance(resolved, SteamAvatar)
+        else SteamAvatar(resolved, "available" if resolved is not None else "unavailable")
+    )
     return {
         "ok": True,
         "avatar": {
             "playerId": player_id,
-            "avatarUrl": resolver(player_id),
+            "avatarUrl": avatar.url,
+            "status": avatar.status,
+            "retryAfterMs": avatar.retry_after_ms,
         },
     }

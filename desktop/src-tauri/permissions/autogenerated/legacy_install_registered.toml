@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-legacy-install-registered"
+description = "Enables the legacy_install_registered command without any pre-configured scope."
+commands.allow = ["legacy_install_registered"]
+
+[[permission]]
+identifier = "deny-legacy-install-registered"
+description = "Denies the legacy_install_registered command without any pre-configured scope."
+commands.deny = ["legacy_install_registered"]

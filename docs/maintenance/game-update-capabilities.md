@@ -18,7 +18,107 @@ policy modules from those files. Generated files must not be edited by hand. Out
 deterministic, contains no timestamps, and preserves non-contiguous cosmetic IDs exactly; a gap is
 never inferred to be an owned or mutable ID.
 
+## Tauri editing across Steam patches
+
+The `26732417` private preview has direct in-game acceptance for Health, Upgrades,
+Run and Normal/Shop resume, Item Recharge, and Cosmetics. The production
+backend uses [the accepted fingerprints](../../desktop/python/repo_save_editor/services/game/write_evidence.py).
+Approval carries to a new Steam BuildID when the installation has valid Steam
+provenance and the SHA-256 pins for the required domains still match.
+The live BuildID remains part of session checks. Reopen the editor and the save
+after a Steam update.
+
+| Domain                           | Evidence carried forward                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All edits                        | The game executable, Unity player, `Assembly-CSharp.dll`, and `globalgamemanagers`, plus the ES3 serializer in `Assembly-CSharp-firstpass.dll` and the managed and Mono runtime files it uses. These files cover the game code, ES3 field layout, and crypto implementation reviewed for the private build. |
+| Health, Upgrades, Run and Resume | The reviewed player IDs and fields, upgrade keys and limits, Run field types, and Normal/Shop resume behavior are covered by the shared pins. Existing per-save checks still constrain each edit.                                                                                                           |
+| Item Recharge                    | The shared pins plus `resources.assets` and `globalgamemanagers.assets`, which establish the exact qualified `ItemBattery` identities. Each save still has to contain the exact eligible instance and previous charge.                                                                                      |
+| Cosmetics                        | The shared pins plus `level0`, `globalgamemanagers.assets`, and `sharedassets0.assets`, with the reviewed 557-entry catalog digest. Ownership, equipment, and preset checks still apply to the target MetaSave.                                                                                             |
+
+A manifest-only update or a baked-icon change outside the pinned files can keep
+editing enabled with the existing binary. A changed Item or Cosmetics source
+blocks the affected domain. A changed shared pin blocks all five domains, including
+a change in an ES3 or crypto dependency. The pins cover whole files, so an
+unrelated change inside one of those files also requires review. Missing evidence
+cannot carry an older exact-build approval forward.
+
+Review changed sources against the existing save-field, encryption, serializer, and
+gameplay contracts. Confirm newly affected operations in the game, including
+normal resave and reload where applicable, before replacing the frozen evidence.
+Parsing, artwork availability, and synthetic round trips alone do not grant write
+approval. Production continues to enforce per-edit backups, fingerprints,
+receipts, and closed-game checks. Full-profile protection is used by the
+private acceptance build.
+
 ## Routine checks
+
+### Public Steam build monitoring
+
+The independent `Steam public build monitoring` workflow checks app `3241660`
+by manual dispatch. Scheduled monitoring is deferred beyond v0.3.0. Synthetic
+monitor and artwork regressions run in Quality without contacting Steam.
+
+The source is Valve SteamCMD's anonymous `app_info_print 3241660` metadata, using
+only the exact `depots.branches.public.buildid` field. The official
+[`UpToDateCheck` interface](https://partner.steamgames.com/doc/webapi/ISteamApps#UpToDateCheck)
+does not document `required_version` as this public branch identity; the bounded
+R.E.P.O. probe returned `success:false`. It is not used as a substitute. Valve
+documents `app_info_print` in its [SteamCMD tooling guide](https://partner.steamgames.com/doc/sdk/uploading).
+
+Each observation uses a fresh SteamCMD directory/cache and anonymous login, with
+no `app_update`, Steam credentials or game download. The client is downloaded
+from Valve's HTTPS CDN, can update itself, and runs under a 180-second deadline.
+Console output, metadata bytes, token counts and nesting are bounded. Malformed,
+ambiguous, wrong-app, non-public, truncated or unavailable metadata is UNKNOWN:
+the monitor job fails visibly and cannot notify a new build. No third-party
+metadata service is used. Steam availability and future client output changes
+remain external limitations.
+
+The monitoring baseline is the independently reviewed artwork build `26407089`,
+separate from mutation evidence. A regression requires this baseline to match
+the latest admitted Unity 6 artwork build. A changed public build creates or
+updates one bot-owned compatibility review issue; it does not approve artwork or
+save operations. Repeated observations of the same build do not comment, reopen
+or rewrite the issue. A later build updates its generated block, preserves human
+notes outside that block and reopens the review. Ambiguous issue ownership or an
+incomplete bounded history scan fails closed. Notification has no automatic
+retry and at most three issue-list requests plus one write; HTTPS response sizes
+and socket waits are bounded, and the whole notification job has a three-minute
+deadline. Only that job receives `issues: write`.
+
+To inspect captured metadata without notification:
+
+```powershell
+uv run --locked python -m tools.capabilities.steam_monitor detect <steamcmd-output.log>
+```
+
+An observation cannot verify the installed game, assembly hashes, artwork pixels,
+capability relationships or saves. On a new build, independently verify local
+manifest provenance, exact source/assembly identities, canonical mappings and
+bounded decoding for each artwork domain. Use the installed checks below and
+synthetic regressions; mutation approval still requires its own reviewed evidence.
+
+Read-only artwork tolerates a Steam build-ID change when the installed managed
+assembly is byte-for-byte one of the independently reviewed Unity 6 assemblies.
+Known builds retain their exact build/digest pair; they cannot borrow another
+build's pin. Unknown builds require authoritative Steam provenance, an owned
+assembly bounded to 32 MiB, its reviewed digest, and unchanged source identities.
+Unity version alone never admits artwork, and changed assemblies require manual
+review even if their metadata appears compatible.
+
+Each domain still validates independently: Cosmetics resolves the installed
+canonical vector, unique GUID/Sprite/bundle relationships and bounded PNGs;
+Upgrades follows typed prefab/material/texture references and bounded streams;
+Items uses reviewed baked-icon recipes and authored prefab identities; Maps reads
+the normal-level roster and authored preview references. Malformed or ambiguous
+inputs keep the existing fallback. Caches retain their source watches; upgrade
+texture cache format 3 also binds assembly and manifest changes, invalidating
+older entries before reuse. Missing item icons remain unavailable.
+
+This fallback supplies no mutation capability or production Tauri write authority.
+Tauri artwork transport remains separate from Python artwork admission.
+
+### Installed and committed evidence
 
 From `web/`:
 
@@ -159,7 +259,7 @@ the historical game-generated full-unlock save proved 547 IDs, while the current
 uses exact independent catalog/target agreement and the unchanged managed ownership contract.
 It does not claim a fresh 557-ID in-game capture. The user confirmed in-game Unlock All recognition
 for all 557 on 2026-11-01; individual unlock, removal and game-restart persistence were not separately
-confirmed. Snapshot/IPC formats remain v1. `known-cosmetics.v1.json` and the generated Python/Electron
+confirmed. Snapshot formats remain v1. `known-cosmetics.v1.json` and the generated Python
 policies are active runtime artifacts populated from V2 evidence, not obsolete historical snapshots;
 their consumers have not migrated to a different payload format.
 

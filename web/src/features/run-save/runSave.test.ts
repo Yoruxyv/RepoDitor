@@ -34,9 +34,9 @@ const RUN_SOURCE =
   '"playerUpgradeBroken":7}},' +
   '"unknown":{"decimal":2.370,"large":90071992547409931234567890}}';
 
-function session(): EditSession {
+function session(source = RUN_SOURCE): EditSession {
   const save: LoadedSave = {
-    data: parseSaveJson(RUN_SOURCE),
+    data: parseSaveJson(source),
     fileName: "REPO_SAVE.es3",
     kind: "run",
   };
@@ -90,7 +90,7 @@ describe("Run save mutations", () => {
     setPlayerHealth(editSession.working, "111", 95);
     setPlayerUpgrade(editSession.working, "111", "playerUpgradeStrength", 3);
     setCurrency(editSession.working, -20);
-    setRunLevel(editSession.working, 5);
+    setRunLevel(editSession, 5);
     setResumeLocation(editSession.working, "shop");
 
     const state = inspectRunSave(editSession.working);
@@ -152,7 +152,7 @@ describe("Run save mutations", () => {
     "rejects an invalid displayed run level without mutation: %j",
     (value) => {
       const editSession = session();
-      expect(() => setRunLevel(editSession.working, value)).toThrow(RunEditError);
+      expect(() => setRunLevel(editSession, value)).toThrow(RunEditError);
       expect(inspectRunSave(editSession.working).level).toBe(1);
       expect(hasPendingChanges(editSession)).toBe(false);
     },
@@ -161,30 +161,32 @@ describe("Run save mutations", () => {
   it("converts inclusive displayed run-level boundaries to stored values", () => {
     const editSession = session();
 
-    setRunLevel(editSession.working, 1);
+    setRunLevel(editSession, 1);
     const minimum = storedValue(editSession, "runStats", "level");
     expect(isSaveNumber(minimum) && minimum.value).toBe("0");
 
-    setRunLevel(editSession.working, DISPLAY_LEVEL_MAX);
+    setRunLevel(editSession, DISPLAY_LEVEL_MAX);
     const maximum = storedValue(editSession, "runStats", "level");
     expect(isSaveNumber(maximum) && maximum.value).toBe(String(SAVE_INT32_MAX));
   });
 
-  it("does not invent an absent run level field", () => {
-    const editSession = session();
+  it("defaults a missing level to 1 and adds the field only on an explicit level edit", () => {
+    const editSession = session(RUN_SOURCE.replace(',"level":0', ""));
     const dictionaries = (editSession.working.dictionaryOfDictionaries as Record<string, unknown>)
       .value as Record<string, Record<string, unknown>>;
-    Reflect.deleteProperty(dictionaries.runStats!, "level");
 
-    expect(() => inspectRunSave(editSession.working)).toThrow(/level is not present/iu);
-    expect(() => setRunLevel(editSession.working, 5)).toThrow(/level is not present/iu);
+    expect(inspectRunSave(editSession.working).level).toBe(1);
+    setResumeLocation(editSession.working, "shop");
     expect(Object.hasOwn(dictionaries.runStats!, "level")).toBe(false);
+    setRunLevel(editSession, 5);
+    expect(inspectRunSave(editSession.working).level).toBe(5);
+    expect(inspectRunSave(editSession.working).resumeLocation).toBe("shop");
   });
 
   it("keeps run level and next spawn as independent fields", () => {
     const editSession = session();
 
-    setRunLevel(editSession.working, 5);
+    setRunLevel(editSession, 5);
     const storedLevel = storedValue(editSession, "runStats", "level");
     const storedResume = storedValue(editSession, "runStats", "save level");
     expect(isSaveNumber(storedLevel) && storedLevel.value).toBe("4");
@@ -229,6 +231,7 @@ describe("Run save mutations", () => {
 
   it("accepts the proven inclusive integer boundaries", () => {
     const editSession = session();
+    setPlayerUpgrade(editSession.working, "111", "playerUpgradeHealth", SAVE_INT32_MAX);
 
     setPlayerHealth(editSession.working, "111", SAVE_INT32_MAX);
     setPlayerUpgrade(editSession.working, "111", "playerUpgradeStrength", SAVE_INT32_MAX);
@@ -261,9 +264,22 @@ describe("Run save mutations", () => {
 });
 
 describe("Run save export interoperability", () => {
+  it("blocks an edited Health value above the final upgrade cap until the draft is corrected", async () => {
+    const editSession = session();
+    setPlayerHealth(editSession.working, "111", 120);
+    setPlayerUpgrade(editSession.working, "111", "playerUpgradeHealth", 0);
+    await expect(prepareVerifiedExport(editSession)).rejects.toMatchObject({ maximum: 100 });
+    expect(inspectRunSave(editSession.working).players[0]?.health).toBe(120);
+
+    setPlayerHealth(editSession.working, "111", 100);
+    await expect(prepareVerifiedExport(editSession)).resolves.toMatchObject({
+      fileName: "REPO_SAVE.repoditor.es3",
+    });
+  });
+
   it("exports displayed run level 5 as stored level 4 without changing save level", async () => {
     const editSession = session();
-    setRunLevel(editSession.working, 5);
+    setRunLevel(editSession, 5);
 
     expect(hasPendingChanges(editSession)).toBe(true);
     const output = await prepareVerifiedExport(editSession);
@@ -300,7 +316,7 @@ describe("Run save export interoperability", () => {
       target: "currency",
     },
     {
-      apply: (editSession: EditSession) => setRunLevel(editSession.working, 5),
+      apply: (editSession: EditSession) => setRunLevel(editSession, 5),
       expected: 5,
       read: (state: ReturnType<typeof inspectRunSave>) => state.level,
       target: "run level",

@@ -1,25 +1,14 @@
-/**
- * Complete typed preload fixture for renderer/component tests.
- *
- * Defaults are deterministic in-memory DTOs and mocked methods; individual tests
- * override only the boundary behavior they exercise, without spawning Electron or
- * touching local saves.
- */
-import { vi } from "vitest";
-
+/** Deterministic desktop projection fixtures for renderer tests. */
 import type {
   AdvancedSaveDto,
-  AssetPreparationState,
-  CosmeticChange,
   CosmeticsViewDto,
   EnvironmentDiscovery,
   InstalledMapsDto,
   PlayerDto,
   PlayerUpgradeDto,
-  RepoDitorApi,
   RunStateDto,
   SaveSession,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 
 export const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 export const environment: EnvironmentDiscovery = {
@@ -183,6 +172,7 @@ export const cosmetics: CosmeticsViewDto = {
     canUnlockCosmetic: true,
     canUnlockAll: true,
     canRemoveOwnership: true,
+    canClearPresets: true,
   },
   cosmetics: [
     {
@@ -226,115 +216,3 @@ export const cosmetics: CosmeticsViewDto = {
     },
   ],
 };
-
-function setKnownCosmeticsOwned(next: CosmeticsViewDto, owned: boolean): void {
-  const knownCosmetics = next.cosmetics.filter((cosmetic) => cosmetic.known);
-  for (const cosmetic of knownCosmetics) {
-    cosmetic.owned = owned;
-    cosmetic.state = owned ? "owned" : "locked";
-  }
-  next.knownOwnedCount = owned ? knownCosmetics.length : 0;
-  next.knownLockedCount = owned ? 0 : knownCosmetics.length;
-}
-
-function applyCosmeticChange(next: CosmeticsViewDto, change: CosmeticChange): void {
-  if (change.field === "unlockAll" || change.field === "lockAll") {
-    setKnownCosmeticsOwned(next, change.field === "unlockAll");
-    return;
-  }
-  if (change.field === "clearAll") {
-    next.savedPresetCount = 0;
-    return;
-  }
-  const cosmetic = next.cosmetics.find((entry) => String(entry.id) === change.entity);
-  if (cosmetic) {
-    if (cosmetic.known && cosmetic.owned !== change.after) {
-      next.knownOwnedCount += change.after ? 1 : -1;
-      next.knownLockedCount += change.after ? -1 : 1;
-    }
-    cosmetic.owned = change.after;
-    cosmetic.state = change.after ? "owned" : "locked";
-  }
-}
-
-export const readyAssets: AssetPreparationState = {
-  stage: "ready",
-  installationFound: true,
-  buildVerified: true,
-  completed: null,
-  total: null,
-  currentAsset: null,
-  currentAssetLabel: null,
-  degraded: false,
-};
-
-export function createRepoDitorApi(
-  open: RepoDitorApi["saves"]["open"],
-  playerList: PlayerDto[] = [],
-  avatar: RepoDitorApi["players"]["avatar"] = vi.fn((_saveId: string, playerId: string) =>
-    Promise.resolve({ ok: true as const, data: { playerId, avatarUrl: null } }),
-  ),
-  write: RepoDitorApi["saves"]["write"] = vi.fn().mockResolvedValue({
-    ok: true,
-    data: {
-      backupPath: "C:\\fixture\\save.es3.bak-20260808-102100",
-      session: { ...session, fingerprint: "b".repeat(64) },
-    },
-  }),
-): RepoDitorApi {
-  return {
-    project: { metadata: vi.fn().mockResolvedValue({ ok: true, data: { stars: 42 } }) },
-    environment: { detect: vi.fn().mockResolvedValue({ ok: true, data: environment }) },
-    game: {
-      status: vi.fn().mockResolvedValue({
-        ok: true,
-        data: { status: "not_running", running: false },
-      }),
-    },
-    assets: {
-      state: vi.fn().mockResolvedValue(readyAssets),
-      onState: vi.fn((listener) => {
-        listener(readyAssets);
-        return () => undefined;
-      }),
-    },
-    saves: {
-      list: vi.fn().mockResolvedValue({ ok: true, data: environment.saves }),
-      open,
-      write,
-    },
-    players: {
-      list: vi.fn().mockResolvedValue({ ok: true, data: playerList }),
-      avatar,
-    },
-    upgrades: {
-      list: vi.fn().mockResolvedValue({ ok: true, data: upgrades }),
-      prepareEntry: vi.fn().mockResolvedValue({ ok: true, data: upgrades }),
-    },
-    run: { get: vi.fn().mockResolvedValue({ ok: true, data: runState }) },
-    advanced: { get: vi.fn().mockResolvedValue({ ok: true, data: advanced }) },
-    cosmetics: {
-      artworkState: vi.fn().mockResolvedValue({
-        phase: "idle",
-        completed: 0,
-        total: 0,
-        cached: 0,
-        failed: 0,
-      }),
-      onArtworkProgress: vi.fn(() => () => undefined),
-      get: vi.fn().mockResolvedValue({ ok: true, data: cosmetics }),
-      write: vi.fn().mockImplementation((_fingerprint, changes: CosmeticChange[]) => {
-        const next = structuredClone(cosmetics);
-        changes.forEach((change) => applyCosmeticChange(next, change));
-        return Promise.resolve({
-          ok: true as const,
-          data: {
-            backupPath: "C:\\fixture\\MetaSave.es3.bak-20260808-102100",
-            cosmetics: next,
-          },
-        });
-      }),
-    },
-    maps: { list: vi.fn().mockResolvedValue({ ok: true, data: maps }) },
-  };
-}

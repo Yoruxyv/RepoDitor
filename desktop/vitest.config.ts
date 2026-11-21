@@ -13,15 +13,16 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@electron": fileURLToPath(new URL("./electron", import.meta.url)),
     },
   },
   test: {
+    // Limit Windows filesystem contention between jsdom and native I/O tests.
+    maxWorkers: process.platform === "win32" ? 2 : undefined,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: [
       "src/**/*.test.{ts,tsx}",
-      "electron/**/*.test.ts",
+      "e2e/support/*.test.ts",
       "installer/ui/src/**/*.test.{ts,tsx}",
     ],
     coverage: {

@@ -53,7 +53,6 @@ class ProofWorkspace:
     web_recharge: Path
     web_cosmetics: Path
     desktop_cosmetics: Path
-    electron_cosmetics: Path
 
     @property
     def managed_paths(self) -> tuple[Path, ...]:
@@ -63,7 +62,6 @@ class ProofWorkspace:
             self.web_recharge,
             self.web_cosmetics,
             self.desktop_cosmetics,
-            self.electron_cosmetics,
         )
 
 
@@ -380,7 +378,6 @@ def proof_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProofWor
         root / "web" / "recharge-capabilities.v1.json",
         root / "web" / "known-cosmetics.v1.json",
         root / "desktop" / "known_cosmetics.py",
-        root / "electron" / "known-cosmetics.cts",
     )
     for name, value in (
         ("RECHARGE_EVIDENCE_PATH", workspace.recharge_evidence),
@@ -388,7 +385,6 @@ def proof_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProofWor
         ("WEB_RECHARGE_PATH", workspace.web_recharge),
         ("WEB_COSMETICS_PATH", workspace.web_cosmetics),
         ("DESKTOP_COSMETICS_PATH", workspace.desktop_cosmetics),
-        ("ELECTRON_COSMETICS_PATH", workspace.electron_cosmetics),
     ):
         monkeypatch.setattr(workflow, name, value)
     _write_json(workspace.recharge_evidence, _recharge_evidence(BASE_ITEMS))
@@ -469,7 +465,6 @@ def test_cosmetic_append_flows_from_real_vector_to_every_generated_artifact(
     generated = (
         proof_workspace.web_cosmetics,
         proof_workspace.desktop_cosmetics,
-        proof_workspace.electron_cosmetics,
     )
     before = _bytes(generated)
     assert workflow.approve_installed_cosmetics(proof_workspace.game_root, oracle, None) == 0
@@ -481,7 +476,6 @@ def test_cosmetic_append_flows_from_real_vector_to_every_generated_artifact(
     )
     assert snapshot["cosmeticIds"] == [0, 1, 2]
     assert "    2," in proof_workspace.desktop_cosmetics.read_text(encoding="utf-8")
-    assert "  2," in proof_workspace.electron_cosmetics.read_text(encoding="utf-8")
     assert workflow.check() == 0
 
     approved = _bytes(proof_workspace.managed_paths)

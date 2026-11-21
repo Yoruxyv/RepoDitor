@@ -1,7 +1,7 @@
 /** Composes discovery status, latest save, and recent-save entry actions. */
 import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
-import type { EnvironmentDiscovery } from "@electron/contracts";
+import type { EnvironmentDiscovery } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/i18n";
 import { formatSaveCount } from "@/features/discovery/formatters";
@@ -50,7 +50,7 @@ function getSummary(environment: EnvironmentDiscovery, t: Translate): string {
 
 interface DiscoveryHomeProps {
   readonly discovery: EnvironmentDiscoveryController;
-  readonly onOpenSave: (saveId: string) => void;
+  readonly onOpenSave: ((saveId: string) => void) | null;
   readonly openingSaveId: string | null;
   readonly openError: string | null;
 }
@@ -88,6 +88,7 @@ export function DiscoveryHome({
           <h1
             className="font-display mt-2 text-4xl font-semibold uppercase leading-none tracking-tight text-ink sm:text-[2.5rem]"
             id="discovery-title"
+            tabIndex={-1}
           >
             {getHeadline(data, t)}
           </h1>

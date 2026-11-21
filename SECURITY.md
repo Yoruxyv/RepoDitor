@@ -2,7 +2,7 @@
 
 RepoDitor has a Windows Desktop application and an independent browser-based Web
 application. Both handle encrypted game saves. Desktop's renderer is sandboxed
-behind narrow Electron IPC contracts; its Python backend owns save parsing,
+behind scoped Tauri commands; its Python backend owns save parsing,
 validation, backups, encryption and writes. Web processes saves in the browser.
 
 ## Supported versions
@@ -34,7 +34,7 @@ from reports and screenshots.
 Useful reports include concrete issues involving:
 
 - arbitrary filesystem access, path traversal, or command execution;
-- renderer escape or bypass of Electron context isolation;
+- renderer escape or bypass of Tauri capabilities or CSP;
 - unauthorized disclosure of save data, encryption material, or credentials; unrestricted Desktop IPC;
 - unsafe Python-sidecar command or argument handling;
 - failure of stale-file detection, exact-byte backups, staged verification, or
@@ -49,10 +49,9 @@ Useful reports include concrete issues involving:
 
 The Desktop boundary requires:
 
-- `contextIsolation: true` and `nodeIntegration: false`;
-- optional local game icons are exposed only through opaque tokens and a read-only,
-  PNG-validating `repoditor-icon:` protocol; cache paths never cross into React;
-- narrow typed preload methods rather than raw `ipcRenderer` access;
+- a restricted WebView2 content security policy and allowlisted Tauri commands;
+- local game icons use opaque tokens scoped to the active source and validated
+  PNG responses; cache paths stay native;
 - no arbitrary renderer filesystem, shell, network-fetch, or Python execution API;
 - Python ownership of save semantics, encryption, validation, backup, and writes;
 - fingerprint checks before mutation and staged verification before replacement;
@@ -67,10 +66,10 @@ import Desktop implementation code or gain access to installed-game files.
 
 ## Known design limitations
 
-- The historical v0.1.0 Windows installer was unsigned and may trigger a SmartScreen warning.
-  The current release workflow is prepared for fail-closed Microsoft cloud signing and
-  Authenticode verification, but repository contents cannot prove that the maintainer-owned
-  signing identity and protected GitHub environment values have been configured.
+- The published Windows installers and current build-validation artifacts are
+  unsigned. SmartScreen may warn about them. Verify the checksum against the
+  canonical release. Distribution requires maintainer approval for the exact
+  artifact. Verify Authenticode separately whenever a package is signed.
 - RepoDitor has no automatic updater; users install new releases manually.
 - The application edits a game-owned format that may change without notice.
 - Advanced item and purchase data remains read-only except for the evidence-backed exact-instance

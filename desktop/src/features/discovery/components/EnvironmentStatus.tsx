@@ -12,7 +12,7 @@ import type {
   EnvironmentDiscovery,
   GameDiscoveryStatus,
   SaveRootStatus,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/i18n";
 import { formatSaveCount } from "@/features/discovery/formatters";

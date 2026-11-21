@@ -23,7 +23,7 @@ and safe for users' local saves.
 
 Identify the product or responsibility your change belongs to:
 
-- **Desktop** — the existing Windows Electron/React application and bundled
+- **Desktop** — the Windows Tauri/React application and bundled
   Python backend.
 - **Web** — the hosted browser product at https://repoditor.vercel.app/ with
   manual local file import/export and a focused feature set.
@@ -40,14 +40,13 @@ follow the same evidence-backed save semantics.
 RepoDitor Desktop intentionally uses this dependency direction:
 
 ```text
-React renderer → sandboxed preload → typed Electron IPC → Electron main
+React renderer → typed Tauri command → Rust sidecar transport
 → Python desktop API → services → core/storage → encrypted save
 ```
 
 Within Desktop, Python owns game and save semantics. Do not move encryption,
 raw-save parsing, filesystem writes, or game-mechanics calculations into React
-or Electron. Preserve `contextIsolation: true`, `nodeIntegration: false`,
-renderer sandboxing, and narrow preload methods.
+or Rust. Preserve scoped Tauri capabilities, CSP, validated requests, and bounded sidecar supervision.
 
 ### Web architecture boundary
 
@@ -74,7 +73,7 @@ safety requirements.
 
 Document ownership where it lives so new features extend the tree instead of
 forcing a central comment rewrite. Meaningful Python packages and modules need
-concise docstrings; Electron, renderer, and important tooling modules need an
+concise docstrings; Tauri, renderer, and important tooling modules need an
 opening comment when their responsibility or trust boundary is not obvious.
 Document exported or non-obvious APIs with their contract, lifetime, fallback,
 and failure behavior. Do not restate syntax or maintain a closed feature catalog

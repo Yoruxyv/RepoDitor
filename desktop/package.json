@@ -1,114 +1,58 @@
 {
   "name": "repoditor-desktop",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A desktop save editor for R.E.P.O. .es3 save files.",
   "author": "Hans Valerie",
   "type": "module",
-  "main": "dist-electron/main.cjs",
   "scripts": {
-    "dev": "concurrently -k -n renderer,electron-ts,electron \"npm:dev:renderer\" \"npm:dev:electron:compile\" \"npm:dev:electron\"",
-    "dev:renderer": "vite",
-    "dev:electron:compile": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
-    "dev:electron": "wait-on http://localhost:5173 dist-electron/main.cjs && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "build": "npm run clean:electron-output && tsc -b && tsc -p tsconfig.electron.json && vite build",
-    "clean:electron-output": "node -e \"require('node:fs').rmSync('dist-electron', { recursive: true, force: true })\"",
-    "clean:release-output": "node scripts/clean-release-output.mjs",
+    "dev:tauri": "tauri dev",
+    "dev:tauri-ui": "vite",
+    "tauri:cache:status": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py status",
+    "tauri:cache:clear": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py clear",
+    "tauri:cache:diagnostics": "uv run --locked --project .. python -B scripts/tauri/artwork_cache.py diagnostics",
+    "build:tauri-ui": "tsc -b && vite build",
+    "package:tauri": "npm run build:sidecar && tauri build --no-bundle -- --locked && node scripts/tauri/stage-tauri.mjs",
+    "package:installer": "node scripts/release/check-release-version.mjs && npm run installer:host && node scripts/release/prepare-installer.mjs && npm run build:sidecar && tauri build --no-bundle --config build/release-installer/public-editing.json --features public-editing -- --locked && node scripts/tauri/stage-tauri.mjs --public-editing && tauri bundle --config src-tauri/installer.conf.json --bundles nsis --no-sign --no-binary-patching --ci && pwsh -NoProfile -File scripts/release/stage-installer.ps1",
+    "test:tauri": "cargo test --manifest-path src-tauri/Cargo.toml --locked",
+    "test:tauri-artifacts": "node --test scripts/tauri/stage-tauri.test.mjs",
+    "test:tauri-safety": "pwsh -NoProfile -File scripts/tauri/test-tauri-safety.ps1",
+    "test:e2e:recovery": "npm run typecheck:e2e && playwright test e2e/tauri/tauri-recovery.spec.ts --output=build/recovery-checkpoint/native-e2e",
+    "test:e2e:tauri": "npm run test:tauri && npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=build/tauri-portable/RepoDitor.exe playwright test e2e/tauri/tauri-preview.spec.ts e2e/tauri/tauri-upgrades.spec.ts e2e/tauri/tauri-run.spec.ts e2e/tauri/tauri-items.spec.ts e2e/tauri/tauri-maps.spec.ts e2e/tauri/tauri-cosmetics.spec.ts e2e/tauri/tauri-status.spec.ts --output=test-results/tauri-preview",
+    "dev": "tauri dev",
+    "build": "npm run build:tauri-ui",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test:imports && npm run test:theme && tsc -p tsconfig.electron.json && npm run typecheck:electron-tests && vitest run",
-    "test:imports": "node --test scripts/normalize-imports.test.mjs",
-    "test:theme": "node --test scripts/theme-contrast.test.mjs",
-    "test:coverage": "tsc -p tsconfig.electron.json && npm run typecheck:electron-tests && vitest run --coverage",
-    "test:e2e": "tsc -p tsconfig.electron.json && npm run typecheck:e2e && playwright test e2e/workspace.spec.ts e2e/cosmetics.spec.ts e2e/persistence.spec.ts e2e/game-safety.spec.ts e2e/maps.spec.ts",
-    "test:e2e:packaged": "npm run typecheck:e2e && cross-env REPODITOR_E2E_EXECUTABLE=release/win-unpacked/RepoDitor.exe playwright test e2e/package-smoke.spec.ts",
+    "test": "npm run test:imports && npm run test:theme && vitest run",
+    "test:imports": "node --test scripts/quality/normalize-imports.test.mjs",
+    "test:theme": "node --test scripts/quality/theme-contrast.test.mjs",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run test:e2e:tauri",
     "preview": "vite preview",
-    "start": "electron .",
-    "build:sidecar": "uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onedir --console --name repoditor-backend --paths python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller --collect-all UnityPy --collect-all TypeTreeGeneratorAPI --collect-all fmod_toolkit --collect-data archspec --hidden-import addressablestools --copy-metadata addressablestools python/repo_save_editor/desktop_api/__main__.py",
+    "build:sidecar": "uv run --locked --project .. python scripts/tauri/check-meta-anchor.py && uv run --isolated --python 3.13 --project .. --locked --group package pyinstaller --noconfirm --clean --onedir --console --name repoditor-backend --paths python --distpath build/backend --workpath build/pyinstaller/work --specpath build/pyinstaller --collect-all UnityPy --collect-all TypeTreeGeneratorAPI --collect-all fmod_toolkit --collect-data archspec --hidden-import addressablestools --copy-metadata addressablestools python/repo_save_editor/desktop_api/__main__.py",
     "installer:ui:build": "tsc -p installer/ui/tsconfig.json && vite build --config installer/ui/vite.config.ts",
-    "installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build-host.ps1",
-    "installer:host:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build-host.ps1 -Sign",
-    "package:dir": "npm run clean:release-output && electron-builder --win dir && npm run package:verify",
-    "package:dir:signed": "npm run clean:release-output && electron-builder --config electron-builder.release.cjs --win dir && npm run package:verify",
-    "package:installer": "npm run installer:host && electron-builder --win nsis --prepackaged release/win-unpacked && npm run package:verify:installer",
-    "package:installer:signed": "npm run installer:host:signed && electron-builder --config electron-builder.release.cjs --win nsis --prepackaged release/win-unpacked && npm run package:verify:installer",
-    "package:verify": "node scripts/check-package-contents.mjs",
-    "package:verify:installer": "node scripts/check-installer-artifact.mjs",
-    "package": "npm run build:sidecar && npm run build && npm run package:dir && npm run test:e2e:packaged && npm run package:installer",
-    "test:installer:lifecycle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-installer-lifecycle.ps1",
-    "test:installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer-host.ps1",
-    "test:installer:extraction": "node --test scripts/installer-extraction.test.mjs",
-    "test:installer:layout": "npm run installer:ui:build && node --test scripts/installer-layout.test.mjs",
-    "bundle:check": "node scripts/check-bundle-budget.mjs",
-    "release:check": "node scripts/check-release-version.mjs && npm run installer:ui:build && node --test scripts/installer-config.test.mjs scripts/signing-config.test.mjs scripts/version-tooling.test.mjs",
-    "update:version": "node scripts/update-version.mjs",
-    "imports:preview": "node scripts/normalize-imports.mjs",
-    "imports:fix": "node scripts/normalize-imports.mjs --write --strict",
-    "imports:check": "node scripts/normalize-imports.mjs --check --strict",
-    "postinstall": "node node_modules/electron/install.js",
-    "typecheck:electron-tests": "tsc -p electron/tsconfig.json",
+    "installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/scripts/build-host.ps1",
+    "installer:host:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/scripts/build-host.ps1 -Sign",
+    "installer:verify:host": "node installer/scripts/check-installer-host.mjs",
+    "test:installer:host": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/scripts/test-installer-host.ps1",
+    "test:installer:layout": "npm run installer:ui:build && node --test installer/scripts/installer-layout.test.mjs",
+    "bundle:check": "node scripts/quality/check-bundle-budget.mjs",
+    "release:check": "node scripts/release/check-release-version.mjs && npm run installer:ui:build && node --test scripts/release/version-tooling.test.mjs",
+    "update:version": "node scripts/release/update-version.mjs",
+    "imports:preview": "node scripts/quality/normalize-imports.mjs",
+    "imports:fix": "node scripts/quality/normalize-imports.mjs --write --strict",
+    "imports:check": "node scripts/quality/normalize-imports.mjs --check --strict",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json"
-  },
-  "build": {
-    "appId": "io.github.Yoruxyv.repoditor",
-    "productName": "RepoDitor",
-    "asar": true,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**",
-      "dist-electron/**",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "build/backend/repoditor-backend",
-        "to": "backend"
-      },
-      {
-        "from": "src/assets/fonts/teko/OFL.txt",
-        "to": "licenses/Teko-OFL.txt"
-      },
-      {
-        "from": "../LICENSE",
-        "to": "licenses/RepoDitor-MIT.txt"
-      }
-    ],
-    "win": {
-      "icon": "public/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "artifactName": "RepoDitor-Setup-${version}-${arch}.${ext}",
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": false,
-      "perMachine": false,
-      "selectPerMachineByDefault": false,
-      "packElevateHelper": false,
-      "differentialPackage": false,
-      "createStartMenuShortcut": true,
-      "shortcutName": "RepoDitor",
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico",
-      "include": "installer/installer.nsh",
-      "uninstallDisplayName": "RepoDitor"
-    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/cli": "2.12.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
@@ -119,10 +63,7 @@
     "@typescript-eslint/parser": "^8.66.0",
     "@vitejs/plugin-react": "^6.0.4",
     "@vitest/coverage-v8": "^4.1.11",
-    "concurrently": "^10.0.4",
     "cross-env": "^10.1.0",
-    "electron": "^43.3.0",
-    "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-better-tailwindcss": "^4.7.0",
@@ -139,7 +80,6 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "vitest": "^4.1.11",
-    "wait-on": "^9.1.0"
+    "vitest": "^4.1.11"
   }
 }

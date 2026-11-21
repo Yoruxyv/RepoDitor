@@ -1,20 +1,48 @@
 # Release checklist
 
-Official releases are WebView2-hosted Windows x64 NSIS installers built from semantic tags that match
-the version in both `pyproject.toml` and `desktop/package.json`. The current procedure is generic;
-the measured v0.1.0 release-candidate data remains preserved as a historical baseline below.
+The current Windows Desktop source builds a portable package and NSIS installer
+with `npm run package:installer` from `desktop/`. Run the desktop quality,
+packaged journey, Tauri safety, and capability alignment gates. Automated CI
+and interactive installer acceptance are described below. See the
+[native installer gate](#w9-b-installer-migration-acceptance).
+The signing requirements and installer evidence below record the historical
+release process and the obligations for its successor. Reproduce historical
+commands on the corresponding published source tag.
 
-## Windows code signing preparation
+## Windows CI coverage
+
+| Original workflow | Tauri coverage | Remaining release-candidate coverage |
+| --- | --- | --- |
+| `quality.yml` | React and TypeScript build, imports, formatting, ESLint, bundle budget, renderer tests and the Python version matrix remain. **Windows package smoke** builds and verifies the portable host and PyInstaller sidecar, then exercises packaged WebView2 journeys. **Windows Tauri save safety** checks Rust formatting, Clippy, default/all-feature Rust tests, fixture-only writes, exact encrypted backups, compatibility, stale sessions, transactions and recovery. | Run Quality against the exact release source and check its packaged runtime. |
+| `tauri-startup.yml` | Manual startup diagnostic still launches an ordinary packaged native host and frozen sidecar. The required Quality safety job also exercises normal startup, cancellation, failure and retry. | Verify installation and startup on a standard Windows account with the intended WebView2 prerequisites. |
+| `installer-lifecycle.yml` | Hosted Windows builds the same NSIS package as a local candidate. The test exercises clean installation, launch, reinstall, coexistence with the pinned v0.2.1 installer, rollback, registry and shortcut cleanup, and exact synthetic Run, MetaSave and backup hashes. | Verify the interactive installer, custom path, preferences, WebView2 bootstrapper, branded setup progress and errors, Windows scaling and UAC on disposable Windows. |
+| `release.yml` | Manual validation from `main` with `confirm=VALIDATE` invokes the hosted installer gate. The build checks the host, sidecar and bundle and generates an installer SHA-256. Only diagnostics and checksum records are retained in Actions. | Authorize the exact version and release commit, sign and verify each executable and final installer, and calculate the post-signing SHA-256 before separately authorizing distribution. |
+| `release-unsigned.yml` | Retired. The same manual build-validation lane covers unsigned CI artifacts. | The old unsigned publish path is absent. |
+| `compatibility-alignment.yml` | Retained. The source-pinned Python/Web fixtures and current/future build policy checks stay in effect. | Review and authorize public writes separately from private gameplay evidence. |
+
+The automated test uses the production **RepoDitor Desktop** registration in
+a disposable GitHub-hosted Windows profile. It refuses to run on a local or
+self-hosted machine. See the [Tauri 2 Windows installer guide](https://v2.tauri.app/distribute/windows-installer/)
+and [GitHub pipeline guide](https://v2.tauri.app/distribute/pipelines/github/).
+
+Keep the required **Quality gate**, **Windows package smoke**, and **Windows
+Tauri save safety** contexts where configured. Remove the retired **Windows
+Electron E2E** context from the ruleset and replace **Current-user production
+installer lifecycle** with **Current-user Tauri installer lifecycle** if required.
+Publishing, tagging, and executable artifact uploads are disabled in these
+workflows. Before introducing publication, restrict the job to the reviewed
+default-branch commit and a protected maintainer-approved environment.
+
+## Historical Windows code signing preparation
 
 RepoDitor v0.1.0 remains the historical unsigned release. Future official tagged releases are
 prepared to use Microsoft Artifact Signing through electron-builder's Azure signing integration.
 This preparation does not create a certificate or signing identity and contains no credential
 values.
 
-The checked-in official release path expects the Microsoft Artifact Signing values documented
-below and fails closed without them. Repository contents cannot prove whether the maintainer-owned
-Azure identity and protected GitHub environment values are currently configured. SignPath is not integrated into the current workflow; provider enrollment and
-credential availability must be checked outside the repository.
+The former official release path required the Microsoft Artifact Signing values
+below. Verify the maintainer-owned Azure identity, publisher and protected
+environment before wiring signing into the production Tauri installer.
 
 Local packaging remains intentionally usable without cloud access:
 
@@ -110,7 +138,7 @@ $signature.SignerCertificate |
 `AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME`. Perform the checksum comparison against the published
 `.sha256` file after signature validation.
 
-## Required automated gates
+## Historical Electron release gates
 
 - Python 3.11 and 3.14: locked sync, Ruff lint/format, and pytest.
 - Desktop quality: clean npm install, import normalization, ESLint, release
@@ -130,7 +158,7 @@ The quality gate must pass every job. The tag-driven release workflow reruns
 Python and desktop quality, the packaged smoke test, installer verification,
 and installer checksum generation before publishing.
 
-## Signed release procedure
+## Historical signed release procedure
 
 1. Update every managed version source and verify alignment from `desktop/`:
 
@@ -174,24 +202,26 @@ Then open **GitHub → RepoDitor → Actions → Unsigned Release → Run workfl
 `version` to `0.1.1`, and set `confirm_unsigned` to `RELEASE UNSIGNED`. Do not create or push the
 tag manually; the validated workflow creates `v0.1.1` at its exact checked-out commit.
 
-## Installer acceptance gate
+## Historical installer acceptance gate
 
-This is a blocking manual release-candidate check. Do not treat the unpacked E2E as proof of
+This section records the legacy installer procedure at `752325a`. The current release uses
+the [W9-B installer gate](#w9-b-installer-migration-acceptance).
+Do not treat the unpacked E2E as proof of
 install, upgrade, explicit-uninstall cleanup, save preservation, or reinstall behavior. Use an
 older installer and the candidate installer for the upgrade leg:
 
-The dedicated `Installer lifecycle` workflow complements this gate with fresh-package,
+The former `Installer lifecycle` workflow complemented this gate with fresh-package,
 current-user default/custom-path, registered reinstall, explicit-cleanup, and synthetic LocalLow
 fingerprint coverage through real WebView2 **Install/Update**, **Uninstall**, and a safe native
 refusal followed by one real **Retry**. Custom-path installation passes the selected path to the
-production silent engine. It runs the lifecycle under an
+production silent engine. It ran the lifecycle under an
 isolated standard Windows user because GitHub-hosted Windows jobs otherwise run as administrators
 with UAC disabled. Exit code 0 is never sufficient: both HKCU registration keys and installed
 payload entry points must be gone.
 
 Run `npm run test:installer:host` on Windows for native stage, argument, failure,
 and completion checks against temporary files and a unique HKCU fixture key. The
-installer lifecycle workflow runs this check before packaging.
+current installer lifecycle workflow still runs this check before packaging.
 
 Install/update uses determinate percentage only while the production Nsis7z extraction callback
 provides genuine completed/total byte measurements. Verify preparation/running, measured extraction
@@ -446,6 +476,395 @@ The bundle check remains warning-only for v0.1.0 because the measured output is
 well below its existing headroom and one workstation measurement is not enough
 to set a durable blocking threshold. Coverage is reported without a percentage
 gate; correctness-critical save and desktop-boundary paths retain focused tests.
+
+## Tauri save recovery and cutover
+
+Production Tauri writes and production manual restore remain disabled. The
+procedure below is validated against disposable synthetic saves; it is not
+permission to apply these steps to a player profile. Use the required Windows
+`npm run test:tauri-safety` gate to reproduce the Python and packaged Tauri drills.
+Its native fixtures live under `desktop/build/recovery-checkpoint/tauri-safety`.
+Use a fresh output name for repeated runs. For an acceptance run that needs the
+exact executable copies, use `-KeepExecutables` as described in the
+[Desktop safety gate instructions](../desktop/README.md#validation-and-portable-windows-package).
+
+Before any future production authorization, an operator must have a tested offline
+maintenance window and exclusive access to the save profile. Close the game, all
+RepoDitor windows and their workers; a running, unknown or failed authoritative
+game-status query is a stop condition. Suspend cloud synchronization and other
+writers for the entire maintenance operation. A Python transaction lock excludes
+updated cooperating writers only. It does not stop an old Electron binary or the
+game from starting after a status check.
+
+1. **Preserve first.** Reject reparse ancestry, linked files and non-NTFS/remote
+   storage before copying; do not follow links during intake. With all writers
+   quiescent, record the exact source path,
+   encrypted source SHA-256, file identity, and every slot filename. Copy the entire
+   slot, including hidden pending/archive/temporary receipts and exact backups, to
+   a separate intake directory outside save discovery. Verify every copied file's
+   size and SHA-256 against its source. Keep the original slot intact. If a file
+   changes during the copy or a writer cannot be excluded, stop. Do not edit receipt
+   fields, rename backups to make them appear valid, or delete a lock file to bypass
+   an active owner.
+2. **Inspect without reconciling.** In the synthetic environment, run the explicit
+   validated sidecar as `repoditor-backend.exe health-state <save-id>`. E2E roots
+   must point only to the disposable fixture. This command may create/open the
+   coordination lock; it preserves save, backup, receipt and staging bytes. Pending
+   intent is evidence, never an instruction to replay. `blocked` or `busy` requires
+   investigation, not a retry loop. Inspect receipt bytes only within their 4,096-byte
+   limit, using the fixed operation-derived namespace; treat invalid data as conflict.
+3. **Reconcile only a supported operation.** After preserving intake, an exited-owner
+   schema-3 operation in its original admitted Windows namespace can be reconciled
+   with `health-recover <save-id> <operation-id> --canonical`. This is a maintenance
+   operation: even without `--acknowledge`, it can write the archive and clean staged
+   files. It does not replay the edit. An exact `applied` or `unchanged` result must
+   agree with the reopened canonical state and expected encrypted fingerprint.
+   Only then explicitly repeat with `--canonical --acknowledge` to clear the pending
+   marker. Keep intake, backups and the operation archive. A conflict must remain
+   unresolved; do not infer success from a visible health value.
+4. **Handle conflicts offline.** Identify the chosen backup explicitly. For a
+   transaction backup, its encrypted SHA-256 must equal the independently recorded
+   original snapshot and the receipt's `before` hash. Validate a copy through
+   Python decryption/schema checks before selecting it. A missing, damaged, ambiguous
+   or schema-invalid backup is a stop condition. Do not pick the newest file by
+   timestamp or re-encrypt parsed data as a substitute for exact restoration.
+5. **Restore as a new slot, preserving the old one.** In the synthetic drill, move
+   the whole conflicting slot to quarantine outside discovery, verify its complete
+   intake manifest again, create a fresh slot at the admitted save location and
+   copy only the selected encrypted backup bytes to its canonical save filename.
+   Preserve receipts, backups and conflict bytes in quarantine/intake; do not copy
+   old receipts into the new namespace. Confirm restored SHA-256 and bytes exactly,
+   then reopen through the ordinary read-only Tauri host and verify canonical data.
+   This is an offline restore, not settlement or success of the old transaction.
+   If validation fails, preserve both trees and stop. A new slot's successful open
+   does not authorize writing or establish game-build compatibility.
+
+Windows schema-1/2 receipts lack the namespace proof required for automatic
+settlement. Their identities/intents may remain inspectable, but reconciliation
+must fail closed and preserve the receipt. Do not add a fabricated namespace field,
+upgrade their version, or acknowledge them with a different OS implementation.
+The offline intake/quarantine procedure can salvage an independently verified backup;
+without that evidence, manual recovery remains unsupported. Reparse ancestry,
+non-NTFS/remote storage, unknown owner state, conflicting backups and unreadable
+receipts remain stop conditions. No normal production UI restore command exists.
+
+Production activation requires exclusive access to the writable profile during
+the maintenance operation. The per-slot Python lock serializes updated,
+cooperating Electron, Tauri and sidecar writers and their recovery. A pending
+receipt blocks another cooperating write after a worker exits. Windows namespace
+validation pins ordinary local NTFS ancestry and uses handle-relative
+operations. Source identity and encrypted fingerprint checks reject drift
+observed before replacement. These checks preserve the transaction's target and
+its backup.
+
+Old or standalone writers can ignore the coordination lock. The source
+comparison and protected replacement are separate operations. An external
+writer with effective access can change the target after the last comparison
+or overwrite a completed edit afterward. Closing known windows, prompting the
+operator, enumerating processes and rechecking fingerprints cannot guarantee
+exclusion. The final game-status check also leaves a game-launch race.
+
+Enterprise-wide application control is one possible enforcement mechanism. A
+separately secured profile or principal could meet the same requirement if it
+denies effective write access to unapproved writers and retains approved game,
+editor and recovery access. Same-user ACLs alone cannot separate binaries
+running with the same token. Windows share modes constrain access to particular
+open objects for the lifetime of their handles. Any app-level design relying on
+them would have to prove that the ordinary atomic replacement still succeeds,
+that external opens and renames cannot win across the boundary, and that the
+game or sync client cannot write from stale state. The current application has
+established none of those guarantees for noncooperating writers. Do not activate
+production writes on a shared writable profile while this gap remains. Validate
+any proposed boundary on disposable data with old, renamed and portable
+binaries and standalone sidecars, plus approved positive write and recovery
+controls. Do not change production system policy during that drill.
+See [Windows access control](https://learn.microsoft.com/windows/security/identity-protection/access-control/access-control)
+and [file handle sharing](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).
+
+Production release additionally requires domain-specific game-build approval,
+compatibility measurements for the provisional encrypted-save resource ceilings,
+supported Windows/filesystem validation, remote CI confirmation and ordinary
+release/installer acceptance. These prerequisites
+cannot be replaced by the synthetic recovery drill or a successful read-only open.
+
+### Private Health qualification
+
+The private frozen sidecar embeds the reviewed build hashes, a fixed local
+disposable profile, and an Ed25519 verification key. The host grants only the
+production Health commands. Keep the offline signing key outside the application
+bundle. A signed proposal authorizes one Health edit on one file and binds its
+Steam build, save slot, player, before and after values, encrypted SHA-256, file
+identity, and Windows directory identity. The original bytes and identity must
+match under the transaction lock. Existing independent reconciliation verifies
+the signed intent and its original identity against the receipt after replacement.
+Build 26407089 stays outside the production write policy.
+
+1. Export a fresh Run from a separately isolated profile after the game has
+   exited and Steam Cloud for that test is inactive. Place the unchanged encrypted
+   export under `desktop/build/w6-d1b-authentic/saves/<slot>/<slot>.es3` and its
+   record at `desktop/build/w6-d1b-authentic/provenance.json`. Use the fields
+   checked by [the intake validator](../desktop/scripts/tauri/validate_run_fixture.py).
+2. Set `PYTHONPATH` to `desktop/python`. Run
+   `private_health_approval.py propose <export> <provenance> <player-id> <new-health>`
+   from [the Tauri tools](../desktop/scripts/tauri/private_health_approval.py)
+   with the project Python interpreter. The tool verifies the export and creates
+   one working copy under the private bundle's profile. Review the proposal under
+   `desktop/build/w6-private-health/operator/proposal.json`, then explicitly run
+   `private_health_approval.py sign <reviewed-sha256>` against the exact approved
+   proposal. Both commands refuse to overwrite an existing target or approval.
+3. Open that slot in the private preview, select the approved player in Players,
+   enter the approved value, use Review, then Save Changes. After the preview reports
+   success, verify that the exact encrypted backup matches the intake SHA-256 and
+   that the settled receipt links that hash to the edited file's hash.
+4. A gameplay test requires separate approval for the exact game-readable slot
+   and an isolated profile. Use the original slot identity of the freshly exported
+   Run. With the game closed, preserve the original and stage the verified edited
+   copy only in the approved slot. Observe Health, let the game save normally,
+   exit and capture its encrypted output, then reload and confirm the value.
+   Stop and retain the evidence if the game rejects the save or legitimate game
+   activity changes the value. After exiting, restore the exact encrypted backup
+   to the approved slot and compare its SHA-256 with the intake. Preserve the
+   before, edited, resaved, reloaded and restored evidence separately.
+
+### Private existing-save editing
+
+The `private-editing` host uses the same validated Run and MetaSave transaction
+commands. Its local frozen sidecar pins the reviewed Steam executable, engine,
+managed assembly and game-manager digests for build 26407089. The live package
+uses the Windows Known Folder save root. The disposable verification sidecar
+has its profile path baked into the bundle. Ordinary hosts omit private
+capabilities and the public build policy is independent.
+
+1. Close R.E.P.O. and let Steam finish any prior synchronization. Launch
+   `desktop/build/w6-private-editing/candidate/repoditor-preview.exe`.
+   Open the intended Run. The host enables supported editing after verifying the
+   save and installed build, and binds authority to the current save generation.
+   **Change save** revokes that authority. Cosmetics independently verifies
+   MetaSave and revokes its authority when leaving that workspace.
+2. Edit the desired fields and select **Review**. Verify the full source path
+   and pending values. **Save Changes** writes and independently checks an
+   exact encrypted backup before replacing the save. A mixed Run request uses
+   one backup and replacement. MetaSave uses its own transaction.
+3. After success, retain the `<save>.bak-health-<operation>` and
+   `.<save>.health-<operation>.json` next to the save. Compare the backup's
+   SHA-256 with the receipt's `before` and the edited file's SHA-256 with
+   `after`. Then close the preview, load the same slot in R.E.P.O., and verify
+   the value before and after a normal resave and reload.
+4. If restoring, close the game and preview, let synchronization finish,
+   and preserve the edited/resaved bytes. Verify the operation backup against
+   `before`; restore it to the reviewed path and recheck that hash. Preserve
+   the receipt and use the [recovery instructions](#tauri-save-recovery-and-cutover)
+   if a transaction is unresolved. A file modified by the game after the edit
+   will normally differ from the receipt's `after` hash.
+
+The private package uses the existing Item eligibility classifier with the
+pinned installed Unity version. Item creation, deletion and duplication are
+outside Electron's supported operations. Cosmetics still uses the intersection
+of installed IDs and Electron's reviewed mutation IDs.
+
+### v0.3.0 Tauri release acceptance
+
+The private Windows candidate supports direct Health, Upgrades, Run and resume
+location editing, eligible Item refills, and a single mixed Run transaction.
+Cosmetics uses a separate MetaSave transaction. Packaged tests on disposable data
+cover review, revert, reopen, exact backups, atomic replacement, session revocation,
+and independent recovery. The maintainer accepted all five editing domains in-game on Steam build
+`26732417`. Public enablement requires a separate release authorization.
+
+Run entry validates the save, prepares one projection batch, and checks artwork
+before making the workspace available. The preparation bar reports checked
+artwork once the roster is known. Fresh sessions reuse decoded artwork when the
+installed revision and artwork roster match. The editor admits writes after its
+native safety checks succeed. A save that changes during preparation must be
+reopened. Cosmetics keeps its completed catalog visible during revalidation and
+replaces it when the verified sources change.
+Run writes reuse preflight work and still wait for independent verification and
+canonical refresh. The W8 Windows benchmark used five runs per host and a matched
+disposable fixture. Values are medians in seconds from those packaged builds.
+
+| Workflow            | Electron v0.2.1 | Earlier Tauri | Optimized Tauri |
+| ------------------- | --------------: | ------------: | --------------: |
+| Launch to discovery |            1.32 |          0.95 |            0.76 |
+| Cold editing ready  |            8.12 |         13.84 |           12.70 |
+| Warm editing ready  |            0.92 |          2.94 |            1.96 |
+| Health Save Changes |            0.88 |          2.40 |            1.92 |
+
+Tauri classified all eight fixture Item types. Electron reported all eight as
+unknown. The benchmark predates the reliability and parser-pin fixes.
+
+The measured portable candidate is **88.53 MiB**, including the full **77.97 MiB**
+Python backend, in `desktop/build/desktop-reliability/closeout/candidate`. The unpacked
+Electron v0.2.1 folder was **377.92 MiB**, a reduction of **289.39 MiB (76.57%)**.
+The **99.15 MiB** Electron installer is a separate download measurement. The
+measured Tauri candidate had no installer or portable archive. These are sums
+of file lengths, and the portable Tauri folder uses the system WebView2 runtime.
+
+Remaining release gates:
+
+- Review the accepted `26732417` domain evidence and explicitly approve the
+  intended public write policy. The development portable package is read-only.
+- Run the full [capability alignment gate](maintenance/game-update-capabilities.md#review-and-ci)
+  on the release candidate. Recharge snapshot generation uses the reviewed
+  build `23363152` reader. Desktop save workspaces share its classifier and use
+  a separate runtime scan for the private candidate's reviewed Unity version.
+- Verify package, native executable, and visible app versions against the
+  intended release version. Run the Quality and
+  [installer acceptance gates](#w9-b-installer-migration-acceptance) on the
+  exact candidate.
+- Record the disposition of the earlier unexplained preview-window disappearance.
+  Focused packaged cancellation and retry checks did not reproduce it. Retain
+  startup and process-exit diagnostics if it recurs.
+
+#### W9-B installer migration acceptance
+
+Run `npm run package:installer` from `desktop/`. Staging uses 7-Zip to compare
+the archived Tauri host, frozen backend, and branded installer host with the
+verified release inputs. Use `REPODITOR_7ZIP_EXE` if 7-Zip is outside PATH and
+the standard installation directory. The outputs are
+`build/installer/RepoDitor-Setup-0.3.0-x64.exe`, its `.sha256` file, and
+`build/tauri-release/RepoDitor.exe` with the sidecar and licenses beside it.
+Interactive setup opens the established branded installer after the Evergreen
+WebView2 prerequisite check and shows preparation, installation, and verification
+stages. The current-user NSIS engine owns file installation, shortcuts, registration,
+and removal. Fresh installations require an empty destination. Reinstalls reuse
+the registered location. Python 3.13 ships inside the sidecar directory.
+
+Interactive removal through **RepoDitor Desktop** opens the branded uninstaller.
+Cancel at confirmation leaves the installation intact. The window reports the NSIS
+result after checking that the application files and registration are gone. Branded
+removal retains RepoDitor settings, game saves, and backups. If the branded window
+cannot start, NSIS presents its own confirmation. Silent and updater removals use
+NSIS directly.
+
+| Property | v0.2.1 Electron | v0.3.0 Tauri |
+| --- | --- | --- |
+| Installed Apps and Start Menu | RepoDitor | RepoDitor Desktop |
+| Default install | `%LOCALAPPDATA%\Programs\RepoDitor` | `%LOCALAPPDATA%\RepoDitor Desktop` |
+| Host executable | `RepoDitor.exe` | `RepoDitor.exe` |
+| Preferences | `%APPDATA%\repoditor-desktop` | WebView2 storage under `%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview` |
+
+Tauri keeps its established storage identifier so it can reuse compatible caches
+after source validation. Electron theme and language preferences are stored
+separately and must be selected again in Tauri. RepoDitor continues to discover
+the game's existing LocalLow save directory. Keep game data and backups outside
+either installation directory. Removal of either version is an explicit action.
+
+At startup, RepoDitor checks the pinned v0.2.1 Windows uninstall registration
+and opens a dismissible migration dialog when it matches. **Open Installed Apps**
+opens Windows Settings. **Remind Me Later** and Escape defer the dialog for
+seven days. **Don't Show Again** dismisses it for that Tauri profile. Returning
+to RepoDitor after uninstalling Electron clears the dialog.
+
+The build command produces an unsigned candidate and verifies its Authenticode
+status. Windows may display **Unknown publisher** or a SmartScreen reputation
+prompt. Verify the SHA-256 against the approved release record before running the
+installer. Keep SmartScreen enabled. With an approved signing identity, verify the
+publisher and regenerate the checksum after signing. See
+[Microsoft Defender SmartScreen](https://learn.microsoft.com/en-us/windows/security/operating-system-security/virus-and-threat-protection/microsoft-defender-smartscreen/).
+
+Run the clean install, coexistence, uninstall, rollback, and reinstall checks
+below on a disposable standard Windows account or VM. Verify installation on a
+machine without global Python. Use a WebView2-free VM snapshot to test the
+bootstrapper and its failure path. Test the current-user wizard's UAC behavior,
+100%, 125%, 150%, and 200% Windows scaling, progress, cancel, and a denied
+destination or unavailable bootstrapper. Hosted silent checks supplement this
+interactive pass.
+
+1. Verify the published [v0.2.1 installer](https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.2.1)
+   SHA-256 `d013a02d7136943c1f19ddcd946b0d9511865afae62028ac43cb73377b2253ea`
+   and install it normally. Record its
+   Installed Apps registration, install path, executable, Start Menu and any
+   desktop shortcut targets. Set a recognizable theme and language.
+2. Seed synthetic Run and MetaSave files, RepoDitor backups beside them, and
+   one separately stored backup. Record relative paths and SHA-256 hashes.
+   Close RepoDitor and R.E.P.O.
+3. Install v0.3.0 while v0.2.1 is registered. Verify the launched version,
+   registrations, shortcut targets, ownership of shared directories, and the
+   resulting theme and language. Record whether preferences carry forward or
+   need to be set again. Test removal of either registration that remains and
+   ensure it cannot remove the other install's files or shortcuts.
+4. Uninstall v0.3.0 through its **RepoDitor Desktop** entry. Launch the existing
+   v0.2.1 shortcut and verify it still discovers the fixture. Reinstall v0.3.0,
+   remove v0.2.1 explicitly, and verify v0.3.0 still launches. To roll back after
+   removing v0.2.1, remove v0.3.0 and reinstall the same digest-verified v0.2.1
+   artifact. Compare the synthetic save and backup manifests after every step.
+   Treat an install conflict, broken shortcut, or data change as a release blocker.
+
+#### v0.3.0 release notes
+
+Use the [v0.3.0 release notes](changelog/v0.3.0.md) for the GitHub Release.
+If the approved installer changes, update its SHA-256 there after validation.
+
+#### v0.3.0 distribution
+
+- Publish the verified Windows installer, SHA-256 and migration instructions on
+  the [canonical GitHub Releases page](https://github.com/Yoruxyv/RepoDitor/releases)
+  under the stable tag `v0.3.0`. Verify the latest-release endpoint returns that
+  tag and confirm version and artifact hashes on download.
+- Update the existing [Nexus Mods listing](https://www.nexusmods.com/repo/mods/319)
+  and [Thunderstore listing](https://thunderstore.io/c/repo/p/RepoDitor/RepoDitor/)
+  with the reviewed v0.3.0 package where permitted. Follow each platform's
+  review and file rules. Identify the edition as the standalone Windows Tauri
+  app and link to the canonical release notes and checksum.
+- Use these upgrade instructions on both listings after migration acceptance.
+  1. Close RepoDitor and R.E.P.O. Keep your existing saves and backups.
+  2. Download the v0.3.0 Windows installer and compare its SHA-256 with the
+     canonical GitHub release.
+  3. If in-place installation passed, use “Run the v0.3.0 installer with
+     v0.2.1 still installed.” If uninstall-first passed and is required, use
+     “Remove RepoDitor v0.2.1 in Windows Settings → Apps → Installed apps.
+     Then run the v0.3.0 installer.” Publish only the validated instruction.
+  4. Launch RepoDitor from its installed shortcut and confirm v0.3.0. Reapply
+     theme and language if the migration test showed they reset. The
+     standalone app belongs outside the R.E.P.O. game directory.
+- v0.2.1 users need to see the listing or release announcement and update
+  manually. From v0.3.0 onward, the optional toast checks the canonical GitHub
+  release on startup at most once per session, with a six-hour local cooldown.
+  **Later** remembers the dismissed version. **View release** opens the release
+  page in the system browser for a manual download.
+
+### Proposed consumer live-editing exception
+
+A consumer release may use the following bounded policy only after separate
+production approval explicitly replaces strict exclusion for the approved scope.
+The private editing candidate is compiled with `production-health` and explicitly
+grants its production Run-save and MetaSave commands. Ordinary builds omit the
+commands. The production sidecar rejects synthetic profiles. Health, Upgrades,
+Run, Item refills and Cosmetics require independent build approval. The approval
+tables are empty, including Health for build 26407089. Installed Steam provenance
+and pinned executable, engine, managed assembly and game-manager digests are
+required. Item refills also require the existing installed recharge evidence.
+Cosmetics additionally uses Electron's mutation catalog and a separate MetaSave
+session. A mixed Run-save request requires approval for every included domain
+and uses one backup, replacement and recovery receipt.
+
+1. Verify that R.E.P.O. is closed at admission and again before publication.
+   Unknown status or failed inspection blocks the write.
+2. Require reviewed evidence for the installed build and editing domain. Bind
+   the authorized intent to the opened save, its identity and encrypted SHA-256.
+   Recheck the source under the per-slot writer lock. Reject ambiguous namespaces,
+   unsupported storage and unresolved or conflicting recovery evidence.
+3. Keep an exact encrypted backup and read it back independently. Validate the
+   staged ciphertext and intended fields before handle-relative atomic replacement.
+   Preserve durable evidence when publication cannot be confirmed. Require an
+   independent reconciliation of save identity, fingerprint and backup before
+   acknowledging success in the editor. Retry only after uncertainty is resolved.
+
+A compatible read is admitted normally. A filesystem sharing violation establishes
+an access conflict for the attempted operation. Access denied, unavailable
+identity and failed inspection do not identify a competing writer. Ask the user
+to close the game only on confirmed running status. On source drift, ask the user
+to reopen and review the source. On uncertainty, keep the evidence and require
+reconciliation before another write.
+
+Tell users to close the game and other editors and let Steam Cloud finish before
+editing. An older editor, a newly launched game or a synchronization client can
+still write after the last check or overwrite the result later. Atomic replacement
+avoids publishing a partial file. The backup preserves the version RepoDitor
+admitted, so it may not contain an external edit made after the last check.
+The disposable late-writer regression deliberately demonstrates this gap.
+Approval requires build-specific compatibility evidence from game-generated
+disposable saves and validation of the proposed release behavior.
 
 ## Manual security and safety review
 

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-item-artwork-cancel"
+description = "Enables the item_artwork_cancel command without any pre-configured scope."
+commands.allow = ["item_artwork_cancel"]
+
+[[permission]]
+identifier = "deny-item-artwork-cancel"
+description = "Denies the item_artwork_cancel command without any pre-configured scope."
+commands.deny = ["item_artwork_cancel"]

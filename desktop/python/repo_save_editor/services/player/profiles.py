@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
+from math import ceil
+from typing import Literal, cast
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from defusedxml import ElementTree
 
@@ -18,6 +23,40 @@ STEAM_AVATAR_HOSTS = frozenset(
     }
 )
 MAX_PROFILE_BYTES = 256 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class SteamAvatar:
+    """Optional presentation result with a finite, sanitized retry policy."""
+
+    url: str | None = None
+    status: Literal["available", "unavailable", "transient"] = "unavailable"
+    retry_after_ms: int | None = None
+
+
+class _NoProfileRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *_args: object, **_kwargs: object) -> None:
+        # The fixed profile endpoint needs no redirect; never expand its network scope.
+        return None
+
+
+def _retry_delay(value: str | None) -> int | None:
+    if not value:
+        return 60_000
+    if len(value) > 128:
+        return None
+    try:
+        seconds = (
+            int(value)
+            if value.isascii() and value.isdecimal()
+            else ceil((parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds())
+        )
+    except (ValueError, TypeError, OverflowError):
+        return 60_000
+    # A server delay beyond our five-minute workspace budget forbids automatic retry.
+    if seconds > 300:
+        return None
+    return max(30, seconds) * 1000 if seconds > 0 else 60_000
 
 
 def is_plausible_steam_id(player_id: str) -> bool:
@@ -46,7 +85,7 @@ def _fetch_profile(url: str, timeout: float) -> bytes:
         url,
         headers={"User-Agent": "RepoDitor/0.1"},
     )
-    with urlopen(request, timeout=timeout) as response:  # noqa: S310
+    with build_opener(_NoProfileRedirect()).open(request, timeout=timeout) as response:
         body = cast(bytes, response.read(MAX_PROFILE_BYTES + 1))
 
     if len(body) > MAX_PROFILE_BYTES:
@@ -54,12 +93,12 @@ def _fetch_profile(url: str, timeout: float) -> bytes:
     return body
 
 
-def get_steam_avatar_url(
+def get_steam_avatar(
     player_id: str,
     *,
     timeout: float = 1.5,
     fetch_profile: Callable[[str, float], bytes] = _fetch_profile,
-) -> str | None:
+) -> SteamAvatar:
     """Resolve one optional, allowlisted public Steam avatar URL.
 
     Args:
@@ -68,11 +107,11 @@ def get_steam_avatar_url(
         fetch_profile: Injectable bounded profile loader used by tests.
 
     Returns:
-        An HTTPS Steam avatar URL on an allowlisted host, or ``None`` for an
-        invalid ID, unavailable/private profile, malformed response, or unsafe URL.
+        A validated optional URL and sanitized retry information. Unavailable or
+        invalid profiles never request retry; transient transport failures may.
     """
     if not is_plausible_steam_id(player_id):
-        return None
+        return SteamAvatar()
 
     profile_url = f"https://steamcommunity.com/profiles/{player_id}/?xml=1"
     try:
@@ -86,9 +125,29 @@ def get_steam_avatar_url(
             or parsed.password is not None
             or parsed.port not in (None, 443)
         ):
-            return None
-        return avatar_url
+            return SteamAvatar()
+        return SteamAvatar(avatar_url, "available")
+    except HTTPError as error:
+        if error.code in (408, 429) or 500 <= error.code <= 599:
+            return SteamAvatar(
+                None,
+                "transient",
+                _retry_delay(error.headers.get("Retry-After") if error.headers else None),
+            )
+        return SteamAvatar()
+    except (TimeoutError, URLError, ConnectionError):
+        return SteamAvatar(None, "transient", 60_000)
     # Avatar enrichment is optional: no remote response or parser failure may
     # terminate the desktop command and prevent the Players view from loading.
     except Exception:  # noqa: BLE001
-        return None
+        return SteamAvatar()
+
+
+def get_steam_avatar_url(
+    player_id: str,
+    *,
+    timeout: float = 1.5,
+    fetch_profile: Callable[[str, float], bytes] = _fetch_profile,
+) -> str | None:
+    """Preserve the URL-only optional lookup contract for existing callers."""
+    return get_steam_avatar(player_id, timeout=timeout, fetch_profile=fetch_profile).url

@@ -8,17 +8,19 @@ import {
   UserIcon,
 } from "@phosphor-icons/react";
 
-import type { SaveSession } from "@electron/contracts";
+import type { SaveSession } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 
 export type OverviewDestination = "players" | "upgrades" | "run" | "items";
 
 interface OverviewViewProps {
   readonly session: SaveSession;
-  readonly onNavigate: (destination: OverviewDestination) => void;
+  readonly onNavigate: ((destination: OverviewDestination) => void) | null;
+  readonly availableDestinations?: readonly OverviewDestination[];
+  readonly readOnly?: boolean;
 }
 
-export function OverviewView({ session, onNavigate }: OverviewViewProps) {
+function RunSnapshot({ session }: { readonly session: SaveSession }) {
   const { locale, t } = usePreferences();
   const metrics = [
     { icon: ArrowUpIcon, label: t("overview.level"), value: session.level },
@@ -30,15 +32,8 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
     { icon: UserIcon, label: t("overview.players"), value: session.playerCount },
     { icon: MapPinIcon, label: t("overview.resumeAt"), value: session.resumeLocation },
   ];
-  const destinations = [
-    { destination: "players", descriptionKey: "overview.playersDescription", icon: UserIcon },
-    { destination: "upgrades", descriptionKey: "overview.upgradesDescription", icon: ArrowUpIcon },
-    { destination: "run", descriptionKey: "overview.runDescription", icon: PersonSimpleRunIcon },
-    { destination: "items", descriptionKey: "overview.itemsDescription", icon: PackageIcon },
-  ] as const;
-
   return (
-    <section aria-labelledby="overview-title">
+    <>
       <h2 className="text-2xl font-semibold text-ink" id="overview-title">
         {t("nav.overview")}
       </h2>
@@ -67,10 +62,30 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
           ))}
         </dl>
       </section>
+    </>
+  );
+}
 
+export function OverviewView({
+  session,
+  onNavigate,
+  availableDestinations,
+  readOnly = false,
+}: OverviewViewProps) {
+  const { t } = usePreferences();
+  const destinations = [
+    { destination: "players", descriptionKey: "overview.playersDescription", icon: UserIcon },
+    { destination: "upgrades", descriptionKey: "overview.upgradesDescription", icon: ArrowUpIcon },
+    { destination: "run", descriptionKey: "overview.runDescription", icon: PersonSimpleRunIcon },
+    { destination: "items", descriptionKey: "overview.itemsDescription", icon: PackageIcon },
+  ] as const;
+
+  return (
+    <section aria-labelledby="overview-title">
+      <RunSnapshot session={session} />
       <section aria-labelledby="edit-save-title" className="mt-8">
         <h3 className="text-lg font-semibold text-ink" id="edit-save-title">
-          {t("overview.editSave")}
+          {t(readOnly ? "overview.browseSave" : "overview.editSave")}
         </h3>
         <ul className="mt-2 divide-y divide-line border-y border-line">
           {destinations.map(({ destination, descriptionKey, icon: DestinationIcon }) => {
@@ -88,9 +103,12 @@ export function OverviewView({ session, onNavigate }: OverviewViewProps) {
                   <p className="mt-1 text-xs/5 text-secondary">{t(descriptionKey)}</p>
                 </div>
                 <button
-                  className="ui-feedback shrink-0 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+                  className="ui-feedback shrink-0 rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
-                  onClick={() => onNavigate(destination)}
+                  disabled={
+                    onNavigate === null || availableDestinations?.includes(destination) === false
+                  }
+                  onClick={() => onNavigate?.(destination)}
                 >
                   {t("overview.openSection", { section: label })}
                 </button>

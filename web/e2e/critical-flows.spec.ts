@@ -1,5 +1,8 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
 
+import { decryptEs3, encryptEs3 } from "../src/features/save-file/es3";
 import { loadSave, saveFixture, loadBulkCosmeticFixture } from "./fixtures";
 
 test.beforeEach(async ({ page }) => page.goto("/"));
@@ -27,6 +30,67 @@ test("Run edit, recharge, review, export, and exported reload", async ({ page },
   await expect(page.getByRole("spinbutton", { name: "Currency" })).toHaveValue("13");
   await page.getByRole("tab", { name: "Recharge" }).click();
   await expect(page.getByText("All supported items fully charged.")).toBeVisible();
+});
+
+test("Health respects the current and final upgrade caps before export", async ({ page }) => {
+  await loadSave(page, "run");
+  const health = page.getByRole("spinbutton", { name: "Current health" });
+  await expect(health).toHaveAttribute("max", "120");
+  await health.fill("121");
+  await expect(health).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("No pending changes")).toBeVisible();
+  await health.fill("120");
+  await page.getByRole("tab", { name: "Upgrades" }).click();
+  await page.getByRole("spinbutton", { name: "Health", exact: true }).fill("0");
+  const download = page.getByRole("button", { name: "Download verified copy" });
+  await download.click();
+  await expect(
+    page.getByText("Current health must be a whole number between 0 and 100."),
+  ).toBeVisible();
+
+  await page.getByRole("tab", { name: "Players" }).click();
+  await expect(health).toHaveValue("120");
+  await health.fill("100");
+  const exported = page.waitForEvent("download");
+  await download.click();
+  await expect(await exported).toBeTruthy();
+});
+
+test("returning to a missing Level clears the draft and keeps Level absent in export", async ({
+  page,
+}) => {
+  const { runSave } = JSON.parse(
+    await readFile(new URL("../../compatibility/es3/run-mutations.json", import.meta.url), "utf8"),
+  ) as { runSave: { dictionaryOfDictionaries: { value: { runStats: object } } } };
+  Reflect.deleteProperty(runSave.dictionaryOfDictionaries.value.runStats, "level");
+  const encrypted = await encryptEs3(new TextEncoder().encode(JSON.stringify(runSave)));
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: Buffer.from(encrypted),
+    mimeType: "application/octet-stream",
+    name: "REPO_SAVE.es3",
+  });
+  await page.getByRole("tab", { name: "Run" }).click();
+  const level = page.getByRole("spinbutton", { name: "Run level" });
+  const review = page.getByRole("button", { name: "Review changes" });
+  const discard = page.getByRole("button", { name: "Discard changes" });
+  await expect(level).toHaveValue("1");
+  await level.fill("5");
+  await review.click();
+  await expect(page.getByTestId("pending-changes-review")).toContainText("Run level1 → 5");
+  await discard.click();
+  await expect(level).toHaveValue("1");
+
+  await level.fill("5");
+  await level.fill("1");
+  await expect(page.getByText("No pending changes")).toBeVisible();
+  await expect(review).toHaveCount(0);
+  await expect(discard).toBeDisabled();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download verified copy" }).click();
+  const output = await readFile(await (await download).path());
+  const reopened = JSON.parse(new TextDecoder().decode(await decryptEs3(output))) as unknown;
+  expect(reopened).toEqual(runSave);
 });
 
 test("MetaSave cosmetics edit, export, and no-op state", async ({ page }) => {

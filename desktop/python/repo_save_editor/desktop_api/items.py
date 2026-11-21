@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from hashlib import sha256
 from pathlib import Path
 
+from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.desktop_api.saves import load_discovered_save
+from repo_save_editor.services.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
 from repo_save_editor.services.items.discovery import (
     discover_advanced_save,
@@ -18,13 +21,17 @@ from repo_save_editor.services.items.models import (
     ItemRechargeCapability,
 )
 from repo_save_editor.services.items.recharge_capability import (
+    discover_installed_item_metadata,
     discover_installed_item_metadata_with_evidence,
 )
 from repo_save_editor.services.items.recharge_evidence import (
     RechargeEvidence,
     serialize_recharge_evidence,
 )
-from repo_save_editor.services.player.installed_upgrades import match_upgrade_items
+from repo_save_editor.services.player.installed_upgrades import (
+    match_upgrade_items,
+    upgrade_item_candidates,
+)
 from repo_save_editor.services.player.upgrades import discover_player_upgrades
 
 RechargeCapabilityLoader = Callable[
@@ -39,6 +46,15 @@ ItemMetadataEvidenceLoader = Callable[
 IconAvailabilityLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
 
+def editor_item_metadata(
+    names: tuple[str, ...], upgrade_keys: Iterable[str]
+) -> dict[str, InstalledItemMetadata]:
+    return discover_installed_item_metadata(
+        (*names, *(name for key in upgrade_keys for name in upgrade_item_candidates(key))),
+        reuse_native_metadata=True,
+    )
+
+
 def get_advanced_save(
     save_id: str,
     root: Path | None = None,
@@ -49,10 +65,42 @@ def get_advanced_save(
         discover_installed_item_metadata_with_evidence
     ),
     icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
+    reuse_native_metadata: bool = False,
 ) -> dict[str, object]:
     """Return evidence-backed advanced data without exposing the decrypted save."""
     try:
-        _, data, _ = load_discovered_save(save_id, root)
+        _, data, source = load_discovered_save(save_id, root)
+    except DesktopSaveError as exc:
+        return _failure(exc.code, exc.message)
+    revision = entry_artwork_revision() if reuse_native_metadata else None
+    result = serialize_advanced_save(
+        data,
+        capability_loader=capability_loader,
+        metadata_loader=metadata_loader,
+        metadata_evidence_loader=metadata_evidence_loader,
+        icon_availability_loader=icon_availability_loader,
+        reuse_native_metadata=reuse_native_metadata,
+    )
+    if result.get("ok") is True:
+        result["fingerprint"] = sha256(source).hexdigest()
+        if revision and revision == entry_artwork_revision():
+            result["artworkRevision"] = revision
+    return result
+
+
+def serialize_advanced_save(
+    data: SaveData,
+    *,
+    capability_loader: RechargeCapabilityLoader | None = None,
+    metadata_loader: ItemMetadataLoader | None = None,
+    metadata_evidence_loader: ItemMetadataEvidenceLoader = (
+        discover_installed_item_metadata_with_evidence
+    ),
+    icon_availability_loader: IconAvailabilityLoader = available_icon_keys,
+    reuse_native_metadata: bool = False,
+) -> dict[str, object]:
+    """Project one already loaded snapshot with authoritative installed metadata."""
+    try:
         item_type_names = discover_item_type_names(data)
         upgrade_keys = tuple(upgrade.key for upgrade in discover_player_upgrades(data))
         upgrade_visual_keys = match_upgrade_items(upgrade_keys, item_type_names)
@@ -60,6 +108,9 @@ def get_advanced_save(
         if capability_loader is not None:
             metadata: Mapping[str, InstalledItemMetadata] = {}
             capabilities = capability_loader(item_type_names)
+        elif reuse_native_metadata:
+            metadata = editor_item_metadata(item_type_names, upgrade_keys)
+            capabilities = {name: value.recharge_capability for name, value in metadata.items()}
         elif metadata_loader is not None:
             metadata = metadata_loader(item_type_names)
             capabilities = {name: value.recharge_capability for name, value in metadata.items()}

@@ -1,9 +1,14 @@
+import json
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
+from repo_save_editor.core.crypto import encrypt_save
 from repo_save_editor.desktop_api.run import get_run_state
+from repo_save_editor.desktop_api.run_save_changes import apply_run_save_changes
 from repo_save_editor.desktop_api.saves import open_save, save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability
@@ -11,6 +16,35 @@ from repo_save_editor.services.player.upgrades import UPGRADE_VALUE_MAX
 from repo_save_editor.services.run import set_run_stat
 from repo_save_editor.storage import repository as repository_module
 from repo_save_editor.storage.repository import SaveBackupError, SaveRepository
+from repo_save_editor.storage.windows_save_directory import SaveDirectory
+
+RUN_COMPATIBILITY = json.loads(
+    (Path(__file__).parents[4] / "compatibility/es3/run-mutations.json").read_text(encoding="utf-8")
+)
+
+
+@pytest.mark.parametrize("case", RUN_COMPATIBILITY["healthCases"], ids=lambda case: case["name"])
+def test_shared_health_mutations(case) -> None:
+    source = deepcopy(RUN_COMPATIBILITY["runSave"])
+    fields = source["dictionaryOfDictionaries"]["value"]
+    fields.update(deepcopy(case.get("overrides", {})))
+    if "remove" in case:
+        del fields[case["remove"]]
+    before = encrypt_save(source)
+    data = SaveRepository.load_bytes(before)
+    changes = [{"feature": "players", "entity": "111", "field": "health", "after": case["after"]}]
+
+    if not case["accepted"]:
+        with pytest.raises(
+            ValueError, match=r"Current Health|whole-number change|not a supported integer"
+        ):
+            apply_run_save_changes(data, changes)
+        assert data == source
+        return
+
+    apply_run_save_changes(data, changes)
+    fields.setdefault("playerHealth", {})["111"] = case["after"]
+    assert SaveRepository.load_bytes(encrypt_save(data)) == source
 
 
 def _game_closed() -> GameProcessStatus:
@@ -38,7 +72,75 @@ def _fingerprint(root: Path) -> str:
     return result["session"]["fingerprint"]
 
 
-def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, sample_save):
+@pytest.mark.parametrize(
+    "resume", RUN_COMPATIBILITY["resumeCases"], ids=lambda case: case["choice"]
+)
+def test_shared_run_mutations_preserve_unrelated_encrypted_fields(tmp_path: Path, resume) -> None:
+    expected = deepcopy(RUN_COMPATIBILITY["runSave"])
+    fields = expected["dictionaryOfDictionaries"]["value"]
+    fields["runStats"]["save level"] = resume["before"]
+    path = _write_fixture(tmp_path, expected)
+    original = path.read_bytes()
+    refill = RUN_COMPATIBILITY["refill"]
+    result = save_changes(
+        path.parent.name,
+        sha256(original).hexdigest(),
+        [
+            {"feature": "players", "entity": "111", "field": "health", "after": 120},
+            {
+                "feature": "run",
+                "entity": "run",
+                "field": "resumeLocation",
+                "after": resume["label"],
+            },
+            *[
+                {"feature": "advanced", "entity": key, "field": "refillToFull", "after": True}
+                for key in refill["instances"]
+            ],
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+        recharge_capability_loader=_rechargeable,
+    )
+    assert result["ok"] is True, result
+    assert Path(result["result"]["backupPath"]).read_bytes() == original
+    fields["playerHealth"]["111"] = 120
+    fields["runStats"]["save level"] = resume["after"]
+    fields["itemStatBattery"] = refill["expectedCharges"]
+    assert SaveRepository.load(path) == expected
+
+
+def test_save_changes_writes_multiple_players_with_one_exact_backup(tmp_path: Path, sample_save):
+    path = _write_fixture(tmp_path, sample_save)
+    before = path.read_bytes()
+    result = save_changes(
+        path.parent.name,
+        sha256(before).hexdigest(),
+        [
+            {"feature": "players", "entity": "111", "field": "health", "after": 17},
+            {"feature": "players", "entity": "222", "field": "health", "after": 42},
+        ],
+        tmp_path,
+        game_status_loader=_game_closed,
+    )
+    assert result["ok"] is True
+    written = result["result"]
+    assert written["canonical"]["players"] == [
+        {"id": "111", "health": 17},
+        {"id": "222", "health": 42},
+    ]
+    assert Path(written["backupPath"]).read_bytes() == before
+    assert len(list(path.parent.glob(f"{path.name}.bak-*"))) == 1
+    assert written["session"]["fingerprint"] == sha256(path.read_bytes()).hexdigest()
+    expected = deepcopy(sample_save)
+    expected["dictionaryOfDictionaries"]["value"]["playerHealth"] = {"111": 17, "222": 42}
+    assert SaveRepository.load(path) == expected
+
+
+@pytest.mark.parametrize("source_changed", [False, True], ids=["applied", "stale-after-staging"])
+def test_mixed_save_changes_publish_all_or_none(
+    tmp_path: Path, sample_save, monkeypatch, source_changed
+):
     sample_save["futureField"] = {"value": "preserve me"}
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
     dictionaries["item"] = {
@@ -54,6 +156,26 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
     dictionaries["itemsPurchasedTotal"] = {"Item Gun Tranq": 1}
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
+
+    expected = deepcopy(sample_save)
+    changed = expected["dictionaryOfDictionaries"]["value"]
+    changed["playerHealth"]["222"] = 100
+    changed["playerUpgradeStrength"]["222"] = 3
+    changed["runStats"].update({"currency": 20, "save level": 1})
+    del changed["itemStatBattery"]["Item Gun Tranq/1"]
+
+    if source_changed:
+        external = deepcopy(sample_save)
+        set_run_stat(external, "lives", 6)
+        external_bytes = encrypt_save(external)
+        verify_staged = SaveRepository._verify_staged
+
+        def verify_then_change(repository, staging, data, directory):
+            verify_staged(repository, staging, data, directory)
+            assert data == expected
+            path.write_bytes(external_bytes)
+
+        monkeypatch.setattr(SaveRepository, "_verify_staged", verify_then_change)
 
     result = save_changes(
         path.parent.name,
@@ -85,8 +207,20 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
         recharge_capability_loader=_rechargeable,
     )
 
+    backups = list(path.parent.glob(f"{path.name}.bak-*"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == original
+    assert not list(path.parent.glob("*.tmp"))
+    if source_changed:
+        assert result["ok"] is False
+        assert result["error"]["code"] == "save_stale"
+        assert "result" not in result
+        assert path.read_bytes() == external_bytes
+        return
+
     assert result["ok"] is True
     canonical = result["result"]["canonical"]
+    assert canonical["fingerprint"] == sha256(path.read_bytes()).hexdigest()
     assert canonical["fingerprint"] == result["result"]["session"]["fingerprint"]
     assert canonical["players"] == [{"id": "222", "health": 100}]
     assert canonical["upgrades"] == [
@@ -109,22 +243,8 @@ def test_save_changes_writes_multiple_domains_with_exact_backup(tmp_path: Path, 
         "currentChargeEntryCount": 1,
     }
     backup = Path(result["result"]["backupPath"])
-    assert backup.read_bytes() == original
-    reopened = SaveRepository.load(path)
-    dictionaries = reopened["dictionaryOfDictionaries"]["value"]
-    assert dictionaries["playerHealth"]["222"] == 100
-    assert dictionaries["playerUpgradeStrength"]["222"] == 3
-    assert dictionaries["runStats"]["currency"] == 20
-    assert dictionaries["runStats"]["save level"] == 1
-    assert dictionaries["item"] == {
-        "Item Gun Tranq/1": 15,
-        "Item Melee Inflatable Hammer/2": 21,
-    }
-    assert dictionaries["itemStatBattery"] == {"Item Melee Inflatable Hammer/2": 20}
-    assert dictionaries["itemBatteryUpgrades"] == {}
-    assert dictionaries["itemsPurchased"] == {"Item Gun Tranq": 1}
-    assert dictionaries["itemsPurchasedTotal"] == {"Item Gun Tranq": 1}
-    assert reopened["futureField"] == {"value": "preserve me"}
+    assert backup == backups[0]
+    assert SaveRepository.load(path) == expected
     assert result["result"]["session"]["fingerprint"] != _fingerprint_from_bytes(original)
 
 
@@ -475,7 +595,7 @@ def test_backup_failure_blocks_replacement(tmp_path: Path, sample_save, monkeypa
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_backup(_path: Path, _source: bytes):
+    def fail_backup(_path: Path, _source: bytes, _directory=None):
         raise SaveBackupError("simulated backup failure")
 
     monkeypatch.setattr(SaveRepository, "_create_backup", staticmethod(fail_backup))
@@ -499,7 +619,7 @@ def test_staging_failure_leaves_original_and_backup_recoverable(
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_write(_path: Path, _blob: bytes):
+    def fail_write(_path: Path, _blob: bytes, _directory=None):
         raise OSError("simulated disk failure")
 
     monkeypatch.setattr(SaveRepository, "_write_temp", staticmethod(fail_write))
@@ -528,6 +648,9 @@ def test_replacement_failure_leaves_original_and_backup_recoverable(
         raise OSError("simulated replacement failure")
 
     monkeypatch.setattr(repository_module.os, "replace", fail_replace)
+    monkeypatch.setattr(
+        SaveDirectory, "replace", lambda _directory, source, target: fail_replace(source, target)
+    )
     result = save_changes(
         path.parent.name,
         _fingerprint(tmp_path),
@@ -549,7 +672,8 @@ def test_verification_failure_leaves_original_and_backup_recoverable(
     path = _write_fixture(tmp_path, sample_save)
     original = path.read_bytes()
 
-    def fail_verification(_path: Path):
+    def fail_verification(_path: Path, *, directory=None):
+        assert directory is not None or repository_module.os.name != "nt"
         raise ValueError("simulated verification failure")
 
     monkeypatch.setattr(SaveRepository, "load", staticmethod(fail_verification))
@@ -645,3 +769,56 @@ def test_unknown_game_status_blocks_run_write_before_backup(tmp_path: Path, samp
     assert result["error"]["code"] == "game_status_unknown"
     assert path.read_bytes() == original
     assert not list(path.parent.glob("*.bak-*"))
+
+
+@pytest.mark.parametrize(
+    ("final_status", "reason"),
+    [
+        (GameProcessStatus.NOT_RUNNING, None),
+        (GameProcessStatus.RUNNING, "game_running"),
+        (GameProcessStatus.UNKNOWN, "game_status_unknown"),
+        ("query_error", "game_status_unknown"),
+    ],
+)
+def test_run_write_rechecks_game_after_staged_verification(
+    tmp_path, sample_save, monkeypatch, final_status, reason
+):
+    path = _write_fixture(tmp_path, sample_save)
+    before = path.read_bytes()
+    load = SaveRepository.load
+    verified = False
+    observations = []
+
+    def verify(staging, *, directory=None):
+        nonlocal verified
+        data = load(staging, directory=directory)
+        verified = True
+        return data
+
+    def status():
+        observations.append(verified)
+        if verified and final_status == "query_error":
+            raise OSError("private process query failure")
+        return final_status if verified else GameProcessStatus.NOT_RUNNING
+
+    monkeypatch.setattr(SaveRepository, "load", staticmethod(verify))
+    result = save_changes(
+        path.parent.name,
+        sha256(before).hexdigest(),
+        [{"feature": "run", "entity": "run", "field": "currency", "after": 20}],
+        tmp_path,
+        game_status_loader=status,
+    )
+
+    assert observations == [False, False, True]
+    assert next(path.parent.glob("*.bak-*")).read_bytes() == before
+    assert not list(path.parent.glob("*.tmp"))
+    if reason is None:
+        assert result["ok"] is True
+        assert load(path)["dictionaryOfDictionaries"]["value"]["runStats"]["currency"] == 20
+    else:
+        assert result["ok"] is False
+        assert result["error"]["code"] == reason
+        assert "result" not in result
+        assert "private" not in str(result)
+        assert path.read_bytes() == before

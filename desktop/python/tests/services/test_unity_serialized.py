@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from struct import pack
 
 import pytest
 
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
-from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
+from repo_save_editor.services.unity_presentation import (
+    RuntimeFileIndex,
+    read_runtime_mono_prefix,
+)
+from repo_save_editor.services.unity_serialized import (
+    SerializedFileIndex,
+    UnityMetadataError,
+    parse_mono_behaviour_prefix,
+)
 from tests.unity_serialized_fixture import write_serialized_file
 
 
@@ -78,3 +88,23 @@ def test_unreviewed_unity_versions_remain_rejected(tmp_path: Path, unity_version
         SerializedFileIndex(assets),
     ):
         pass
+
+
+def test_runtime_mono_reader_matches_frozen_reader_and_respects_object_bounds(
+    tmp_path: Path,
+) -> None:
+    assets = tmp_path / "mono.assets"
+    payload = pack("<iqB3xiqi", 0, 3, 1, 2, -10, 3) + b"Hat\0"
+    write_serialized_file(assets, [(7, 114, payload), (8, 1, b"following object")])
+
+    with SerializedFileIndex(assets) as historical, RuntimeFileIndex(assets) as runtime:
+        record = runtime.find_records({7})[7]
+        assert read_runtime_mono_prefix(runtime, record) == parse_mono_behaviour_prefix(
+            historical, historical.find_records({7})[7]
+        )
+        for index, read in [
+            (runtime, read_runtime_mono_prefix),
+            (historical, parse_mono_behaviour_prefix),
+        ]:
+            with pytest.raises(UnityMetadataError, match="truncated"):
+                read(index, replace(record, byte_size=27))

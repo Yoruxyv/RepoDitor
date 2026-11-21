@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-editor-entry"
+description = "Enables the editor_entry command without any pre-configured scope."
+commands.allow = ["editor_entry"]
+
+[[permission]]
+identifier = "deny-editor-entry"
+description = "Denies the editor_entry command without any pre-configured scope."
+commands.deny = ["editor_entry"]

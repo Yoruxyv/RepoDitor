@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-test-items-refill"
+description = "Enables the test_items_refill command without any pre-configured scope."
+commands.allow = ["test_items_refill"]
+
+[[permission]]
+identifier = "deny-test-items-refill"
+description = "Denies the test_items_refill command without any pre-configured scope."
+commands.deny = ["test_items_refill"]

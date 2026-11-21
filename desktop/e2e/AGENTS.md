@@ -1,6 +1,6 @@
 # Desktop Integration and Packaged E2E
 
-These tests exercise the real renderer → Electron → Python → save boundary;
+These tests exercise the real renderer → Tauri → Python → save boundary;
 component or mocked-bridge tests do not replace them.
 
 - Reuse the existing harness and synthetic fixture generators. Isolate profiles,
@@ -15,9 +15,9 @@ component or mocked-bridge tests do not replace them.
   1600×900, 1200×800, and 960×640 CSS pixels. Browser zoom is not Windows DPI evidence.
 - Preserve screenshots, traces, and process diagnostics for failures and hangs;
   wait on observable state, not artificial delays or retries that conceal defects.
-- Source E2E and packaged smoke prove different contracts. Run `npm run test:e2e`
-  from `desktop/` for source journeys and `npm run test:e2e:packaged` against the
-  prepared production executable for package changes. Do not reuse historical runs
+- Use `npm run package:tauri` and `npm run test:e2e:tauri` from `desktop/`
+  for packaged journeys. Use `npm run test:tauri-safety` for the staged release-mode
+  and synthetic safety fixtures. Do not reuse historical runs
   as validation of a new build.
 
 Packaged smoke is required before release and does not prove installer lifecycle

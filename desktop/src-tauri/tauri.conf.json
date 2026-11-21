@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RepoDitor Desktop",
+  "mainBinaryName": "RepoDitor",
+  "version": "0.3.0",
+  "identifier": "io.github.yoruxyv.repoditor.preview",
+  "build": {
+    "beforeDevCommand": "npm run dev:tauri-ui",
+    "beforeBuildCommand": "npm run build:tauri-ui",
+    "devUrl": "http://127.0.0.1:1420/tauri.html",
+    "frontendDist": "../build/tauri-ui"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://avatars.akamai.steamstatic.com https://avatars.fastly.steamstatic.com; connect-src ipc: http://ipc.localhost https://api.github.com/repos/Yoruxyv/RepoDitor/releases/latest; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://avatars.akamai.steamstatic.com https://avatars.fastly.steamstatic.com; connect-src ipc: http://ipc.localhost ws://127.0.0.1:1420 https://api.github.com/repos/Yoruxyv/RepoDitor/releases/latest; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+      "capabilities": [
+        {
+          "identifier": "discovery",
+          "windows": ["main"],
+          "permissions": [
+            "allow-environment-detect",
+            "allow-legacy-install-registered",
+            "allow-open-installed-apps",
+            "core:app:allow-version",
+            "allow-saves-open",
+            "allow-editor-entry",
+            "allow-game-status",
+            "allow-players-list",
+            "allow-players-avatar",
+            "allow-upgrades-list",
+            "allow-upgrade-artwork-get",
+            "allow-upgrade-artwork-cancel",
+            "allow-item-artwork-get",
+            "allow-item-artwork-cancel",
+            "allow-map-artwork-get",
+            "allow-map-artwork-cancel",
+            "allow-cosmetic-artwork-get",
+            "allow-cosmetic-artwork-cancel",
+            "allow-run-get",
+            "allow-advanced-get",
+            "allow-maps-list",
+            "allow-cosmetics-get",
+            "allow-preview-close"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": false,
+    "publisher": "Hans Valerie",
+    "useLocalToolsDir": true,
+    "icon": ["../public/icon.ico"],
+    "resources": {
+      "../build/backend/repoditor-backend/": "backend/"
+    }
+  }
+}

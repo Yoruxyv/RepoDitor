@@ -16,11 +16,11 @@ scripts or configuration elsewhere under `desktop/`.
   verification, and failure diagnostics. Do not bypass a guard or mutate frozen
   evidence to accept an incompatible upstream tool or artifact.
 
-From `desktop/`, run the affected existing gates: `npm run release:check`,
-`npm run test:installer:host`, `npm run test:installer:extraction`,
-`npm run test:installer:layout`, package/installer verification, and
-`npm run test:installer:lifecycle` as applicable. Release candidates also require
-packaged E2E and manual acceptance; unpacked smoke alone is insufficient.
+From `desktop/`, run the affected checks: `npm run release:check`,
+`npm run test:installer:host`, `npm run test:installer:layout`, and
+`npm run installer:host` with `npm run installer:verify:host`. Run the hosted
+installer lifecycle gate for install/uninstall coverage. Release candidates
+also require packaged E2E and manual acceptance.
 
 Detailed integration contracts live in
 [installer progress](../../docs/installer-progress.md); build preparation, signing,

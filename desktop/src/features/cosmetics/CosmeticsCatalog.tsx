@@ -1,5 +1,5 @@
 /**
- * Searchable, sortable, lazily illustrated installed cosmetic catalog.
+ * Searchable and sortable installed cosmetic catalog.
  *
  * Filtering changes only presentation order. Numeric IDs remain canonical and all
  * action availability is supplied by the typed domain projection.
@@ -7,7 +7,7 @@
 import { MagnifyingGlassIcon, TShirtIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
-import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticDto, CosmeticsViewDto } from "@/app/desktopContracts";
 
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";
@@ -17,7 +17,8 @@ import type { Translate } from "@/app/i18n";
 interface CosmeticsCatalogProps {
   readonly view: CosmeticsViewDto;
   readonly actionsDisabled: boolean;
-  readonly onUnlockCosmetic: (cosmeticId: number) => void;
+  readonly artworkActive?: boolean | undefined;
+  readonly onUnlockCosmetic: ((cosmeticId: number) => void) | null;
 }
 
 type OwnershipFilter = "all" | "owned" | "locked";
@@ -197,6 +198,7 @@ function matchesCatalogFilters(
 export function CosmeticsCatalog({
   view,
   actionsDisabled,
+  artworkActive,
   onUnlockCosmetic,
 }: CosmeticsCatalogProps) {
   const { t } = usePreferences();
@@ -350,6 +352,9 @@ export function CosmeticsCatalog({
       >
         {sortedCosmetics.map((cosmetic) => {
           const stateLabel = cosmeticStateLabel(cosmetic, t);
+          const visible = visibleCosmeticIds.has(cosmetic.id);
+          const showArtwork = artworkActive === undefined || (artworkActive && visible);
+          const iconId = `cosmetic-icon-${cosmetic.id}`;
           return (
             <li
               aria-label={t("cosmetics.itemLabel", {
@@ -359,18 +364,21 @@ export function CosmeticsCatalog({
               })}
               className="min-w-0 rounded-sm border border-line bg-surface p-3"
               data-cosmetic-id={cosmetic.id}
-              hidden={!visibleCosmeticIds.has(cosmetic.id)}
+              hidden={!visible}
               key={cosmetic.id}
             >
               <div className="flex min-w-0 items-start gap-3">
-                <GameIcon
-                  fallback={TShirtIcon}
-                  fallbackSource="fallback"
-                  loading="lazy"
-                  testId={`cosmetic-icon-${cosmetic.id}`}
-                  token={cosmetic.iconToken}
-                  variant="cosmetic"
-                />
+                {showArtwork ? (
+                  <GameIcon
+                    fallback={TShirtIcon}
+                    fallbackSource="fallback"
+                    loading="lazy"
+                    testId={iconId}
+                    token={cosmetic.iconToken}
+                    reuseKey={cosmetic.iconReuseKey}
+                    variant="cosmetic"
+                  />
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <p
                     className="truncate text-sm font-semibold text-ink"
@@ -395,7 +403,7 @@ export function CosmeticsCatalog({
                 ) : null}
               </div>
 
-              {isUnlockEligible(view, cosmetic) ? (
+              {onUnlockCosmetic !== null && isUnlockEligible(view, cosmetic) ? (
                 <button
                   aria-label={t("cosmetics.unlockCosmetic", { name: cosmetic.displayName })}
                   className="ui-feedback mt-3 rounded-sm border border-control px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"

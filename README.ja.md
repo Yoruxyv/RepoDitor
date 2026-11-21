@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-43.3.0-47848F?style=flat-square&labelColor=1a1a2e&logo=electron&logoColor=white" alt="Electron 43.3.0">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&labelColor=1a1a2e&logo=tauri&logoColor=white" alt="Tauri 2">
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&labelColor=1a1a2e&logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&labelColor=1a1a2e&logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?style=flat-square&label=release&labelColor=1a1a2e" alt="Latest release">
@@ -41,7 +41,7 @@
 
 ### 専用の Windows デスクトップアプリでローカルの R.E.P.O. セーブを確認・編集 — BepInEx 不要
 
-RepoDitor は、ローカルの R.E.P.O. `.es3` データを扱う非公式のスタンドアロン Electron セーブエディターです。
+RepoDitor は、ローカルの R.E.P.O. `.es3` データを扱う非公式のスタンドアロン Tauri セーブエディターです。
 
 デスクトップ UI は範囲を限定した型付き操作だけを提供し、同梱の Python バックエンドがセーブ解析、検証、バックアップ、ゲーム固有の意味付け、暗号化書き込みを担当します。
 
@@ -191,21 +191,13 @@ RepoDitor Desktop は現在コード署名されておらず、過去の v0.1.0 
 
 ## 🔐 セキュリティモデル
 
-renderer は `contextIsolation: true` と `nodeIntegration: false` を使用して sandbox 化されています。
-任意ファイルの読み取り、プロセス起動、セーブ復号、任意 IPC 呼び出し、生の復号済みセーブ JSON の受け取りはできません。
+WebView2 renderer には CSP と制限された Tauri コマンドが適用されます。 GitHub のリリース確認には固定の endpoint を使用します。
 
-Steam アバター補完は任意機能で、fail-soft に動作します。妥当な Steam ID のみ問い合わせ、返された画像 URL は限定された HTTPS ホストに対して検証され、
-プロフィールデータがセーブへ書き込まれることはありません。GitHub Stars は型付き Electron IPC を通じて固定のメタデータ endpoint だけを使用し、
-成功結果はセッション内でキャッシュされます。renderer に任意の network-fetch API は公開されません。
-
-現在の任意バックグラウンドネットワークリクエストはこれらだけです。プロジェクトリンクはユーザー操作後にのみ外部で開き、
-現在のソースには analytics や telemetry の統合はありません。
-
-脆弱性を非公開で報告する場合は [SECURITY.md](SECURITY.md) を参照してください。
+[SECURITY.md](SECURITY.md)
 
 ## 🔎 オープンソースとローカルデータ
 
-RepoDitor はオープンソースです。Electron デスクトップアプリ、Python セーブバックエンド、パッケージ設定、CI/release ワークフローを
+RepoDitor はオープンソースです。Tauri デスクトップアプリ、Python セーブバックエンド、パッケージ設定、CI/release ワークフローを
 このリポジトリで確認でき、文書化された開発・パッケージコマンドを使ってソースからビルドできます。
 公開ソースだけでは、ダウンロードしたバイナリがそのソースと同一であることは証明できません。公開チェックサムが検証するのは artifact の完全性であり、
 コードの安全性や発行者の身元ではありません。
@@ -228,7 +220,7 @@ Steam アバター補完はセーブ由来の妥当な Steam ID を対応する�
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **セーブ状態**                               | 明示的に開くたびに Python が現在の `.es3` を読み込み、復号・検証し、型付き projection とソース fingerprint だけを返します。復号済みの生セーブ JSON は永続化されません。renderer は同じ fingerprint が再確認された場合に限り、現在のアプリセッション中に型付き editor-entry データを再利用できます。書き込み成功時はそのエントリを無効化します。 |
 | **アイテム/コスメティック画像**              | 検証済みのインストール済み baked PNG を優先します。コスメティックはローカルの Sprite デコードへ、画像のないアイテムは Phosphor へフォールバックします。どちらも LocalLow の画像キャッシュを読みません。React には不透明なトークンだけを渡します。                                                                                               |
-| **派生アップグレード画像**                   | Python がインストール済みゲームから対応 texture を解決・デコードします。Electron は検証済み派生 PNG を `%APPDATA%\repoditor-desktop\presentation` に保存し、監視対象ソースの identity が変わらない間だけ再利用します。参照されなくなった PNG を削除し、エントリが欠落・変更・不正・読取不能な場合は再生成または Phosphor へ fallback します。   |
+| **派生アップグレード画像**                   | [Artwork cache](docs/architecture/architecture.md#desktop-local-presentation-assets) |
 | **インストール済みコスメティックメタデータ** | 対応ビルドの `baked-artwork.json` は schema、インストール先、ソース identity を検証します。過去のビルドは別のカタログキャッシュを使います。表示用メタデータは所持証拠や変更権限ではありません。                                                                                                                                                 |
 
 テーマと言語設定は renderer storage を使用します。RepoDitor が R.E.P.O. データを書き込むのは明示的な対応済み保存操作の後だけで、
@@ -237,7 +229,7 @@ Steam アバター補完はセーブ由来の妥当な Steam ID を対応する�
 RepoDitor を再起動した後に派生表示キャッシュを監査するには次を実行します。
 
 ```powershell
-.\desktop\scripts\check-presentation-cache.ps1
+.\desktop\scripts\quality\check-presentation-cache.ps1
 ```
 
 この読み取り専用スクリプトは `manifest.json` と保存済みの hash 名 PNG を比較し、参照されていない artifact や不足している artifact を報告します。
@@ -265,9 +257,9 @@ UI は reduced-motion 設定も尊重し、ローカルの操作音は装飾的�
 ```text
 React renderer
   ↓ typed feature calls
-Sandboxed Electron preload
-  ↓ narrow IPC contracts
-Electron main process
+WebView2 with scoped Tauri commands
+  ↓ Rust admission and process supervision
+Tauri native host
   ↓ structured requests
 Bundled Python desktop API
   ↓
@@ -284,7 +276,7 @@ RepoDitor Desktop では、ゲームとセーブの意味付けについて Pyth
 ## 🧪 品質とテスト
 
 自動テストでは生成済みまたはサニタイズ済み fixture と一時コピーを使用し、実ユーザーのセーブは使用しません。
-リポジトリでは Python formatting/tests、renderer import 境界、lint、TypeScript build、component/contract tests、Windows Electron E2E、
+リポジトリでは Python formatting/tests、renderer import 境界、lint、TypeScript build、component/contract tests、Windows packaged Tauri E2E、
 package 内容、Vite を使わない packaged E2E、installer 構造を確認します。
 
 ```powershell
@@ -301,7 +293,8 @@ npm run release:check
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
+npm run package:tauri
+npm run test:e2e:tauri
 ```
 
 ## 🛠️ 開発
@@ -315,6 +308,7 @@ uv sync --locked
 
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
@@ -322,15 +316,7 @@ npm run dev
 
 ## 📦 パッケージングとリリース
 
-`desktop/` で `npm run package` を実行すると、locked Python 3.13 PyInstaller **onedir** sidecar、production Electron app、
-unpacked packaged smoke test、wizard 形式の NSIS installer、`desktop/release/` 配下のローカル artifact 検証をビルドします。
-Electron Builder は sidecar directory を `resources/backend/` に配置しつつ、固定エントリーポイント `resources/backend/repoditor-backend.exe` を維持します。
-このローカルパスは意図的に未署名です。
-
-公式のタグ付き GitHub release は別個の fail-closed signing command を使用し、SHA-256 ファイル生成前に Authenticode signature を検証し、
-既存 package check が完了した後にのみ公開します。署名承認または credential が利用できない間は、別の一時的な manual workflow で
-未署名 release を明確に表示して公開できます。この workflow は quality、package、packaged-E2E、installer、checksum gate を維持しますが、
-signature verification は省略します。現在の要件と保存済みの過去 v0.1.0 baseline は [release checklist](docs/release-checklist.md) を参照してください。
+`desktop/` で `npm run package:tauri` を実行すると、Python backend を含むポータブル版を作成できます。インストーラーと v0.2.1 からの移行は [リリース手順](docs/release-checklist.md) を参照してください。
 
 ## ⚠️ 制限事項
 
@@ -348,7 +334,7 @@ signature verification は省略します。現在の要件と保存済みの過
 | ---------------------------------------------------------------- | --------------------------------------------------------- |
 | [ドキュメント索引](docs/README.md)                               | 技術・リリース文書への整理された入口                      |
 | [アーキテクチャ](docs/architecture/architecture.md)              | Desktop の境界、所有権、データフロー                      |
-| [Electron UI](docs/architecture/electron-ui.md)                  | renderer の役割、レスポンシブ動作、外観、アクセシビリティ |
+| [Desktop UI](docs/architecture/electron-ui.md)                  | renderer の役割、レスポンシブ動作、外観、アクセシビリティ |
 | [セーブ形式](docs/research/save-format.md)                       | 確認済み暗号化セーブ構造                                  |
 | [リバースエンジニアリング](docs/research/reverse-engineering.md) | 過去の根拠、現在の対応、未解決の意味付け                  |
 | [リリースチェックリスト](docs/release-checklist.md)              | 現在のリリース gate と過去 v0.1.0 baseline                |

@@ -6,6 +6,7 @@ from repo_save_editor.services.game.discovery import (
     GameDiscoveryResult,
     discover_game_installation,
 )
+from repo_save_editor.services.game.installed_build import installed_build_identity
 from repo_save_editor.services.saves.discovery import (
     SaveDiscoveryResult,
     discover_saves,
@@ -18,6 +19,7 @@ def serialize_environment(
 ) -> dict[str, object]:
     """Adapt domain discovery results to the desktop process protocol."""
     installation = game_result.installation
+    build = None if installation is None else installed_build_identity(installation)
     return {
         "ok": True,
         "saveRoot": None if save_result.root is None else str(save_result.root),
@@ -37,6 +39,12 @@ def serialize_environment(
         ],
         "gameStatus": game_result.status.value,
         "gameDetected": game_result.game_detected,
+        # No reviewed build currently authorizes Tauri Player Health production writes.
+        "healthWriteCompatibility": {
+            "buildId": None if build is None else build.build_id,
+            "status": "unknown" if build is None else "unsupported",
+            "supported": False,
+        },
         "gameRoot": None if installation is None else str(installation.root),
         "gameCatalogPath": None if installation is None else str(installation.catalog_path),
         "steamLibraryRoots": [str(path) for path in game_result.library_roots],

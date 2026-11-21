@@ -14,10 +14,11 @@ from typing import Final
 
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
 from repo_save_editor.services.game.installed_build import (
-    SUNSTONE_ARTWORK_ASSEMBLY_SHA256,
-    SUNSTONE_ARTWORK_BUILD_ID,
     VALIDATED_BUILD_ID,
     ValidatedInstalledBuild,
+    artwork_assembly_matches,
+    installed_build_identity,
+    owned_file,
     validated_installed_artwork_build,
 )
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
@@ -30,11 +31,15 @@ from repo_save_editor.services.texture_codec import (
     flip_rgba_vertical,
 )
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
+from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
+    MAX_RESOURCE_MANAGER_BYTES,
+    RESOURCE_MANAGER_CLASS_ID,
     ObjectRecord,
     UnityMetadataError,
-    find_resource_manager_pointer,
+    _normalize_resource_keys,
+    _resource_key_matches,
 )
 from repo_save_editor.services.unity_textures import (
     MeshVertexData,
@@ -59,11 +64,14 @@ MAX_UPGRADE_KEY_BYTES: Final = 512
 MAX_STREAM_BYTES: Final = 64 * 1024 * 1024
 MAX_BATCH_UPGRADES: Final = 64
 MAX_BATCH_PNG_BYTES: Final = 16 * 1024 * 1024
-HASH_CHUNK_BYTES: Final = 1024 * 1024
 
 
 class UpgradeTextureError(ValueError):
     """Unsupported or malformed optional installed visual metadata."""
+
+
+class _UpgradePrefabMissingError(UnityMetadataError):
+    """An admitted ResourceManager has no entry for this Upgrade."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +114,7 @@ class UpgradeTextureBatchResult:
     build_verified: bool
     assets_ready: bool
     textures: tuple[tuple[str, DecodedUpgradeTexture | None], ...]
+    missing: frozenset[str] = frozenset()
 
 
 PreparationStageCallback = Callable[[UpgradePreparationStage, bool, bool], None]
@@ -156,40 +165,37 @@ def _inside(root: Path, candidate: Path) -> bool:
 
 
 def _regular_owned_file(root: Path, relative: Path) -> Path:
-    candidate = root / relative
     try:
-        if candidate.is_symlink():
-            raise UpgradeTextureError("Installed source file may not be a symbolic link.")
-        resolved = candidate.resolve(strict=True)
-        root_resolved = root.resolve(strict=True)
-        if not _inside(root_resolved, resolved) or not resolved.is_file():
-            raise UpgradeTextureError("Installed source file is outside the validated game root.")
-    except OSError as error:
+        return owned_file(root, root / relative)
+    except (OSError, ValueError) as error:
         raise UpgradeTextureError("Installed source file is unavailable.") from error
-    return resolved
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
     try:
+        if not 0 < path.stat().st_size <= 32 * 1024 * 1024:
+            raise UpgradeTextureError("Installed managed assembly exceeds its bound.")
         with path.open("rb") as handle:
-            while chunk := handle.read(HASH_CHUNK_BYTES):
-                digest.update(chunk)
+            raw = handle.read(32 * 1024 * 1024 + 1)
+        if len(raw) > 32 * 1024 * 1024:
+            raise UpgradeTextureError("Installed managed assembly exceeds its bound.")
     except OSError as error:
         raise UpgradeTextureError("Installed managed assembly is unavailable.") from error
-    return digest.hexdigest()
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _validated_paths(
     installation: GameInstallation,
     build: ValidatedInstalledBuild | None = None,
+    *,
+    presentation: bool = False,
 ) -> tuple[Path, Path, Path, Path]:
     resolved_build = build if build is not None else validated_installed_artwork_build(installation)
     if resolved_build is None:
         raise UpgradeTextureError("Installed Steam build is not the validated build.")
     try:
         game_root = installation.root.resolve(strict=True)
-        data_root = (game_root / "REPO_Data").resolve(strict=True)
+        data_root = game_root / "REPO_Data"
     except OSError as error:
         raise UpgradeTextureError("Validated game root is unavailable.") from error
     if not data_root.is_dir() or not _inside(game_root, data_root):
@@ -197,14 +203,30 @@ def _validated_paths(
 
     resources = _regular_owned_file(game_root, RESOURCES_RELATIVE_PATH)
     resource_manager = _regular_owned_file(game_root, RESOURCE_MANAGER_RELATIVE_PATH)
+    if presentation:
+        library = installation.steam_library_root
+        if library is None or installed_build_identity(installation) != resolved_build:
+            raise UpgradeTextureError("Installed presentation source changed.")
+        owned_file(library, resolved_build.manifest_path)
+        owned_file(library, resources)
+        owned_file(library, resource_manager)
+        return game_root, data_root, resources, resource_manager
     assembly = _regular_owned_file(game_root, ASSEMBLY_RELATIVE_PATH)
-    if resolved_build.build_id == VALIDATED_BUILD_ID:
-        expected_assembly_sha256 = VALIDATED_ASSEMBLY_SHA256
-    elif resolved_build.build_id == SUNSTONE_ARTWORK_BUILD_ID:
-        expected_assembly_sha256 = SUNSTONE_ARTWORK_ASSEMBLY_SHA256
-    else:
-        raise UpgradeTextureError("Installed Steam build is not supported for artwork.")
-    if _sha256_file(assembly) != expected_assembly_sha256:
+    assembly = owned_file(installation.steam_library_root or game_root, assembly)
+    before = assembly.stat()
+    digest = _sha256_file(assembly)
+    matches = (
+        digest == VALIDATED_ASSEMBLY_SHA256
+        if resolved_build.build_id == VALIDATED_BUILD_ID
+        else artwork_assembly_matches(resolved_build.build_id, digest)
+    )
+    after = assembly.stat()
+    if not matches or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
         raise UpgradeTextureError("Installed managed assembly does not match the validated build.")
     resolved_build.manifest_path.resolve(strict=True)
     return (game_root, data_root, resources, resource_manager)
@@ -223,8 +245,21 @@ def _find_prefab(
     resources: ArtworkFileIndex,
     names: tuple[str, ...],
 ) -> ObjectRecord:
-    resource_keys = tuple(f"items/{name}".casefold() for name in names)
-    matched_key, pointer = find_resource_manager_pointer(managers, resource_keys)
+    keys = _normalize_resource_keys(f"items/{name}".casefold() for name in names)
+    records = tuple(managers.iter_records(frozenset({RESOURCE_MANAGER_CLASS_ID})))
+    if len(records) != 1 or not 0 < records[0].byte_size <= MAX_RESOURCE_MANAGER_BYTES:
+        raise UnityMetadataError("Upgrade ResourceManager is missing, ambiguous or oversized.")
+    # Classify only a confirmed lookup miss as an unavailable image for the editor cache.
+    matches = [
+        match
+        for key, raw in keys
+        for match in _resource_key_matches(managers, records[0], key, raw)
+    ]
+    if not matches:
+        raise _UpgradePrefabMissingError("ResourceManager prefab entry is missing or ambiguous.")
+    if len(matches) != 1:
+        raise UnityMetadataError("ResourceManager prefab entry is missing or ambiguous.")
+    matched_key, pointer = matches[0]
     external_names = {name.casefold() for name in managers.external_names(pointer.file_id)}
     if external_names != {RESOURCES_RELATIVE_PATH.name.casefold()}:
         raise UnityMetadataError("ResourceManager prefab pointer targets an unsupported file.")
@@ -420,15 +455,10 @@ def _resolve_stream_range(
         or any(part in ("", ".") for part in posix.parts)
     ):
         raise UpgradeTextureError("Installed stream path is unsafe.")
-    candidate = data_root.joinpath(*posix.parts)
     try:
-        if candidate.is_symlink():
-            raise UpgradeTextureError("Installed stream may not be a symbolic link.")
-        resolved = candidate.resolve(strict=True)
-        if not _inside(data_root, resolved) or not resolved.is_file():
-            raise UpgradeTextureError("Installed stream is outside REPO_Data.")
+        resolved = owned_file(data_root, data_root.joinpath(*posix.parts))
         stat = resolved.stat()
-    except OSError as error:
+    except (OSError, ValueError) as error:
         raise UpgradeTextureError("Installed stream is unavailable.") from error
     if (
         stream_offset < 0
@@ -509,9 +539,11 @@ def _decode_resolved_upgrade_texture(
     data_root: Path,
     resources: Path,
     resource_manager: Path,
+    admission_watches: tuple[SourceWatch, ...] = (),
 ) -> DecodedUpgradeTexture:
     texture = visual.texture
     stream, _stream_stat = _resolve_stream(data_root, texture)
+    stream_watch = _watch(stream)
     with stream.open("rb") as handle:
         handle.seek(texture.stream_offset)
         compressed = handle.read(texture.top_mip_size)
@@ -555,7 +587,13 @@ def _decode_resolved_upgrade_texture(
         and applied_framing.source_path not in watch_paths
     ):
         watch_paths.append(applied_framing.source_path)
-    watches = tuple(_watch(path) for path in watch_paths)
+    if any(_watch(watch.path) != watch for watch in (*admission_watches, stream_watch)):
+        raise UpgradeTextureError("Installed artwork admission sources changed during decoding.")
+    checked = {watch.path: watch for watch in (*admission_watches, stream_watch)}
+    watches = tuple(
+        checked[path] if path in checked else _watch(path)
+        for path in dict.fromkeys((*watch_paths, *(watch.path for watch in admission_watches)))
+    )
     source_identity = _source_identity(
         texture,
         applied_framing,
@@ -581,6 +619,7 @@ def _resolve_upgrade_batch(
     resources: ArtworkFileIndex,
     data_root: Path,
     resolved: PreparationTextureCallback,
+    missing: set[str],
 ) -> tuple[dict[str, DecodedUpgradeTexture | None], list[tuple[str, _ResolvedUpgradeVisual]]]:
     outcomes: dict[str, DecodedUpgradeTexture | None] = {}
     pending: list[tuple[str, _ResolvedUpgradeVisual]] = []
@@ -592,7 +631,9 @@ def _resolve_upgrade_batch(
                 _candidate_prefab_names(key),
                 data_root=data_root,
             )
-        except (OSError, UnityMetadataError, UpgradeTextureError, ValueError):
+        except (OSError, UnityMetadataError, UpgradeTextureError, ValueError) as error:
+            if isinstance(error, _UpgradePrefabMissingError):
+                missing.add(key)
             outcomes[key] = None
             resolved(key, None)
             continue
@@ -609,6 +650,7 @@ def _decode_upgrade_batch(
     resource_manager: Path,
     resolved: PreparationTextureCallback,
     on_decode_start: PreparationDecodeCallback | None,
+    admission_watches: tuple[SourceWatch, ...],
 ) -> None:
     png_bytes = 0
     budget_exhausted = False
@@ -624,6 +666,7 @@ def _decode_upgrade_batch(
                     data_root=data_root,
                     resources=resources,
                     resource_manager=resource_manager,
+                    admission_watches=admission_watches,
                 )
                 if png_bytes + len(candidate.png) > MAX_BATCH_PNG_BYTES:
                     budget_exhausted = True
@@ -648,6 +691,7 @@ def prepare_installed_upgrade_textures(
     installation: GameInstallation,
     build: ValidatedInstalledBuild,
     *,
+    presentation: bool = False,
     on_stage: PreparationStageCallback | None = None,
     on_texture: PreparationTextureCallback | None = None,
     on_decode_start: PreparationDecodeCallback | None = None,
@@ -673,23 +717,42 @@ def prepare_installed_upgrade_textures(
             on_texture(key, texture)
 
     stage(UpgradePreparationStage.INDEXING)
+    missing: set[str] = set()
     try:
+        admission_paths = (
+            (build.manifest_path,)
+            if presentation
+            else (installation.root / ASSEMBLY_RELATIVE_PATH, build.manifest_path)
+        )
+        admission_watches = tuple(_watch(path) for path in admission_paths)
         (
             _game_root,
             data_root,
             resources_path,
             resource_manager_path,
-        ) = _validated_paths(installation, build)
+        ) = (
+            _validated_paths(installation, build, presentation=True)
+            if presentation
+            else _validated_paths(installation, build)
+        )
+        if any(_watch(w.path) != w for w in admission_watches):
+            raise UpgradeTextureError(
+                "Installed artwork admission sources changed during validation."
+            )
         if not upgrade_keys:
             return UpgradeTextureBatchResult(True, True, True, ())
+        admission_watches += (_watch(resources_path), _watch(resource_manager_path))
 
-        with (
-            ArtworkFileIndex(resource_manager_path) as managers,
-            ArtworkFileIndex(resources_path) as resources,
-        ):
+        index = PresentationFileIndex if presentation else ArtworkFileIndex
+        with index(resource_manager_path) as managers, index(resources_path) as resources:
+            if presentation and (
+                not is_sunstone_layout(resources.unity_version)
+                or managers.unity_version != resources.unity_version
+            ):
+                raise UpgradeTextureError("Unsupported installed upgrade source layout.")
             stage(UpgradePreparationStage.RESOLVING)
             outcomes, pending = _resolve_upgrade_batch(
-                upgrade_keys, managers, resources, data_root, resolved
+                upgrade_keys, managers, resources, data_root, resolved, missing
             )
 
             stage(UpgradePreparationStage.DECODING)
@@ -701,6 +764,7 @@ def prepare_installed_upgrade_textures(
                 resource_manager=resource_manager_path,
                 resolved=resolved,
                 on_decode_start=on_decode_start,
+                admission_watches=admission_watches,
             )
     except (OSError, OverflowError, UnityMetadataError, UpgradeTextureError, ValueError):
         return UpgradeTextureBatchResult(
@@ -715,6 +779,7 @@ def prepare_installed_upgrade_textures(
         True,
         True,
         tuple((key, outcomes.get(key)) for key in upgrade_keys),
+        frozenset(missing),
     )
 
 

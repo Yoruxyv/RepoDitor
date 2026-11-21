@@ -1,27 +1,38 @@
 from __future__ import annotations
 
+import os
 import struct
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from repo_save_editor.services.game.discovery import discover_game_installation
-from repo_save_editor.services.items import recharge_evidence
+from repo_save_editor.services.items import recharge_capability, recharge_evidence
 from repo_save_editor.services.items.installed_metadata import (
     InstalledItemCatalogError,
     _parse_game_object,
     _read_game_object_name,
     discover_installed_item_catalog,
-    discover_installed_item_metadata,
     discover_item_recharge_capabilities,
 )
-from repo_save_editor.services.items.models import ItemRechargeCapability
+from repo_save_editor.services.items.installed_metadata import (
+    discover_installed_item_metadata as discover_reviewed_item_metadata,
+)
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
     discover_installed_item_metadata_with_evidence,
     discover_installed_recharge_capabilities,
 )
-from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
+from repo_save_editor.services.items.runtime_metadata import discover_installed_item_metadata
+from repo_save_editor.services.native_artwork_cache import artwork_cache_root
+from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
+from repo_save_editor.services.unity_serialized import (
+    UNITY_VERSION,
+    SerializedFileIndex,
+    UnityMetadataError,
+)
 from tests.unity_serialized_fixture import (
     aligned_string as _aligned_string,
 )
@@ -65,6 +76,7 @@ def _build_assets(
     root: Path,
     *,
     prefix_objects: Iterable[tuple[int, int, bytes]] = (),
+    unity_version: str = UNITY_VERSION,
 ) -> tuple[Path, Path]:
     resources = root / "resources.assets"
     globals_ = root / "globalgamemanagers.assets"
@@ -75,6 +87,7 @@ def _build_assets(
             (1001, 115, _mono_script("Item", "Item")),
             (1002, 115, _mono_script("ItemBattery", "ItemBattery")),
         ],
+        unity_version=unity_version,
     )
     _write_serialized_file(
         resources,
@@ -104,8 +117,40 @@ def _build_assets(
             (5, 1, _game_object("Item Conflict", ())),
         ],
         externals=(("", "globalgamemanagers.assets"),),
+        unity_version=unity_version,
     )
     return resources, globals_
+
+
+def test_private_item_reader_requires_the_exact_reviewed_version_for_both_sources(
+    tmp_path: Path,
+) -> None:
+    resources, managers = _build_assets(tmp_path, unity_version=SUNSTONE_UNITY_VERSION)
+    name = "Item Rechargeable"
+    for version, expected in (
+        (None, ItemRechargeCapability.UNKNOWN),
+        (UNITY_VERSION, ItemRechargeCapability.UNKNOWN),
+        (SUNSTONE_UNITY_VERSION, ItemRechargeCapability.RECHARGEABLE),
+    ):
+        result = discover_installed_item_metadata(
+            resources, managers, (name,), unity_version=version
+        )
+        assert result[name].recharge_capability is expected
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    _, wrong_managers = _build_assets(legacy)
+    result = discover_installed_item_metadata(
+        resources, wrong_managers, (name,), unity_version=SUNSTONE_UNITY_VERSION
+    )
+    assert result[name].recharge_capability is ItemRechargeCapability.UNKNOWN
+
+
+def test_runtime_and_evidence_readers_agree_on_legacy_item_metadata(tmp_path: Path) -> None:
+    resources, managers = _build_assets(tmp_path)
+    names = ("Item Rechargeable", "Item Not Rechargeable", "Item Conflict", "Missing")
+    assert discover_installed_item_metadata(resources, managers, names) == (
+        discover_reviewed_item_metadata(resources, managers, names)
+    )
 
 
 def test_dynamic_mapping_classifies_rechargeable_not_rechargeable_and_exceptional_unknown(
@@ -230,6 +275,126 @@ def test_structurally_malformed_unrelated_game_object_fails_soft_to_unknown(
     assert discover_item_recharge_capabilities(resources, globals_, ("Item Rechargeable",)) == {
         "Item Rechargeable": ItemRechargeCapability.UNKNOWN
     }
+
+
+def test_metadata_cache_is_keyed_by_build_and_asset_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resources, globals_ = _build_assets(tmp_path)
+    resource_identity = recharge_evidence.InstalledFileIdentity(str(resources), 10, 1, 1, 1)
+    globals_identity = recharge_evidence.InstalledFileIdentity(str(globals_), 10, 1, 1, 2)
+    context = recharge_evidence.RechargeSourceContext(
+        tmp_path,
+        tmp_path / "manifest.acf",
+        "first",
+        resources,
+        resource_identity,
+        globals_,
+        globals_identity,
+    )
+    monkeypatch.setattr(recharge_capability, "resolve_recharge_source_context", lambda _: context)
+    scans = 0
+
+    def scan(*_args: object, **_kwargs: object) -> dict[str, InstalledItemMetadata]:
+        nonlocal scans
+        scans += 1
+        return {}
+
+    monkeypatch.setattr(recharge_capability, "discover_installed_item_metadata_from_assets", scan)
+    names = ("Item Rechargeable",)
+    discover_installed_item_metadata_with_evidence(names)
+    discover_installed_item_metadata_with_evidence(names)
+    assert scans == 1
+
+    context = replace(context, build_id="second")
+    discover_installed_item_metadata_with_evidence(names)
+    assert scans == 2
+
+    context = replace(context, resources=replace(resource_identity, mtime_ns=2))
+    discover_installed_item_metadata_with_evidence(names)
+    assert scans == 3
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI and file change-time validation")
+def test_native_metadata_cache_reuses_valid_reads_and_rebuilds_after_source_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("REPODITOR_E2E", "1")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    (tmp_path / "RepoDitorPreview").mkdir()
+    resources, managers = _build_assets(tmp_path)
+    manifest = tmp_path / "manifest.acf"
+    manifest.write_text("first")
+    build = "first"
+    names = ("Item Rechargeable", "Item Not Rechargeable")
+
+    def identity(path: Path) -> recharge_evidence.InstalledFileIdentity:
+        info = path.stat()
+        return recharge_evidence.InstalledFileIdentity(
+            str(path), info.st_size, info.st_mtime_ns, info.st_dev, info.st_ino
+        )
+
+    def source(_game_dir: Path | None) -> recharge_evidence.RechargeSourceContext:
+        return recharge_evidence.RechargeSourceContext(
+            tmp_path, manifest, build, resources, identity(resources), managers, identity(managers)
+        )
+
+    monkeypatch.setattr(recharge_capability, "resolve_recharge_source_context", source)
+    scan = recharge_capability.discover_installed_item_metadata_from_assets
+    scans = 0
+
+    def count_scan(
+        resources_path: Path,
+        global_managers_path: Path,
+        item_names: Iterable[str],
+        *,
+        unity_version: str | None = None,
+    ) -> dict[str, InstalledItemMetadata]:
+        nonlocal scans
+        scans += 1
+        return scan(resources_path, global_managers_path, item_names, unity_version=unity_version)
+
+    monkeypatch.setattr(
+        recharge_capability, "discover_installed_item_metadata_from_assets", count_scan
+    )
+
+    def read(
+        order: Iterable[str] = names, *, reuse: bool = True
+    ) -> dict[str, InstalledItemMetadata]:
+        recharge_capability._cached_item_metadata.cache_clear()
+        return discover_installed_item_metadata_with_evidence(order, reuse_native_metadata=reuse)[0]
+
+    before = read()
+    assert before[names[0]].recharge_capability is ItemRechargeCapability.RECHARGEABLE
+    assert read(reversed(names)) == before
+    assert scans == 1
+
+    assert read(reuse=False) == before  # Authoritative callers ignore the native read cache.
+    assert scans == 2
+    build = "second"
+    assert read() == before
+    assert scans == 3
+
+    # In-place changes still invalidate the frame when size and mtime match.
+    original = resources.stat()
+    with resources.open("r+b") as stream:
+        stream.seek(8)
+        stream.write(struct.pack(">I", 21))
+    os.utime(resources, ns=(original.st_atime_ns, original.st_mtime_ns))
+    assert resources.stat().st_size == original.st_size
+    assert resources.stat().st_mtime_ns == original.st_mtime_ns
+    assert read()[names[0]].recharge_capability is ItemRechargeCapability.UNKNOWN
+    assert scans == 4
+    assert read()[names[0]].recharge_capability is ItemRechargeCapability.UNKNOWN
+    assert scans == 5  # Parser-wide failure stays retryable.
+
+    _build_assets(tmp_path)
+    assert read() == before
+    cache_root = artwork_cache_root(editor=True)
+    assert cache_root is not None
+    (cache_root / "metadata.bin").write_bytes(b"corrupt")
+    assert read() == before
+    assert scans == 7
 
 
 def test_missing_or_unsupported_assets_fail_soft_to_unknown(tmp_path: Path) -> None:

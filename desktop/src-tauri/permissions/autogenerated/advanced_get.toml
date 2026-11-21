@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-advanced-get"
+description = "Enables the advanced_get command without any pre-configured scope."
+commands.allow = ["advanced_get"]
+
+[[permission]]
+identifier = "deny-advanced-get"
+description = "Denies the advanced_get command without any pre-configured scope."
+commands.deny = ["advanced_get"]

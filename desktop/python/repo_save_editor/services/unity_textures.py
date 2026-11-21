@@ -14,9 +14,9 @@ from typing import Final
 from repo_save_editor.services.texture_codec import MAX_TEXTURE_DIMENSION, top_mip_size
 from repo_save_editor.services.unity_artwork import (
     RECT_TRANSFORM_CLASS_ID,
-    SUNSTONE_UNITY_VERSION,
     ArtworkFileIndex,
 )
+from repo_save_editor.services.unity_presentation import is_sunstone_layout
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MATERIAL_CLASS_ID,
@@ -585,7 +585,7 @@ def parse_texture2d(index: SerializedFileIndex, record: ObjectRecord) -> Texture
         fallback_flags = (reader.u8(), reader.u8())
         if any(flag not in (0, 1) for flag in fallback_flags):
             raise UnityMetadataError("Texture2D fallback metadata is malformed.")
-    elif version != SUNSTONE_UNITY_VERSION:
+    elif not is_sunstone_layout(version):
         raise UnityMetadataError("Unsupported Texture2D Unity layout.")
     reader.align4()
 
