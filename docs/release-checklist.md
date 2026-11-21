@@ -1,20 +1,48 @@
 # Release checklist
 
-Official releases are WebView2-hosted Windows x64 NSIS installers built from semantic tags that match
-the version in both `pyproject.toml` and `desktop/package.json`. The current procedure is generic;
-the measured v0.1.0 release-candidate data remains preserved as a historical baseline below.
+The current Windows Desktop source builds a portable package and NSIS installer
+with `npm run package:installer` from `desktop/`. Run the desktop quality,
+packaged journey, Tauri safety, and capability alignment gates. Automated CI
+and interactive installer acceptance are described below. See the
+[native installer gate](#w9-b-installer-migration-acceptance).
+The signing requirements and installer evidence below record the historical
+release process and the obligations for its successor. Reproduce historical
+commands on the corresponding published source tag.
 
-## Windows code signing preparation
+## Windows CI coverage
+
+| Original workflow | Tauri coverage | Remaining release-candidate coverage |
+| --- | --- | --- |
+| `quality.yml` | React and TypeScript build, imports, formatting, ESLint, bundle budget, renderer tests and the Python version matrix remain. **Windows package smoke** builds and verifies the portable host and PyInstaller sidecar, then exercises packaged WebView2 journeys. **Windows Tauri save safety** checks Rust formatting, Clippy, default/all-feature Rust tests, fixture-only writes, exact encrypted backups, compatibility, stale sessions, transactions and recovery. | Run Quality against the exact release source and check its packaged runtime. |
+| `tauri-startup.yml` | Manual startup diagnostic still launches an ordinary packaged native host and frozen sidecar. The required Quality safety job also exercises normal startup, cancellation, failure and retry. | Verify installation and startup on a standard Windows account with the intended WebView2 prerequisites. |
+| `installer-lifecycle.yml` | Hosted Windows builds the same NSIS package as a local candidate. The test exercises clean installation, launch, reinstall, coexistence with the pinned v0.2.1 installer, rollback, registry and shortcut cleanup, and exact synthetic Run, MetaSave and backup hashes. | Verify the interactive installer, custom path, preferences, WebView2 bootstrapper, branded setup progress and errors, Windows scaling and UAC on disposable Windows. |
+| `release.yml` | Manual validation from `main` with `confirm=VALIDATE` invokes the hosted installer gate. The build checks the host, sidecar and bundle and generates an installer SHA-256. Only diagnostics and checksum records are retained in Actions. | Authorize the exact version and release commit, sign and verify each executable and final installer, and calculate the post-signing SHA-256 before separately authorizing distribution. |
+| `release-unsigned.yml` | Retired. The same manual build-validation lane covers unsigned CI artifacts. | The old unsigned publish path is absent. |
+| `compatibility-alignment.yml` | Retained. The source-pinned Python/Web fixtures and current/future build policy checks stay in effect. | Review and authorize public writes separately from private gameplay evidence. |
+
+The automated test uses the production **RepoDitor Desktop** registration in
+a disposable GitHub-hosted Windows profile. It refuses to run on a local or
+self-hosted machine. See the [Tauri 2 Windows installer guide](https://v2.tauri.app/distribute/windows-installer/)
+and [GitHub pipeline guide](https://v2.tauri.app/distribute/pipelines/github/).
+
+Keep the required **Quality gate**, **Windows package smoke**, and **Windows
+Tauri save safety** contexts where configured. Remove the retired **Windows
+Electron E2E** context from the ruleset and replace **Current-user production
+installer lifecycle** with **Current-user Tauri installer lifecycle** if required.
+Publishing, tagging, and executable artifact uploads are disabled in these
+workflows. Before introducing publication, restrict the job to the reviewed
+default-branch commit and a protected maintainer-approved environment.
+
+## Historical Windows code signing preparation
 
 RepoDitor v0.1.0 remains the historical unsigned release. Future official tagged releases are
 prepared to use Microsoft Artifact Signing through electron-builder's Azure signing integration.
 This preparation does not create a certificate or signing identity and contains no credential
 values.
 
-The checked-in official release path expects the Microsoft Artifact Signing values documented
-below and fails closed without them. Repository contents cannot prove whether the maintainer-owned
-Azure identity and protected GitHub environment values are currently configured. SignPath is not integrated into the current workflow; provider enrollment and
-credential availability must be checked outside the repository.
+The former official release path required the Microsoft Artifact Signing values
+below. Verify the maintainer-owned Azure identity, publisher and protected
+environment before wiring signing into the production Tauri installer.
 
 Local packaging remains intentionally usable without cloud access:
 
@@ -110,7 +138,7 @@ $signature.SignerCertificate |
 `AZURE_ARTIFACT_SIGNING_PUBLISHER_NAME`. Perform the checksum comparison against the published
 `.sha256` file after signature validation.
 
-## Required automated gates
+## Historical Electron release gates
 
 - Python 3.11 and 3.14: locked sync, Ruff lint/format, and pytest.
 - Desktop quality: clean npm install, import normalization, ESLint, release
@@ -130,7 +158,7 @@ The quality gate must pass every job. The tag-driven release workflow reruns
 Python and desktop quality, the packaged smoke test, installer verification,
 and installer checksum generation before publishing.
 
-## Signed release procedure
+## Historical signed release procedure
 
 1. Update every managed version source and verify alignment from `desktop/`:
 
@@ -174,24 +202,26 @@ Then open **GitHub → RepoDitor → Actions → Unsigned Release → Run workfl
 `version` to `0.1.1`, and set `confirm_unsigned` to `RELEASE UNSIGNED`. Do not create or push the
 tag manually; the validated workflow creates `v0.1.1` at its exact checked-out commit.
 
-## Installer acceptance gate
+## Historical installer acceptance gate
 
-This is a blocking manual release-candidate check. Do not treat the unpacked E2E as proof of
+This section records the legacy installer procedure at `752325a`. The current release uses
+the [W9-B installer gate](#w9-b-installer-migration-acceptance).
+Do not treat the unpacked E2E as proof of
 install, upgrade, explicit-uninstall cleanup, save preservation, or reinstall behavior. Use an
 older installer and the candidate installer for the upgrade leg:
 
-The dedicated `Installer lifecycle` workflow complements this gate with fresh-package,
+The former `Installer lifecycle` workflow complemented this gate with fresh-package,
 current-user default/custom-path, registered reinstall, explicit-cleanup, and synthetic LocalLow
 fingerprint coverage through real WebView2 **Install/Update**, **Uninstall**, and a safe native
 refusal followed by one real **Retry**. Custom-path installation passes the selected path to the
-production silent engine. It runs the lifecycle under an
+production silent engine. It ran the lifecycle under an
 isolated standard Windows user because GitHub-hosted Windows jobs otherwise run as administrators
 with UAC disabled. Exit code 0 is never sufficient: both HKCU registration keys and installed
 payload entry points must be gone.
 
 Run `npm run test:installer:host` on Windows for native stage, argument, failure,
 and completion checks against temporary files and a unique HKCU fixture key. The
-installer lifecycle workflow runs this check before packaging.
+current installer lifecycle workflow still runs this check before packaging.
 
 Install/update uses determinate percentage only while the production Nsis7z extraction callback
 provides genuine completed/total byte measurements. Verify preparation/running, measured extraction
@@ -456,7 +486,7 @@ permission to apply these steps to a player profile. Use the required Windows
 Its native fixtures live under `desktop/build/recovery-checkpoint/tauri-safety`.
 Use a fresh output name for repeated runs. For an acceptance run that needs the
 exact executable copies, use `-KeepExecutables` as described in the
-[Desktop safety gate instructions](../desktop/README.md#optional-native-discovery-preview).
+[Desktop safety gate instructions](../desktop/README.md#validation-and-portable-windows-package).
 
 Before any future production authorization, an operator must have a tested offline
 maintenance window and exclusive access to the save profile. Close the game, all
@@ -638,9 +668,8 @@ The private Windows candidate supports direct Health, Upgrades, Run and resume
 location editing, eligible Item refills, and a single mixed Run transaction.
 Cosmetics uses a separate MetaSave transaction. Packaged tests on disposable data
 cover review, revert, reopen, exact backups, atomic replacement, session revocation,
-and independent recovery. The maintainer reported loading a Tauri-edited save in
-R.E.P.O. on Steam build `26407089`. A normal game resave, reload, and restoration
-with recorded results by editing domain are still required for public approval.
+and independent recovery. The maintainer accepted all five editing domains in-game on Steam build
+`26732417`. Public enablement requires a separate release authorization.
 
 Run entry validates the save, prepares one projection batch, and checks artwork
 before making the workspace available. The preparation bar reports checked
@@ -672,34 +701,78 @@ of file lengths, and the portable Tauri folder uses the system WebView2 runtime.
 
 Remaining release gates:
 
-- Complete and review build-specific gameplay evidence for each intended public
-  write domain. Approve the bounded live-editing policy and populate reviewed
-  build authorizations. The ordinary host remains read-only.
+- Review the accepted `26732417` domain evidence and explicitly approve the
+  intended public write policy. The development portable package is read-only.
 - Run the full [capability alignment gate](maintenance/game-update-capabilities.md#review-and-ci)
   on the release candidate. Recharge snapshot generation uses the reviewed
   build `23363152` reader. Desktop save workspaces share its classifier and use
   a separate runtime scan for the private candidate's reviewed Unity version.
-- Align package, native executable, and visible app versions to `0.3.0`. The
-  measured private executable still identifies itself as `0.2.1`.
-- Integrate the Tauri payload into the official Windows packaging path and verify
-  the final artifact, WebView2 setup, signatures and checksums. Run the full
-  Quality and [installer acceptance gates](#installer-acceptance-gate) on that
-  release candidate.
+- Verify package, native executable, and visible app versions against the
+  intended release version. Run the Quality and
+  [installer acceptance gates](#w9-b-installer-migration-acceptance) on the
+  exact candidate.
 - Record the disposition of the earlier unexplained preview-window disappearance.
   Focused packaged cancellation and retry checks did not reproduce it. Retain
   startup and process-exit diagnostics if it recurs.
 
-#### W8 installer migration acceptance
+#### W9-B installer migration acceptance
 
-Use the published Electron v0.2.1 Windows x64 installer and the exact v0.3.0
-Tauri release-candidate installer in a disposable standard Windows account or
-VM. Verify the older download against the published digest since a local
-same-version build can differ from the release. Keep migration pending until
-both installers can be exercised together. The current Tauri artifact is a
-portable preview. The existing automated installer assertions expect the
-Electron payload.
+Run `npm run package:installer` from `desktop/`. Staging uses 7-Zip to compare
+the archived Tauri host, frozen backend, and branded installer host with the
+verified release inputs. Use `REPODITOR_7ZIP_EXE` if 7-Zip is outside PATH and
+the standard installation directory. The outputs are
+`build/installer/RepoDitor-Setup-0.3.0-x64.exe`, its `.sha256` file, and
+`build/tauri-release/RepoDitor.exe` with the sidecar and licenses beside it.
+Interactive setup opens the established branded installer after the Evergreen
+WebView2 prerequisite check and shows preparation, installation, and verification
+stages. The current-user NSIS engine owns file installation, shortcuts, registration,
+and removal. Fresh installations require an empty destination. Reinstalls reuse
+the registered location. Python 3.13 ships inside the sidecar directory.
 
-1. Verify the v0.2.1 installer checksum and install it normally. Record its
+Interactive removal through **RepoDitor Desktop** opens the branded uninstaller.
+Cancel at confirmation leaves the installation intact. The window reports the NSIS
+result after checking that the application files and registration are gone. Branded
+removal retains RepoDitor settings, game saves, and backups. If the branded window
+cannot start, NSIS presents its own confirmation. Silent and updater removals use
+NSIS directly.
+
+| Property | v0.2.1 Electron | v0.3.0 Tauri |
+| --- | --- | --- |
+| Installed Apps and Start Menu | RepoDitor | RepoDitor Desktop |
+| Default install | `%LOCALAPPDATA%\Programs\RepoDitor` | `%LOCALAPPDATA%\RepoDitor Desktop` |
+| Host executable | `RepoDitor.exe` | `RepoDitor.exe` |
+| Preferences | `%APPDATA%\repoditor-desktop` | WebView2 storage under `%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview` |
+
+Tauri keeps its established storage identifier so it can reuse compatible caches
+after source validation. Electron theme and language preferences are stored
+separately and must be selected again in Tauri. RepoDitor continues to discover
+the game's existing LocalLow save directory. Keep game data and backups outside
+either installation directory. Removal of either version is an explicit action.
+
+At startup, RepoDitor checks the pinned v0.2.1 Windows uninstall registration
+and opens a dismissible migration dialog when it matches. **Open Installed Apps**
+opens Windows Settings. **Remind Me Later** and Escape defer the dialog for
+seven days. **Don't Show Again** dismisses it for that Tauri profile. Returning
+to RepoDitor after uninstalling Electron clears the dialog.
+
+The build command produces an unsigned candidate and verifies its Authenticode
+status. Windows may display **Unknown publisher** or a SmartScreen reputation
+prompt. Verify the SHA-256 against the approved release record before running the
+installer. Keep SmartScreen enabled. With an approved signing identity, verify the
+publisher and regenerate the checksum after signing. See
+[Microsoft Defender SmartScreen](https://learn.microsoft.com/en-us/windows/security/operating-system-security/virus-and-threat-protection/microsoft-defender-smartscreen/).
+
+Run the clean install, coexistence, uninstall, rollback, and reinstall checks
+below on a disposable standard Windows account or VM. Verify installation on a
+machine without global Python. Use a WebView2-free VM snapshot to test the
+bootstrapper and its failure path. Test the current-user wizard's UAC behavior,
+100%, 125%, 150%, and 200% Windows scaling, progress, cancel, and a denied
+destination or unavailable bootstrapper. Hosted silent checks supplement this
+interactive pass.
+
+1. Verify the published [v0.2.1 installer](https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.2.1)
+   SHA-256 `d013a02d7136943c1f19ddcd946b0d9511865afae62028ac43cb73377b2253ea`
+   and install it normally. Record its
    Installed Apps registration, install path, executable, Start Menu and any
    desktop shortcut targets. Set a recognizable theme and language.
 2. Seed synthetic Run and MetaSave files, RepoDitor backups beside them, and
@@ -710,12 +783,17 @@ Electron payload.
    resulting theme and language. Record whether preferences carry forward or
    need to be set again. Test removal of either registration that remains and
    ensure it cannot remove the other install's files or shortcuts.
-4. Uninstall v0.3.0 and compare the synthetic save and backup manifests after
-   every install and uninstall step. Verify reinstall in a clean profile.
-   Record whether users must manually remove v0.2.1 before installing v0.3.0.
-   Block release for any install conflict, broken shortcut or registration, or
-   change to saves and backups. If removal is required, verify that exact
-   uninstall-then-install sequence before documenting it.
+4. Uninstall v0.3.0 through its **RepoDitor Desktop** entry. Launch the existing
+   v0.2.1 shortcut and verify it still discovers the fixture. Reinstall v0.3.0,
+   remove v0.2.1 explicitly, and verify v0.3.0 still launches. To roll back after
+   removing v0.2.1, remove v0.3.0 and reinstall the same digest-verified v0.2.1
+   artifact. Compare the synthetic save and backup manifests after every step.
+   Treat an install conflict, broken shortcut, or data change as a release blocker.
+
+#### v0.3.0 release notes
+
+Use the [v0.3.0 release notes](release-notes-v0.3.0.md) for the GitHub Release.
+If the approved installer changes, update its SHA-256 there after validation.
 
 #### v0.3.0 distribution
 

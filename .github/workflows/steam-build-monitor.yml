@@ -1,8 +1,6 @@
 name: Steam public build monitoring
 
 on:
-  schedule:
-    - cron: "23 6 * * *"
   workflow_dispatch:
 
 permissions:

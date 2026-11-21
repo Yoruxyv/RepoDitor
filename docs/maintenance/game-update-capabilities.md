@@ -18,14 +18,15 @@ policy modules from those files. Generated files must not be edited by hand. Out
 deterministic, contains no timestamps, and preserves non-contiguous cosmetic IDs exactly; a gap is
 never inferred to be an owned or mutable ID.
 
-## Private Tauri editing across Steam patches
+## Tauri editing across Steam patches
 
 The `26732417` private preview has direct in-game acceptance for Health, Upgrades,
-Run and Normal/Shop resume, Item Recharge, and Cosmetics. The frozen private
-backend can carry that approval to a new Steam BuildID when the installation has
-valid Steam provenance and the SHA-256 pins for the required domains still match.
+Run and Normal/Shop resume, Item Recharge, and Cosmetics. The production
+backend uses [the accepted fingerprints](../../desktop/python/repo_save_editor/services/game/write_evidence.py).
+Approval carries to a new Steam BuildID when the installation has valid Steam
+provenance and the SHA-256 pins for the required domains still match.
 The live BuildID remains part of session checks. Reopen the editor and the save
-after a Steam update. Public build approval is separate.
+after a Steam update.
 
 | Domain                           | Evidence carried forward                                                                                                                                                                                                                                                                                    |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,18 +46,17 @@ Review changed sources against the existing save-field, encryption, serializer, 
 gameplay contracts. Confirm newly affected operations in the game, including
 normal resave and reload where applicable, before replacing the frozen evidence.
 Parsing, artwork availability, and synthetic round trips alone do not grant write
-approval. Full-profile protection and per-edit backups, fingerprints, receipts,
-and closed-game checks continue to apply.
+approval. Production continues to enforce per-edit backups, fingerprints,
+receipts, and closed-game checks. Full-profile protection is used by the
+private acceptance build.
 
 ## Routine checks
 
 ### Public Steam build monitoring
 
 The independent `Steam public build monitoring` workflow checks app `3241660`
-daily and on `workflow_dispatch`. GitHub schedules run only from the default
-branch; feature branches can be tested by manual dispatch. This monitor does not
-participate in application PR gates. Synthetic monitor and artwork regressions
-remain in Quality and do not depend on Steam availability.
+by manual dispatch. Scheduled monitoring is deferred beyond v0.3.0. Synthetic
+monitor and artwork regressions run in Quality without contacting Steam.
 
 The source is Valve SteamCMD's anonymous `app_info_print 3241660` metadata, using
 only the exact `depots.branches.public.buildid` field. The official
@@ -259,7 +259,7 @@ the historical game-generated full-unlock save proved 547 IDs, while the current
 uses exact independent catalog/target agreement and the unchanged managed ownership contract.
 It does not claim a fresh 557-ID in-game capture. The user confirmed in-game Unlock All recognition
 for all 557 on 2026-11-01; individual unlock, removal and game-restart persistence were not separately
-confirmed. Snapshot/IPC formats remain v1. `known-cosmetics.v1.json` and the generated Python/Electron
+confirmed. Snapshot formats remain v1. `known-cosmetics.v1.json` and the generated Python
 policies are active runtime artifacts populated from V2 evidence, not obsolete historical snapshots;
 their consumers have not migrated to a different payload format.
 
