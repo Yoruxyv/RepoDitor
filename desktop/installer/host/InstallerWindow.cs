@@ -24,6 +24,7 @@ internal sealed class InstallerWindow : Form
     private string _scope;
     private string _selectedPath;
     private bool _busy;
+    private bool _uninstallWebViewUnavailable;
     private InstallerState _state = InstallerState.Ready;
 
     internal InstallerWindow(Arguments options)
@@ -53,6 +54,15 @@ internal sealed class InstallerWindow : Form
             delegate(InstallerState stage) { SendState(stage, string.Empty); }, OnExtractionProgress);
     }
 
+    internal int ExitCode
+    {
+        get
+        {
+            if (_uninstallWebViewUnavailable) return 3;
+            return _state == InstallerState.Success ? 0 : _state == InstallerState.Failure ? 2 : 1;
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -72,7 +82,14 @@ internal sealed class InstallerWindow : Form
         }
         catch (Exception error)
         {
+            _state = InstallerState.Failure;
             LogFailure(error);
+            if (_options.Tauri && _options.Mode == "uninstall")
+            {
+                _uninstallWebViewUnavailable = true;
+                Close();
+                return;
+            }
             MessageBox.Show(
                 this,
                 "RepoDitor Setup could not start Microsoft Edge WebView2.\n\n" + error.Message,
@@ -111,7 +128,8 @@ internal sealed class InstallerWindow : Form
         {
             SendInitialize();
         }
-        else if (command == "choose-path" && !_busy && _options.Mode != "uninstall")
+        else if (command == "choose-path" && !_busy && _options.Mode != "uninstall" &&
+            !(_options.Tauri && _options.Updated))
         {
             ChoosePath();
         }
@@ -164,6 +182,7 @@ internal sealed class InstallerWindow : Form
             { "scope", _scope },
             { "scopeLocked", _options.ScopeLocked },
             { "showScope", _options.ShowScope },
+            { "stageProgress", _options.Tauri },
             { "path", _selectedPath }
         });
         InstallerLog.Write("Installer initialize message sent.");
@@ -201,7 +220,8 @@ internal sealed class InstallerWindow : Form
                 return;
             }
 
-            _selectedPath = Path.GetFullPath(Path.Combine(dialog.SelectedPath, "RepoDitor"));
+            _selectedPath = Path.GetFullPath(Path.Combine(dialog.SelectedPath,
+                _options.Tauri ? "RepoDitor Desktop" : "RepoDitor"));
             _bridge.Send(new Dictionary<string, object>
             {
                 { "type", "path" },

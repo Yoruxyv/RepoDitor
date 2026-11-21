@@ -22,7 +22,12 @@ from repo_save_editor.services.items.installed_metadata import (
 )
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
-from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
+from repo_save_editor.services.unity_presentation import (
+    PresentationFileIndex,
+    RuntimeFileIndex,
+    is_sunstone_layout,
+    read_runtime_mono_prefix,
+)
 from repo_save_editor.services.unity_serialized import (
     GAME_OBJECT_CLASS_ID,
     MONO_BEHAVIOUR_CLASS_ID,
@@ -31,7 +36,6 @@ from repo_save_editor.services.unity_serialized import (
     SerializedFileIndex,
     UnityMetadataError,
     _Reader,
-    parse_mono_behaviour_prefix,
     read_pptr,
 )
 
@@ -117,10 +121,10 @@ def _discover_installed_item_metadata(
     unknown = {name: InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None) for name in names}
 
     index: type[SerializedFileIndex] = SerializedFileIndex
-    if presentation_only:
+    if presentation_only or (unity_version is not None and is_sunstone_layout(unity_version)):
         index = PresentationFileIndex
     elif unity_version is not None:
-        index = ArtworkFileIndex
+        index = RuntimeFileIndex
     with (
         index(resources_path) as resources,
         index(global_managers_path) as globals_,
@@ -150,7 +154,7 @@ def _discover_installed_item_metadata(
                 if identity in by_identity:
                     variants[by_identity[identity]].append(record)
                 continue
-            prefix = parse_mono_behaviour_prefix(resources, record)
+            prefix = read_runtime_mono_prefix(resources, record)
             identity = prefix.name.casefold()
             if identity in candidate_definitions:
                 candidate_definitions[identity].append((record, prefix))

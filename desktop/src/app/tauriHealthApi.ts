@@ -7,7 +7,7 @@ import type {
   RunStateDto,
   RunStatDto,
   SaveOpenResult,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 
 export interface HealthCanonical {
   opened: SaveOpenResult;

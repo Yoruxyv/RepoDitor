@@ -1,14 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import type { CosmeticsViewDto, DesktopOperationResult } from "../../electron/contracts.cjs";
+import { expect, test, type Page } from "@playwright/test";
+import type { CosmeticsViewDto, DesktopOperationResult } from "../../src/app/desktopContracts";
 import {
   DESKTOP_ROOT,
   PYTHON_ROOT,
   createMetaSaveFixture,
   getPythonExecutable,
-  isolatedApplicationEnvironment,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
@@ -62,23 +61,14 @@ async function visibleIds(page: Page) {
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-cosmetic-id")));
 }
 
-async function compare(page: Page, reference: Page) {
+async function compare(page: Page) {
   const actual = await native<DesktopOperationResult<CosmeticsViewDto>>(page, "cosmetics_get", {
     saveId: "../untrusted",
     metaPath: "Z:/private",
     url: "https://untrusted",
   });
-  const expected = await reference.evaluate(() => window.repoditor.cosmetics.get());
   expect(actual).toMatchObject({ ok: true });
-  expect(expected).toMatchObject({ ok: true });
-  if (!actual.ok || !expected.ok) throw new Error("Synthetic Cosmetics could not be read");
-  expect({
-    ...actual.data,
-    cosmetics: actual.data.cosmetics.map((entry) => ({ ...entry, iconToken: null })),
-  }).toEqual({
-    ...expected.data,
-    cosmetics: expected.data.cosmetics.map((entry) => ({ ...entry, iconToken: null })),
-  });
+  if (!actual.ok) throw new Error("Synthetic Cosmetics could not be read");
   expect(JSON.stringify(actual)).not.toMatch(
     /artworkProofs|cosmeticTokens|rawMetaSave|iconKey|backupPath/,
   );
@@ -115,7 +105,7 @@ async function reaped(ids: number[]) {
     .toBe(true);
 }
 
-test("packaged global Cosmetics retain Electron data, catalog interactions and three layouts without mutations", async ({
+test("packaged global Cosmetics retain ownership data, catalog interactions and three layouts without mutations", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -125,13 +115,6 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
   const original = await readFile(meta);
   const level = path.join(game, "REPO_Data/level0");
   const levelBefore = await readFile(level);
-  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData/LocalLow"));
-  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: environment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     preview = await launch(
@@ -139,15 +122,16 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
       home,
     );
     const page = preview.page;
-    const referencePage = await reference.firstWindow();
     const timing: Record<string, number> = {};
-    timing["electronEntryMs"] = await openCosmetics(referencePage);
     timing["tauriEntryMs"] = await openCosmetics(page);
-    const initial = await compare(page, referencePage);
+    const initial = await compare(page);
     expect(initial.knownCatalogCount).toBe(28);
     expect(initial.knownOwnedCount).toBe(1);
     expect(initial.unknownOwnedIds).toEqual([999]);
-    expect(initial.capabilities.canUnlockCosmetic).toBe(true);
+    expect(initial.capabilities).toMatchObject({
+      canReadCosmetics: true,
+      canUnlockCosmetic: false,
+    });
     expect(initial.cosmetics.find((entry) => entry.id === 27)).toMatchObject({
       owned: true,
       known: true,
@@ -163,35 +147,38 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
       "fallback",
     );
     await expect(page.locator('img[src^="repoditor-icon:"]')).toHaveCount(0);
-    await expect(
-      referencePage.getByRole("button", { name: "Unlock All Cosmetics", exact: true }),
-    ).toBeVisible();
-    for (const target of [page, referencePage]) {
-      await target.getByRole("searchbox", { name: "Search cosmetics" }).fill("  999  ");
-      await expect(target.locator('[data-cosmetic-id="999"]')).toBeVisible();
-      await expect(target.locator('[data-cosmetic-id="27"]')).toBeHidden();
-      await target.getByRole("button", { name: "Clear cosmetic search" }).click();
-      await expect(target.getByRole("searchbox", { name: "Search cosmetics" })).toBeFocused();
-    }
-    for (const ownership of ["locked", "owned", "all"]) {
-      for (const target of [page, referencePage]) await select(target, "Ownership", ownership);
-      expect(await visibleIds(page)).toEqual(await visibleIds(referencePage));
+    await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("  999  ");
+    await expect(page.locator('[data-cosmetic-id="999"]')).toBeVisible();
+    await expect(page.locator('[data-cosmetic-id="27"]')).toBeHidden();
+    await page.getByRole("button", { name: "Clear cosmetic search" }).click();
+    await expect(page.getByRole("searchbox", { name: "Search cosmetics" })).toBeFocused();
+    for (const [ownership, count] of [
+      ["locked", 27],
+      ["owned", 1],
+      ["all", 29],
+    ] as const) {
+      await select(page, "Ownership", ownership);
+      const ids = await visibleIds(page);
+      expect(ids).toHaveLength(count);
     }
     for (const type of ["0", "3", "all"]) {
-      for (const target of [page, referencePage]) await select(target, "Type", type);
-      expect(await visibleIds(page)).toEqual(await visibleIds(referencePage));
+      await select(page, "Type", type);
+      const expected = initial.cosmetics.filter(
+        (row) => type === "all" || String(row.type) === type,
+      );
+      expect(new Set(await visibleIds(page))).toEqual(
+        new Set(expected.map((row) => String(row.id))),
+      );
     }
-    for (const sort of [
-      "name-desc",
-      "rarity-asc",
-      "rarity-desc",
-      "id-asc",
-      "id-desc",
-      "name-asc",
-    ]) {
-      for (const target of [page, referencePage]) await select(target, "Sort", sort);
-      expect(await visibleIds(page)).toEqual(await visibleIds(referencePage));
-    }
+    const ids = initial.cosmetics
+      .map((row) => row.id)
+      .sort((a, b) => a - b)
+      .map(String);
+    await select(page, "Sort", "id-asc");
+    expect(await visibleIds(page)).toEqual(ids);
+    await select(page, "Sort", "id-desc");
+    expect(await visibleIds(page)).toEqual(ids.toReversed());
+    await select(page, "Sort", "name-asc");
     await page.getByRole("searchbox", { name: "Search cosmetics" }).fill("no such cosmetic");
     await expect(
       page.getByText("No cosmetics match the current search and filters."),
@@ -202,20 +189,15 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
       { width: 1200, height: 800 },
       { width: 960, height: 640 },
     ]) {
-      for (const [name, target] of [
-        ["tauri", page],
-        ["electron", referencePage],
-      ] as const) {
-        await target.setViewportSize(size);
-        expect(
-          await target.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-        ).toBe(true);
-        await expect(target.getByRole("searchbox", { name: "Search cosmetics" })).toBeVisible();
-        await target.screenshot({
-          path: info.outputPath(`${name}-cosmetics-${size.width}.png`),
-          fullPage: true,
-        });
-      }
+      await page.setViewportSize(size);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await expect(page.getByRole("searchbox", { name: "Search cosmetics" })).toBeVisible();
+      await page.screenshot({
+        path: info.outputPath(`native-cosmetics-${size.width}.png`),
+        fullPage: true,
+      });
     }
     expect(await readFile(meta)).toEqual(original);
     expect(await readFile(level)).toEqual(levelBefore);
@@ -225,9 +207,7 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(page.getByText("Cosmetic #28", { exact: true })).toBeVisible();
     timing["tauriRefreshMs"] = performance.now() - refresh;
-    await referencePage.getByRole("button", { name: "Run Saves", exact: true }).click();
-    timing["electronReentryMs"] = await openCosmetics(referencePage);
-    expect((await compare(page, referencePage)).unknownOwnedIds).toEqual([28, 999]);
+    expect((await compare(page)).unknownOwnedIds).toEqual([28, 999]);
     for (let i = 0; i < 3; i++) {
       await page.getByRole("button", { name: "Run Saves", exact: true }).click();
       await openCosmetics(page);
@@ -237,7 +217,7 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
     expect(await readFile(level)).toEqual(levelBefore);
     await createGameFixture(home, 559);
     const futureSource = await readFile(level);
-    const future = await compare(page, referencePage);
+    const future = await compare(page);
     expect(future.knownCatalogCount).toBe(559);
     expect(future.cosmetics.slice(557, 559)).toEqual(
       [557, 558].map((id) =>
@@ -257,18 +237,14 @@ test("packaged global Cosmetics retain Electron data, catalog interactions and t
       JSON.stringify(
         {
           ...timing,
-          note: "Single synthetic MetaSave/catalog observation; entry paths include different preparation, not a production benchmark.",
+          note: "Synthetic MetaSave and catalog fixture.",
         },
         null,
         2,
       ),
     );
   } finally {
-    try {
-      if (preview) await close(preview.child, preview.browser);
-    } finally {
-      await reference.close();
-    }
+    if (preview) await close(preview.child, preview.browser);
   }
 });
 
@@ -280,13 +256,6 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
   const meta = await metaFixture(home);
   const game = await createGameFixture(home);
   const original = await readFile(meta);
-  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData/LocalLow"));
-  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: environment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     preview = await launch(
@@ -294,8 +263,6 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
       home,
     );
     const page = preview.page;
-    const referencePage = await reference.firstWindow();
-    await openCosmetics(referencePage);
     await openCosmetics(page);
     const recovery: { mode: string; retryMs: number }[] = [];
     for (const [mode, code] of [
@@ -308,9 +275,7 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
       else rewriteMeta(meta, "unsupported");
       const bytes = mode === "missing" ? null : await readFile(meta);
       const actual = await native(page, "cosmetics_get");
-      const expected = await referencePage.evaluate(() => window.repoditor.cosmetics.get());
       expect(actual).toMatchObject({ ok: false, error: { code } });
-      expect(expected).toMatchObject({ ok: false, error: { code } });
       await page.getByRole("button", { name: "Refresh", exact: true }).click();
       await expect(page.getByRole("alert")).toBeVisible();
       if (bytes) expect(await readFile(meta)).toEqual(bytes);
@@ -323,7 +288,7 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
     }
     const level = path.join(game, "REPO_Data/level0");
     await rename(level, `${level}.hidden`);
-    const degraded = await compare(page, referencePage);
+    const degraded = await compare(page);
     expect(degraded).toMatchObject({
       catalogAvailable: false,
       knownCatalogCount: 0,
@@ -354,11 +319,7 @@ test("frozen Cosmetics preserve unknown ownership without metadata and distingui
       ),
     );
   } finally {
-    try {
-      if (preview) await close(preview.child, preview.browser);
-    } finally {
-      await reference.close();
-    }
+    if (preview) await close(preview.child, preview.browser);
   }
 });
 

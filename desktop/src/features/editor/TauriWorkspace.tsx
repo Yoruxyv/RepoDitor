@@ -1,6 +1,10 @@
+import {
+  installedWriteRestriction,
+  type CompatibilityEnvironment,
+} from "@/features/editor/compatibility";
 /** Native workspace with shared Run-save recovery. */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { SaveOpenResult, SaveSession } from "@electron/contracts";
+import type { SaveOpenResult, SaveSession } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { tauriHealthApi } from "@/app/tauriHealthApi";
 import { tauriReadApi } from "@/app/tauriReadApi";
@@ -20,11 +24,7 @@ import { MapsView } from "@/features/maps/MapsView";
 import { useMaps } from "@/features/maps/useMaps";
 import { OverviewView } from "./OverviewView";
 import { SaveHeader } from "./SaveHeader";
-import {
-  GameCompatibilityNotice,
-  installedWriteRestriction,
-  type CompatibilityEnvironment,
-} from "./GameCompatibilityNotice";
+import { GameCompatibilityNotice } from "./GameCompatibilityNotice";
 import type { TauriEntrySnapshot } from "./tauriEntryPreparation";
 
 const SECTIONS = ["overview", "players", "upgrades", "run", "items", "maps"] as const;
@@ -184,9 +184,6 @@ export function TauriWorkspace({
   };
   const reason = saveUnavailable(health);
   const saveUnavailableReason = reason ? t(reason) : null;
-  function revertUpgrades() {
-    health.revertUpgrades();
-  }
   const avatars = usePlayerAvatars(
     session.id,
     players.selectedPlayerId,
@@ -333,7 +330,6 @@ export function TauriWorkspace({
               enabled={health.upgradesEnabled}
               locked={health.locked}
               resetVersion={health.resetVersion}
-              onRevertAll={revertUpgrades}
               transaction={{ ...health, enabled: health.upgradesEnabled }}
             />
           ) : null}

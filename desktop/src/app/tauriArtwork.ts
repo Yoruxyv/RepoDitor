@@ -1,7 +1,7 @@
 /** One cancellable native decoder lane with bounded artwork groups and Cosmetics reuse. */
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
-import type { CosmeticsViewDto, DesktopOperationResult } from "@electron/contracts";
+import type { CosmeticsViewDto, DesktopOperationResult } from "@/app/desktopContracts";
 
 export interface NativeArtwork {
   readonly token: string;
@@ -64,7 +64,7 @@ export interface EntryArtworkProgress {
   readonly total: number;
 }
 const ENTRY_ARTWORK_LIMIT = { upgrade: 16, map: 5, item: 64 };
-const ENTRY_ARTWORK_BATCH = { ...ENTRY_ARTWORK_LIMIT, cosmetic: 64 };
+const ENTRY_ARTWORK_BATCH = { ...ENTRY_ARTWORK_LIMIT, cosmetic: 112 };
 
 function subscribeActivity(listener: () => void): () => void {
   activityListeners.add(listener);
@@ -339,7 +339,6 @@ export function useNativeArtwork(
   upgradeItem = false,
 ) {
   const scope = artworkScope(token);
-  const native = scope !== null;
   const hasObserver = typeof IntersectionObserver !== "undefined";
   const allowed =
     (scope === variant || (scope === "upgrade" && variant === "item" && upgradeItem)) &&
@@ -394,12 +393,10 @@ export function useNativeArtwork(
   const current = resolved && token && resolved.token === token ? resolved : null;
   const ready = prepared && "preparing" in prepared ? null : prepared;
   return {
-    native,
     image: ready === undefined ? (current?.image ?? null) : ready,
     prepared: ready != null,
     unavailable:
-      native &&
-      (!allowed || prepared === null || (prepared === undefined && current?.image === null)),
+      !allowed || prepared === null || (prepared === undefined && current?.image === null),
   };
 }
 function validImage(image: unknown, token: string): image is NativeArtwork {

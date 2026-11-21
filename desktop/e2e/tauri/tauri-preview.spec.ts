@@ -3,31 +3,31 @@ import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { _electron as electron, expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
+  EXPECTED_DESKTOP_VERSION,
   PYTHON_ROOT,
   createRunSaveFixture,
   getPythonExecutable,
-  isolatedApplicationEnvironment,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import {
   close,
   launch,
   native,
+  openRunWorkspace,
   stageSyntheticBackend,
   stopSyntheticGame,
 } from "../support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "../support/waits";
 import type {
   DesktopOperationResult,
   GameProcessState,
   PlayerDto,
   SaveOpenResult,
-} from "../../electron/contracts.cjs";
+} from "../../src/app/desktopContracts";
 
 test("packaged native discovery preserves the read-only contract and refresh", async ({
   browserName,
@@ -43,11 +43,20 @@ test("packaged native discovery preserves the read-only contract and refresh", a
   const executable = path.resolve(DESKTOP_ROOT, process.env["REPODITOR_E2E_EXECUTABLE"]!);
   const { child, browser, page } = await launch(executable, home);
   try {
+    expect(await native(page, "plugin:app|version")).toBe(EXPECTED_DESKTOP_VERSION);
+    const legacyInstalled = await native<boolean>(page, "legacy_install_registered");
+    expect(typeof legacyInstalled).toBe("boolean");
+    const legacyNotice = page.getByRole("dialog", { name: "RepoDitor v0.2.1 is still installed" });
+    if (legacyInstalled) {
+      await expect(legacyNotice).toBeVisible();
+      await page.keyboard.press("Escape");
+    }
+    await expect(legacyNotice).toHaveCount(0);
+    await expect(
+      page.getByText(`RepoDitor v${EXPECTED_DESKTOP_VERSION}`, { exact: true }),
+    ).toBeVisible();
     const open = page.getByRole("button", { name: /Open workspace/ });
     await expect(open).toBeEnabled({ timeout: 15_000 });
-    await expect(
-      page.getByText("Read-only preview. Editing and saving are unavailable."),
-    ).toBeVisible();
     const boundary = await page.evaluate(async () => {
       const native = (
         window as unknown as {
@@ -61,7 +70,7 @@ test("packaged native discovery preserves the read-only contract and refresh", a
         "upgrades_write",
         "run_write",
         "advanced_write",
-        "players_avatar",
+        "production_meta_write",
         "plugin:fs|read_file",
         "plugin:shell|execute",
         "plugin:webview|create_webview_window",
@@ -76,7 +85,11 @@ test("packaged native discovery preserves the read-only contract and refresh", a
           denied.push(true);
         }
       }
-      return { node: typeof window.require, electron: typeof window.repoditor, denied };
+      return {
+        node: typeof window.require,
+        electron: typeof Reflect.get(window, "repoditor"),
+        denied,
+      };
     });
     expect(boundary).toEqual({
       node: "undefined",
@@ -93,6 +106,11 @@ test("packaged native discovery preserves the read-only contract and refresh", a
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     }
+    await openRunWorkspace(page);
+    await expect(
+      page.getByText("Read-only preview. Editing and saving are unavailable."),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Change save" }).click();
     await rename(savePath, `${savePath}.hidden`);
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(page.getByRole("heading", { name: "No valid saves yet" })).toBeVisible();
@@ -241,8 +259,11 @@ test("save-open failure recovery and unknown game states remain fail closed", as
     ).toBeVisible();
     await expect(page.getByTestId("editor-content")).toHaveAttribute("inert", "");
     expect(await native(page, "game_status")).toEqual({
-      ok: true,
-      data: { status: "unknown", running: false },
+      ok: false,
+      error: {
+        code: "process_failed",
+        message: "The Python game-status service failed.",
+      },
     });
     await writeFile(
       path.join(home, "game-status.json"),
@@ -252,6 +273,8 @@ test("save-open failure recovery and unknown game states remain fail closed", as
     await expect(
       page.getByRole("heading", { name: "R.E.P.O. is currently running" }),
     ).toBeVisible();
+    // Finish the original open before changing the mocked status for the explicit recheck.
+    await expect(page.locator("#run-snapshot-title")).toBeAttached();
     await writeFile(
       path.join(home, "game-status.json"),
       JSON.stringify({ ok: true, status: "not_running", running: false }),
@@ -428,11 +451,18 @@ for (const [feature, command] of [
     });
     try {
       await page.getByRole("button", { name: /Open workspace/ }).click();
-      await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+      await expect(
+        page.getByRole("progressbar", { name: "Editor preparation progress" }),
+      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible({
+        timeout: 35_000,
+      });
       const tab = page.getByRole("tab", { name: feature });
       await expect(tab).toBeVisible({ timeout: 35_000 });
       await tab.click();
-      await expect(page.getByRole("alert")).toBeVisible({ timeout: 35_000 });
+      await expect(page.getByRole("button", { name: "Try again" })).toBeVisible({
+        timeout: 35_000,
+      });
       const pids = JSON.parse(await readFile(pidFile, "utf8")) as number[];
       expect(pids).toHaveLength(2);
       for (const pid of pids) expect(() => process.kill(pid, 0)).toThrow(/ESRCH/);
@@ -453,54 +483,28 @@ for (const [feature, command] of [
     }
   });
 
-async function comparePlayers(page: Page, electronPage: Page, info: TestInfo) {
+async function comparePlayers(page: Page, info: TestInfo) {
   await page.getByRole("tab", { name: "Players" }).click();
-  await electronPage.getByRole("tab", { name: "Players" }).click();
   await expect(page.getByRole("button", { name: /Alpha/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(electronPage.getByRole("button", { name: /Alpha/ })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  const samples: Record<string, number> = {};
-  for (const [host, target] of [
-    ["tauri", page],
-    ["electron", electronPage],
-  ] as const) {
-    const started = performance.now();
-    const result =
-      host === "tauri"
-        ? await Promise.all([
-            native(target, "players_list", { saveId: E2E_SAVE_ID }),
-            native(target, "game_status"),
-          ])
-        : await Promise.all([
-            target.evaluate((id) => window.repoditor.players.list(id), E2E_SAVE_ID),
-            target.evaluate(() => window.repoditor.game.status()),
-          ]);
-    samples[`${host}ConcurrentReadsMs`] = performance.now() - started;
-    expect(result[0]).toMatchObject({ ok: true });
-    expect(result[1]).toEqual({ ok: true, data: { status: "not_running", running: false } });
-  }
-  await info.attach("players-concurrent-read-timings", {
-    body: JSON.stringify(samples),
-    contentType: "application/json",
+  const [players, status] = await Promise.all([
+    native(page, "players_list", { saveId: E2E_SAVE_ID }),
+    native(page, "game_status"),
+  ]);
+  expect(players).toMatchObject({
+    ok: true,
+    data: [
+      { id: "111", name: "Alpha", health: 80 },
+      { id: "222", name: "Beta", health: 0 },
+    ],
   });
-  await writeFile(info.outputPath("players-concurrent-read-timings.json"), JSON.stringify(samples));
-  expect(await native(page, "players_list", { saveId: E2E_SAVE_ID })).toEqual(
-    await electronPage.evaluate((id) => window.repoditor.players.list(id), E2E_SAVE_ID),
-  );
-  for (const name of ["Beta", "Alpha"]) {
+  expect(status).toEqual({ ok: true, data: { status: "not_running", running: false } });
+  for (const [name, health] of [
+    ["Beta", "0"],
+    ["Alpha", "80"],
+  ]) {
     await page.getByRole("button", { name: new RegExp(name) }).click();
-    await electronPage.getByRole("button", { name: new RegExp(name) }).click();
-    expect(await page.getByTestId("selected-player-identity").innerText()).toBe(
-      await electronPage.getByTestId("selected-player-identity").innerText(),
-    );
-    await expect(page.getByRole("spinbutton")).toHaveValue(
-      await electronPage.getByRole("spinbutton").inputValue(),
-    );
-    expect(await page.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(
-      await electronPage.getByRole("progressbar").getAttribute("aria-valuenow"),
-    );
+    await expect(page.getByTestId("selected-player-identity")).toContainText(name);
+    await expect(page.getByRole("spinbutton")).toHaveValue(health);
   }
   await expect(page.getByRole("spinbutton")).toHaveAttribute("readonly", "");
   await page.getByRole("spinbutton").focus();
@@ -514,20 +518,15 @@ async function comparePlayers(page: Page, electronPage: Page, info: TestInfo) {
     { width: 1200, height: 800 },
     { width: 960, height: 640 },
   ]) {
-    for (const target of [page, electronPage]) {
-      await target.setViewportSize(size);
-      expect(
-        await target.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
-    }
+    await page.setViewportSize(size);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
     await page.screenshot({ path: info.outputPath(`native-players-${size.width}.png`) });
-    await electronPage.screenshot({
-      path: info.outputPath(`electron-players-${size.width}.png`),
-    });
   }
 }
 
-async function compareEmptyAndInvalidPlayers(page: Page, electronPage: Page, savePath: string) {
+async function compareEmptyAndInvalidPlayers(page: Page, savePath: string) {
   await page.getByRole("tab", { name: "Players" }).click();
   await expect(page.getByRole("spinbutton")).toHaveValue("55");
   for (const mode of ["empty", "invalid"]) {
@@ -545,9 +544,6 @@ async function compareEmptyAndInvalidPlayers(page: Page, electronPage: Page, sav
     const source = await readFile(savePath);
     const actual = await native(page, "players_list", { saveId: E2E_SAVE_ID });
     expect(actual).toEqual(
-      await electronPage.evaluate((id) => window.repoditor.players.list(id), E2E_SAVE_ID),
-    );
-    expect(actual).toEqual(
       mode === "empty"
         ? { ok: true, data: [] }
         : {
@@ -558,21 +554,18 @@ async function compareEmptyAndInvalidPlayers(page: Page, electronPage: Page, sav
             },
           },
     );
-    for (const target of [page, electronPage]) {
-      await target.getByRole("button", { name: "Change save" }).click();
-      await target.getByRole("button", { name: /Open workspace/ }).click();
-      if (target === electronPage) await waitForWorkspaceOrContinue(target);
-      await target.getByRole("tab", { name: "Players" }).click();
-      if (mode === "empty")
-        await expect(target.getByRole("heading", { name: "No players found" })).toBeVisible();
-      else await expect(target.getByRole("alert")).toBeVisible();
-      await expect(target.getByRole("spinbutton")).toHaveCount(0);
-    }
+    await page.getByRole("button", { name: "Change save" }).click();
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await page.getByRole("tab", { name: "Players" }).click();
+    if (mode === "empty")
+      await expect(page.getByRole("heading", { name: "No players found" })).toBeVisible();
+    else await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("spinbutton")).toHaveCount(0);
     expect(await readFile(savePath)).toEqual(source);
   }
 }
 
-test("frozen-backend Overview and Players match Electron and read changed or missing saves safely", async ({
+test("frozen-backend Overview and Players read changed or missing saves safely", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -581,17 +574,6 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
   const savePath = await createRunSaveFixture(home);
   const gameRoot = await createGameFixture(home);
   const original = await readFile(savePath);
-  const referenceEnvironment = isolatedApplicationEnvironment(
-    home,
-    path.join(home, "AppData/LocalLow"),
-  );
-  referenceEnvironment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  // Local reference package is a prerequisite; never silently skip the comparison.
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: referenceEnvironment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   let syntheticGame: ChildProcess | undefined;
   try {
@@ -600,32 +582,23 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
       home,
     );
     const { page } = preview;
-    const electronPage = await reference.firstWindow();
-    const expected = await electronPage.evaluate(
-      (saveId) => window.repoditor.saves.open(saveId),
-      E2E_SAVE_ID,
-    );
     const opened = await native<DesktopOperationResult<SaveOpenResult>>(page, "saves_open", {
       saveId: E2E_SAVE_ID,
     });
-    expect(expected.ok).toBe(true);
     expect(opened.ok).toBe(true);
-    if (!expected.ok || !opened.ok)
-      throw new Error("Read-only comparison could not open its synthetic save");
-    expect(opened.data.session).toEqual(expected.data.session);
-    expect(opened.data.requiredUpgradeVisualKeys).toEqual(expected.data.requiredUpgradeVisualKeys);
-    expect(await native(page, "game_status")).toEqual(
-      await electronPage.evaluate(() => window.repoditor.game.status()),
-    );
-    await electronPage.getByRole("button", { name: /Open workspace/ }).click();
-    await waitForWorkspaceOrContinue(electronPage);
-    await page.getByRole("button", { name: /Open workspace/ }).click();
+    if (!opened.ok) throw new Error("Could not open the synthetic save");
+    expect(opened.data.session).toMatchObject({
+      id: E2E_SAVE_ID,
+      fingerprint: createHash("sha256").update(original).digest("hex"),
+      level: 5,
+      currency: 12,
+      playerCount: 2,
+    });
+    expect(opened.data.requiredUpgradeVisualKeys).toContain("playerUpgradeStrength");
+    await openRunWorkspace(page);
     await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
     const metrics = 'section[aria-labelledby="run-snapshot-title"] dl';
-    expect(await page.locator(metrics).innerText()).toBe(
-      await electronPage.locator(metrics).innerText(),
-    );
-    await comparePlayers(page, electronPage, info);
+    await comparePlayers(page, info);
     syntheticGame = spawn(path.join(gameRoot, "REPO.exe"), ["-e", "setInterval(() => {}, 1000)"], {
       cwd: gameRoot,
       stdio: "ignore",
@@ -635,25 +608,14 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
     await expect
       .poll(async () => native<DesktopOperationResult<GameProcessState>>(page, "game_status"))
       .toEqual({ ok: true, data: { status: "running", running: true } });
-    expect(await electronPage.evaluate(() => window.repoditor.game.status())).toEqual({
-      ok: true,
-      data: { status: "running", running: true },
-    });
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await electronPage.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(
       page.getByRole("heading", { name: "R.E.P.O. is currently running" }),
     ).toBeVisible();
-    await expect(
-      electronPage.getByRole("heading", { name: "R.E.P.O. is currently running" }),
-    ).toBeVisible();
     await stopSyntheticGame(syntheticGame);
     await page.getByRole("button", { name: "Check Again" }).click();
-    await electronPage.getByRole("button", { name: "Check Again" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(electronPage.getByRole("dialog")).toHaveCount(0);
     await page.getByRole("tab", { name: "Overview" }).click();
-    await electronPage.getByRole("tab", { name: "Overview" }).click();
     await expect(page.getByRole("spinbutton")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Save Changes" })).toHaveCount(0);
     const destinations = page.getByRole("button", { name: /^Open (Players|Upgrades|Run|Items)$/ });
@@ -673,11 +635,10 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
       ).toBe(true);
     }
     await page.screenshot({ path: info.outputPath("native-overview.png") });
-    await electronPage.screenshot({ path: info.outputPath("electron-overview.png") });
     expect(await readFile(savePath)).toEqual(original);
     await page.getByRole("button", { name: "Change save" }).click();
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
-    // An external change after discovery is read afresh, as in Electron; no stale cached DTO.
+    // An external change after discovery is read afresh.
     execFileSync(
       getPythonExecutable(),
       [
@@ -692,22 +653,13 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
     const latest = await native<DesktopOperationResult<SaveOpenResult>>(page, "saves_open", {
       saveId: E2E_SAVE_ID,
     });
-    const electronLatest = await electronPage.evaluate(
-      (id) => window.repoditor.saves.open(id),
-      E2E_SAVE_ID,
-    );
     expect(latest.ok).toBe(true);
-    expect(electronLatest.ok).toBe(true);
-    if (!latest.ok || !electronLatest.ok) throw new Error("Updated fixture could not reopen");
-    expect(latest.data.session).toEqual(electronLatest.data.session);
+    if (!latest.ok) throw new Error("Updated fixture could not reopen");
     expect(latest.data.session.currency).toBe(37);
     expect(latest.data.session.fingerprint).not.toBe(opened.data.session.fingerprint);
     const changedPlayers = await native<DesktopOperationResult<PlayerDto[]>>(page, "players_list", {
       saveId: E2E_SAVE_ID,
     });
-    expect(changedPlayers).toEqual(
-      await electronPage.evaluate((id) => window.repoditor.players.list(id), E2E_SAVE_ID),
-    );
     expect(changedPlayers).toMatchObject({
       ok: true,
       data: [
@@ -723,29 +675,27 @@ test("frozen-backend Overview and Players match Electron and read changed or mis
     await expect(page.getByRole("button", { name: /Open workspace/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
     await rename(savePath, `${savePath}.hidden`);
-    expect(await native(page, "players_list", { saveId: E2E_SAVE_ID })).toEqual(
-      await electronPage.evaluate((id) => window.repoditor.players.list(id), E2E_SAVE_ID),
-    );
+    expect(await native(page, "players_list", { saveId: E2E_SAVE_ID })).toMatchObject({
+      ok: false,
+      error: { code: "save_missing" },
+    });
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.getByRole("alert")).toContainText("The selected save could not be found.");
-    expect(await native(page, "saves_open", { saveId: E2E_SAVE_ID })).toEqual(
-      await electronPage.evaluate((id) => window.repoditor.saves.open(id), E2E_SAVE_ID),
-    );
+    expect(await native(page, "saves_open", { saveId: E2E_SAVE_ID })).toMatchObject({
+      ok: false,
+      error: { code: "save_missing" },
+    });
     await rename(`${savePath}.hidden`, savePath);
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await page.getByRole("button", { name: /Open workspace/ }).click();
     await expect(page.locator(metrics)).toContainText("37");
     expect(await readFile(savePath)).toEqual(changed);
-    await compareEmptyAndInvalidPlayers(page, electronPage, savePath);
+    await compareEmptyAndInvalidPlayers(page, savePath);
   } finally {
     try {
       await stopSyntheticGame(syntheticGame);
     } finally {
-      try {
-        if (preview) await close(preview.child, preview.browser);
-      } finally {
-        await reference.close();
-      }
+      if (preview) await close(preview.child, preview.browser);
     }
   }
 });

@@ -333,3 +333,33 @@ it("uses a fresh binding before reusing a warm PNG and rejects a preview for a d
   );
   expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", { token: next });
 });
+
+it("prepares the entire Cosmetics group before completing and reuses its bindings", async () => {
+  const images = Array.from({ length: 112 }, (_, index) => ({
+    ...image(index + 100),
+    token: token(index + 100).replace("upgrade-", "cosmetic-"),
+  }));
+  const view = {
+    ...cosmetics,
+    cosmetics: images.map((img, id) => ({
+      ...cosmetics.cosmetics[0]!,
+      id,
+      iconToken: img.token,
+      iconReuseKey: `${"b".repeat(64)}:${id}:${"d".repeat(64)}:${"e".repeat(64)}`,
+    })),
+  };
+  const report = vi.fn();
+  const { signal } = new AbortController();
+  vi.mocked(invoke).mockReset().mockResolvedValue({ ok: true, data: images });
+
+  await prepareNativeCosmeticArtwork(view, signal, report);
+  expect(report).toHaveBeenLastCalledWith({ completed: 112, total: 112 });
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("cosmetic_artwork_get", {
+    tokens: images.map((img) => img.token),
+  });
+
+  report.mockClear();
+  await prepareNativeCosmeticArtwork(view, signal, report);
+  expect(report).toHaveBeenCalledExactlyOnceWith({ completed: 112, total: 112 });
+  expect(invoke).toHaveBeenCalledTimes(1);
+});

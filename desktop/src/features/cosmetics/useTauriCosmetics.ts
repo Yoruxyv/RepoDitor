@@ -1,6 +1,6 @@
 /** Independent MetaSave drafts and durable, operation-bound reconciliation. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 import {
   disabledMeta,
   metaIntentFits,

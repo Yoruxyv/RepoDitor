@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from hashlib import sha256
+from hashlib import sha256, shake_128
 from pathlib import Path
 from unittest.mock import patch
 
@@ -117,7 +117,7 @@ def test_native_batch_keeps_valid_members_bounds_bytes_and_rechecks_meta(
     with patch.object(
         native, "read_bound_cosmetic_pngs", return_value={"1": png, "2": png}
     ) as read:
-        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 33) == {"ok": False}
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members * 57) == {"ok": False}
         assert native.get_native_cosmetic_artwork_batch(fingerprint, members[:2] * 2) == {
             "ok": False
         }
@@ -144,6 +144,38 @@ def test_native_batch_keeps_valid_members_bounds_bytes_and_rechecks_meta(
         "ok": True,
         "artworks": [None, None],
     }
+
+
+def test_native_batch_accepts_112_distinct_signed_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = bytes.fromhex("a" * 64)
+    monkeypatch.setenv("REPODITOR_NATIVE_COSMETIC_KEY", key.hex())
+    meta = tmp_path / "MetaSave.es3"
+    original = b"synthetic batch MetaSave"
+    meta.write_bytes(original)
+    fingerprint = sha256(original).hexdigest()
+    monkeypatch.setattr(native, "_meta_path", lambda _: meta)
+    binding = f"{'b' * 64}:{'c' * 32}:{'d' * 64}"
+    rgba = shake_128(b"bounded cosmetic transport fixture").digest(96 * 60 * 4)
+    png = encode_rgba_png(rgba, 96, 60)
+    members = [
+        part
+        for identity in map(str, range(113))
+        for part in (
+            f"{binding}:{native._signature(key, fingerprint, identity, binding)}",
+            identity,
+        )
+    ]
+    images = {str(identity): png for identity in range(112)}
+    with patch.object(native, "read_bound_cosmetic_pngs", return_value=images) as read:
+        assert native.get_native_cosmetic_artwork_batch(fingerprint, members) == {"ok": False}
+        read.assert_not_called()
+        result = native.get_native_cosmetic_artwork_batch(fingerprint, members[:-2])
+        assert result["artworks"] == [
+            native._native_image(identity, "b" * 64, png) for identity in range(112)
+        ]
+        assert len(read.call_args.args[1]) == 112
 
 
 def test_native_preview_bounds_large_baked_png_for_the_catalog() -> None:

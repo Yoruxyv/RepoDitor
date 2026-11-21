@@ -2,19 +2,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RepoDitorApi } from "@electron/contracts";
+import type { AvatarLoader } from "./avatarCache";
 import { prefetchInitialAvatar, usePlayerAvatars } from "./usePlayerAvatars";
 
 const saveId = "REPO_SAVE_2026_08_08_10_20_30";
 const alpha = "76561197960287930";
 const beta = "76561198000000001";
-
-function installBridge(avatar: RepoDitorApi["players"]["avatar"]): void {
-  Object.defineProperty(window, "repoditor", {
-    configurable: true,
-    value: { players: { avatar } },
-  });
-}
 
 describe("usePlayerAvatars", () => {
   beforeEach(() => vi.restoreAllMocks());
@@ -124,7 +117,7 @@ describe("usePlayerAvatars", () => {
   });
 
   it("adopts an in-flight initial lookup once and never shows it under a newly selected identity", async () => {
-    let resolve!: (value: Awaited<ReturnType<RepoDitorApi["players"]["avatar"]>>) => void;
+    let resolve!: (value: Awaited<ReturnType<AvatarLoader>>) => void;
     const avatar = vi
       .fn()
       .mockImplementationOnce(
@@ -249,7 +242,7 @@ describe("usePlayerAvatars", () => {
           resolve = done;
         }),
     );
-    const loader = avatar as RepoDitorApi["players"]["avatar"];
+    const loader = avatar as AvatarLoader;
     renderHook(() => usePlayerAvatars(saveId, alpha, loader), { wrapper: StrictMode });
     expect(avatar).toHaveBeenCalledTimes(1);
     await act(async () =>
@@ -265,9 +258,8 @@ describe("usePlayerAvatars", () => {
         data: { playerId, avatarUrl: `https://avatars.fastly.steamstatic.com/${playerId}.jpg` },
       }),
     );
-    installBridge(avatar);
     const { result, rerender } = renderHook(
-      ({ selectedPlayerId }) => usePlayerAvatars(saveId, selectedPlayerId),
+      ({ selectedPlayerId }) => usePlayerAvatars(saveId, selectedPlayerId, avatar),
       { initialProps: { selectedPlayerId: alpha } },
     );
 
@@ -296,8 +288,7 @@ describe("usePlayerAvatars", () => {
         retryAfterMs: 45_000,
       },
     });
-    installBridge(avatar);
-    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha));
+    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha, avatar));
     await act(async () => {});
     expect(avatar).toHaveBeenCalledTimes(1);
     expect(result.current.avatarUrls[alpha]).toBeNull();
@@ -323,8 +314,7 @@ describe("usePlayerAvatars", () => {
         },
       }),
     );
-    installBridge(avatar);
-    const { rerender } = renderHook(({ id }) => usePlayerAvatars(saveId, id), {
+    const { rerender } = renderHook(({ id }) => usePlayerAvatars(saveId, id, avatar), {
       initialProps: { id: alpha },
     });
     await act(async () => {});
@@ -351,8 +341,7 @@ describe("usePlayerAvatars", () => {
         ok: true,
         data: { playerId: beta, avatarUrl: null, status: "unavailable" },
       });
-    installBridge(avatar);
-    const { result, rerender } = renderHook(({ id }) => usePlayerAvatars(saveId, id), {
+    const { result, rerender } = renderHook(({ id }) => usePlayerAvatars(saveId, id, avatar), {
       initialProps: { id: alpha },
     });
     await act(async () => result.current.loadAvatar(alpha));
@@ -374,8 +363,7 @@ describe("usePlayerAvatars", () => {
         data: { playerId, avatarUrl: null, status: "transient" as const, retryAfterMs: 30_000 },
       }),
     );
-    installBridge(avatar);
-    const { rerender, unmount } = renderHook(({ id }) => usePlayerAvatars(saveId, id), {
+    const { rerender, unmount } = renderHook(({ id }) => usePlayerAvatars(saveId, id, avatar), {
       initialProps: { id: alpha },
     });
     await act(async () => {});
@@ -403,8 +391,7 @@ describe("usePlayerAvatars", () => {
         ok: true,
         data: { playerId: alpha, avatarUrl: null, status: "unavailable" },
       });
-    installBridge(avatar);
-    const { result, rerender } = renderHook(({ save }) => usePlayerAvatars(save, alpha), {
+    const { result, rerender } = renderHook(({ save }) => usePlayerAvatars(save, alpha, avatar), {
       initialProps: { save: saveId },
     });
     rerender({ save: saveId + "-next" });
@@ -427,8 +414,7 @@ describe("usePlayerAvatars", () => {
       ok: true,
       data: { playerId: alpha, avatarUrl: url, status: "available" },
     });
-    installBridge(avatar);
-    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha));
+    const { result } = renderHook(() => usePlayerAvatars(saveId, alpha, avatar));
     await act(async () => {});
     act(() => result.current.rejectAvatar(alpha, url));
     expect(result.current.avatarUrls[alpha]).toBeNull();

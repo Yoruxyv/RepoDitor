@@ -5,6 +5,7 @@ from __future__ import annotations
 import binascii
 import struct
 import zlib
+from functools import lru_cache
 from typing import Final
 
 MAX_TEXTURE_DIMENSION: Final = 2048
@@ -197,6 +198,7 @@ def _color_palette(
     return ((*rgb0, 255), (*rgb1, 255), (*rgb2, 255), (0, 0, 0, 0))
 
 
+@lru_cache(maxsize=4096)
 def _decode_color_block(block: bytes, *, allow_transparent: bool) -> bytes:
     if len(block) != 8:
         raise TextureDecodeError("DXT color block is truncated.")
@@ -237,6 +239,7 @@ def _alpha_palette(alpha0: int, alpha1: int) -> tuple[int, ...]:
     )
 
 
+@lru_cache(maxsize=4096)
 def _decode_dxt5_block(block: bytes) -> bytes:
     if len(block) != 16:
         raise TextureDecodeError("DXT5 block is truncated.")

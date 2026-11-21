@@ -1,7 +1,10 @@
 import { isTauri } from "@tauri-apps/api/core";
-import type { RepoDitorApi } from "@electron/contracts";
+import type { DesktopOperationResult, PlayerAvatar } from "@/app/desktopContracts";
 
-type AvatarLoader = RepoDitorApi["players"]["avatar"];
+export type AvatarLoader = (
+  saveId: string,
+  playerId: string,
+) => Promise<DesktopOperationResult<PlayerAvatar>>;
 type CachedAvatar = { url: string; expiresAt: number };
 const AVATAR_TTL_MS = 15 * 60_000;
 const STORAGE_KEY = "repoditor.steamAvatarUrls";

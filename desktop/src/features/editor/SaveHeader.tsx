@@ -1,6 +1,6 @@
-/** Selected-save identity and navigation, shared by native and Electron workspaces. */
+/** Selected-save identity and navigation, for the native workspace. */
 import { ArrowLeftIcon, ShieldCheckIcon } from "@phosphor-icons/react";
-import type { SaveSession } from "@electron/contracts";
+import type { SaveSession } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { PathDetails } from "@/components/PathDetails";
 import { formatDateTime } from "@/features/discovery/formatters";

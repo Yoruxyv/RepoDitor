@@ -5,7 +5,7 @@ import type {
   PlayerDto,
   PlayerUpgradeDto,
   SaveSession,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import {
   tauriHealthApi,
   mixedIntentFits,
@@ -542,26 +542,6 @@ export function useTauriHealth(
       return next;
     });
   }
-  function revertUpgrades() {
-    if (inFlight.current || LOCKED.includes(state.phase)) return;
-    if (
-      state.refillEdits.length === 0 &&
-      state.phase === "unchanged" &&
-      state.operationId &&
-      state.healthEdits.length === 0 &&
-      state.runEdits.length === 0
-    ) {
-      void revert();
-      return;
-    }
-    setState((current) => ({
-      ...current,
-      upgradeEdits: [],
-      pendingOperationId: null,
-      resetVersion: current.resetVersion + 1,
-    }));
-    setInvalidUpgrades({});
-  }
   const setUpgradeInvalid = useCallback((playerId: string, key: string, value: boolean) => {
     setInvalidUpgrades((current) =>
       (current[`${playerId}:${key}`] ?? false) === value
@@ -980,7 +960,6 @@ export function useTauriHealth(
     refresh,
     editUpgrade,
     revertUpgrade,
-    revertUpgrades,
     revertHealth,
     stageRefills,
     revertRefill,

@@ -1,23 +1,12 @@
 import { useEffect, useState } from "react";
-import type { EnvironmentDiscovery } from "@electron/contracts";
 import { usePreferences } from "@/app/preferences";
 
-export type CompatibilityEnvironment = Pick<
-  EnvironmentDiscovery,
-  "gameDetected" | "healthWriteCompatibility"
->;
-export type CompatibilityIssue = "unapproved" | "unknown" | "incompatible" | "missing";
+import type { CompatibilityIssue } from "./compatibility";
+
 export type CompatibilityFeature =
   "nav.players" | "nav.upgrades" | "nav.run" | "nav.items" | "app.cosmetics";
 
 const announced = new Set<string>();
-
-export function installedWriteRestriction(
-  environment: CompatibilityEnvironment,
-): CompatibilityIssue {
-  if (!environment.gameDetected) return "missing";
-  return environment.healthWriteCompatibility?.status === "unsupported" ? "unapproved" : "unknown";
-}
 
 export function GameCompatibilityNotice({
   build,

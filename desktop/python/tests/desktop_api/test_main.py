@@ -39,6 +39,12 @@ from repo_save_editor.services.saves.discovery import (
         ("upgrades-list", "player.upgrades:list_upgrades", ("save-id",), ("save-id",)),
         ("run-get", "run:get_run_state", ("save-id",), ("save-id",)),
         ("advanced-get", "items:get_advanced_save", ("save-id",), ("save-id",)),
+        (
+            "advanced-get",
+            "items:get_advanced_save",
+            ("save-id", "--reuse-installed-metadata"),
+            ("save-id",),
+        ),
     ],
 )
 def test_read_commands_preserve_names_arguments_and_one_json_result(
@@ -65,6 +71,8 @@ def test_read_commands_preserve_names_arguments_and_one_json_result(
     assert len(lines) == 1
     assert json.loads(lines[0]) == {"ok": True, "command": command}
     metadata = {"include_fingerprint": True} if command in {"players-list", "run-get"} else {}
+    if command == "advanced-get":
+        metadata = {"reuse_native_metadata": "--reuse-installed-metadata" in arguments}
     if command == "maps-list":
         metadata = {"entry_proof": "--entry-artwork-proof" in arguments}
     assert calls == [(expected_call, metadata)]

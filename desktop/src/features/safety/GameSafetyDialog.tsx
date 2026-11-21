@@ -4,7 +4,7 @@
  */
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
-import type { GameProcessStatus } from "@electron/contracts";
+import type { GameProcessStatus } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 
 interface GameSafetyDialogProps {

@@ -8,7 +8,7 @@ internal static class Program
     private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
 
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
         try { SetProcessDpiAwarenessContext(new IntPtr(-4)); }
         catch (EntryPointNotFoundException) { }
@@ -17,14 +17,17 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
 
         var options = Arguments.Parse(args);
+        var exitCode = 0;
         using (var window = new InstallerWindow(options))
         {
             Application.Run(window);
+            if (options.Tauri) exitCode = window.ExitCode;
         }
 
         if (options.Cleanup)
         {
             Cleanup.Schedule(AppDomain.CurrentDomain.BaseDirectory);
         }
+        return exitCode;
     }
 }

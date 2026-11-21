@@ -13,7 +13,6 @@ export function TauriUpgradesView({
   avatarUrls,
   onRejectAvatar,
   resetVersion,
-  onRevertAll,
   transaction,
 }: {
   readonly players: ReturnType<typeof usePlayers>;
@@ -23,53 +22,33 @@ export function TauriUpgradesView({
   readonly avatarUrls: Record<string, string | null>;
   readonly onRejectAvatar: (playerId: string, url: string) => void;
   readonly resetVersion: number;
-  readonly onRevertAll: () => void;
   readonly transaction: ReturnType<typeof useTauriHealth>;
 }) {
   const { t } = usePreferences();
   return (
-    <>
-      {enabled ? (
-        <div className="mb-5 border-l-2 border-accent pl-3 text-sm">
-          <p id="upgrade-draft-notice">{t("upgrades.reviewDrafts")}</p>
-          <button
-            className="ui-feedback mt-2 rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:opacity-50"
-            disabled={locked}
-            type="button"
-            onClick={onRevertAll}
-          >
-            {t("upgrades.revertDrafts")}
-          </button>
-        </div>
-      ) : null}
-      <fieldset
-        aria-describedby={enabled ? "upgrade-draft-notice" : undefined}
-        className="min-w-0"
-        disabled={enabled && locked}
-      >
-        <legend className="sr-only">{t("nav.upgrades")}</legend>
-        <UpgradesView
-          avatarUrls={avatarUrls}
-          error={players.error ?? upgrades.error}
-          loading={players.loading || upgrades.loading}
-          pendingByUpgrade={Object.fromEntries(
-            transaction.upgradeEdits.map((edit) => [`${edit.entity}:${edit.field}`, edit]),
-          )}
-          players={players.players}
-          selectedPlayerId={players.selectedPlayerId}
-          upgrades={upgrades.upgrades}
-          resetVersion={resetVersion}
-          onChange={enabled ? transaction.editUpgrade : null}
-          onRevert={enabled ? transaction.revertUpgrade : null}
-          onValidityChange={enabled ? transaction.setUpgradeInvalid : undefined}
-          onRejectAvatar={onRejectAvatar}
-          onRetry={() => {
-            if (players.error) players.reload();
-            else void upgrades.reload();
-          }}
-          onSelectPlayer={players.setSelectedPlayerId}
-        />
-      </fieldset>
-    </>
+    <fieldset className="min-w-0" disabled={enabled && locked}>
+      <legend className="sr-only">{t("nav.upgrades")}</legend>
+      <UpgradesView
+        avatarUrls={avatarUrls}
+        error={players.error ?? upgrades.error}
+        loading={players.loading || upgrades.loading}
+        pendingByUpgrade={Object.fromEntries(
+          transaction.upgradeEdits.map((edit) => [`${edit.entity}:${edit.field}`, edit]),
+        )}
+        players={players.players}
+        selectedPlayerId={players.selectedPlayerId}
+        upgrades={upgrades.upgrades}
+        resetVersion={resetVersion}
+        onChange={enabled ? transaction.editUpgrade : null}
+        onRevert={enabled ? transaction.revertUpgrade : null}
+        onValidityChange={enabled ? transaction.setUpgradeInvalid : undefined}
+        onRejectAvatar={onRejectAvatar}
+        onRetry={() => {
+          if (players.error) players.reload();
+          else void upgrades.reload();
+        }}
+        onSelectPlayer={players.setSelectedPlayerId}
+      />
+    </fieldset>
   );
 }

@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from functools import partial
-from hashlib import sha256
 from pathlib import Path
 from sys import platform
 from typing import Final, cast
@@ -25,7 +24,6 @@ from repo_save_editor.services.game.discovery import (
 from repo_save_editor.services.game.installed_build import (
     ValidatedInstalledBuild,
     installed_build_identity,
-    owned_file,
 )
 from repo_save_editor.services.game.processes import (
     GameProcessStatus,
@@ -33,9 +31,16 @@ from repo_save_editor.services.game.processes import (
     classify_game_process,
     inspect_windows_processes,
 )
-from repo_save_editor.services.items.recharge_capability import (
-    discover_installed_recharge_capabilities,
+from repo_save_editor.services.game.write_evidence import (
+    APPROVED_RUN_DOMAINS,
+    GAMEPLAY_PINS,
+    RECHARGE_IDENTITIES,
+    RECHARGE_SOURCES,
+    SAVE_FORMAT_PINS,
+    source_digest,
+    source_pins_match,
 )
+from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.services.saves.private_health import (
     Approval,
@@ -68,11 +73,6 @@ SAVE_FORMAT_SOURCES: Final = (
     "MonoBleedingEdge/etc/mono/config",
     "MonoBleedingEdge/etc/mono/4.5/machine.config",
 )
-# Each approved entry pins HEALTH_BUILD_SOURCES in order to reviewed Health evidence.
-# Build 26407089 has disposable mutation evidence; game persistence and release approval are pending.
-APPROVED_HEALTH_BUILDS: Final[dict[str, tuple[str, ...]]] = {}
-# A reviewed pin set authorizes only the listed additional Run-save domains.
-APPROVED_RUN_BUILDS: Final[dict[str, tuple[tuple[str, ...], frozenset[str]]]] = {}
 VALIDATORS = {
     "health": valid_health_batch_intent,
     "upgrades": valid_upgrade_intent,
@@ -107,25 +107,26 @@ def _installed_game() -> tuple[GameInstallation, ValidatedInstalledBuild]:
 
 
 def _game() -> tuple[Path, str, frozenset[str]]:
-    if not APPROVED_HEALTH_BUILDS and not APPROVED_RUN_BUILDS:
-        raise RecoveryError("save_unsupported")
     game, build = _installed_game()
-    health_pins = APPROVED_HEALTH_BUILDS.get(build.build_id)
-    run_policy = APPROVED_RUN_BUILDS.get(build.build_id)
-    if health_pins is None and run_policy is None:
-        raise RecoveryError("save_unsupported")
+    _verify_public_sources(game, build)
+    domains = APPROVED_RUN_DOMAINS
+    if RECHARGE_IDENTITIES and source_pins_match(game.root, RECHARGE_SOURCES):
+        domains |= {"refillToFull"}
+        _verify_public_sources(game, build)
+    return game.root / HEALTH_BUILD_SOURCES[0], build.build_id, domains
+
+
+def _verify_public_sources(game: GameInstallation, build: ValidatedInstalledBuild) -> None:
     try:
-        actual = _source_pins(game, build)
-        domains = {"health"} if health_pins == actual else set()
-        if run_policy is not None and run_policy[0] == actual:
-            domains.update(run_policy[1] & {"upgrades", "run", "refillToFull"})
-        if not domains:
+        expected = GAMEPLAY_PINS + SAVE_FORMAT_PINS
+        if _source_pins(game, build, HEALTH_BUILD_SOURCES + SAVE_FORMAT_SOURCES) != expected:
             raise RecoveryError("save_unsupported")
+    except FileNotFoundError as exc:
+        raise RecoveryError("save_unsupported") from exc
     except (OSError, ValueError) as exc:
         if isinstance(exc, RecoveryError):
             raise
         raise RecoveryError("save_verification_unavailable") from exc
-    return game.root / HEALTH_BUILD_SOURCES[0], build.build_id, frozenset(domains)
 
 
 def _source_pins(
@@ -135,11 +136,11 @@ def _source_pins(
 ) -> tuple[str, ...]:
     if game.steam_library_root is None:
         raise RecoveryError("save_verification_unavailable")
-    manifest = _digest(game.steam_library_root, build.manifest_path)
-    pins = tuple(_digest(game.root, game.root / name) for name in sources)
+    manifest = source_digest(game.steam_library_root, build.manifest_path)
+    pins = tuple(source_digest(game.root, game.root / name) for name in sources)
     if (
         installed_build_identity(game) != build
-        or _digest(game.steam_library_root, build.manifest_path) != manifest
+        or source_digest(game.steam_library_root, build.manifest_path) != manifest
     ):
         raise RecoveryError("save_verification_unavailable")
     return pins
@@ -167,33 +168,6 @@ def _process_status(executable: Path) -> GameProcessStatus:
     return status
 
 
-def _digest(root: Path, path: Path, *, max_bytes: int = 256 * 1024 * 1024) -> str:
-    source = owned_file(root, path)
-    with source.open("rb") as stream:
-        before = os.fstat(stream.fileno())
-        if before.st_size > max_bytes:
-            raise ValueError("Installed game source exceeds its hash budget.")
-        hashed = sha256()
-        remaining = before.st_size
-        while remaining:
-            chunk = stream.read(min(65536, remaining))
-            if not chunk:
-                raise ValueError("Installed game source was truncated.")
-            hashed.update(chunk)
-            remaining -= len(chunk)
-        if stream.read(1):
-            raise ValueError("Installed game source grew.")
-        after = owned_file(root, path).stat()
-        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-        ):
-            raise ValueError("Installed game source changed.")
-    return hashed.hexdigest()
-
-
 def _qualification_game(
     bundle: Bundle, approval: Approval | None, save: str
 ) -> tuple[Path, str, frozenset[str]]:
@@ -201,16 +175,6 @@ def _qualification_game(
         raise RecoveryError("save_unsupported")
     game, installed = verified_private_game(bundle)
     return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset({"health"})
-
-
-def private_sources_match(root: Path, pins: tuple[tuple[str, str], ...]) -> bool:
-    try:
-        return bool(pins) and all(
-            _digest(root, root / name, max_bytes=512 * 1024 * 1024) == digest
-            for name, digest in pins
-        )
-    except (OSError, ValueError):
-        return False
 
 
 def verified_private_game(bundle: Bundle) -> tuple[GameInstallation, ValidatedInstalledBuild]:
@@ -268,9 +232,15 @@ def _authorize_build(
         return _qualification_game(bundle, approval, save)
     game, installed = verified_private_game(bundle)
     domains = {"health", "upgrades", "run"}
-    if bundle.recharge_identities and private_sources_match(game.root, bundle.item_sources):
+    if bundle.recharge_identities and source_pins_match(game.root, bundle.item_sources):
         domains.add("refillToFull")
     return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset(domains)
+
+
+def _reviewed_recharge(names: tuple[str, ...]) -> dict[str, ItemRechargeCapability]:
+    return {
+        name: ItemRechargeCapability.RECHARGEABLE for name in names if name in RECHARGE_IDENTITIES
+    }
 
 
 def production_health(
@@ -334,14 +304,8 @@ def production_health(
     except RecoveryError as exc:
         return _outcome(operation, "rejected", exc.code)
     changes = cast(dict[str, object], payload)[domain]
-    # Private editor sessions support Electron's zero default for absent Health.
     allow_missing_health = bundle is not None and bundle.session
-    # Private Recharge admission and publication both verify the compiled identities' sources.
-    recharge_loader = (
-        bundle.reviewed_recharge
-        if bundle is not None and bundle.session
-        else discover_installed_recharge_capabilities
-    )
+    recharge_loader = bundle.reviewed_recharge if bundle is not None else _reviewed_recharge
 
     if action in {"prepare", "apply"}:
         prepared = prepare_health(

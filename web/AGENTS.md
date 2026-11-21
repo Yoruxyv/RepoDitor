@@ -3,7 +3,7 @@
 Web is independent of Desktop: browser UI → Web feature/domain logic → browser
 save/ES3 layer → local import/export. Do not import Desktop implementation code.
 Browser TypeScript may implement proven save parsing/crypto here; Desktop-only
-Python, Electron IPC, and installed-game discovery requirements do not apply.
+Python, native IPC, and installed-game discovery requirements do not apply.
 Overlapping save behavior must still agree with evidence-backed Desktop semantics.
 
 ## Security and save handling

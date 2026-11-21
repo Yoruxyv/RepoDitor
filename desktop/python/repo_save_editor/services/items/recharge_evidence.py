@@ -15,6 +15,11 @@ from repo_save_editor.services.game.installed_build import (
     owned_file,
     validated_installed_build,
 )
+from repo_save_editor.services.game.write_evidence import (
+    RECHARGE_SOURCES,
+    RECHARGE_UNITY,
+    source_pins_match,
+)
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.saves.private_health import private_bundle
 
@@ -51,6 +56,7 @@ class RechargeSourceContext:
     global_managers: InstalledFileIdentity
     unity_version: str | None = None
     presentation_only: bool = False
+    reviewed_recharge: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +117,14 @@ def resolve_recharge_source_context(
         if private or presentation_only
         else validated_installed_build(installation)
     )
+    qualified_unity = bundle.item_unity if private and bundle is not None else None
+    if build is None and not presentation_only and bundle is None:
+        # The reviewed Unity layout is safe to read only from its pinned sources.
+        build = installed_build_identity(installation)
+        if build is not None and source_pins_match(installation.root, RECHARGE_SOURCES):
+            qualified_unity = RECHARGE_UNITY
+        else:
+            build = None
     if build is None or (
         private and bundle is not None and not bundle.accepts_build_id(build.build_id)
     ):
@@ -127,7 +141,7 @@ def resolve_recharge_source_context(
                 owned_file(library, path)
         except (OSError, ValueError):
             return None
-    elif private:
+    elif qualified_unity is not None:
         try:
             owned_file(installation.root, resources_path)
             owned_file(installation.root, global_managers_path)
@@ -146,8 +160,9 @@ def resolve_recharge_source_context(
         resources=resources,
         global_managers_path=global_managers_path,
         global_managers=global_managers,
-        unity_version=bundle.item_unity if private and bundle is not None else None,
+        unity_version=qualified_unity,
         presentation_only=presentation_only,
+        reviewed_recharge=qualified_unity is not None and not private,
     )
 
 

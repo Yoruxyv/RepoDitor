@@ -1,7 +1,7 @@
 /** Cosmetics summary and evidence-gated bulk/individual action presentation. */
 import { ArrowClockwiseIcon, LockSimpleIcon, SparkleIcon, TrashIcon } from "@phosphor-icons/react";
 
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { COSMETIC_ICON_SIZE } from "@/components/GameIcon";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";

@@ -32,6 +32,16 @@ test("normal host and production frozen entry point are admitted", async () => {
   );
 });
 
+test("the ordinary frozen host cannot be staged as the production editor", async () => {
+  const output = await mkdtemp(path.join(root, "rejected-release-"));
+  await writeFile(path.join(output, "sentinel"), "existing release evidence");
+  await assert.rejects(
+    stagePreview(host, backend, output, "public-editing"),
+    /host authority cannot be staged/,
+  );
+  assert.equal(await readFile(path.join(output, "sentinel"), "utf8"), "existing release evidence");
+});
+
 test("synthetic features cannot be staged and previous output survives", async () => {
   const output = await mkdtemp(path.join(root, "rejected-"));
   await writeFile(path.join(output, "sentinel"), "existing artifact evidence");
@@ -77,7 +87,7 @@ test("verified bytes, production backend and licenses are published together", a
   assert.equal(
     receipt.hostSha256,
     createHash("sha256")
-      .update(await readFile(path.join(output, "repoditor-preview.exe")))
+      .update(await readFile(path.join(output, "RepoDitor.exe")))
       .digest("hex"),
   );
   assert.equal(
@@ -85,7 +95,7 @@ test("verified bytes, production backend and licenses are published together", a
     true,
   );
   assert.equal(
-    (await checkArtifact(path.join(output, "repoditor-preview.exe"), path.join(output, "backend")))
+    (await checkArtifact(path.join(output, "RepoDitor.exe"), path.join(output, "backend")))
       .authority,
     "read-only",
   );

@@ -11,12 +11,10 @@ const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const rendererRoot = path.join(desktopRoot, "src");
 const rendererCss = readFileSync(path.join(rendererRoot, "index.css"), "utf8");
 const themeCss = readFileSync(path.join(desktopRoot, "src", "styles", "theme.css"), "utf8");
-const mainSource = readFileSync(path.join(desktopRoot, "electron", "main.cts"), "utf8");
-const indexHtml = readFileSync(path.join(desktopRoot, "index.html"), "utf8");
 const textTokens = ["ink", "secondary", "muted", "accent", "success", "warning", "danger"];
 const surfaceTokens = ["app", "surface", "surface-raised"];
 
-test("Tailwind dependency globs stay within both renderers' source tree", async () => {
+test("Tailwind dependency globs stay within the renderer source tree", async () => {
   const compiler = await compile(rendererCss, { base: rendererRoot, onDependency() {} });
   assert.ok(compiler.root && compiler.root !== "none", "An explicit renderer source is required.");
   assert.equal(path.resolve(compiler.root.base, compiler.root.pattern), rendererRoot);
@@ -24,9 +22,7 @@ test("Tailwind dependency globs stay within both renderers' source tree", async 
 
   const scanner = new Scanner({ sources: [{ ...compiler.root, negated: false }] });
   scanner.scan();
-  for (const entry of ["main.tsx", "tauri.tsx"]) {
-    assert.ok(scanner.files.includes(path.join(rendererRoot, entry)));
-  }
+  assert.ok(scanner.files.includes(path.join(rendererRoot, "tauri.tsx")));
   for (const file of [...scanner.files, ...scanner.globs.map((glob) => glob.base)]) {
     const relative = path.relative(rendererRoot, file);
     assert.ok(!relative.startsWith("..") && !path.isAbsolute(relative), file);
@@ -130,11 +126,4 @@ test("save progress motion is opt-in and reduced-motion safe", () => {
     themeCss,
     /prefers-reduced-motion:\s*reduce[\s\S]*?\.save-progress-indicator\s*\{[^}]*animation:\s*none/s,
   );
-});
-
-test("startup prepaint matches the authoritative dark application surface", () => {
-  const startupBackground = token(themeBlock(":root"), "app");
-  assert.equal(startupBackground.toLowerCase(), "#0d1110");
-  assert.match(mainSource, /backgroundColor:\s*"#0d1110"/);
-  assert.match(indexHtml, /background:\s*#0d1110/);
 });

@@ -1,7 +1,7 @@
 /** Compact list of additional discovered save slots and explicit open actions. */
 import { ClockIcon, FileIcon } from "@phosphor-icons/react";
 
-import type { SaveSummary } from "@electron/contracts";
+import type { SaveSummary } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { formatDateTime, formatFileSize } from "@/features/discovery/formatters";
 

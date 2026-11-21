@@ -18,6 +18,13 @@ export const en = {
     "A newer version is available. View the release notes and download the update.",
   "update.viewRelease": "View release",
   "update.later": "Later",
+  "migration.title": "RepoDitor v0.2.1 is still installed",
+  "migration.description":
+    "Please switch to RepoDitor v0.3.0. The legacy Electron version may have bugs or be incompatible with the latest version of R.E.P.O. Once you’ve confirmed v0.3.0 works, please uninstall v0.2.1 in Windows Settings.",
+  "migration.openInstalledApps": "Open Installed Apps",
+  "migration.remindLater": "Remind Me Later",
+  "migration.dismiss": "Don't Show Again",
+  "migration.settingsUnavailable": "Open Windows Settings and go to Apps → Installed apps.",
   "compatibility.title": "Game compatibility restriction",
   "compatibility.dismiss": "Dismiss notice",
   "compatibility.build": "R.E.P.O. build {build}",
@@ -190,8 +197,6 @@ export const en = {
   "upgrades.empty": "This save contains no player upgrades.",
   "upgrades.input": "{upgrade} for {player}",
   "upgrades.error": "Upgrade value must be between 0 and 2,147,483,647.",
-  "upgrades.reviewDrafts": "Review pending upgrade changes before saving.",
-  "upgrades.revertDrafts": "Revert upgrade drafts",
   "upgrades.saveUnavailable":
     "Save health and upgrades separately. Revert one group or reduce a large upgrade batch before saving.",
   "run.readOnlyDescription": "View the saved run values and resume location.",
@@ -272,6 +277,8 @@ export const en = {
   "cosmetics.clearPending": "Clear All Presets pending",
   "cosmetics.lockAll": "Lock All Cosmetics",
   "cosmetics.lockPending": "Lock All pending",
+  "cosmetics.saveUnavailable":
+    "RepoDitor could not verify this MetaSave for Cosmetics editing. Refresh and try again.",
   "cosmetics.lockUnavailable":
     "Lock All is unavailable while an owned cosmetic is equipped or used by a preset.",
   "cosmetics.context": "Cosmetics context",

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-43.3.0-47848F?style=flat-square&labelColor=1a1a2e&logo=electron&logoColor=white" alt="Electron 43.3.0">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&labelColor=1a1a2e&logo=tauri&logoColor=white" alt="Tauri 2">
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&labelColor=1a1a2e&logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&labelColor=1a1a2e&logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?style=flat-square&label=release&labelColor=1a1a2e" alt="Latest release">
@@ -41,7 +41,7 @@
 
 ### Inspect and edit local R.E.P.O. saves from a focused Windows desktop app — no BepInEx required
 
-RepoDitor is an unofficial standalone Electron save editor for local R.E.P.O. `.es3` data.
+RepoDitor is an unofficial standalone save editor for local R.E.P.O. `.es3` data. The current Desktop source uses Tauri.
 
 The desktop interface uses narrow typed operations, while a bundled Python backend owns save parsing, validation, backups, game semantics, and encrypted writes.
 
@@ -206,33 +206,25 @@ Get-Content .\RepoDitor-Setup-<version>-x64.exe.sha256
 ```
 
 The hexadecimal hashes must match exactly, ignoring letter case. A matching
-checksum confirms the file matches the published artifact; it does not by
-itself establish publisher identity or prove code safety. RepoDitor Desktop is
-currently unsigned; historical v0.1.0 installers were unsigned as well. The
-repository also contains a Microsoft cloud-signing workflow for signed tagged
-releases, but that workflow is not evidence that a current installer is signed.
+checksum verifies the bytes against the published artifact. Publisher identity
+requires a separately verified Authenticode signature. The current GitHub
+workflow validates unsigned builds and generates checksums.
 
 ## 🔐 Security Model
 
-The renderer is sandboxed with `contextIsolation: true` and
-`nodeIntegration: false`. It cannot read arbitrary files, spawn processes,
-decrypt saves, invoke arbitrary IPC, or receive raw decrypted save JSON.
+The WebView2 renderer uses CSP and a scoped Tauri command capability. Rust admits
+fixed operations and supervises Python. Save decryption, validation and mutation
+stay behind the sidecar boundary.
 
-Steam avatar enrichment is optional and fail-soft. Only plausible Steam IDs
-are queried, returned image URLs are validated against narrow HTTPS hosts, and
-profile data is never written into a save. GitHub stars use one fixed metadata
-endpoint through typed Electron IPC with a successful-result session cache;
-the renderer receives no arbitrary network-fetch API.
-
-Those are the current optional background network requests. Project links open
-externally only after user action, and the current source contains no analytics
-or telemetry integration.
+Optional Steam avatars use validated Steam identifiers and approved HTTPS CDN
+hosts. Release checking uses the fixed RepoDitor GitHub release endpoint. Neither
+feature receives save bytes or edit values.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 ## 🔎 Open Source & Local Data
 
-RepoDitor is open source. The Electron desktop application, Python save
+RepoDitor is open source. The Tauri desktop application, Python save
 backend, packaging configuration, and CI/release workflows are available in
 this repository for inspection, and the project can be built from source using
 the documented development and packaging commands. Public source does not by
@@ -243,14 +235,13 @@ Save parsing, validation, and editing run locally in the bundled Python
 backend. Raw decrypted save JSON stays behind the Python desktop boundary and
 is neither exposed to React nor uploaded to a remote save-processing service.
 The application reads the fixed R.E.P.O. save and MetaSave locations, Steam
-installation metadata, supported installed-game data files, and R.E.P.O.'s
-game-generated icon cache. It writes a save only after an explicit supported
+installation metadata, and supported installed-game data files. It writes a save only after an explicit supported
 save action, creates its backup and temporary staging file beside that source,
 and stores renderer preferences plus derived presentation/catalog caches in
 RepoDitor-owned application data.
 
-Two optional features use narrowly scoped network requests: GitHub project
-metadata is read from the fixed RepoDitor repository endpoint, and Steam avatar
+Two optional features use narrowly scoped network requests: GitHub
+release metadata is read from the fixed RepoDitor endpoint, and Steam avatar
 enrichment sends a plausible save-derived Steam ID to the corresponding public
 Steam profile endpoint before accepting only allowlisted HTTPS avatar hosts.
 Neither request receives a save file or raw decrypted save data. Current
@@ -292,17 +283,16 @@ Japanese and Korean translations were initially prepared with AI assistance and 
 
 Game-owned strings—such as player names, item names, map names, and values read
 from saves—remain unchanged. The interface also respects reduced-motion
-preferences; its local interaction sound is decorative and not required to
-understand application state.
+preferences.
 
 ## 🧠 How RepoDitor Desktop Works
 
 ```text
 React renderer
   ↓ typed feature calls
-Sandboxed Electron preload
-  ↓ narrow IPC contracts
-Electron main process
+WebView2 with scoped Tauri commands
+  ↓ Rust admission and process supervision
+Tauri native host
   ↓ structured requests
 Bundled Python desktop API
   ↓
@@ -324,7 +314,7 @@ and does not expand mutation authority. See the
 
 Automated tests use generated or sanitized fixtures and temporary copies, never
 real user saves. The repository checks Python formatting/tests, renderer import
-boundaries, lint, TypeScript builds, component/contract tests, Windows Electron
+boundaries, lint, TypeScript builds, component/contract tests, packaged Windows Tauri
 E2E, package contents, packaged E2E without Vite, and installer structure.
 
 ```powershell
@@ -341,12 +331,13 @@ npm run release:check
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
+npm run package:tauri
+npm run test:e2e:tauri
 ```
 
 ## 🛠️ Development
 
-Development requires `uv`, Python 3.11 or newer, and Node.js 24.
+Development requires `uv`, Node.js 24, Rust/MSVC, and WebView2.
 
 ```powershell
 git clone https://github.com/Yoruxyv/RepoDitor.git
@@ -355,6 +346,7 @@ uv sync --locked
 
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
@@ -363,22 +355,12 @@ pull-request expectations.
 
 ## 📦 Packaging & Releases
 
-From `desktop/`, `npm run package` builds a locked Python 3.13 PyInstaller
-**onedir** sidecar, the production Electron app, unpacked packaged smoke test,
-assisted NSIS installer, and local artifact verification under
-`desktop/release/`. Electron Builder installs the sidecar directory under
-`resources/backend/` while retaining the fixed
-`resources/backend/repoditor-backend.exe` entry point. This local path is
-intentionally unsigned.
-
-Official tagged GitHub releases use separate fail-closed signing commands,
-verify Authenticode signatures before generating SHA-256 files, and publish only
-after the existing package checks. A separate temporary manual workflow can
-publish a prominently labeled unsigned release while signing approval or
-credentials are unavailable; it retains the quality, package, packaged-E2E,
-installer, and checksum gates but omits signature verification. See the
-[release checklist](docs/release-checklist.md) for current requirements and the
-preserved historical v0.1.0 baseline.
+From `desktop/`, `npm run package:installer` builds the Windows x64 NSIS
+installer and its SHA-256 file in `build/installer/`. It also stages the
+portable app in `build/tauri-portable/`. Both include the frozen Python 3.13
+sidecar. Run `npm run test:e2e:tauri` against the portable package.
+The published v0.2.1 installer is the upgrade and rollback reference. See the
+[release checklist](docs/release-checklist.md) for migration and release approval.
 
 ## ⚠️ Limitations
 
@@ -407,7 +389,7 @@ preserved historical v0.1.0 baseline.
 | ----------------------------------------------------------- | ---------------------------------------------------------------- |
 | [Documentation index](docs/README.md)                       | Organized entry point for technical and release documentation    |
 | [Architecture](docs/architecture/architecture.md)           | Desktop and Web boundaries, ownership, and data flow             |
-| [Electron UI](docs/architecture/electron-ui.md)             | Renderer identity, responsiveness, appearance, and accessibility |
+| [Desktop UI](docs/architecture/electron-ui.md)             | Renderer identity, responsiveness, appearance, and accessibility |
 | [Save format](docs/research/save-format.md)                 | Confirmed encrypted-save structure                               |
 | [Reverse engineering](docs/research/reverse-engineering.md) | Historical evidence, current support, and unresolved semantics   |
 | [Release checklist](docs/release-checklist.md)              | Current release gates and historical v0.1.0 baseline             |

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { CosmeticsView } from "@/features/cosmetics/CosmeticsView";
 

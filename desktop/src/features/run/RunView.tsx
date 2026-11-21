@@ -9,7 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import type { RunStateDto, RunStatDto } from "@electron/contracts";
+import type { RunStateDto, RunStatDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { Select } from "@/components/Select";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";

@@ -1,7 +1,7 @@
 /**
  * Fixed-geometry optional player avatar with bounded retry and local fallback.
  *
- * URLs are already validated by Electron. Image failure remains presentation-only and
+ * URLs are already validated by the desktop backend. Image failure remains presentation-only and
  * never prevents the player projection from rendering.
  */
 import { useState } from "react";

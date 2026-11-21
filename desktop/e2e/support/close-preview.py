@@ -20,7 +20,7 @@ def visit(window, _):
     user32.GetWindowThreadProcessId(window, ctypes.byref(owner))
     title = ctypes.create_unicode_buffer(256)
     user32.GetWindowTextW(window, title, 256)
-    if owner.value == pid and title.value == "RepoDitor Preview":
+    if owner.value == pid and title.value == "RepoDitor":
         matched.append(bool(user32.PostMessageW(window, 0x0010, 0, 0)))
     return True
 

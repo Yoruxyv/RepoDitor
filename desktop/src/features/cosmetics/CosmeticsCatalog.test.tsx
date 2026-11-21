@@ -2,7 +2,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticDto, CosmeticsViewDto } from "@/app/desktopContracts";
+import { prepareNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { CosmeticsCatalog } from "@/features/cosmetics/CosmeticsCatalog";
 
@@ -147,7 +148,7 @@ describe("CosmeticsCatalog", () => {
     expect(onUnlockCosmetic).toHaveBeenCalledOnce();
     expect(onUnlockCosmetic).toHaveBeenCalledWith(0);
   });
-  it("shows optional local thumbnails while preserving duplicate IDs and fallback", () => {
+  it("preserves duplicate IDs when a thumbnail has no admitted native binding", () => {
     renderCatalog(
       catalogView([
         { ...installedCosmetic(0, "Duplicate Name"), iconToken: "cosmetic-token" },
@@ -155,12 +156,7 @@ describe("CosmeticsCatalog", () => {
       ]),
     );
 
-    const local = screen.getByTestId("cosmetic-icon-0");
-    expect(local.getAttribute("data-icon-source")).toBe("local");
-    expect(local.querySelector("img")?.getAttribute("src")).toBe(
-      "repoditor-icon://local/cosmetic-token",
-    );
-    expect(local.querySelector("img")?.getAttribute("loading")).toBe("lazy");
+    expect(screen.getByTestId("cosmetic-icon-0").getAttribute("data-icon-source")).toBe("fallback");
     expect(screen.getByTestId("cosmetic-icon-1").getAttribute("data-icon-source")).toBe("fallback");
     expect(screen.getByText("ID 0")).toBeTruthy();
     expect(screen.getByText("ID 1")).toBeTruthy();
@@ -168,12 +164,27 @@ describe("CosmeticsCatalog", () => {
 
   it("keeps loaded thumbnail nodes mounted across filtering and sorting", async () => {
     const user = userEvent.setup();
-    renderCatalog(
-      catalogView([
-        { ...installedCosmetic(0, "Hat Cosmetic", { type: 0 }), iconToken: "hat-token" },
-        { ...installedCosmetic(1, "Ears Cosmetic", { type: 17 }), iconToken: "ears-token" },
-      ]),
+    const view = catalogView(
+      [
+        installedCosmetic(0, "Hat Cosmetic", { type: 0 }),
+        installedCosmetic(1, "Ears Cosmetic", { type: 17 }),
+      ].map((row) => {
+        const token = `cosmetic-artwork:${String(row.id + 1).repeat(32)}`;
+        const revision = "a".repeat(64);
+        return {
+          ...row,
+          iconToken: token,
+          iconReuseKey: `${fingerprint}:${row.id}:${revision}:${"b".repeat(64)}`,
+          iconPreview: { token, revision, dataUrl: "data:image/png;base64,AAAA" },
+        };
+      }),
     );
+    const prepared = await prepareNativeCosmeticArtwork(
+      view,
+      new AbortController().signal,
+      vi.fn(),
+    );
+    renderCatalog(prepared);
 
     const thumbnail = screen.getByTestId("cosmetic-icon-0").querySelector("img");
     expect(thumbnail).not.toBeNull();

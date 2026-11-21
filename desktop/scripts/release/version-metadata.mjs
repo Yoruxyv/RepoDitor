@@ -12,6 +12,9 @@ export function versionPaths(repoRoot) {
   return {
     packageJson: path.join(repoRoot, "desktop", "package.json"),
     packageLock: path.join(repoRoot, "desktop", "package-lock.json"),
+    tauriConfig: path.join(repoRoot, "desktop", "src-tauri", "tauri.conf.json"),
+    cargoManifest: path.join(repoRoot, "desktop", "src-tauri", "Cargo.toml"),
+    cargoLock: path.join(repoRoot, "desktop", "src-tauri", "Cargo.lock"),
     pyproject: path.join(repoRoot, "pyproject.toml"),
     pythonInit: path.join(pythonRoot, "repo_save_editor", "__init__.py"),
     uvLock: path.join(repoRoot, "uv.lock"),
@@ -80,16 +83,39 @@ export function replacePythonVersion(content, version) {
   return content.replace(/^__version__[ \t]*=[ \t]*"[^"]+"[ \t]*$/mu, `__version__ = "${version}"`);
 }
 
-export function readUvLockVersion(content) {
+function lockedPackage(content, name) {
   const blocks = content
     .split(/(?=^\[\[package\]\][ \t]*$)/gmu)
-    .filter((block) => /^name[ \t]*=[ \t]*"repo-save-editor"[ \t]*$/mu.test(block));
+    .filter((block) => block.match(/^name[ \t]*=[ \t]*"([^"]+)"[ \t]*$/mu)?.[1] === name);
   if (blocks.length !== 1) {
-    throw new Error(
-      `Expected exactly one repo-save-editor package in uv.lock; found ${blocks.length}.`,
-    );
+    throw new Error(`Expected exactly one "${name}" package in the lockfile; found ${blocks.length}.`);
   }
-  return uniqueVersion(blocks[0], /^version[ \t]*=[ \t]*"([^"]+)"[ \t]*$/gmu, "uv.lock package");
+  return blocks[0];
+}
+
+export function readUvLockVersion(content) {
+  return uniqueVersion(lockedPackage(content, "repo-save-editor"), /^version[ \t]*=[ \t]*"([^"]+)"[ \t]*$/gmu, "uv.lock package");
+}
+
+const nativeCrate = "repoditor-preview";
+const cargoVersionField = /^(version[ \t]*=[ \t]*")([^"]+)(")/gmu;
+
+function cargoPackage(content) {
+  const section = content.split(/(?=^\[)/mu).find((block) => /^\[package\][ \t]*\r?$/mu.test(block));
+  if (!section) throw new Error("Cargo.toml is missing [package].");
+  return section;
+}
+
+function cargoVersion(section) {
+  const versions = [...section.matchAll(cargoVersionField)];
+  if (versions.length !== 1) throw new Error("Expected exactly one Cargo package version.");
+  return versions[0][2];
+}
+
+export function replaceCargoVersion(content, version, locked = false) {
+  const section = locked ? lockedPackage(content, nativeCrate) : cargoPackage(content);
+  cargoVersion(section);
+  return content.replace(section, section.replace(cargoVersionField, (_, prefix, _old, suffix) => `${prefix}${version}${suffix}`));
 }
 
 export function readVersionSources(repoRoot) {
@@ -105,6 +131,9 @@ export function readVersionSources(repoRoot) {
     packageJson: packageJson.version,
     packageLock: packageLock.version,
     packageLockRoot: rootPackage.version,
+    tauriConfig: JSON.parse(readFileSync(paths.tauriConfig, "utf8")).version,
+    cargoManifest: cargoVersion(cargoPackage(readFileSync(paths.cargoManifest, "utf8"))),
+    cargoLock: cargoVersion(lockedPackage(readFileSync(paths.cargoLock, "utf8"), nativeCrate)),
     pyproject: readPyprojectVersion(readFileSync(paths.pyproject, "utf8")),
     pythonInit: readPythonVersion(readFileSync(paths.pythonInit, "utf8")),
     uvLock: readUvLockVersion(readFileSync(paths.uvLock, "utf8")),

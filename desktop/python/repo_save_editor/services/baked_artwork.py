@@ -38,7 +38,8 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
     _parse_cosmetic_metadata,
 )
 from repo_save_editor.services.cosmetics.installed_reader import (
-    CosmeticCatalogResolver as _ArtworkResolver,
+    CosmeticCatalogResolver,
+    NativeCosmeticCatalogResolver,
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import (
@@ -57,10 +58,13 @@ from repo_save_editor.services.items.installed_metadata import _resolve_mono_scr
 from repo_save_editor.services.items.runtime_metadata import read_sunstone_item_prefab
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
 from repo_save_editor.services.unity_hash import unity_hash128
-from repo_save_editor.services.unity_presentation import PresentationFileIndex, is_sunstone_layout
+from repo_save_editor.services.unity_presentation import (
+    PresentationFileIndex,
+    is_sunstone_layout,
+    read_runtime_mono_prefix,
+)
 from repo_save_editor.services.unity_serialized import (
     MONO_BEHAVIOUR_CLASS_ID,
-    SerializedFileIndex,
     UnityMetadataError,
     parse_mono_behaviour_prefix,
 )
@@ -95,38 +99,12 @@ def _watch(root: Path, path: Path) -> dict[str, str]:
     }
 
 
-class _NativeCatalogResolver(_ArtworkResolver):
-    def __init__(self, data_dir: Path) -> None:
-        super().__init__(data_dir)
-        self.targets: dict[tuple[Path, int], SerializedFileIndex] = {}
-
-    def open(self, path: Path) -> SerializedFileIndex:
-        key = os.path.normcase(os.fspath(path))
-        if key not in self._indexes:
-            if len(self._indexes) >= MAX_OPEN_FILES:
-                raise UnityMetadataError("Too many serialized files were required.")
-            self._indexes[key] = PresentationFileIndex(owned_file(self.data_dir, path))
-        return self._indexes[key]
-
-    def target_index(self, source: SerializedFileIndex, file_id: int) -> SerializedFileIndex:
-        if file_id <= 0:
-            return super().target_index(source, file_id)
-        key = (source.path, file_id)
-        target = self.targets.get(key)
-        if target is None:
-            target = super().target_index(source, file_id)
-            # The native catalog verifies the installed identities around this scan.
-            if len(self.targets) < MAX_OPEN_FILES:
-                self.targets[key] = target
-        return target
-
-
 def _cosmetic_keys(
     root: Path,
     *,
     native: bool = False,
 ) -> tuple[dict[str, str], set[Path], tuple[InstalledCosmeticMetadata, ...]]:
-    resolver_type = _NativeCatalogResolver if native else _ArtworkResolver
+    resolver_type = NativeCosmeticCatalogResolver if native else CosmeticCatalogResolver
     with resolver_type(root / "REPO_Data") as resolver:
         level = resolver.open(root / "REPO_Data/level0")
         record, prefix, _ = _find_unique_meta_manager(resolver, level)
@@ -159,7 +137,7 @@ def _item_keys(root: Path, *, presentation: bool = False) -> dict[str, str]:
         ):
             raise ValueError("Unsupported baked artwork Unity version.")
         records = tuple(resources.iter_records(frozenset({MONO_BEHAVIOUR_CLASS_ID})))
-        prefixes = {r.path_id: parse_mono_behaviour_prefix(resources, r) for r in records}
+        prefixes = {r.path_id: read_runtime_mono_prefix(resources, r) for r in records}
         # Many objects reference the same script; validate each distinct file and path pair once.
         script_prefixes = {prefix.script: prefix for prefix in prefixes.values()}
         scripts = _resolve_mono_scripts(resources, scripts_index, script_prefixes.values())
@@ -360,6 +338,13 @@ def _png_stamp(info: os.stat_result) -> tuple[int, ...]:
 
 
 def _read_owned_png(library: Path, path: Path, stamp: tuple[int, ...]) -> bytes | None:
+    png = _read_png_snapshot(path, stamp)
+    if png is None or _png_stamp(owned_file(library, path).stat()) != stamp:
+        return None
+    return png
+
+
+def _read_png_snapshot(path: Path, stamp: tuple[int, ...]) -> bytes | None:
     size = stamp[2]
     if not 57 <= size <= MAX_NATIVE_PNG:
         return None
@@ -369,11 +354,7 @@ def _read_owned_png(library: Path, path: Path, stamp: tuple[int, ...]) -> bytes 
             return None
         png = handle.read(size + 1)
         after = os.fstat(handle.fileno())
-    if (
-        len(png) != size
-        or _png_stamp(after) != stamp
-        or _png_stamp(owned_file(library, path).stat()) != stamp
-    ):
+    if len(png) != size or _png_stamp(after) != stamp:
         return None
     return png
 
@@ -818,7 +799,8 @@ def read_bound_cosmetic_pngs(
                 cached = (
                     cache.open_png(identity, binding) if cache and binding is not None else None
                 )
-                png = cached if cached is not None else _read_owned_png(library, path, stamp)
+                # The final binding check revalidates the owned path and its change time.
+                png = cached if cached is not None else _read_png_snapshot(path, stamp)
                 if png is not None:
                     read.append((identity, path, png_revision, png, binding, cached is not None))
             except (OSError, ValueError, RuntimeError, KeyError, OverflowError):

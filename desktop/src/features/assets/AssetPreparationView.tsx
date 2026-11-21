@@ -2,10 +2,10 @@
 import { PackageIcon, WrenchIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import type { AssetPreparationStage, AssetPreparationState } from "@electron/contracts";
+import type { AssetPreparationStage, AssetPreparationState } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate, TranslationKey } from "@/app/i18n";
-import { INITIAL_STATE } from "./useAssetPreparation";
+import { INITIAL_ASSET_PREPARATION } from "./assetPreparationState";
 
 const SEGMENT_COUNT = 18;
 const PROGRESS_REVEAL_DELAY_MS = 500;
@@ -327,7 +327,7 @@ function PreparationActions({
 export function AssetPreparationView({
   children,
   compact = false,
-  state = INITIAL_STATE,
+  state = INITIAL_ASSET_PREPARATION,
   copyOverrides,
   progressText,
   progressLabel,

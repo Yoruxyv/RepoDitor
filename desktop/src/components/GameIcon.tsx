@@ -1,7 +1,7 @@
 /**
  * Renderer-safe game-content thumbnail with deterministic semantic fallback.
  *
- * The component consumes only opaque Electron or native tokens. Loading affects the thumbnail
+ * The component consumes only opaque native artwork tokens. Loading affects the thumbnail
  * box alone; missing or rejected local artwork immediately falls back to Phosphor.
  */
 import { useRef, useState } from "react";
@@ -22,7 +22,6 @@ interface GameIconProps {
   readonly variant: "item" | "upgrade" | "cosmetic" | "map";
 }
 
-const loadedIconTokens = new Set<string>();
 export const COSMETIC_ICON_SIZE = "size-[48px]";
 
 function variantSize(variant: GameIconProps["variant"]): string {
@@ -31,12 +30,11 @@ function variantSize(variant: GameIconProps["variant"]): string {
   return variant === "upgrade" ? "size-20" : "size-14";
 }
 
-function placeholderStyle(variant: GameIconProps["variant"], native: boolean): string {
+function placeholderStyle(variant: GameIconProps["variant"]): string {
   if (variant !== "upgrade") {
-    return `absolute inset-0 size-full ${native ? "motion-safe:animate-pulse" : ""}`;
+    return `absolute inset-0 size-full motion-safe:animate-pulse`;
   }
-  const border = native ? "border-control motion-safe:animate-pulse" : "border-line";
-  return `absolute inset-y-0 left-1/2 h-full w-2/3 -translate-x-1/2 border ${border}`;
+  return `absolute inset-y-0 left-1/2 h-full w-2/3 -translate-x-1/2 border border-control motion-safe:animate-pulse`;
 }
 
 export function GameIcon({
@@ -50,7 +48,7 @@ export function GameIcon({
   variant,
 }: GameIconProps) {
   const element = useRef<HTMLSpanElement>(null);
-  const { native, image, prepared, unavailable } = useNativeArtwork(
+  const { image, prepared, unavailable } = useNativeArtwork(
     token,
     variant,
     element,
@@ -58,9 +56,7 @@ export function GameIcon({
     upgradeItem,
   );
   const [failedToken, setFailedToken] = useState<string | null>(null);
-  const [loadedToken, setLoadedToken] = useState<string | null>(() =>
-    token !== null && loadedIconTokens.has(token) ? token : null,
-  );
+  const [loadedToken, setLoadedToken] = useState<string | null>(null);
   const frameClassName = variantSize(variant);
   if (token === null || failedToken === token || unavailable) {
     return (
@@ -73,10 +69,8 @@ export function GameIcon({
       />
     );
   }
-  const loaded =
-    (!native || image !== null) &&
-    (prepared || loadedToken === token || loadedIconTokens.has(token));
-  const eager = prepared || (variant === "upgrade" && native);
+  const loaded = image !== null && (prepared || loadedToken === token);
+  const eager = prepared || variant === "upgrade";
 
   return (
     <span
@@ -91,19 +85,16 @@ export function GameIcon({
       data-testid={testId}
     >
       {!loaded ? (
-        <Skeleton className={placeholderStyle(variant, native)} testId={`${testId}-loading`} />
+        <Skeleton className={placeholderStyle(variant)} testId={`${testId}-loading`} />
       ) : null}
-      {!native || image ? (
+      {image ? (
         <img
           alt=""
           className={`absolute inset-0 size-full object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
           loading={eager ? "eager" : loading}
-          src={native ? image!.dataUrl : `repoditor-icon://local/${encodeURIComponent(token)}`}
+          src={image.dataUrl}
           onError={() => setFailedToken(token)}
-          onLoad={() => {
-            if (!native) loadedIconTokens.add(token);
-            setLoadedToken(token);
-          }}
+          onLoad={() => setLoadedToken(token)}
         />
       ) : null}
     </span>

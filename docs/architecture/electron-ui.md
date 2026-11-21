@@ -1,10 +1,10 @@
-﻿# RepoDitor Electron UI
+﻿# RepoDitor Desktop UI
 
 ## Product
 
 RepoDitor is a local desktop save editor for R.E.P.O.
 
-This document covers the Windows Desktop interface. The hosted Web product has
+This document covers the Windows Tauri interface. The filename preserves existing links. The hosted Web product has
 a separate [browser architecture](../../web/README.md).
 
 ## Design direction
@@ -116,8 +116,7 @@ dedicated semantic token rather than increasing the contrast of decorative separ
 
 ## Architecture
 
-Python owns Desktop save semantics. React stages typed pending edits and calls the
-sandboxed preload; Electron validates IPC and invokes the bounded Python sidecar.
+Python owns Desktop save semantics. React stages typed pending edits. Tauri validates scoped commands and invokes the bounded Python sidecar.
 The [architecture guide](architecture.md) defines process boundaries, local artwork
 transport and source-aware caches.
 
@@ -140,8 +139,7 @@ interaction problem.
 
 The top workspace navigation includes a compact utility cluster:
 
-- the current `Yoruxyv/RepoDitor` GitHub star count, loaded through a fixed,
-  typed Electron IPC endpoint and cached for the Electron session;
+- the current version and an optional release update notice;
 - Dark, Light, and System themes, persisted in renderer storage;
 - English, Japanese, Korean, Chinese, and Indonesian UI languages, also
   persisted in renderer storage.
@@ -158,12 +156,11 @@ Players is reused in Upgrades without a second profile request.
 The language control is a theme-aware custom listbox with compact bundled SVG
 flags and native language names. Keyboard navigation, visible focus, Escape,
 click-outside dismissal are preserved. Eligible utility and action controls use
-color and border feedback plus a one-pixel pressed displacement and the bundled
-low-volume click sound; reduced-motion users retain non-spatial feedback.
+color and border feedback plus a one-pixel pressed displacement. Reduced-motion users retain non-spatial feedback.
 
 ## Windows scaling verification
 
-Automated Electron coverage checks 1600×900, 1200×800, and the supported
+Packaged Tauri coverage checks 1600×900, 1200×800, and the supported
 960×640 minimum in CSS pixels. CI does not reproduce Windows device scaling,
 so browser zoom is not treated as DPI evidence.
 

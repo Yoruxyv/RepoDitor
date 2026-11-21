@@ -8,7 +8,7 @@ installation instructions, and user-facing feature summary remain in the
 
 - [Application architecture](architecture/architecture.md) — process boundaries,
   ownership, and data flow.
-- [Electron UI](architecture/electron-ui.md) — renderer structure,
+- [Desktop UI](architecture/electron-ui.md) — renderer structure,
   responsiveness, appearance, and accessibility.
 - [RepoDitor Web](../web/README.md) — browser boundary, hosted deployment,
   privacy/storage behavior, and Web validation.

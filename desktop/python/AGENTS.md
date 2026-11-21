@@ -47,6 +47,6 @@ uv run --locked --group test pytest
 Use pytest with synthetic fixtures and temporary copies. Cover rejection,
 stale-source races, backup/staging/reopen failures, and recovery for affected writes;
 test malformed/unsupported asset input and source invalidation when affected.
-For adapter/contract or real Desktop journey changes, also run the parent Electron
+For adapter/contract or real Desktop journey changes, also run the parent packaged Tauri
 E2E gate. Packaging changes require packaged smoke; a passing Python suite alone
 does not validate the sidecar artifact.

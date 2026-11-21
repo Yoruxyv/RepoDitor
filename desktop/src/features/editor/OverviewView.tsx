@@ -8,7 +8,7 @@ import {
   UserIcon,
 } from "@phosphor-icons/react";
 
-import type { SaveSession } from "@electron/contracts";
+import type { SaveSession } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 
 export type OverviewDestination = "players" | "upgrades" | "run" | "items";

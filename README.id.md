@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-43.3.0-47848F?style=flat-square&labelColor=1a1a2e&logo=electron&logoColor=white" alt="Electron 43.3.0">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&labelColor=1a1a2e&logo=tauri&logoColor=white" alt="Tauri 2">
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&labelColor=1a1a2e&logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&labelColor=1a1a2e&logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?style=flat-square&label=release&labelColor=1a1a2e" alt="Latest release">
@@ -41,7 +41,7 @@
 
 ### Periksa dan edit save R.E.P.O. lokal dari aplikasi desktop Windows yang fokus — tanpa perlu BepInEx
 
-RepoDitor adalah save editor Electron mandiri dan tidak resmi untuk data `.es3` R.E.P.O. lokal.
+RepoDitor adalah save editor Tauri mandiri dan tidak resmi untuk data `.es3` R.E.P.O. lokal.
 
 Antarmuka desktop hanya menyediakan operasi bertipe dengan cakupan yang jelas, sementara backend Python yang dibundel menangani parsing save, validasi, backup, semantik game, dan penulisan terenkripsi.
 
@@ -221,27 +221,13 @@ workflow tersebut bukan bukti bahwa installer saat ini sudah ditandatangani.
 
 ## 🔐 Model Keamanan
 
-Renderer berjalan dalam sandbox dengan `contextIsolation: true` dan
-`nodeIntegration: false`. Renderer tidak dapat membaca file sembarang,
-menjalankan proses, mendekripsi save, memanggil IPC sembarang, atau menerima
-JSON save mentah yang sudah didekripsi.
+Renderer WebView2 memakai CSP dan perintah Tauri yang dibatasi. Status rilis GitHub menggunakan endpoint tetap.
 
-Pengayaan avatar Steam bersifat opsional dan fail-soft. Hanya Steam ID yang
-masuk akal yang akan diminta; URL gambar yang dikembalikan divalidasi terhadap
-daftar host HTTPS yang sempit, dan data profile tidak pernah ditulis ke save.
-Jumlah bintang GitHub menggunakan satu endpoint metadata tetap melalui Electron
-IPC yang bertipe, dengan cache session untuk hasil yang berhasil; renderer tidak
-mendapat API network-fetch arbitrer.
-
-Itulah network request latar belakang opsional yang ada saat ini. Link proyek
-hanya dibuka secara eksternal setelah tindakan pengguna, dan source saat ini
-tidak memiliki integrasi analytics atau telemetry.
-
-Lihat [SECURITY.md](SECURITY.md) untuk melaporkan kerentanan secara privat.
+[SECURITY.md](SECURITY.md)
 
 ## 🔎 Open Source & Data Lokal
 
-RepoDitor adalah open source. Aplikasi desktop Electron, backend save Python,
+RepoDitor adalah open source. Aplikasi desktop Tauri, backend save Python,
 konfigurasi packaging, serta workflow CI/release tersedia di repository ini
 untuk diperiksa, dan proyek dapat di-build dari source dengan perintah development
 dan packaging yang didokumentasikan. Source yang tersedia publik tidak dengan
@@ -275,8 +261,8 @@ Sumber data otoritatif untuk save dan cache presentasi sengaja dipisahkan:
 | Data                            | Perilaku saat ini                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Status save**                 | Setiap kali save dibuka secara eksplisit, Python diminta membaca, mendekripsi, dan memvalidasi `.es3` saat ini, lalu hanya mengembalikan proyeksi bertipe dan fingerprint sumber. JSON save yang telah didekripsi tidak dipersistenkan. Renderer hanya boleh memakai kembali data entri editor yang bertipe selama session aplikasi saat ini setelah pembukaan lain memastikan fingerprint yang sama; penulisan yang berhasil membatalkan entri tersebut. |
-| **Gambar item/kosmetik**        | Mengutamakan PNG baked yang terverifikasi dari instalasi game. Kosmetik dapat memakai Sprite lokal yang didekode; item tanpa gambar memakai Phosphor. Keduanya tidak membaca cache gambar LocalLow. Electron hanya meneruskan token opaque ke React.                                                                                                                                                                                                      |
-| **Gambar upgrade turunan**      | Python mencari dan mendekode texture yang didukung dari game yang terpasang. Electron menyimpan PNG turunan yang telah divalidasi di `%APPDATA%\repoditor-desktop\presentation`, menggunakannya kembali hanya selama identitas sumber yang diawasi tidak berubah, membersihkan PNG turunan yang tidak lagi direferensikan, lalu membuat ulang atau fallback ke Phosphor jika sebuah entri hilang, berubah, malformed, atau tidak dapat dibaca.            |
+| **Gambar item/kosmetik**        | Mengutamakan PNG baked yang terverifikasi dari instalasi game. Kosmetik dapat memakai Sprite lokal yang didekode; item tanpa gambar memakai Phosphor. Keduanya tidak membaca cache gambar LocalLow. Tauri hanya meneruskan token opaque ke React.                                                                                                                                                                                                      |
+| **Gambar upgrade turunan**      | [Artwork cache](docs/architecture/architecture.md#desktop-local-presentation-assets) |
 | **Metadata kosmetik terpasang** | Indeks `baked-artwork.json` untuk build yang didukung memvalidasi schema, instalasi dan identitas sumber. Build historis memakai cache katalog terpisah. Metadata hanya untuk presentasi, bukan bukti kepemilikan atau izin mutasi.                                                                                                                                                                                                                       |
 
 Preferensi tema dan bahasa menggunakan storage renderer. RepoDitor hanya menulis
@@ -321,9 +307,9 @@ memahami status aplikasi.
 ```text
 React renderer
   ↓ typed feature calls
-Sandboxed Electron preload
-  ↓ narrow IPC contracts
-Electron main process
+WebView2 with scoped Tauri commands
+  ↓ Rust admission and process supervision
+Tauri native host
   ↓ structured requests
 Bundled Python desktop API
   ↓
@@ -349,7 +335,7 @@ yang lebih mendalam.
 Test otomatis menggunakan fixture yang dibuat atau disanitasi serta salinan
 sementara, bukan save pengguna asli. Repository memeriksa formatting/test Python,
 batas import renderer, lint, build TypeScript, test component/contract,
-Windows Electron E2E, isi package, packaged E2E tanpa Vite, dan struktur installer.
+Windows packaged Tauri E2E, isi package, packaged E2E tanpa Vite, dan struktur installer.
 
 ```powershell
 uv run ruff check .
@@ -365,7 +351,8 @@ npm run release:check
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
+npm run package:tauri
+npm run test:e2e:tauri
 ```
 
 ## 🛠️ Development
@@ -379,6 +366,7 @@ uv sync --locked
 
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
@@ -387,23 +375,7 @@ privasi, dan pull request.
 
 ## 📦 Packaging & Release
 
-Dari `desktop/`, `npm run package` membangun sidecar Python 3.13 PyInstaller
-**onedir** dengan dependency terkunci, aplikasi Electron production,
-unpacked packaged smoke test, installer NSIS dengan wizard, serta verifikasi
-artifact lokal di `desktop/release/`. Electron Builder memasang direktori
-sidecar di `resources/backend/` sambil mempertahankan entry point tetap
-`resources/backend/repoditor-backend.exe`. Jalur build lokal ini memang sengaja
-tidak ditandatangani.
-
-Release GitHub resmi bertag menggunakan perintah signing fail-closed yang
-terpisah, memverifikasi signature Authenticode sebelum membuat file SHA-256,
-dan baru dipublikasikan setelah pemeriksaan package yang sudah ada berhasil.
-Workflow manual sementara yang terpisah dapat mempublikasikan release unsigned
-dengan label yang jelas jika approval signing atau kredensial belum tersedia;
-workflow tersebut tetap mempertahankan gate quality, package, packaged-E2E,
-installer, dan checksum, tetapi melewati verifikasi signature. Lihat
-[release checklist](docs/release-checklist.md) untuk persyaratan saat ini dan
-baseline historis v0.1.0 yang dipertahankan.
+Dari `desktop/`, `npm run package:tauri` membuat paket portabel dengan backend Python. Lihat [panduan rilis](docs/release-checklist.md) untuk installer dan migrasi v0.2.1.
 
 ## ⚠️ Batasan
 
@@ -434,7 +406,7 @@ baseline historis v0.1.0 yang dipertahankan.
 | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
 | [Indeks dokumentasi](docs/README.md)                        | Titik masuk terorganisir untuk dokumentasi teknis dan release               |
 | [Arsitektur](docs/architecture/architecture.md)             | Batas desktop, kepemilikan, dan alur data                                   |
-| [Electron UI](docs/architecture/electron-ui.md)             | Identitas renderer, responsivitas, tampilan, dan aksesibilitas              |
+| [Desktop UI](docs/architecture/electron-ui.md)             | Identitas renderer, responsivitas, tampilan, dan aksesibilitas              |
 | [Format save](docs/research/save-format.md)                 | Struktur save terenkripsi yang telah dikonfirmasi                           |
 | [Reverse engineering](docs/research/reverse-engineering.md) | Evidence historis, dukungan saat ini, dan semantik yang belum terselesaikan |
 | [Release checklist](docs/release-checklist.md)              | Gate release saat ini dan baseline historis v0.1.0                          |

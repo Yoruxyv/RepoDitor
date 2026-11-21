@@ -1,16 +1,16 @@
 # Desktop React Presentation
 
 React owns presentation, feature orchestration, and typed pending edits under the
-parent Desktop boundary. Use the typed preload API; save/game semantics stay in Python.
+parent Desktop boundary. Use typed Tauri adapters; save/game semantics stay in Python.
 
 ## Organization and imports
 
 Keep features shallow and cohesive; do not mechanically create components/hooks/
-api/types/utils subfolders. Share UI only after real reuse exists. `App.tsx`
+api/types/utils subfolders. Share UI only after real reuse exists. The renderer entry point
 composes features rather than implementing them.
 
-Use `@/` for `desktop/src` and `@electron/` for the shared Electron contracts when
-an import crosses renderer feature/app/shared boundaries or traverses a parent.
+Use `@/` for `desktop/src` when an import crosses feature/app/shared boundaries
+or traverses a parent. Shared desktop DTOs live in `src/app/desktopContracts.ts`.
 Parent-directory renderer imports are forbidden; same-directory `./Foo` imports
 may stay relative. Preserve valid aliases. Keep TypeScript, Vite, Vitest, ESLint,
 and import-normalization resolution synchronized.
@@ -18,13 +18,12 @@ and import-normalization resolution synchronized.
 Import normalization is a maintenance tool, not architecture: preview is
 non-destructive; check exits non-zero on drift; fix rewrites only renderer imports
 covered by this policy; strict mode fails unresolved imports instead of guessing.
-Keep valid aliases and same-directory relative imports; do not rewrite Electron/
-preload/main imports. Inspect the diff after every automatic rewrite.
+Keep valid aliases and same-directory relative imports. Inspect the diff after every automatic rewrite.
 
 ## Responsive, accessible presentation
 
 Keep the application desktop-first and usable at wide, normal, and the actual
-minimum Electron window size. Avoid document overflow, overlaps, unreadable paths,
+minimum supported desktop window size. Avoid document overflow, overlaps, unreadable paths,
 and crushed forms; add mobile patterns only for a demonstrated Desktop need.
 Follow existing accessibility, localization, icons, and interaction conventions;
 do not add unrelated animation or visual behavior.
@@ -47,7 +46,7 @@ do not add unrelated animation or visual behavior.
   startup, decoding, and cache behavior before optimizing confirmed bottlenecks.
 
 Run the parent Desktop frontend gates; add meaningful component/renderer coverage
-for changed UI behavior. Real journey changes also require Electron E2E. Consult
-[Electron UI](../../docs/architecture/electron-ui.md) and
+for changed UI behavior. Real journey changes also require packaged Tauri E2E. Consult
+[Desktop UI](../../docs/architecture/electron-ui.md) and
 [contributor translation rules](../../CONTRIBUTING.md#translations) for detailed
 UI and localization contracts.

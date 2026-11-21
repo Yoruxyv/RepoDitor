@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopOperationResult, PlayerDto } from "@electron/contracts";
+import type { DesktopOperationResult, PlayerDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { players, saveId } from "@/test/repoditorApiFixture";
 import { usePlayers } from "./usePlayers";
@@ -14,7 +14,7 @@ function wrapper({ children }: { readonly children: ReactNode }) {
 
 describe("usePlayers health edits", () => {
   it("keeps every pending health value within the player bounds", () => {
-    const { result } = renderHook(() => usePlayers(saveId, { ok: true, data: [player] }), {
+    const { result } = renderHook(() => usePlayers(saveId, { ok: true, data: [player] }, vi.fn()), {
       wrapper,
     });
 
@@ -49,7 +49,7 @@ describe("injected player reads", () => {
     expect(result.current.selectedPlayerId).toBe("111");
     expect(result.current.loading).toBe(false);
   });
-  it("scopes selection to loaded players and recovers from failure without an Electron bridge", async () => {
+  it("scopes selection to loaded players and recovers from failure using the injected reader", async () => {
     const list = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, data: players })

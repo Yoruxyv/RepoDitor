@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-installed-apps"
+description = "Enables the open_installed_apps command without any pre-configured scope."
+commands.allow = ["open_installed_apps"]
+
+[[permission]]
+identifier = "deny-open-installed-apps"
+description = "Denies the open_installed_apps command without any pre-configured scope."
+commands.deny = ["open_installed_apps"]

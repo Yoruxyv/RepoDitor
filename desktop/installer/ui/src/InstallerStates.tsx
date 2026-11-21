@@ -44,7 +44,7 @@ export function ReadyState({
       <h1>{heading}</h1>
       <p className="intro">
         {uninstalling
-          ? "RepoDitor application data will be removed. R.E.P.O. saves and game data stay untouched."
+          ? "RepoDitor will be uninstalled. Your R.E.P.O. saves and game data will be kept."
           : "Choose where RepoDitor should live. Your R.E.P.O. saves stay untouched."}
       </p>
 
@@ -116,6 +116,7 @@ interface ProgressStateProps {
   readonly mode: InstallerMode;
   readonly stage: InstallerStage;
   readonly percentage: number | null;
+  readonly determinate: boolean;
   readonly attempt: number;
 }
 
@@ -132,7 +133,13 @@ const stageMessages: Record<InstallerMode, Record<InstallerStage, string>> = {
   },
 };
 
-export function ProgressState({ mode, stage, percentage, attempt }: ProgressStateProps) {
+export function ProgressState({
+  mode,
+  stage,
+  percentage,
+  attempt,
+  determinate,
+}: ProgressStateProps) {
   const uninstalling = mode === "uninstall";
   const measured = !uninstalling ? percentage : null;
   const value = measured ?? 0;
@@ -149,7 +156,11 @@ export function ProgressState({ mode, stage, percentage, attempt }: ProgressStat
           ? "Removing the application. Your R.E.P.O. saves and game data are not being modified."
           : "Setting up the application. Your game data is not being modified."}
       </p>
-      {!uninstalling ? (
+      {!uninstalling && !determinate ? (
+        <div className="progress-row">
+          <progress aria-label="Installation progress" />
+        </div>
+      ) : !uninstalling ? (
         <div className="progress-row">
           <div className="progress-track">
             <progress
@@ -200,7 +211,7 @@ export function ResultState({ mode, failed, message, onClose, onResult }: Result
   const description =
     message ||
     (uninstalling
-      ? "RepoDitor application data was removed. R.E.P.O. saves and game data were not targeted."
+      ? "RepoDitor was uninstalled. Your R.E.P.O. saves and game data were kept."
       : "Installation finished successfully.");
 
   return (

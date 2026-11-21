@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopOperationResult, GameProcessState } from "@electron/contracts";
+import type { DesktopOperationResult, GameProcessState } from "@/app/desktopContracts";
 import { useGameSafety } from "./useGameSafety";
 
 type Result = DesktopOperationResult<GameProcessState>;

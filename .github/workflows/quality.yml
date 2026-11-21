@@ -117,50 +117,6 @@ jobs:
       - name: Component and contract tests
         run: npm test
 
-  windows-e2e:
-    name: Windows Electron E2E
-    runs-on: windows-latest
-
-    defaults:
-      run:
-        working-directory: desktop
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.13"
-
-      - name: Sync locked Python and packaging dependencies
-        working-directory: .
-        run: uv sync --locked --group package
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      - name: Install desktop dependencies
-        run: npm ci
-
-      - name: Electron E2E
-        run: npm run test:e2e
-
-      - name: Upload Electron E2E diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-e2e-diagnostics
-          path: desktop/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
   package-smoke:
     name: Windows package smoke
     runs-on: windows-latest
@@ -193,17 +149,19 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
 
-      - name: Build Python sidecar
-        run: npm run build:sidecar
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
 
-      - name: Build Electron application
-        run: npm run build
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
 
-      - name: Package unpacked application
-        run: npm run package:dir
+      - name: Build and verify portable Tauri package
+        run: npm run package:tauri
 
-      - name: Packaged Electron E2E
-        run: npm run test:e2e:packaged
+      - name: Packaged Tauri desktop journeys
+        run: npm run test:e2e:tauri
 
       - name: Upload package smoke diagnostics
         if: ${{ failure() }}
@@ -252,7 +210,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.99.0"
-          components: rustfmt
+          components: rustfmt, clippy
 
       - name: Cache Rust dependencies and builds
         uses: Swatinem/rust-cache@v2
@@ -281,6 +239,12 @@ jobs:
 
       - name: Windows Python, Rust, artifact and native safety gate
         run: npm run test:tauri-safety
+
+      - name: Rust formatting and Clippy
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets
 
       - name: Preserve safety diagnostics
         if: ${{ always() }}
@@ -319,7 +283,6 @@ jobs:
         python-quality,
         python-tests,
         desktop-quality,
-        windows-e2e,
         package-smoke,
         windows-tauri-safety,
       ]
@@ -341,11 +304,6 @@ jobs:
 
           if [ "${{ needs.desktop-quality.result }}" != "success" ]; then
             echo "Desktop quality failed."
-            exit 1
-          fi
-
-          if [ "${{ needs.windows-e2e.result }}" != "success" ]; then
-            echo "Windows Electron E2E failed."
             exit 1
           fi
 

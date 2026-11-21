@@ -1,7 +1,8 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { renderWithPreferences } from "@/test/render";
-import { GameCompatibilityNotice, installedWriteRestriction } from "./GameCompatibilityNotice";
+import { GameCompatibilityNotice } from "./GameCompatibilityNotice";
+import { installedWriteRestriction } from "./compatibility";
 
 it("does not announce a restriction when every editing domain is available", () => {
   renderWithPreferences(<GameCompatibilityNotice build="26732417" issue="unknown" features={[]} />);

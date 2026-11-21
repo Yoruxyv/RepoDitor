@@ -1,20 +1,13 @@
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import type { DesktopOperationResult, InstalledMapsDto } from "../../electron/contracts.cjs";
-import {
-  DESKTOP_ROOT,
-  E2E_SAVE_ID,
-  createRunSaveFixture,
-  isolatedApplicationEnvironment,
-} from "../support/fixtureEnvironment";
+import { expect, test, type Page } from "@playwright/test";
+import type { DesktopOperationResult, InstalledMapsDto } from "../../src/app/desktopContracts";
+import { DESKTOP_ROOT, E2E_SAVE_ID, createRunSaveFixture } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "../support/waits";
 
-async function openMaps(page: Page, reference = false) {
+async function openMaps(page: Page) {
   await page.getByRole("button", { name: /Open workspace/ }).click();
-  if (reference) await waitForWorkspaceOrContinue(page);
   const tab = page.getByRole("tab", { name: "Maps", exact: true });
   await tab.waitFor({ state: "visible" });
   const started = performance.now();
@@ -49,7 +42,7 @@ async function reaped(home: string) {
     .toBe(true);
 }
 
-test("packaged Maps match Electron data, fallback cards, refresh and three layouts without changing sources", async ({
+test("packaged Maps preserve fallback cards, refresh and three layouts without changing sources", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -60,13 +53,6 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
   const source = path.join(game, "REPO_Data/StreamingAssets/aa/catalog.json");
   const original = await readFile(save);
   const sourceBefore = await readFile(source);
-  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData/LocalLow"));
-  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: environment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     preview = await launch(
@@ -74,33 +60,16 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       home,
     );
     const page = preview.page;
-    const referencePage = await reference.firstWindow();
-    const timing: Record<string, number> = {};
-    for (const [name, target] of [
-      ["electron", referencePage],
-      ["tauri", page],
-    ] as const) {
-      const opened = performance.now();
-      const tab = await openMaps(target, name === "electron");
-      await expect(target.getByRole("heading", { name: "Modded Moon", exact: true })).toBeVisible();
-      const ready = performance.now();
-      timing[`${name}OpenToMapsMs`] = ready - opened;
-      timing[`${name}MapsTabToDataMs`] = ready - tab;
-    }
+    await openMaps(page);
+    await expect(page.getByRole("heading", { name: "Modded Moon", exact: true })).toBeVisible();
     async function compare() {
       const actual = await native<DesktopOperationResult<InstalledMapsDto>>(page, "maps_list", {
         gameDir: "Z:/untrusted",
         catalogPath: "https://untrusted",
       });
-      const expected = await referencePage.evaluate(() => window.repoditor.maps.list());
       expect(actual).toMatchObject({ ok: true });
-      expect(expected).toMatchObject({ ok: true });
-      if (!actual.ok || !expected.ok) throw new Error("Synthetic Maps could not be read");
-      expect(actual.data).toEqual({
-        ...expected.data,
-        catalogPath: null,
-        maps: expected.data.maps.map((map) => ({ ...map, iconToken: null })),
-      });
+      if (!actual.ok) throw new Error("Synthetic Maps could not be read");
+      expect(actual.data.catalogPath).toBeNull();
       return actual.data;
     }
     expect((await compare()).maps.map((map) => map.internalName)).toEqual([
@@ -108,14 +77,12 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       "Arctic",
       "Modded Moon",
     ]);
-    for (const target of [page, referencePage]) {
-      await expect(target.getByTestId("map-artwork-Modded Moon")).toHaveAttribute(
-        "data-icon-source",
-        "fallback",
-      );
-      await expect(target.locator('[data-testid^="map-artwork-"] img')).toHaveCount(0);
-      await expect(target.getByRole("button", { name: /Force map|Select map/ })).toHaveCount(0);
-    }
+    await expect(page.getByTestId("map-artwork-Modded Moon")).toHaveAttribute(
+      "data-icon-source",
+      "fallback",
+    );
+    await expect(page.locator('[data-testid^="map-artwork-"] img')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Force map|Select map/ })).toHaveCount(0);
     const runTab = page.getByRole("tab", { name: "Run", exact: true });
     await runTab.click();
     await expect(runTab).toHaveAttribute("aria-selected", "true");
@@ -130,38 +97,24 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       { width: 1200, height: 800 },
       { width: 960, height: 640 },
     ]) {
-      for (const [name, target] of [
-        ["electron", referencePage],
-        ["tauri", page],
-      ] as const) {
-        await target.setViewportSize(size);
-        expect(
-          await target.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-        ).toBe(true);
-        const card = await target.getByTestId("map-artwork-Arctic").boundingBox();
-        expect(card!.width).toBeGreaterThan(200);
-        expect(card!.width / card!.height).toBeCloseTo(2, 1);
-        await target.screenshot({
-          path: info.outputPath(`${name}-maps-${size.width}.png`),
-          fullPage: true,
-        });
-      }
+      await page.setViewportSize(size);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      const card = await page.getByTestId("map-artwork-Arctic").boundingBox();
+      expect(card!.width).toBeGreaterThan(200);
+      expect(card!.width / card!.height).toBeCloseTo(2, 1);
+      await page.screenshot({
+        path: info.outputPath(`native-maps-${size.width}.png`),
+        fullPage: true,
+      });
     }
     expect(await readFile(source)).toEqual(sourceBefore);
     await writeFile(source, catalog(["Arctic", "Future Facility"]));
     const changed = await readFile(source);
-    for (const target of [page, referencePage]) {
-      const started = performance.now();
-      await target.getByRole("button", { name: "Refresh", exact: true }).click();
-      await expect(
-        target.getByRole("heading", { name: "Future Facility", exact: true }),
-      ).toBeVisible();
-      timing[target === page ? "tauriRefreshMs" : "electronRefreshMs"] =
-        performance.now() - started;
-      await expect(target.getByRole("heading", { name: "Modded Moon", exact: true })).toHaveCount(
-        0,
-      );
-    }
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Future Facility", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Modded Moon", exact: true })).toHaveCount(0);
     await compare();
     expect(await readFile(source)).toEqual(changed);
     for (let i = 0; i < 3; i++) {
@@ -173,43 +126,22 @@ test("packaged Maps match Electron data, fallback cards, refresh and three layou
       ).toBeVisible();
     }
     await writeFile(source, catalog([]));
-    for (const target of [page, referencePage]) {
-      await target.getByRole("button", { name: "Refresh", exact: true }).click();
-      await expect(target.locator('[data-testid^="map-artwork-"]')).toHaveCount(0);
-      await expect(target.getByText("No maps were found in the installed catalog.")).toBeVisible();
-      await expect(target.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
-    }
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.locator('[data-testid^="map-artwork-"]')).toHaveCount(0);
+    await expect(page.getByText("No maps were found in the installed catalog.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
     const empty = await compare();
     expect(empty.available).toBe(true);
     expect(empty.maps).toEqual([]);
     await rename(game, `${game}.hidden`);
-    for (const target of [page, referencePage]) {
-      await target.getByRole("button", { name: "Refresh", exact: true }).click();
-      await expect(
-        target.getByText(/No validated R\.E\.P\.O\. installation was found/),
-      ).toBeVisible();
-      await expect(target.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
-      await expect(target.getByRole("heading", { name: "Maps", exact: true })).toBeVisible();
-    }
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.getByText(/No validated R\.E\.P\.O\. installation was found/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
+    await expect(page.getByRole("heading", { name: "Maps", exact: true })).toBeVisible();
     expect(await compare()).toEqual({ available: false, catalogPath: null, maps: [] });
     expect(await readFile(save)).toEqual(original);
-    await writeFile(
-      info.outputPath("maps-timing.json"),
-      JSON.stringify(
-        {
-          ...timing,
-          note: "Synthetic catalog and encrypted save; includes host startup/queue costs, not production performance.",
-        },
-        null,
-        2,
-      ),
-    );
   } finally {
-    try {
-      if (preview) await close(preview.child, preview.browser);
-    } finally {
-      await reference.close();
-    }
+    if (preview) await close(preview.child, preview.browser);
   }
 });
 

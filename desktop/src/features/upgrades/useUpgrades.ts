@@ -5,9 +5,8 @@ import type {
   DesktopOperationResult,
   PlayerDto,
   PlayerUpgradeDto,
-  RepoDitorApi,
   SaveCanonicalUpgradeValue,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { UpgradeValueEdit } from "@/features/pending-changes/pendingEdits";
@@ -19,9 +18,6 @@ interface UpgradesState {
 }
 
 const INITIAL_STATE: UpgradesState = { upgrades: [], error: null, loading: true };
-
-const listDesktopUpgrades: RepoDitorApi["upgrades"]["list"] = (saveId) =>
-  window.repoditor.upgrades.list(saveId);
 
 function editKey(playerId: string, upgradeKey: string): string {
   return `${playerId}:${upgradeKey}`;
@@ -61,7 +57,7 @@ function applyCanonicalUpgradeValues(
 export function useUpgrades(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
-  list: RepoDitorApi["upgrades"]["list"] = listDesktopUpgrades,
+  list: (saveId: string) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>,
   loadInitially = true,
   prepare = list,
 ) {

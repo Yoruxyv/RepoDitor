@@ -16,10 +16,12 @@ fn main() {
         || cfg!(feature = "synthetic-health-ui")
     {
         "synthetic"
-    } else if cfg!(feature = "production-health") {
-        "health-candidate"
     } else if tauri_build::is_dev() {
         "development"
+    } else if cfg!(feature = "public-editing") && !cfg!(feature = "private-editing") {
+        "public-editing"
+    } else if cfg!(feature = "production-health") {
+        "health-candidate"
     } else {
         "read-only"
     };
@@ -31,6 +33,8 @@ fn main() {
             .windows_attributes(windows)
             .app_manifest(tauri_build::AppManifest::new().commands(&[
                 "environment_detect",
+                "legacy_install_registered",
+                "open_installed_apps",
                 "saves_open",
                 "editor_entry",
                 "game_status",

@@ -25,7 +25,7 @@
 ## Areas affected
 
 - [ ] React renderer or accessibility
-- [ ] Electron main, preload, or IPC contracts
+- [ ] Tauri commands, capabilities, or sidecar contracts
 - [ ] Python desktop API or services
 - [ ] Save parsing or game semantics
 - [ ] Safe writes, backups, or stale-file protection
@@ -57,7 +57,7 @@
 - [ ] Changed save semantics are evidence-backed: Desktop semantics stay in Python; Web uses its independent browser boundary and agrees where behavior overlaps
 - [ ] Existing stale-file, backup, staged-verification, and atomic-write protections remain intact
 - [ ] Tests use generated/sanitized fixtures or temporary copies, never real user saves
-- [ ] Electron retains `contextIsolation: true`, `nodeIntegration: false`, and narrow typed IPC
+- [ ] Tauri retains narrow typed command and window capabilities
 - [ ] No raw decrypted save JSON or arbitrary filesystem access is exposed to the Desktop renderer
 
 ## Checklist
@@ -68,7 +68,7 @@
 - [ ] I updated relevant documentation
 - [ ] I ran the affected Python checks
 - [ ] I ran the affected desktop checks
-- [ ] I ran Electron E2E when the change crosses the desktop boundary or user journey
+- [ ] I ran packaged Tauri E2E when the change crosses the desktop boundary or user journey
 - [ ] I verified wide, normal, and minimum desktop sizes for visible UI changes
 - [ ] I did not commit credentials, real saves, backups, `local-evidence/`, or personal data
 - [ ] Network-dependent tests use mocks or fixtures

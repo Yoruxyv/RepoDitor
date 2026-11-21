@@ -189,7 +189,8 @@ describe("synthetic health ownership", () => {
       expect(subject.api.writeRun).not.toHaveBeenCalled();
       act(() => {
         if (domain === "health") subject.result.current.revertHealth("111");
-        else if (domain === "upgrades") subject.result.current.revertUpgrades();
+        else if (domain === "upgrades")
+          subject.result.current.revertUpgrade("111", "playerUpgradeStrength");
         else subject.result.current.revertRun("currency");
       });
       expect(subject.result.current.refillEdits).toHaveLength(1);

@@ -6,9 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DesktopOperationResult,
   PlayerDto,
-  RepoDitorApi,
   SaveCanonicalPlayerValue,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
@@ -25,9 +24,6 @@ const INITIAL_STATE: PlayersState = {
   loading: true,
 };
 
-const listDesktopPlayers: RepoDitorApi["players"]["list"] = (saveId) =>
-  window.repoditor.players.list(saveId);
-
 function initialState(result: DesktopOperationResult<PlayerDto[]> | null): PlayersState {
   if (result === null) return INITIAL_STATE;
   return result.ok
@@ -37,7 +33,7 @@ function initialState(result: DesktopOperationResult<PlayerDto[]> | null): Playe
 export function usePlayers(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerDto[]> | null = null,
-  list: RepoDitorApi["players"]["list"] = listDesktopPlayers,
+  list: (saveId: string) => Promise<DesktopOperationResult<PlayerDto[]>>,
   loadInitially = true,
 ) {
   const { t } = usePreferences();

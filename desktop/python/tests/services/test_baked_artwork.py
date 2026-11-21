@@ -260,7 +260,16 @@ def test_native_cosmetic_snapshot_ignores_cache_and_rechecks_selected_files(
     replacement.write_bytes(png)
     old = path.stat()
     os.utime(replacement, ns=(old.st_atime_ns, old.st_mtime_ns))
-    replacement.replace(path)
+    read = baked._read_png_snapshot
+
+    def replace_during_batch(source: Path, stamp: tuple[int, ...]) -> bytes | None:
+        result = read(source, stamp)
+        replacement.replace(source)
+        return result
+
+    with monkeypatch.context() as changes:
+        changes.setattr(baked, "_read_png_snapshot", replace_during_batch)
+        assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
     assert baked.read_bound_cosmetic_png(revision, key, png_revision) is None
     stamp = baked._png_revision(path, baked._png_stamp(path.stat()))
     (root / "REPO_Data/level0").write_bytes(b"changed source")

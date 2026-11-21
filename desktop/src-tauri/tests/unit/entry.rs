@@ -153,6 +153,8 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
     assert_eq!(capabilities[0]["windows"], serde_json::json!(["main"]));
     let permissions = capabilities[0]["permissions"].as_array().unwrap();
     assert!(permissions.contains(&serde_json::json!("allow-players-avatar")));
+    assert!(permissions.contains(&serde_json::json!("allow-legacy-install-registered")));
+    assert!(permissions.contains(&serde_json::json!("allow-open-installed-apps")));
     assert!(permissions.contains(&serde_json::json!("allow-upgrade-artwork-get")));
     assert!(permissions.contains(&serde_json::json!("allow-upgrade-artwork-cancel")));
     assert!(permissions.contains(&serde_json::json!("allow-item-artwork-get")));
@@ -163,7 +165,7 @@ fn avatar_permission_and_image_policy_do_not_expand_other_native_authority() {
     assert!(permissions.contains(&serde_json::json!("allow-cosmetic-artwork-cancel")));
     assert!(permissions.contains(&serde_json::json!("allow-editor-entry")));
     assert!(permissions.contains(&serde_json::json!("core:app:allow-version")));
-    assert_eq!(permissions.len(), 21);
+    assert_eq!(permissions.len(), 23);
     assert!(!permissions.iter().any(|p| {
         let s = p.as_str().unwrap();
         s.contains("write") || s.contains("http") || s.contains("shell") || s.contains("fs:")

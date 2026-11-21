@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   CosmeticsViewDto,
   DesktopOperationErrorCode,
-  RepoDitorApi,
-} from "@electron/contracts";
+  DesktopOperationResult,
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { prepareNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { operationErrorKey } from "@/app/i18n";
@@ -35,7 +35,7 @@ function canRetryRead(error: DesktopOperationErrorCode) {
 export function useCosmeticsRead(
   active: boolean,
   recoveryGeneration: number,
-  get: RepoDitorApi["cosmetics"]["get"],
+  get: () => Promise<DesktopOperationResult<CosmeticsViewDto>>,
   sourceIdentity?: string,
 ) {
   const { t } = usePreferences();

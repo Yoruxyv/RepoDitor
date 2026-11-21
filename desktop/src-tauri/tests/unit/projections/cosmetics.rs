@@ -208,16 +208,18 @@ fn frozen_policy_matches_both_existing_generated_consumers() {
         .iter()
         .map(|n| n.as_i64().unwrap())
         .collect();
-    for generated in [
-        include_str!("../../../../python/repo_save_editor/services/cosmetics/known_cosmetics.py"),
-        include_str!("../../../../electron/ipc/known-cosmetics.cts"),
-    ] {
-        let actual: Vec<i64> = generated
-            .lines()
-            .filter_map(|line| line.trim().trim_end_matches(',').parse().ok())
-            .collect();
-        assert_eq!(actual, expected);
-    }
+    let python =
+        include_str!("../../../../python/repo_save_editor/services/cosmetics/known_cosmetics.py");
+    let actual: Vec<i64> = python
+        .lines()
+        .filter_map(|line| line.trim().trim_end_matches(',').parse().ok())
+        .collect();
+    assert_eq!(actual, expected);
+    let web: Value = serde_json::from_str(include_str!(
+        "../../../../../web/src/features/cosmetics/known-cosmetics.v1.json"
+    ))
+    .unwrap();
+    assert_eq!(web["cosmeticIds"], json!(expected));
 }
 
 #[test]

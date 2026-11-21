@@ -494,7 +494,7 @@ def test_production_meta_requires_a_separate_source_pin_and_preserves_recovery(
     root, path, before, game = fixture
     game_exe = game / "REPO.exe"
     game_exe.touch(exist_ok=True)
-    for name in run_admission.HEALTH_BUILD_SOURCES:
+    for name in (*run_admission.HEALTH_BUILD_SOURCES, *run_admission.SAVE_FORMAT_SOURCES):
         source = game / name
         source.parent.mkdir(parents=True, exist_ok=True)
         if not source.exists():
@@ -504,17 +504,40 @@ def test_production_meta_requires_a_separate_source_pin_and_preserves_recovery(
     build = admission.installed_build_identity(installation)
     assert build is not None
     _, catalog = admission.admit_cosmetics(root.parents[2])
-    pinned = run_admission._source_pins(installation, build)
+    # The same synthetic catalog serialized by the production game's Unity version.
+    for serialized in (game / "REPO_Data").iterdir():
+        if serialized.is_file():
+            serialized.write_bytes(serialized.read_bytes().replace(b"6000.3.17f1", b"6000.3.28f1"))
+    gameplay = run_admission._source_pins(installation, build)
+    save_format = run_admission._source_pins(installation, build, run_admission.SAVE_FORMAT_SOURCES)
+    digest = sha256(
+        json.dumps(production._catalog_payload(catalog), sort_keys=True).encode()
+    ).hexdigest()
+    for name, _ in production.COSMETIC_SOURCES:
+        source = game / name
+        if not source.exists():
+            source.write_bytes(name.encode())
+    cosmetics = tuple(
+        (name, run_admission.source_digest(game, game / name))
+        for name, _ in production.COSMETIC_SOURCES
+    )
     monkeypatch.setattr(production, "_installed_game", lambda: (installation, build))
     monkeypatch.setattr(production, "get_default_save_root", lambda: root)
-    monkeypatch.setattr(production, "discover_cosmetic_mutation_catalog", lambda _: catalog)
     monkeypatch.setattr(production, "_process_status", lambda _: Status.NOT_RUNNING)
 
     command = production.production_meta
     assert command("state", None)["state"] == "disabled"
-    monkeypatch.setattr(production, "APPROVED_META_BUILDS", {build.build_id: pinned})
+    monkeypatch.setattr(run_admission, "GAMEPLAY_PINS", gameplay)
+    monkeypatch.setattr(run_admission, "SAVE_FORMAT_PINS", save_format)
+    monkeypatch.setattr(production, "GAMEPLAY_PINS", gameplay)
+    monkeypatch.setattr(production, "SAVE_FORMAT_PINS", save_format)
+    monkeypatch.setattr(production, "COSMETIC_CATALOG_DIGEST", digest)
+    assert command("state", None).get("admission") is None
+    monkeypatch.setattr(production, "COSMETIC_SOURCES", cosmetics)
     state = command("state", None)
     assert state["admission"]["identity"] == "repoditor-production-meta-v1"
+    assert state["view"]["knownCatalogCount"] == 28
+    assert state["view"]["capabilities"]["canUnlockCosmetic"]
     options = {
         "namespace": state["namespace"],
         "fingerprint": sha256(before).hexdigest(),

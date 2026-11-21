@@ -7,10 +7,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"],
-    "paths": {
-      "@electron/*": ["../electron/*.cts"]
-    }
+    "types": ["node"]
   },
-  "include": ["./**/*.ts", "../src/electron.d.ts"]
+  "include": ["./**/*.ts"]
 }

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod backend;
 mod error;
+mod legacy_install;
 mod projections;
 #[cfg(feature = "health-transport")]
 mod synthetic;
@@ -39,7 +40,7 @@ fn handle_project_window(url: &tauri::Url, open: impl FnOnce(&str)) {
     }
 }
 
-fn open_project_url(target: &str) {
+fn open_system_url(target: &str) -> bool {
     use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
 
     let url: Vec<_> = target.encode_utf16().chain(Some(0)).collect();
@@ -52,8 +53,19 @@ fn open_project_url(target: &str) {
             std::ptr::null(),
             std::ptr::null(),
             SW_SHOWNORMAL,
-        );
+        ) as isize
+            > 32
     }
+}
+
+#[tauri::command]
+fn legacy_install_registered() -> bool {
+    legacy_install::is_registered()
+}
+
+#[tauri::command]
+fn open_installed_apps() -> bool {
+    open_system_url("ms-settings:appsfeatures")
 }
 
 #[cfg(all(windows, feature = "native-ui-test"))]
@@ -998,6 +1010,8 @@ fn main() {
         .manage(Mutex::new(EntryCache::default()))
         .invoke_handler(tauri::generate_handler![
             environment_detect,
+            legacy_install_registered,
+            open_installed_apps,
             saves_open,
             editor_entry,
             game_status,
@@ -1089,13 +1103,15 @@ fn main() {
                 }));
             let webview_started = Instant::now();
             window
-                .title("RepoDitor Preview")
+                .title("RepoDitor")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(960.0, 640.0)
                 .data_directory(profile)
                 .on_navigation(allowed_navigation)
                 .on_new_window(|url, _| {
-                    handle_project_window(&url, open_project_url);
+                    handle_project_window(&url, |target| {
+                        open_system_url(target);
+                    });
                     tauri::webview::NewWindowResponse::Deny
                 })
                 .build()?;
@@ -1123,7 +1139,7 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("Unable to start RepoDitor Preview");
+        .expect("Unable to start RepoDitor");
 }
 
 #[cfg(test)]

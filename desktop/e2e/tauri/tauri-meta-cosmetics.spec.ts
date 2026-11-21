@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, test, type TestInfo } from "@playwright/test";
-import type { CosmeticsViewDto, DesktopOperationResult } from "../../electron/contracts.cjs";
+import type { CosmeticsViewDto, DesktopOperationResult } from "../../src/app/desktopContracts";
 import {
   createMetaSaveFixture,
   DESKTOP_ROOT,

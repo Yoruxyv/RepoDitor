@@ -1,19 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { _electron as electron, expect, test, type Page, type TestInfo } from "@playwright/test";
-import type { DesktopOperationResult, RunStateDto } from "../../electron/contracts.cjs";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import type { DesktopOperationResult, RunStateDto } from "../../src/app/desktopContracts";
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
   PYTHON_ROOT,
   createRunSaveFixture,
   getPythonExecutable,
-  isolatedApplicationEnvironment,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "../support/waits";
 
 function rewriteSave(savePath: string, mode: "boundaries" | "subset" | "changed") {
   execFileSync(
@@ -39,27 +37,21 @@ function rewriteSave(savePath: string, mode: "boundaries" | "subset" | "changed"
   );
 }
 
-async function openRun(page: Page, reference = false) {
+async function openRun(page: Page) {
   await page.getByRole("button", { name: /Open workspace/ }).click();
-  if (reference) await waitForWorkspaceOrContinue(page);
   await page.getByRole("tab", { name: "Run", exact: true }).click();
 }
 
-async function compareRun(page: Page, reference: Page) {
+async function compareRun(page: Page) {
   await expect(page.getByRole("textbox", { name: "Currency", exact: true })).toBeVisible();
   const actual = await native<DesktopOperationResult<RunStateDto>>(page, "run_get", {
     saveId: E2E_SAVE_ID,
   });
-  const expected = await reference.evaluate((id) => window.repoditor.run.get(id), E2E_SAVE_ID);
   expect(actual.ok).toBe(true);
-  expect(actual).toEqual(expected);
   if (!actual.ok) throw new Error("Synthetic Run could not be read");
   for (const stat of actual.data.stats) {
     const value = page.getByRole("textbox", { name: stat.label, exact: true });
     await expect(value).toHaveValue(String(stat.value));
-    await expect(value).toHaveValue(
-      await reference.getByRole("spinbutton", { name: stat.label, exact: true }).inputValue(),
-    );
     await expect(value).toHaveAttribute("readonly", "");
     expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
@@ -71,9 +63,6 @@ async function compareRun(page: Page, reference: Page) {
   await expect(page.getByRole("textbox", { name: "Resume location" })).toHaveValue(
     actual.data.resumeLocation.value,
   );
-  await expect(reference.getByRole("combobox", { name: "Resume location" })).toContainText(
-    actual.data.resumeLocation.value,
-  );
   await expect(page.getByRole("textbox")).toHaveCount(actual.data.stats.length + 1);
   await expect(page.getByRole("spinbutton")).toHaveCount(0);
   await expect(page.getByRole("combobox")).toHaveCount(0);
@@ -82,24 +71,21 @@ async function compareRun(page: Page, reference: Page) {
   return actual.data;
 }
 
-async function compareLayouts(page: Page, reference: Page, info: TestInfo) {
+async function compareLayouts(page: Page, info: TestInfo) {
   for (const size of [
     { width: 1600, height: 900 },
     { width: 1200, height: 800 },
     { width: 960, height: 640 },
   ]) {
-    for (const target of [page, reference]) {
-      await target.setViewportSize(size);
-      expect(
-        await target.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
-    }
+    await page.setViewportSize(size);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
     await page.screenshot({ path: info.outputPath(`native-run-${size.width}.png`) });
-    await reference.screenshot({ path: info.outputPath(`electron-run-${size.width}.png`) });
   }
 }
 
-test("packaged Run preserves signed values, subsets and resume semantics against Electron without writes", async ({
+test("packaged Run preserves signed values, subsets and resume semantics without writes", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -108,13 +94,6 @@ test("packaged Run preserves signed values, subsets and resume semantics against
   const savePath = await createRunSaveFixture(home);
   rewriteSave(savePath, "boundaries");
   await createGameFixture(home);
-  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData/LocalLow"));
-  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: environment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     preview = await launch(
@@ -122,9 +101,7 @@ test("packaged Run preserves signed values, subsets and resume semantics against
       home,
     );
     const page = preview.page;
-    const referencePage = await reference.firstWindow();
     const original = await readFile(savePath);
-    await openRun(referencePage, true);
     const clicked = performance.now();
     await openRun(page);
     await expect(page.getByRole("textbox", { name: "Currency", exact: true })).toHaveValue(
@@ -134,12 +111,12 @@ test("packaged Run preserves signed values, subsets and resume semantics against
       info.outputPath("run-open-timing.json"),
       JSON.stringify({ openToRunValueMs: performance.now() - clicked }),
     );
-    const initial = await compareRun(page, referencePage);
+    const initial = await compareRun(page);
     expect(initial.stats.map((stat) => stat.value)).toEqual([
       2147483648, -9007199254740991, 0, 9007199254740991,
     ]);
     expect(initial.resumeLocation.options).toContain("Unknown (9)");
-    await page.getByRole("tab", { name: "Upgrades" }).focus();
+    await page.getByRole("tab", { name: "Upgrades" }).click();
     await page.keyboard.press("ArrowRight");
     await expect(page.getByRole("tab", { name: "Run", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
@@ -155,20 +132,29 @@ test("packaged Run preserves signed values, subsets and resume semantics against
     await page.keyboard.press("ArrowUp");
     await page.keyboard.type("7");
     await expect(level).toHaveValue("2147483648");
-    await compareLayouts(page, referencePage, info);
+    await compareLayouts(page, info);
     expect(await readFile(savePath)).toEqual(original);
     for (const mode of ["subset", "changed"] as const) {
       rewriteSave(savePath, mode);
       const source = await readFile(savePath);
-      // The direct read is fresh even while the workspace retains its original projection.
-      expect(await native(page, "run_get", { saveId: E2E_SAVE_ID })).toEqual(
-        await referencePage.evaluate((id) => window.repoditor.run.get(id), E2E_SAVE_ID),
-      );
-      for (const target of [page, referencePage]) {
-        await target.getByRole("button", { name: "Change save" }).click();
-        await openRun(target, target === referencePage);
-      }
-      const data = await compareRun(page, referencePage);
+      const fresh = await native<DesktopOperationResult<RunStateDto>>(page, "run_get", {
+        saveId: E2E_SAVE_ID,
+      });
+      expect(fresh).toMatchObject({
+        ok: true,
+        data: {
+          stats: expect.arrayContaining([
+            {
+              key: "currency",
+              label: "Currency",
+              value: mode === "subset" ? -9007199254740991 : 37,
+            },
+          ]),
+        },
+      });
+      await page.getByRole("button", { name: "Change save" }).click();
+      await openRun(page);
+      const data = await compareRun(page);
       expect(data.stats.map((stat) => stat.value)).toEqual(
         mode === "subset" ? [2147483648, -9007199254740991] : [1, 37, -3, 0],
       );
@@ -180,23 +166,13 @@ test("packaged Run preserves signed values, subsets and resume semantics against
     await rename(savePath, `${savePath}.hidden`);
     const missing = await native(page, "run_get", { saveId: E2E_SAVE_ID });
     expect(missing).toMatchObject({ ok: false, error: { code: "save_missing" } });
-    expect(missing).toEqual(
-      await referencePage.evaluate((id) => window.repoditor.run.get(id), E2E_SAVE_ID),
-    );
     await rename(`${savePath}.hidden`, savePath);
     await writeFile(savePath, "bad");
     const corrupt = await native(page, "run_get", { saveId: E2E_SAVE_ID });
     expect(corrupt).toMatchObject({ ok: false, error: { code: "save_corrupt" } });
-    expect(corrupt).toEqual(
-      await referencePage.evaluate((id) => window.repoditor.run.get(id), E2E_SAVE_ID),
-    );
     expect(await readFile(savePath, "utf8")).toBe("bad");
   } finally {
-    try {
-      if (preview) await close(preview.child, preview.browser);
-    } finally {
-      await reference.close();
-    }
+    if (preview) await close(preview.child, preview.browser);
   }
 });
 

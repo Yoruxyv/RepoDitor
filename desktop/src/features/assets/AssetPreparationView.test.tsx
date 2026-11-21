@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AssetPreparationState } from "@electron/contracts";
+import type { AssetPreparationState } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { AssetPreparationNotice, AssetPreparationView } from "./AssetPreparationView";
 

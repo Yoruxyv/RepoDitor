@@ -84,7 +84,7 @@ body:
       label: Expected impact
       options:
         - label: Changes save-writing behavior
-        - label: Changes the renderer/Electron/Python contract
+        - label: Changes the renderer/Tauri/Python contract
         - label: Adds network access
         - label: Changes installer or uninstall behavior
         - label: Requires new dependencies

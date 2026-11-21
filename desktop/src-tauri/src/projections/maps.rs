@@ -42,7 +42,7 @@ impl InstalledMaps {
 }
 
 fn nonblank(value: &str) -> bool {
-    // Match Electron's ECMAScript trim, including BOM but excluding NEXT LINE.
+    // Match ECMAScript trim, including BOM but excluding NEXT LINE.
     !value
         .trim_matches(|c: char| (c.is_whitespace() && c != '\u{0085}') || c == '\u{feff}')
         .is_empty()

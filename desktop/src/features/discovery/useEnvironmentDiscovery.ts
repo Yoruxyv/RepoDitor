@@ -1,13 +1,16 @@
 /**
  * Owns renderer lifetime for local environment discovery and explicit refresh.
  *
- * The hook prevents stale responses from replacing newer state; Python/Electron own
+ * The hook prevents stale responses from replacing newer state; Python and Tauri own
  * path trust and discovery semantics.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { DesktopOperationError, EnvironmentDiscovery } from "@electron/contracts";
-import { detectEnvironment } from "./discoveryApi";
+import type {
+  DesktopOperationError,
+  DesktopOperationResult,
+  EnvironmentDiscovery,
+} from "@/app/desktopContracts";
 
 interface DiscoveryState {
   data: EnvironmentDiscovery | null;
@@ -35,7 +38,7 @@ const INITIAL_STATE: DiscoveryState = {
 export function useEnvironmentDiscovery(
   active: boolean,
   refreshGeneration: number,
-  detect = detectEnvironment,
+  detect: () => Promise<DesktopOperationResult<EnvironmentDiscovery>>,
 ): EnvironmentDiscoveryController {
   const [state, setState] = useState<DiscoveryState>(INITIAL_STATE);
   const mounted = useRef(false);

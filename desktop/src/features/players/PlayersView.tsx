@@ -2,7 +2,7 @@
 import { ArrowClockwiseIcon, HeartIcon, UserIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import type { PlayerDto } from "@electron/contracts";
+import type { PlayerDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";

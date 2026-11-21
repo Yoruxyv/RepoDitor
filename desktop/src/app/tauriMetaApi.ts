@@ -1,6 +1,6 @@
 /** Fixed MetaSave endpoints; authority is separate from Run-save sessions. */
 import { invoke } from "@tauri-apps/api/core";
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 
 export type MetaAction =
   | { action: "unlockIds"; admission: string; ids: number[] }

@@ -46,102 +46,33 @@ def test_private_catalog_checks_cached_bytes_against_reviewed_digest(tmp_path, m
     cache = SimpleNamespace(editor_frame=lambda *_: frame, publish_editor_frame=publish)
     monkeypatch.setattr(meta_admission, "native_artwork_cache", lambda *_, **__: nullcontext(cache))
     monkeypatch.setattr(
-        meta_admission, "read_installed_catalog", lambda root: (catalog, decodes.append(root))
+        meta_admission, "read_installed_catalog", lambda root, **_: (catalog, decodes.append(root))
     )
     try:
-        assert meta_admission._read_private_catalog(tmp_path, digest, True) == catalog
+        assert meta_admission._read_qualified_catalog(tmp_path, digest, True) == catalog
         assert decodes == [tmp_path]
         assert frame == payload
-        meta_admission._read_private_catalog.cache_clear()
-        assert meta_admission._read_private_catalog(tmp_path, digest, True) == catalog
+        meta_admission._read_qualified_catalog.cache_clear()
+        assert meta_admission._read_qualified_catalog(tmp_path, digest, True) == catalog
         assert decodes == [tmp_path]
     finally:
-        meta_admission._read_private_catalog.cache_clear()
+        meta_admission._read_qualified_catalog.cache_clear()
 
 
 def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
     def unexpected():
         raise AssertionError("An unqualified build must not reach the save namespace")
 
+    def unqualified():
+        raise admission.RecoveryError("save_unsupported")
+
+    monkeypatch.setattr(admission, "_installed_game", unqualified)
     monkeypatch.setattr(admission, "get_default_save_root", unexpected)
     assert admission.production_health("state", SAVE) == {"ok": True, "state": "disabled"}
     assert (
         admission.production_health("write", SAVE, OPERATION)["transaction"]["reason"]
         == "save_unsupported"
     )
-
-
-@pytest.mark.parametrize(
-    ("change", "expected"),
-    [
-        ("unchanged", {"health"}),
-        ("manifest-only", set()),
-        ("managed-source", set()),
-        ("presentation-only", {"health"}),
-        ("run-only", {"run"}),
-    ],
-)
-def test_write_admission_requires_the_reviewed_build_sources_and_domain(
-    tmp_path, monkeypatch, change, expected
-):
-    steam = tmp_path / "Steam"
-    game = steam / "steamapps/common/REPO"
-    catalog = game / CATALOG_RELATIVE_PATH
-    catalog.parent.mkdir(parents=True)
-    catalog.write_text("{}", encoding="utf-8")
-    manifest = steam / "steamapps" / APP_MANIFEST_NAME
-    build_id = "26732418" if change == "manifest-only" else "26732417"
-    manifest.write_text(
-        f'"appid" "3241660"\n"installdir" "REPO"\n"buildid" "{build_id}"\n',
-        encoding="utf-8",
-    )
-    for name in admission.HEALTH_BUILD_SOURCES:
-        source = game / name
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_bytes(name.encode())
-    pins = tuple(sha256(name.encode()).hexdigest() for name in admission.HEALTH_BUILD_SOURCES)
-    picture = game / "REPO_Data/StreamingAssets/BakedIcons/Items/fixture.png"
-    picture.parent.mkdir(parents=True)
-    picture.write_bytes(b"presentation v1")
-    if change == "presentation-only":
-        picture.write_bytes(b"presentation v2")
-    if change == "managed-source":
-        (game / "REPO_Data/Managed/Assembly-CSharp.dll").write_bytes(b"changed writer code")
-
-    monkeypatch.delenv("REPODITOR_E2E", raising=False)
-    monkeypatch.setattr(admission, "platform", "win32")
-    monkeypatch.setattr(
-        admission,
-        "discover_game_installation",
-        lambda: discover_game_installation(steam_roots=(steam,), environment={}),
-    )
-    monkeypatch.setattr(
-        admission, "APPROVED_HEALTH_BUILDS", {} if change == "run-only" else {"26732417": pins}
-    )
-    monkeypatch.setattr(
-        admission,
-        "APPROVED_RUN_BUILDS",
-        {"26732417": (pins, frozenset({"run"}))} if change == "run-only" else {},
-    )
-    installed, build = admission._installed_game()
-    assert build.build_id == build_id
-    assert (admission._source_pins(installed, build) == pins) == (change != "managed-source")
-
-    if not expected:
-        with pytest.raises(admission.RecoveryError) as denied:
-            admission._game()
-        assert denied.value.code == "save_unsupported"
-        return
-
-    _, _, domains = admission._game()
-    assert domains == expected
-    health = {"health": [{"playerId": "111", "before": 80, "value": 79}]}
-    run = {"run": [{"field": "currency", "before": 12, "value": 13}]}
-    allowed, blocked = (health, run) if "health" in expected else (run, health)
-    assert admission._admit_request(allowed, "a" * 64, domains, None) in expected
-    with pytest.raises(admission.RecoveryError) as denied:
-        admission._admit_request(blocked, "a" * 64, domains, None)
-    assert denied.value.code == "save_unsupported"
 
 
 @pytest.mark.parametrize(
@@ -160,8 +91,9 @@ def test_write_admission_requires_the_reviewed_build_sources_and_domain(
         ("incomplete-evidence", False, False, False),
     ],
 )
-def test_private_write_admission_reuses_only_the_reviewed_domain_evidence(
-    tmp_path, monkeypatch, change, run_and_players, recharge, cosmetics
+@pytest.mark.parametrize("public", [False, True])
+def test_write_admission_reuses_only_the_reviewed_domain_evidence(
+    tmp_path, monkeypatch, change, run_and_players, recharge, cosmetics, public
 ):
     steam = tmp_path / "Steam"
     game = steam / "steamapps/common/REPO"
@@ -204,10 +136,8 @@ def test_private_write_admission_reuses_only_the_reviewed_domain_evidence(
         return sha256(name.encode()).hexdigest()
 
     format_pins = tuple(map(pin, admission.SAVE_FORMAT_SOURCES))
-    if change == "legacy-approval":
-        format_pins = ()
-    if change == "incomplete-evidence":
-        format_pins = format_pins[:-1]
+    pin_count = {"legacy-approval": 0, "incomplete-evidence": -1}.get(change, len(format_pins))
+    format_pins = format_pins[:pin_count]
     reviewed = "Item Melee Inflatable Hammer"
     bundle = Bundle(
         tmp_path,
@@ -228,14 +158,42 @@ def test_private_write_admission_reuses_only_the_reviewed_domain_evidence(
         "discover_game_installation",
         lambda: discover_game_installation(steam_roots=(steam,), environment={}),
     )
-    monkeypatch.setattr(meta_admission, "private_bundle", lambda: bundle)
+    if public:
+        monkeypatch.setattr(admission, "GAMEPLAY_PINS", bundle.source_pins)
+        monkeypatch.setattr(admission, "SAVE_FORMAT_PINS", format_pins)
+        monkeypatch.setattr(admission, "RECHARGE_SOURCES", bundle.item_sources)
+        monkeypatch.setattr(meta_admission, "GAMEPLAY_PINS", bundle.source_pins)
+        monkeypatch.setattr(meta_admission, "SAVE_FORMAT_PINS", format_pins)
+        monkeypatch.setattr(meta_admission, "COSMETIC_SOURCES", bundle.cosmetic_sources)
+        monkeypatch.setattr(
+            meta_admission, "COSMETIC_CATALOG_DIGEST", bundle.cosmetic_catalog_digest
+        )
+        monkeypatch.setattr(meta_admission, "get_default_save_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            meta_admission, "native_artwork_cache", lambda *_, **__: nullcontext(None)
+        )
+        monkeypatch.setattr(meta_admission, "entry_artwork_revision", lambda _: None)
+    else:
+        monkeypatch.setattr(meta_admission, "private_bundle", lambda: bundle)
+
+    session_bundle = None if public else bundle
+
+    def state(root, _operation, admit):
+        try:
+            proof, _ = admit(root)
+        except admission.RecoveryError:
+            return {"ok": True, "state": "disabled"}
+        return {"ok": True, "state": "enabled", "build": proof["build"]}
+
+    if public:
+        monkeypatch.setattr(meta_admission, "meta_state", state)
     if not run_and_players:
         with pytest.raises(admission.RecoveryError, match="save_unsupported"):
-            admission._authorize_build(bundle, None, SAVE)
+            admission._authorize_build(session_bundle, None, SAVE)
         assert meta_admission.production_meta("state", None) == {"ok": True, "state": "disabled"}
         return
 
-    _, current_build, domains = admission._authorize_build(bundle, None, SAVE)
+    _, current_build, domains = admission._authorize_build(session_bundle, None, SAVE)
     assert current_build == build_id
     assert domains == {"health", "upgrades", "run"} | ({"refillToFull"} if recharge else set())
     assert bundle.reviewed_recharge((reviewed, "Item Unknown")) == {
@@ -246,11 +204,21 @@ def test_private_write_admission_reuses_only_the_reviewed_domain_evidence(
 
     reads = []
 
-    def read_catalog(root):
+    def read_catalog(root, *, native):
+        assert native
         reads.append(root)
         return (), ()
 
     monkeypatch.setattr(meta_admission, "read_installed_catalog", read_catalog)
+    if public:
+        result = meta_admission.production_meta("state", None)
+        assert result["state"] == ("enabled" if cosmetics else "disabled")
+        if cosmetics:
+            assert result["build"] == build_id
+            (game / cosmetics_source).write_bytes(b"changed after decoding")
+            assert meta_admission.production_meta("state", None)["state"] == "disabled"
+        assert reads == ([game] if cosmetics else [])
+        return
     if not cosmetics:
         with pytest.raises(admission.RecoveryError, match="save_unsupported"):
             meta_admission.verified_private_cosmetics(game, bundle)
@@ -352,8 +320,11 @@ def test_production_transaction_reconciles_from_another_process(
     )
     assembly = game / "REPO_Data/Managed/Assembly-CSharp.dll"
     assembly.parent.mkdir(parents=True)
-    for name in admission.HEALTH_BUILD_SOURCES:
-        (game / name).write_bytes(name.encode("utf-8"))
+    for name in (*admission.HEALTH_BUILD_SOURCES, *admission.SAVE_FORMAT_SOURCES):
+        source = game / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(name.encode())
+    (game / "REPO_Data/resources.assets").write_bytes(b"reviewed recharge")
     worker = """
 import json, sys
 from functools import partial
@@ -366,13 +337,16 @@ from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.processes import ProcessInspection
 root, steam, game = map(Path, sys.argv[1:4])
 health.platform = "win32"
-health.APPROVED_HEALTH_BUILDS = {"901": tuple(sha256(name.encode()).hexdigest() for name in health.HEALTH_BUILD_SOURCES)}
-health.APPROVED_RUN_BUILDS = {"901": (health.APPROVED_HEALTH_BUILDS["901"], frozenset({"upgrades", "run", "refillToFull"}))}
+pin = lambda name: sha256(name.encode()).hexdigest()
+health.GAMEPLAY_PINS = tuple(map(pin, health.HEALTH_BUILD_SOURCES))
+health.SAVE_FORMAT_PINS = tuple(map(pin, health.SAVE_FORMAT_SOURCES))
+health.RECHARGE_SOURCES = (("REPO_Data/resources.assets", pin("reviewed recharge")),)
 capabilities = lambda names: {name: ItemRechargeCapability.RECHARGEABLE for name in names}
-health.discover_installed_recharge_capabilities = capabilities
+health.RECHARGE_IDENTITIES = frozenset({"Item Melee Inflatable Hammer"})
 transactions.serialize_advanced_save = partial(transactions.serialize_advanced_save, capability_loader=capabilities)
 if sys.argv[4] == "health-only":
-    health.APPROVED_RUN_BUILDS = {}
+    health.APPROVED_RUN_DOMAINS = frozenset({"health"})
+    health.RECHARGE_SOURCES = ()
 health.discover_game_installation = lambda: discover_game_installation(steam_roots=(steam,), environment={})
 health.get_default_save_root = lambda: root
 health.inspect_windows_processes = lambda executable: ProcessInspection(

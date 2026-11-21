@@ -1,7 +1,7 @@
 /** Composes discovery status, latest save, and recent-save entry actions. */
 import { ArrowClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
-import type { EnvironmentDiscovery } from "@electron/contracts";
+import type { EnvironmentDiscovery } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type Translate } from "@/app/i18n";
 import { formatSaveCount } from "@/features/discovery/formatters";

@@ -21,8 +21,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@electron/*": ["./electron/*.cts"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"]

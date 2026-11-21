@@ -12,7 +12,7 @@ import type {
   RunStatChange,
   SaveChange,
   UpgradeValueChange,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 
 interface PendingDetails {
   before: number;

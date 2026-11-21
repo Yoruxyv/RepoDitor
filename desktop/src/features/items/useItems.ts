@@ -5,9 +5,8 @@ import type {
   AdvancedItemDto,
   AdvancedSaveDto,
   DesktopOperationResult,
-  RepoDitorApi,
   SaveCanonicalAdvanced,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";
@@ -19,9 +18,6 @@ interface State {
 }
 
 const INITIAL_STATE: State = { advanced: null, error: null, loading: true };
-
-const getDesktopItems: RepoDitorApi["advanced"]["get"] = (saveId) =>
-  window.repoditor.advanced.get(saveId);
 
 function initialState(result: DesktopOperationResult<AdvancedSaveDto> | null): State {
   if (result === null) return INITIAL_STATE;
@@ -57,7 +53,7 @@ export function useItems(
     saveId: string,
     fingerprint?: string,
     background?: boolean,
-  ) => ReturnType<RepoDitorApi["advanced"]["get"]> = getDesktopItems,
+  ) => Promise<DesktopOperationResult<AdvancedSaveDto>>,
   loadInitially = true,
 ) {
   const { t } = usePreferences();

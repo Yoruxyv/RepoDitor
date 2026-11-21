@@ -2,10 +2,10 @@ import type {
   DesktopOperationError,
   DesktopOperationResult,
   SaveOpenResult,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import {
   tauriReadApi,
-  type NativeInstalledMaps,
+  type NativeEditorEntry,
   type NativeSaveOpenResult,
 } from "@/app/tauriReadApi";
 import {
@@ -17,14 +17,12 @@ import {
   type EntryArtworkResults,
 } from "@/app/tauriArtwork";
 import { prefetchInitialAvatar, type AvatarPrefetch } from "@/features/players/usePlayerAvatars";
-import type { RunEntryData, RunEntryTask } from "./runEntryPreparation";
 
-type EntryProjections = Pick<RunEntryData, RunEntryTask>;
 export type TauriEntryProgress = {
   stage: "data" | "artwork" | "verifying";
   artwork?: EntryArtworkProgress;
 };
-export type TauriEntrySnapshot = EntryProjections & {
+export type TauriEntrySnapshot = NativeEditorEntry & {
   readonly artwork: EntryArtworkResults;
   readonly artworkRevision: string | undefined;
   readonly avatarPrefetch?: AvatarPrefetch;
@@ -47,9 +45,7 @@ function prepareArtworkPlan({
   upgrades,
   items,
   maps,
-}: Pick<RunEntryData, "upgrades" | "items"> & {
-  maps: DesktopOperationResult<NativeInstalledMaps>;
-}) {
+}: Pick<NativeEditorEntry, "upgrades" | "items" | "maps">) {
   // Keep the first instance of each name, in the initial Items list order.
   const groups = new Map<string, string | null>();
   if (items.ok) {

@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 pub const MAX_IMAGES: usize = 16;
 pub const MAX_PNG: usize = 1024 * 1024;
-const MAX_COSMETIC_BATCH: usize = 64;
+const MAX_COSMETIC_BATCH: usize = 112;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
@@ -590,6 +590,7 @@ impl ArtworkBatch {
             .ok_or(BackendError::Invalid)?;
         // Re-encoding a validated PNG can grow it. Keep the renderer frame bounded too.
         let frame_limit = match self.scope {
+            Scope::Cosmetic => super::process::COSMETIC_BATCH_STDOUT_LIMIT,
             Scope::Item | Scope::Map => super::process::LARGE_ARTWORK_BATCH_STDOUT_LIMIT,
             _ => super::process::STDOUT_LIMIT,
         };

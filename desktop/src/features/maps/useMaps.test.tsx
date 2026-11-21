@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { DesktopOperationResult, InstalledMapsDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
-import { createRepoDitorApi, maps } from "@/test/repoditorApiFixture";
+import { maps } from "@/test/repoditorApiFixture";
 import { useMaps } from "./useMaps";
 
 describe("useMaps", () => {
@@ -50,20 +51,19 @@ describe("useMaps", () => {
   });
 
   it("preserves usable data on refresh failure and ignores superseded requests", async () => {
-    const api = createRepoDitorApi(vi.fn());
-    Object.defineProperty(window, "repoditor", { configurable: true, value: api });
-    const { result } = renderHook(() => useMaps({ ok: true, data: maps }), {
+    const list = vi.fn<() => Promise<DesktopOperationResult<InstalledMapsDto>>>();
+    const { result } = renderHook(() => useMaps({ ok: true, data: maps }, list), {
       wrapper: PreferencesProvider,
     });
-    vi.mocked(api.maps.list).mockRejectedValueOnce(new Error("unavailable"));
+    vi.mocked(list).mockRejectedValueOnce(new Error("unavailable"));
     await act(async () => {
       await result.current.reload();
     });
     expect(result.current.discovery).toEqual(maps);
     expect(result.current.error).not.toBeNull();
     expect(result.current.artworkAttempt).toBe(0);
-    let finish!: (value: Awaited<ReturnType<typeof api.maps.list>>) => void;
-    vi.mocked(api.maps.list).mockImplementationOnce(
+    let finish!: (value: Awaited<ReturnType<typeof list>>) => void;
+    vi.mocked(list).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -73,7 +73,7 @@ describe("useMaps", () => {
     act(() => {
       pending = result.current.reload();
     });
-    vi.mocked(api.maps.list).mockResolvedValueOnce({ ok: true, data: { ...maps, maps: [] } });
+    vi.mocked(list).mockResolvedValueOnce({ ok: true, data: { ...maps, maps: [] } });
     await act(async () => {
       await result.current.reload();
     });

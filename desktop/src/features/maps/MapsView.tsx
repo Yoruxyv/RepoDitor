@@ -1,7 +1,7 @@
 /** Read-only installed map presentation; no selection or game-control behavior. */
 import { ArrowClockwiseIcon, MapTrifoldIcon } from "@phosphor-icons/react";
 
-import type { InstalledMapsDto } from "@electron/contracts";
+import type { InstalledMapsDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { GameIcon } from "@/components/GameIcon";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";

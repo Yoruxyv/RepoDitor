@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AdvancedSaveDto } from "@electron/contracts";
+import type { AdvancedSaveDto } from "@/app/desktopContracts";
 import { renderWithPreferences } from "@/test/render";
 import { ItemsView } from "./ItemsView";
 
@@ -229,7 +229,7 @@ describe("ItemsView", () => {
     expect(refill).toHaveBeenCalledWith(advanced.items[0]);
   });
 
-  it("shows a local item thumbnail without changing item identity", () => {
+  it("rejects an unregistered item thumbnail without changing item identity", () => {
     renderWithPreferences(
       <ItemsView
         {...handlers}
@@ -243,10 +243,8 @@ describe("ItemsView", () => {
     );
 
     const icon = screen.getByTestId("item-icon-Item Melee Inflatable Hammer/1");
-    expect(icon.getAttribute("data-icon-source")).toBe("local");
-    expect(icon.querySelector("img")?.getAttribute("src")).toBe(
-      "repoditor-icon://local/item-token",
-    );
+    expect(icon.getAttribute("data-icon-source")).not.toBe("local");
+    expect(icon.querySelector("img")).toBeNull();
     expect(screen.getByRole("heading", { name: "Melee Inflatable Hammer" })).toBeTruthy();
   });
 

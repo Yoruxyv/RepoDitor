@@ -7,7 +7,7 @@
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
-import type { AdvancedItemDto } from "@electron/contracts";
+import type { AdvancedItemDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import type { Translate } from "@/app/i18n";
 import { GameIcon } from "@/components/GameIcon";

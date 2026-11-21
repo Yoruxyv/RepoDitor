@@ -2,7 +2,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { PlayerDto } from "@electron/contracts";
+import type { PlayerDto } from "@/app/desktopContracts";
 import { renderWithPreferences } from "@/test/render";
 import { PlayersView } from "./PlayersView";
 

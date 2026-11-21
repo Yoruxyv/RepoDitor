@@ -19,6 +19,7 @@ use windows_sys::Win32::System::JobObjects::*;
 use windows_sys::Win32::System::Threading::{BELOW_NORMAL_PRIORITY_CLASS, CREATE_NO_WINDOW};
 
 pub(crate) const STDOUT_LIMIT: usize = 2 * 1024 * 1024;
+pub(crate) const COSMETIC_BATCH_STDOUT_LIMIT: usize = 4 * 1024 * 1024;
 pub(crate) const LARGE_ARTWORK_BATCH_STDOUT_LIMIT: usize = 8 * 1024 * 1024;
 const PUBLICATION_READY: &[u8] = b"REPODITOR_READY_TO_PUBLISH\n";
 
@@ -135,6 +136,7 @@ pub fn run(
     let mut output = Vec::new();
     let mut counts = [0usize; 2];
     let stdout_limit = match args.first().copied() {
+        Some("native-cosmetic-artwork-batch") => COSMETIC_BATCH_STDOUT_LIMIT,
         Some("map-artwork-batch" | "item-artwork-batch") => LARGE_ARTWORK_BATCH_STDOUT_LIMIT,
         Some("editor-entry") => 5 * STDOUT_LIMIT + 4096,
         _ => STDOUT_LIMIT,

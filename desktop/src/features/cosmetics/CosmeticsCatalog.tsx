@@ -7,7 +7,7 @@
 import { MagnifyingGlassIcon, TShirtIcon, XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
-import type { CosmeticDto, CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticDto, CosmeticsViewDto } from "@/app/desktopContracts";
 
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";

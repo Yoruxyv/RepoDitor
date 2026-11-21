@@ -1,9 +1,8 @@
 /** Selected-player-only optional lookups with bounded reuse and retries. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RepoDitorApi } from "@electron/contracts";
-import { cachedAvatar, forgetAvatar, rememberAvatar } from "./avatarCache";
+import type { DesktopOperationResult, PlayerDto } from "@/app/desktopContracts";
+import { cachedAvatar, forgetAvatar, rememberAvatar, type AvatarLoader } from "./avatarCache";
 
-type AvatarLoader = RepoDitorApi["players"]["avatar"];
 const AVATAR_RETRY_MS = 60_000;
 const steamCooldown = new WeakMap<AvatarLoader, number>();
 
@@ -25,8 +24,8 @@ export interface AvatarPrefetch {
 /** Start only the first selected player's optional lookup, without owning retry state. */
 export function prefetchInitialAvatar(
   saveId: string,
-  players: Awaited<ReturnType<RepoDitorApi["players"]["list"]>>,
-  fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
+  players: DesktopOperationResult<PlayerDto[]>,
+  fetchAvatar: AvatarLoader,
 ): AvatarPrefetch | undefined {
   const playerId = players.ok ? players.data[0]?.id : undefined;
   if (
@@ -90,7 +89,7 @@ interface AvatarSession {
 export function usePlayerAvatars(
   saveId: string,
   selectedPlayerId: string | null,
-  fetchAvatar: AvatarLoader = window.repoditor.players.avatar,
+  fetchAvatar: AvatarLoader,
   prefetch?: AvatarPrefetch,
 ) {
   const session = useRef<AvatarSession | null>(null);

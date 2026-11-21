@@ -1,10 +1,26 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import type { PlayerDto, PlayerUpgradeDto } from "@/app/desktopContracts";
 import { renderWithPreferences } from "@/test/render";
 import { UpgradesView } from "./UpgradesView";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+const healthIconToken = `upgrade-artwork:${"a".repeat(32)}`;
+beforeEach(() => {
+  vi.mocked(invoke)
+    .mockReset()
+    .mockResolvedValue({
+      ok: true,
+      data: {
+        token: healthIconToken,
+        revision: "a".repeat(64),
+        dataUrl: "data:image/png;base64,AAAA",
+      },
+    });
+});
 
 const player: PlayerDto = { id: "1", name: "Alpha", health: 100, maxHealth: 100 };
 const secondPlayer: PlayerDto = { id: "2", name: "Beta User", health: 80, maxHealth: 100 };
@@ -14,7 +30,7 @@ const upgrades: PlayerUpgradeDto[] = [
     label: "Health",
     presentationSource: "installed",
     gameplayCap: 10,
-    iconToken: "health-token",
+    iconToken: healthIconToken,
     values: [{ playerId: "1", value: 2 }],
   },
   {
@@ -111,7 +127,11 @@ describe("UpgradesView", () => {
       />,
     );
 
-    expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe("local");
+    await waitFor(() =>
+      expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe(
+        "local",
+      ),
+    );
     fireEvent.load(screen.getByTestId("upgrade-icon-playerUpgradeHealth").querySelector("img")!);
     expect(screen.getByTestId("upgrade-icon-playerUpgradeSuperMegaJump").dataset.iconSource).toBe(
       "fallback",

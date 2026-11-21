@@ -2,7 +2,7 @@
  * Enforces RepoDitor's renderer import-boundary policy with TypeScript resolution.
  *
  * The script rewrites only resolvable renderer parent imports to configured aliases;
- * it preserves same-directory imports and never applies renderer aliases to Electron.
+ * it preserves same-directory imports and leaves external packages intact.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,6 @@ import ts from "typescript";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(scriptDirectory, "../..");
 const srcRoot = path.join(desktopRoot, "src");
-const electronRoot = path.join(desktopRoot, "electron");
 const tsconfigPath = path.join(desktopRoot, "tsconfig.app.json");
 
 const flags = new Set(process.argv.slice(2));
@@ -81,7 +80,6 @@ const ignoredDirectoryNames = new Set([
   ".vite-cache",
   "coverage",
   "dist",
-  "dist-electron",
   "node_modules",
   "playwright-report",
   "test-results",
@@ -197,10 +195,6 @@ function resolveModulePath(specifier, containingFile) {
     return resolveCandidate(path.join(srcRoot, specifier.slice(2)));
   }
 
-  if (specifier.startsWith("@electron/")) {
-    return resolveCandidate(path.join(electronRoot, specifier.slice(10)));
-  }
-
   if (specifier.startsWith(".")) {
     return resolveCandidate(path.resolve(path.dirname(containingFile), specifier));
   }
@@ -244,12 +238,6 @@ function buildAliasSpecifier(resolvedFilePath) {
   return `@/${relativePath}`;
 }
 
-function buildElectronAliasSpecifier(resolvedFilePath) {
-  const relativePath = toPosix(path.relative(electronRoot, moduleStem(resolvedFilePath)));
-
-  return `@electron/${relativePath}`;
-}
-
 function buildRelativeSpecifier(containingFile, resolvedFilePath) {
   let relativePath = toPosix(
     path.relative(path.dirname(containingFile), moduleStem(resolvedFilePath)),
@@ -278,12 +266,6 @@ function leadingParentCount(specifier) {
 function preferredSpecifier(containingFile, resolvedFilePath) {
   if (!isInside(srcRoot, containingFile)) {
     return null;
-  }
-
-  // Renderer access to the shared Electron contract boundary never uses deep
-  // relative traversal. Electron's own imports remain outside this scan.
-  if (isInside(electronRoot, resolvedFilePath)) {
-    return buildElectronAliasSpecifier(resolvedFilePath);
   }
 
   if (!isInside(srcRoot, resolvedFilePath)) {
@@ -361,16 +343,12 @@ for (const filePath of files) {
   for (const moduleNode of collectModuleSpecifierNodes(sourceFile)) {
     const originalSpecifier = moduleNode.text;
 
-    if (
-      !originalSpecifier.startsWith(".") &&
-      !originalSpecifier.startsWith("@/") &&
-      !originalSpecifier.startsWith("@electron/")
-    ) {
+    if (!originalSpecifier.startsWith(".") && !originalSpecifier.startsWith("@/")) {
       continue;
     }
 
     // Alias normalization is monotonic: a valid renderer alias stays an alias.
-    if (originalSpecifier.startsWith("@/") || originalSpecifier.startsWith("@electron/")) {
+    if (originalSpecifier.startsWith("@/")) {
       continue;
     }
 

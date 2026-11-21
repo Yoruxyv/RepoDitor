@@ -1,7 +1,7 @@
 /** Items section shell that presents support state and delegates exact instances. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 
-import type { AdvancedItemDto, AdvancedSaveDto } from "@electron/contracts";
+import type { AdvancedItemDto, AdvancedSaveDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
 import type { AdvancedRefillEdit } from "@/features/pending-changes/pendingEdits";

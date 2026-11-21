@@ -13,12 +13,4 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: packagedExecutable
-    ? undefined
-    : {
-        command: "npm run dev:renderer -- --host 127.0.0.1",
-        url: "http://127.0.0.1:5173",
-        reuseExistingServer: false,
-        timeout: 30_000,
-      },
 });

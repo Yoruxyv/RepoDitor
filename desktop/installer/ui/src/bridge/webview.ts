@@ -36,6 +36,7 @@ interface InitializeMessage {
   readonly scope: InstallerScope;
   readonly scopeLocked: boolean;
   readonly showScope: boolean;
+  readonly stageProgress: boolean;
   readonly path: string;
 }
 
@@ -103,6 +104,7 @@ function parseInitialize(value: Record<string, unknown>): InitializeMessage | nu
     scope: value.scope,
     scopeLocked: value.scopeLocked,
     showScope: value.showScope,
+    stageProgress: value.stageProgress === true,
     path: value.path,
   };
 }

@@ -18,6 +18,7 @@ interface InstallerView {
   readonly scope: InstallerScope;
   readonly scopeLocked: boolean;
   readonly showScope: boolean;
+  readonly stageProgress: boolean;
   readonly path: string;
   readonly phase: InstallerState;
   readonly message: string;
@@ -34,6 +35,7 @@ const initialView: InstallerView = {
   scope: "current",
   scopeLocked: false,
   showScope: true,
+  stageProgress: false,
   path: "Preparing installation…",
   phase: "ready",
   message: "",
@@ -53,6 +55,7 @@ function applyMessage(view: InstallerView, message: InstallerMessage): Installer
       scope: message.scope,
       scopeLocked: message.scopeLocked,
       showScope: message.showScope,
+      stageProgress: message.stageProgress,
       path: message.path || view.path,
       phase: "ready",
       message: "",
@@ -177,6 +180,7 @@ export function InstallerApp() {
         mode={view.mode}
         stage={view.phase}
         percentage={view.percentage}
+        determinate={!view.stageProgress}
         attempt={view.extractionAttempt}
       />
     );

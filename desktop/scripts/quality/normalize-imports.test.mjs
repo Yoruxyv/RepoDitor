@@ -11,7 +11,6 @@ const sourceRoot = path.join(desktopRoot, "src");
 const featureOne = path.join(sourceRoot, "features", "__normalize_imports_one");
 const featureTwo = path.join(sourceRoot, "features", "__normalize_imports_two");
 const sharedTarget = path.join(sourceRoot, "shared", "__normalize_imports_target.ts");
-const electronTarget = path.join(desktopRoot, "electron", "__normalize_imports_test__.cts");
 const sourcePath = path.join(featureOne, "nested", "source.ts");
 
 function runNormalizer(...arguments_) {
@@ -25,7 +24,6 @@ const fixture = (includeMissing) => `
 import { shared } from "../../../shared/__normalize_imports_target";
 export { nearby } from "../target";
 export { nearby as aliased } from "@/features/__normalize_imports_one/target";
-export { outside } from "../../../../electron/__normalize_imports_test__.cts";
 const loadCrossFeature = () => import("../../__normalize_imports_two/target");
 ${includeMissing ? 'import "./missing";' : ""}
 void shared;
@@ -36,7 +34,6 @@ test("normalizes renderer imports monotonically and idempotently", async () => {
   await rm(featureOne, { recursive: true, force: true });
   await rm(featureTwo, { recursive: true, force: true });
   await rm(sharedTarget, { force: true });
-  await rm(electronTarget, { force: true });
 
   try {
     await mkdir(path.dirname(sourcePath), { recursive: true });
@@ -45,7 +42,6 @@ test("normalizes renderer imports monotonically and idempotently", async () => {
     await writeFile(path.join(featureOne, "target.ts"), "export const nearby = true;\n");
     await writeFile(path.join(featureTwo, "target.ts"), "export const cross = true;\n");
     await writeFile(sharedTarget, "export const shared = true;\n");
-    await writeFile(electronTarget, "export const outside = true;\n");
     await writeFile(sourcePath, fixture(true));
 
     const strictFailure = runNormalizer("--check", "--strict");
@@ -62,7 +58,6 @@ test("normalizes renderer imports monotonically and idempotently", async () => {
     assert.match(normalized, /from "@\/shared\/__normalize_imports_target"/u);
     assert.match(normalized, /from "@\/features\/__normalize_imports_one\/target"/u);
     assert.match(normalized, /from "@\/features\/__normalize_imports_one\/target"/u);
-    assert.match(normalized, /from "@electron\/__normalize_imports_test__"/u);
     assert.match(normalized, /import\("@\/features\/__normalize_imports_two\/target"\)/u);
 
     const secondFix = runNormalizer("--write", "--strict");
@@ -73,6 +68,5 @@ test("normalizes renderer imports monotonically and idempotently", async () => {
     await rm(featureOne, { recursive: true, force: true });
     await rm(featureTwo, { recursive: true, force: true });
     await rm(sharedTarget, { force: true });
-    await rm(electronTarget, { force: true });
   }
 });

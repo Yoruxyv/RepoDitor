@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopOperationResult, RunStateDto } from "@electron/contracts";
+import type { DesktopOperationResult, RunStateDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { runState, saveId } from "@/test/repoditorApiFixture";
 import { useRunState } from "./useRunState";
@@ -89,7 +89,7 @@ describe("injected Run reads", () => {
     await act(async () => complete({ ok: true, data: runState }));
     expect(result.current.run).toBeNull();
   });
-  it("maps thrown reads to a public error and keeps supplied Electron initial data", async () => {
+  it("maps thrown reads to a public error and keeps supplied initial data", async () => {
     const get = vi.fn().mockRejectedValue(new Error("private"));
     const { result } = renderHook(() => useRunState(saveId, { ok: true, data: runState }, get), {
       wrapper,

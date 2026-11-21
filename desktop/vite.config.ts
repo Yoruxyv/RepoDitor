@@ -12,13 +12,20 @@ const { version } = JSON.parse(
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./",
-  build: { rolldownOptions: { input: fileURLToPath(new URL("./index.html", import.meta.url)) } },
+  build: {
+    outDir: "build/tauri-ui",
+    rolldownOptions: { input: fileURLToPath(new URL("./tauri.html", import.meta.url)) },
+  },
   define: { __APP_VERSION__: JSON.stringify(version) },
-  server: { watch: { ignored: ["**/src-tauri/**", "**/build/**", "**/test-results/**"] } },
+  server: {
+    host: "127.0.0.1",
+    port: 1420,
+    strictPort: true,
+    watch: { ignored: ["**/src-tauri/**", "**/build/**", "**/test-results/**"] },
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@electron": fileURLToPath(new URL("./electron", import.meta.url)),
     },
   },
 });

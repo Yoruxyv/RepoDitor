@@ -4,7 +4,7 @@
  * English defines the compile-time key set; every locale must implement that set.
  * Game-derived names and save values remain opaque data and are never translated here.
  */
-import type { DesktopOperationErrorCode } from "@electron/contracts";
+import type { DesktopOperationErrorCode } from "@/app/desktopContracts";
 import { zhCN } from "@/app/i18n/locales/zh-CN";
 import { en } from "@/app/i18n/locales/en";
 import { id } from "@/app/i18n/locales/id";

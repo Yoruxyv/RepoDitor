@@ -946,6 +946,10 @@ describe("native upgrade drafts", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
       target: { value: "3" },
     });
+    expect(screen.queryByText("Review pending upgrade changes before saving.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revert upgrade drafts" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Review" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Revert all" })).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Players" }));
     const health = await screen.findByRole("spinbutton", { name: "Current health" });
     health.focus();
@@ -961,7 +965,7 @@ describe("native upgrade drafts", () => {
     fireEvent.click(save);
     expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
     await user.click(screen.getByRole("tab", { name: "Upgrades" }));
-    await user.click(screen.getByRole("button", { name: "Revert upgrade drafts" }));
+    await user.click(screen.getByRole("button", { name: /^Revert$/ }));
     await user.click(screen.getByRole("tab", { name: "Players" }));
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() => expect(tauriHealthApi.writeHealthBatch).toHaveBeenCalledTimes(1));
@@ -979,7 +983,7 @@ describe("native upgrade drafts", () => {
     fireEvent.change(input, { target: { value: "2147483648" } });
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByRole("alert").textContent).toContain("2,147,483,647");
-    await user.click(screen.getByRole("button", { name: "Revert upgrade drafts" }));
+    await user.click(screen.getByRole("button", { name: /^Revert$/ }));
     expect((input as HTMLInputElement).value).toBe("2");
     expect(screen.queryByRole("alert")).toBeNull();
     fireEvent.change(input, { target: { value: "2147483647" } });

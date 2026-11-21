@@ -13,7 +13,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@electron": fileURLToPath(new URL("./electron", import.meta.url)),
     },
   },
   test: {
@@ -23,7 +22,6 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: [
       "src/**/*.test.{ts,tsx}",
-      "electron/**/*.test.ts",
       "e2e/support/*.test.ts",
       "installer/ui/src/**/*.test.{ts,tsx}",
     ],

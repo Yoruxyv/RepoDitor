@@ -4,8 +4,6 @@ node_modules/
 coverage/
 build/
 dist/
-dist-electron/
-electron/ipc/known-cosmetics.cts
 release/
 playwright-report/
 test-results/
@@ -16,3 +14,4 @@ python/
 # Package-manager output is generated; docs stay outside the desktop formatter scope.
 package-lock.json
 README.md
+dist-electron/

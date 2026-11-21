@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AppShell } from "@/app/AppShell";
 import { LanguageMenu } from "@/app/LanguageMenu";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
+import { TauriLegacyInstallNotice } from "@/app/TauriLegacyInstallNotice";
 import { ThemeMenu } from "@/app/ThemeMenu";
 import { TauriUpdateNotice } from "@/app/TauriUpdateNotice";
 import { usePreferences } from "@/app/preferences";
@@ -360,6 +361,7 @@ function DiscoveryPreview() {
           onEditingAvailability={setCosmeticsEditing}
         />
       </div>
+      <TauriLegacyInstallNotice suspended={initialCheck || blocked !== null} />
       {blocked !== null ? (
         <GameSafetyDialog
           status={blocked}

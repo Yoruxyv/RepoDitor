@@ -1,6 +1,6 @@
 /**
  * Deterministic paths, synthetic fixture generation, and isolated process environment
- * shared by source and packaged Electron E2E. Overrides redirect every game/app data
+ * shared by packaged Tauri E2E. Overrides redirect every game/app data
  * location into temporary test-owned directories.
  */
 import { execFile, execFileSync } from "node:child_process";
@@ -109,10 +109,8 @@ export function isolatedApplicationEnvironment(
     LOCALAPPDATA: path.join(home, "AppData", "Local"),
     REPODITOR_E2E: "1",
     REPODITOR_E2E_LOCAL_APP_DATA_LOW: localAppDataLow,
-    REPODITOR_E2E_PROJECT_STARS: "321",
     USERPROFILE: home,
   };
   delete environment["REPO_GAME_DIR"];
-  delete environment["VITE_DEV_SERVER_URL"];
   return environment;
 }

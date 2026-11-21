@@ -176,7 +176,7 @@ pub fn parse(bytes: &[u8]) -> Result<Cosmetics, BackendError> {
     {
         return Err(BackendError::Invalid);
     }
-    // Reuse the exact evidence behind Python/Electron's generated policy, never a catalog/range.
+    // Reuse the exact evidence behind the generated Python policy, never a catalog/range.
     let evidence: Value = serde_json::from_str(include_str!(
         "../../../../tools/capabilities/evidence/cosmetics.v2.json"
     ))

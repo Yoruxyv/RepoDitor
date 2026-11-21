@@ -19,6 +19,14 @@ export const ja: Record<keyof typeof en, string> = {
     "新しいバージョンがあります。リリースノートを確認し、更新をダウンロードしてください。",
   "update.viewRelease": "リリースを見る",
   "update.later": "後で",
+  "migration.title": "RepoDitor v0.2.1 がインストールされています",
+  "migration.description":
+    "RepoDitor v0.3.0 に切り替えてください。旧 Electron 版には不具合があるか、最新の R.E.P.O. に対応していない場合があります。v0.3.0 が正常に動作することを確認したら、Windows の設定から v0.2.1 をアンインストールしてください。",
+  "migration.openInstalledApps": "インストールされているアプリを開く",
+  "migration.remindLater": "後で通知する",
+  "migration.dismiss": "今後表示しない",
+  "migration.settingsUnavailable":
+    "Windows の設定で「アプリ」→「インストールされているアプリ」を開いてください。",
   "compatibility.title": "ゲーム互換性による制限",
   "compatibility.dismiss": "通知を閉じる",
   "compatibility.build": "R.E.P.O. ビルド {build}",
@@ -186,8 +194,6 @@ export const ja: Record<keyof typeof en, string> = {
   "upgrades.empty": "このセーブにプレイヤーアップグレードはありません。",
   "upgrades.input": "{player} の {upgrade}",
   "upgrades.error": "アップグレード値は 0 から 2,147,483,647 の整数で入力してください。",
-  "upgrades.reviewDrafts": "保存する前にアップグレードの変更内容を確認してください。",
-  "upgrades.revertDrafts": "アップグレードの下書きを元に戻す",
   "upgrades.saveUnavailable":
     "体力とアップグレードは別々に保存してください。一方の変更を元に戻すか、大きな変更セットを減らしてください。",
   "run.readOnlyDescription": "保存されたランの値と再開場所を表示します。",
@@ -266,6 +272,8 @@ export const ja: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "全消去を保留中",
   "cosmetics.lockAll": "すべてのコスメティックをロック",
   "cosmetics.lockPending": "全ロックを保留中",
+  "cosmetics.saveUnavailable":
+    "コスメティックを編集するための MetaSave を検証できませんでした。更新してから、もう一度お試しください。",
   "cosmetics.lockUnavailable":
     "所有済みコスメティックが装備中またはプリセットで使用中のため、全ロックできません。",
   "cosmetics.context": "コスメティック情報",

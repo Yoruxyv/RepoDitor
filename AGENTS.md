@@ -20,7 +20,6 @@ configuration. Keep combined chains small enough to load without truncation.
 | Domain                                                   | Specialized instructions                                   |
 | -------------------------------------------------------- | ---------------------------------------------------------- |
 | Desktop contracts and validation                         | [desktop/AGENTS.md](desktop/AGENTS.md)                     |
-| Electron IPC, protocols, processes                       | [desktop/electron/AGENTS.md](desktop/electron/AGENTS.md)   |
 | Python save semantics and asset parsing                  | [desktop/python/AGENTS.md](desktop/python/AGENTS.md)       |
 | Desktop React presentation                               | [desktop/src/AGENTS.md](desktop/src/AGENTS.md)             |
 | Source and packaged Desktop E2E                          | [desktop/e2e/AGENTS.md](desktop/e2e/AGENTS.md)             |

@@ -3,11 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   DesktopOperationResult,
-  RepoDitorApi,
   RunStateDto,
   RunStatDto,
   SaveCanonicalRun,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 import type { RunStatEdit } from "@/features/pending-changes/pendingEdits";
@@ -20,8 +19,6 @@ interface State {
 
 const INITIAL_STATE: State = { run: null, error: null, loading: true };
 
-const getDesktopRunState: RepoDitorApi["run"]["get"] = (saveId) => window.repoditor.run.get(saveId);
-
 function initialState(result: DesktopOperationResult<RunStateDto> | null): State {
   if (result === null) return INITIAL_STATE;
   return result.ok
@@ -32,7 +29,7 @@ function initialState(result: DesktopOperationResult<RunStateDto> | null): State
 export function useRunState(
   saveId: string,
   initialResult: DesktopOperationResult<RunStateDto> | null = null,
-  get: RepoDitorApi["run"]["get"] = getDesktopRunState,
+  get: (saveId: string) => Promise<DesktopOperationResult<RunStateDto>>,
   loadInitially = true,
 ) {
   const { t } = usePreferences();

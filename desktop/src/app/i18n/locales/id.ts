@@ -19,6 +19,14 @@ export const id: Record<keyof typeof en, string> = {
   "update.description": "Versi baru tersedia. Lihat catatan rilis dan unduh pembaruan.",
   "update.viewRelease": "Lihat rilis",
   "update.later": "Nanti",
+  "migration.title": "RepoDitor v0.2.1 masih terpasang",
+  "migration.description":
+    "Silakan beralih ke RepoDitor v0.3.0. Versi Electron lama mungkin memiliki bug atau tidak kompatibel dengan versi terbaru R.E.P.O. Setelah memastikan v0.3.0 berfungsi dengan baik, silakan hapus v0.2.1 melalui Pengaturan Windows.",
+  "migration.openInstalledApps": "Buka Aplikasi Terinstal",
+  "migration.remindLater": "Ingatkan Saya Nanti",
+  "migration.dismiss": "Jangan Tampilkan Lagi",
+  "migration.settingsUnavailable":
+    "Buka Pengaturan Windows, lalu pilih Aplikasi → Aplikasi terinstal.",
   "compatibility.title": "Pembatasan kompatibilitas game",
   "compatibility.dismiss": "Tutup pemberitahuan",
   "compatibility.build": "Build R.E.P.O. {build}",
@@ -191,8 +199,6 @@ export const id: Record<keyof typeof en, string> = {
   "upgrades.empty": "Save ini tidak berisi upgrade pemain.",
   "upgrades.input": "{upgrade} untuk {player}",
   "upgrades.error": "Nilai upgrade harus antara 0 dan 2.147.483.647.",
-  "upgrades.reviewDrafts": "Tinjau perubahan upgrade sebelum menyimpan.",
-  "upgrades.revertDrafts": "Batalkan draf upgrade",
   "upgrades.saveUnavailable":
     "Simpan kesehatan dan upgrade secara terpisah. Batalkan salah satu kelompok atau kurangi draf upgrade yang terlalu besar sebelum menyimpan.",
   "run.readOnlyDescription": "Lihat nilai run dan lokasi melanjutkan yang tersimpan.",
@@ -274,6 +280,8 @@ export const id: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "Hapus Semua Preset tertunda",
   "cosmetics.lockAll": "Kunci Semua Kosmetik",
   "cosmetics.lockPending": "Kunci Semua tertunda",
+  "cosmetics.saveUnavailable":
+    "RepoDitor tidak dapat memverifikasi MetaSave ini untuk mengedit kosmetik. Segarkan dan coba lagi.",
   "cosmetics.lockUnavailable":
     "Kunci Semua tidak tersedia saat kosmetik yang dimiliki sedang dipakai atau digunakan oleh preset.",
   "cosmetics.context": "Konteks kosmetik",

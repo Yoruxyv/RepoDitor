@@ -17,6 +17,11 @@ async function createFixture(version = "0.1.1") {
   const root = await mkdtemp(path.join(os.tmpdir(), "repoditor-version-tooling-"));
   await mkdir(path.join(root, "desktop"), { recursive: true });
   await mkdir(path.join(root, "desktop", "python", "repo_save_editor"), { recursive: true });
+  const native = path.join(root, "desktop", "src-tauri");
+  await mkdir(native);
+  await writeFile(path.join(native, "tauri.conf.json"), JSON.stringify({ version }));
+  await writeFile(path.join(native, "Cargo.toml"), `[package]\nname = "repoditor-preview"\nversion = "${version}"\n[dependencies]\nexample = "0.1.1"\n`);
+  await writeFile(path.join(native, "Cargo.lock"), `version = 4\n\n[[package]]\nname = "example"\nversion = "0.1.1"\n\n[[package]]\nname = "repoditor-preview"\nversion = "${version}"\n`);
   await writeFile(
     path.join(root, "desktop", "package.json"),
     `${JSON.stringify({ name: "repoditor-desktop", version }, null, 2)}\n`,
@@ -86,6 +91,9 @@ test("synchronizes every managed source without changing dependency versions", a
       packageJson: "0.1.2",
       packageLock: "0.1.2",
       packageLockRoot: "0.1.2",
+      tauriConfig: "0.1.2",
+      cargoManifest: "0.1.2",
+      cargoLock: "0.1.2",
       pyproject: "0.1.2",
       pythonInit: "0.1.2",
       uvLock: "0.1.2",
@@ -94,29 +102,25 @@ test("synchronizes every managed source without changing dependency versions", a
       await readFile(path.join(root, "desktop", "package-lock.json"), "utf8"),
     );
     assert.equal(packageLock.packages["node_modules/example"].version, "0.1.1");
+    assert.match(await readFile(path.join(root, "desktop", "src-tauri", "Cargo.lock"), "utf8"), /name = "example"\nversion = "0\.1\.1"/u);
   });
 });
 
 test("release check reports each mismatched metadata source", async (context) => {
-  for (const [name, mutate, expected] of [
-    ["pyproject", (text) => text.replace('version = "0.1.1"', 'version = "0.1.2"'), "pyproject"],
-    ["Python __version__", (text) => text.replace('"0.1.1"', '"0.1.2"'), "pythonInit"],
-    [
-      "package lock",
-      (text) => text.replace('"version": "0.1.1"', '"version": "0.1.2"'),
-      "packageLock",
-    ],
+  for (const [filePath, source] of [
+    ["pyproject.toml", "pyproject"],
+    ["desktop/python/repo_save_editor/__init__.py", "pythonInit"],
+    ["desktop/package-lock.json", "packageLock"],
+    ["desktop/src-tauri/tauri.conf.json", "tauriConfig"],
+    ["desktop/src-tauri/Cargo.toml", "cargoManifest"],
+    ["desktop/src-tauri/Cargo.lock", "cargoLock"],
   ]) {
-    await context.test(name, async () => {
+    await context.test(source, async () => {
       await withFixture(async (root) => {
-        const file =
-          name === "pyproject"
-            ? path.join(root, "pyproject.toml")
-            : name === "Python __version__"
-              ? path.join(root, "desktop", "python", "repo_save_editor", "__init__.py")
-              : path.join(root, "desktop", "package-lock.json");
-        await writeFile(file, mutate(await readFile(file, "utf8")));
-        assert.throws(() => assertVersionAlignment(root), new RegExp(expected, "u"));
+        const file = path.join(root, filePath);
+        const content = await readFile(file, "utf8");
+        await writeFile(file, content.replaceAll('"0.1.1"', '"0.1.2"'));
+        assert.throws(() => assertVersionAlignment(root), new RegExp(source, "u"));
       });
     });
   }

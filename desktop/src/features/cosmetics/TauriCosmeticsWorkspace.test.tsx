@@ -1,10 +1,10 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CosmeticsViewDto, DesktopOperationResult } from "@electron/contracts";
+import type { CosmeticsViewDto, DesktopOperationResult } from "@/app/desktopContracts";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { disabledMeta, type MetaState } from "@/app/tauriMetaApi";
-import { cosmetics, createRepoDitorApi } from "@/test/repoditorApiFixture";
+import { cosmetics } from "@/test/repoditorApiFixture";
 import { renderWithPreferences } from "@/test/render";
 import { TauriCosmeticsWorkspace } from "./TauriCosmeticsWorkspace";
 
@@ -40,7 +40,6 @@ function withArtwork(versions: string[], fingerprint = "a") {
 
 describe("native Cosmetics composition", () => {
   beforeEach(() => {
-    window.repoditor = createRepoDitorApi(vi.fn());
     vi.mocked(invoke)
       .mockReset()
       .mockImplementation(async (command) =>
@@ -49,6 +48,31 @@ describe("native Cosmetics composition", () => {
     vi.mocked(tauriReadApi.cosmetics.get)
       .mockReset()
       .mockResolvedValue({ ok: true, data: cosmetics });
+  });
+
+  it("reports missing Cosmetics admission without a Health warning", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "test_meta_state") return disabledMeta();
+      if (command === "production_meta_state")
+        return { ...disabledMeta(), state: "idle", view: cosmetics };
+    });
+    renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+    expect(
+      await screen.findByText(/could not verify this MetaSave for Cosmetics editing/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Health batch/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Unlock Installed Cosmetic 28" })).toBeNull();
+  });
+
+  it("keeps an actual MetaSave recovery conflict visible", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "test_meta_state") return disabledMeta();
+      if (command === "production_meta_state") return { ...disabledMeta(), state: "blocked" };
+    });
+    renderWithPreferences(<TauriCosmeticsWorkspace active recoveryGeneration={0} />);
+    expect(await screen.findByText(/Recovery evidence could not be reconciled/)).toBeTruthy();
+    expect(screen.queryByText(/Health batch|could not verify this MetaSave/)).toBeNull();
   });
 
   it.each([false, true])(
@@ -293,13 +317,10 @@ describe("native Cosmetics composition", () => {
       screen.queryByRole("button", { name: /Unlock|Lock All|Clear Presets|Save|Revert/ }),
     ).toBeNull();
     expect(screen.queryByTestId("cosmetics-pending-bar")).toBeNull();
-    expect(window.repoditor.cosmetics.get).not.toHaveBeenCalled();
-    expect(window.repoditor.cosmetics.write).not.toHaveBeenCalled();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "999" } });
     expect(screen.getByText("1 cosmetic")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(tauriReadApi.cosmetics.get).toHaveBeenCalledTimes(2));
-    expect(window.repoditor.cosmetics.write).not.toHaveBeenCalled();
   });
   it.each([true, false])(
     "requires a matching fingerprint (%s) for display-only metadata",

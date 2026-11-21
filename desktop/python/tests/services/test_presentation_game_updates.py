@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import struct
 from contextlib import nullcontext
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,7 +17,7 @@ from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.installed_maps import read_installed_levels
 from repo_save_editor.services.game.map_artwork import artwork_revision
 from repo_save_editor.services.game.maps import discover_installed_maps
-from repo_save_editor.services.items import recharge_capability
+from repo_save_editor.services.items import recharge_capability, recharge_evidence
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
     discover_installed_item_metadata_with_evidence,
@@ -171,14 +172,36 @@ def test_item_identity_replacement_never_reuses_artwork_or_grants_recharge(
     assert evidence is None
     assert len(scans) == 1
 
+    # Identical approved bytes retain authoritative Recharge metadata on the new BuildID.
+    monkeypatch.setattr(
+        recharge_evidence,
+        "discover_game_installation",
+        lambda _: discover_game_installation(steam_roots=(library,), environment={}),
+    )
+    monkeypatch.setattr(
+        recharge_evidence,
+        "RECHARGE_SOURCES",
+        tuple(
+            (f"REPO_Data/{name}", sha256((data / name).read_bytes()).hexdigest())
+            for name in ("resources.assets", "globalgamemanagers.assets")
+        ),
+    )
+    qualified, proof = discover_installed_item_metadata_with_evidence((ITEM,))
+    assert proof is not None
+    assert proof.build_id == NEXT_BUILD
+    assert qualified[ITEM].display_name == "Authored name"
+    assert qualified[ITEM].recharge_capability != ItemRechargeCapability.RECHARGEABLE
+
     write_item(replacement)
+    _, proof = discover_installed_item_metadata_with_evidence((ITEM,))
+    assert proof is None
     metadata, evidence = discover_installed_item_metadata_with_evidence(
         (ITEM, replacement), root, reuse_native_metadata=True
     )
     assert evidence is None
     assert metadata[ITEM].canonical_name is None
     assert metadata[replacement].canonical_name == replacement
-    assert len(scans) == 2
+    assert len(scans) == 3
     images, _, missing = baked_artwork.read_baked_item_pngs((ITEM, replacement))
     assert list(images) == [replacement]
     assert missing == {ITEM}
@@ -237,6 +260,7 @@ def test_compatible_future_manifest_cannot_enter_private_or_public_write_flow(
     run = importlib.import_module("repo_save_editor.desktop_api.production_health")
     meta = importlib.import_module("repo_save_editor.desktop_api.production_meta")
     monkeypatch.setattr(run, "_installed_game", lambda: (game, installed))
+    monkeypatch.setattr(meta, "_installed_game", lambda: (game, installed))
     monkeypatch.setattr(
         run, "_authorized_root", lambda *_: pytest.fail("Run write target resolved")
     )

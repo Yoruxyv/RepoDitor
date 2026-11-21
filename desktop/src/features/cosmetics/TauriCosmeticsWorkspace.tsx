@@ -1,17 +1,17 @@
+import {
+  installedWriteRestriction,
+  type CompatibilityEnvironment,
+} from "@/features/editor/compatibility";
 /** Global Cosmetics presentation with independently admitted MetaSave editing. */
 import { ArrowClockwiseIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo } from "react";
-import type { CosmeticsViewDto } from "@electron/contracts";
+import type { CosmeticsViewDto } from "@/app/desktopContracts";
 import { closeNativeCosmeticArtwork } from "@/app/tauriArtwork";
 import { usePreferences } from "@/app/preferences";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { AssetPreparationView } from "@/features/assets/AssetPreparationView";
-import { INITIAL_STATE } from "@/features/assets/useAssetPreparation";
-import {
-  GameCompatibilityNotice,
-  installedWriteRestriction,
-  type CompatibilityEnvironment,
-} from "@/features/editor/GameCompatibilityNotice";
+import { INITIAL_ASSET_PREPARATION } from "@/features/assets/assetPreparationState";
+import { GameCompatibilityNotice } from "@/features/editor/GameCompatibilityNotice";
 import { CosmeticsView } from "./CosmeticsView";
 import { sameCosmeticsSource, useCosmeticsRead } from "./useCosmeticsRead";
 import { useTauriCosmetics } from "./useTauriCosmetics";
@@ -45,7 +45,9 @@ export function TauriCosmeticsWorkspace({
   const actions = mutationActions(meta);
   const title = t("cosmetics.artwork.title");
   const label = t("app.cosmetics");
-  const preparationState = artwork ? { ...INITIAL_STATE, ...artwork } : INITIAL_STATE;
+  const preparationState = artwork
+    ? { ...INITIAL_ASSET_PREPARATION, ...artwork }
+    : INITIAL_ASSET_PREPARATION;
   const progressCopy = artwork ? { progressText: t("entry.artworkCompact", artwork) } : {};
   const showPreparation = active && preparing;
   const issue = compatibilityIssue(incompatible, view, compatibility);

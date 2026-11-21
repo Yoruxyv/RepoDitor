@@ -1,7 +1,7 @@
 /** Owns fail-soft renderer loading state for the read-only installed map catalog. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { DesktopOperationResult, InstalledMapsDto, RepoDitorApi } from "@electron/contracts";
+import type { DesktopOperationResult, InstalledMapsDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
@@ -13,8 +13,6 @@ interface State {
 }
 
 const INITIAL_STATE: State = { discovery: null, error: null, loading: true, artworkAttempt: 0 };
-
-const listDesktopMaps: RepoDitorApi["maps"]["list"] = () => window.repoditor.maps.list();
 
 function initialState(result: DesktopOperationResult<InstalledMapsDto> | null): State {
   if (result === null) return INITIAL_STATE;
@@ -30,7 +28,7 @@ function initialState(result: DesktopOperationResult<InstalledMapsDto> | null): 
 
 export function useMaps(
   initialResult: DesktopOperationResult<InstalledMapsDto> | null = null,
-  list: RepoDitorApi["maps"]["list"] = listDesktopMaps,
+  list: () => Promise<DesktopOperationResult<InstalledMapsDto>>,
   loadInitially = true,
 ) {
   const { t } = usePreferences();

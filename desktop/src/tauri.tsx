@@ -1,4 +1,4 @@
-/** Separate preview entry; the default Electron bootstrap remains unchanged. */
+/** Desktop renderer entry point. */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";

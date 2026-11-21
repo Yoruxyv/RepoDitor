@@ -6,18 +6,20 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GameProcessStatus, RepoDitorApi } from "@electron/contracts";
+import type {
+  DesktopOperationResult,
+  GameProcessState,
+  GameProcessStatus,
+} from "@/app/desktopContracts";
 
 export type GameSafetyStatus = GameProcessStatus | null;
-
-const desktopGameStatus: RepoDitorApi["game"]["status"] = () => window.repoditor.game.status();
 
 /**
  * Track the fail-closed game-process status and recovery-triggered reloads.
  *
  * @returns Current status, check state, recovery generation, and a manual check action.
  */
-export function useGameSafety(getStatus = desktopGameStatus) {
+export function useGameSafety(getStatus: () => Promise<DesktopOperationResult<GameProcessState>>) {
   const [status, setStatus] = useState<GameSafetyStatus>(null);
   const [checking, setChecking] = useState(true);
   const [recoveryGeneration, setRecoveryGeneration] = useState(0);

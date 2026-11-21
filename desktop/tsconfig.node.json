@@ -17,7 +17,6 @@
   },
   "include": [
     "vite.config.ts",
-    "vite.tauri.config.ts",
     "playwright.tauri-safety.config.ts",
     "playwright.tauri-startup.config.ts",
     "vitest.config.ts",

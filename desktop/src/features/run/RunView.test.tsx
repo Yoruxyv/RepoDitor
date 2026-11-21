@@ -2,7 +2,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { RunStateDto } from "@electron/contracts";
+import type { RunStateDto } from "@/app/desktopContracts";
 import { renderWithPreferences } from "@/test/render";
 import { RunView } from "./RunView";
 

@@ -9,10 +9,9 @@ import type {
   PlayerDto,
   PlayerAvatar,
   PlayerUpgradeDto,
-  RepoDitorApi,
   RunStateDto,
   SaveOpenResult,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { tauriDiscoveryApi } from "@/features/discovery/tauriDiscoveryApi";
 
 let gameRequest: Promise<DesktopOperationResult<GameProcessState>> | null = null;
@@ -23,7 +22,7 @@ export type NativeInstalledMaps = InstalledMapsDto & {
 };
 type SaveProof = Pick<SaveOpenResult["session"], "id" | "fingerprint">;
 export type NativeSaveOpenResult = SaveOpenResult & { readonly supportsEntryBatch?: boolean };
-type NativeEditorEntry = {
+export type NativeEditorEntry = {
   players: DesktopOperationResult<PlayerDto[]>;
   upgrades: DesktopOperationResult<PlayerUpgradeDto[]>;
   run: DesktopOperationResult<RunStateDto>;
@@ -59,7 +58,7 @@ async function readUpgrades(
 }
 
 export const tauriReadApi: {
-  environment: RepoDitorApi["environment"];
+  environment: typeof tauriDiscoveryApi;
   saves: {
     open: (
       saveId: string,
@@ -67,9 +66,12 @@ export const tauriReadApi: {
     ) => Promise<DesktopOperationResult<NativeSaveOpenResult>>;
     prepareEntry: (save: SaveProof) => Promise<DesktopOperationResult<NativeEditorEntry>>;
   };
-  game: RepoDitorApi["game"];
-  players: { list: EntryRead<PlayerDto[]>; avatar: RepoDitorApi["players"]["avatar"] };
-  upgrades: { list: EntryRead<PlayerUpgradeDto[]>; prepare: RepoDitorApi["upgrades"]["list"] };
+  game: { status: () => Promise<DesktopOperationResult<GameProcessState>> };
+  players: {
+    list: EntryRead<PlayerDto[]>;
+    avatar: (saveId: string, playerId: string) => Promise<DesktopOperationResult<PlayerAvatar>>;
+  };
+  upgrades: { list: EntryRead<PlayerUpgradeDto[]>; prepare: EntryRead<PlayerUpgradeDto[]> };
   run: { get: EntryRead<RunStateDto> };
   advanced: {
     get: (
@@ -84,7 +86,7 @@ export const tauriReadApi: {
       save?: SaveProof,
     ) => Promise<DesktopOperationResult<NativeInstalledMaps>>;
   };
-  cosmetics: Pick<RepoDitorApi["cosmetics"], "get">;
+  cosmetics: { get: () => Promise<DesktopOperationResult<CosmeticsViewDto>> };
 } = {
   environment: tauriDiscoveryApi,
   cosmetics: {

@@ -4,14 +4,14 @@ import { usePreferences } from "@/app/preferences";
 import { PendingChangesBar } from "@/features/pending-changes/PendingChangesBar";
 import type { useTauriCosmetics } from "./useTauriCosmetics";
 
-const APPROVAL_NEEDED = "health.saveUnavailable";
+const APPROVAL_NEEDED = "cosmetics.saveUnavailable";
 const SAVE_CHANGES = "action.saveChanges";
 
 type Meta = ReturnType<typeof useTauriCosmetics>;
 
 export function TauriCosmeticsStatus({ meta }: { readonly meta: Meta }) {
   const { t } = usePreferences();
-  const unavailable = meta.state.production && !meta.state.admission;
+  const unavailable = meta.state.production && meta.state.state === "idle" && !meta.state.admission;
   return (
     <div
       className="mb-4 space-y-2 text-sm"
@@ -59,7 +59,7 @@ export function TauriCosmeticsActions({ meta }: { readonly meta: Meta }) {
         testIdPrefix="cosmetics"
         reviewPath={meta.state.production ? meta.state.sourcePath : undefined}
         blocked={meta.locked}
-        saveUnavailableReason={meta.state.session ? null : t(APPROVAL_NEEDED)}
+        saveUnavailableReason={meta.intent && !meta.state.session ? t(APPROVAL_NEEDED) : null}
         onRevert={meta.revert}
         onSave={() => {
           if (!action || meta.locked || !dialog.current || dialog.current.open) return;

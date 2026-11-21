@@ -166,13 +166,12 @@ def _cosmetics_oracle_value(ids: tuple[int, ...] = (0, 1)) -> dict[str, object]:
 
 def _workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> tuple[Path, Path, Path, Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path, Path]:
     recharge_evidence = tmp_path / "evidence" / "recharge.json"
     cosmetics_evidence = tmp_path / "evidence" / "cosmetics.json"
     recharge_snapshot_path = tmp_path / "web" / "recharge.json"
     cosmetics_snapshot_path = tmp_path / "web" / "cosmetics.json"
     desktop_snapshot_path = tmp_path / "desktop" / "known_cosmetics.py"
-    electron_snapshot_path = tmp_path / "electron" / "known-cosmetics.cts"
     _write_json(recharge_evidence, _recharge_value())
     _write_json(cosmetics_evidence, _cosmetics_value())
     monkeypatch.setattr(workflow, "RECHARGE_EVIDENCE_PATH", recharge_evidence)
@@ -180,14 +179,12 @@ def _workspace(
     monkeypatch.setattr(workflow, "WEB_RECHARGE_PATH", recharge_snapshot_path)
     monkeypatch.setattr(workflow, "WEB_COSMETICS_PATH", cosmetics_snapshot_path)
     monkeypatch.setattr(workflow, "DESKTOP_COSMETICS_PATH", desktop_snapshot_path)
-    monkeypatch.setattr(workflow, "ELECTRON_COSMETICS_PATH", electron_snapshot_path)
     return (
         recharge_evidence,
         cosmetics_evidence,
         recharge_snapshot_path,
         cosmetics_snapshot_path,
         desktop_snapshot_path,
-        electron_snapshot_path,
     )
 
 
@@ -456,20 +453,20 @@ def test_update_is_deterministic_and_idempotent(
     assert "already current" in capsys.readouterr().out
 
 
-def test_update_recreates_generated_cosmetic_modules_exactly(
+def test_update_recreates_generated_cosmetic_artifacts_exactly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     paths = _workspace(tmp_path, monkeypatch)
     assert workflow.update() == 0
     expected_python = paths[4].read_bytes()
-    expected_electron = paths[5].read_bytes()
+    expected_web = paths[3].read_bytes()
 
     paths[4].write_text("corrupt\n", encoding="utf-8")
-    paths[5].unlink()
+    paths[3].unlink()
     assert workflow.update() == 0
 
     assert paths[4].read_bytes() == expected_python
-    assert paths[5].read_bytes() == expected_electron
+    assert paths[3].read_bytes() == expected_web
 
 
 def test_check_is_non_mutating_and_detects_evidence_fingerprint_drift(

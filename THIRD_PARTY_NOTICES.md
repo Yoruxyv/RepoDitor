@@ -1,6 +1,7 @@
 # Third-party notices
 
-RepoDitor's source code is distributed under the [MIT License](LICENSE). The
+RepoDitor's source code is distributed under the MIT License. See `LICENSE` in
+the source tree or `licenses/RepoDitor-MIT.txt` in the Windows package. The
 following notices cover bundled non-code assets and directly shipped UI assets.
 
 ## Teko font
@@ -17,7 +18,7 @@ following notices cover bundled non-code assets and directly shipped UI assets.
 - Package: `@phosphor-icons/react`
 - Upstream: <https://github.com/phosphor-icons/react>
 
-## Mouse click sound
+## Historical Electron mouse click sound
 
 - Title: “Mouse Click”
 - Creator: MatthewVakaliuk73627
@@ -25,8 +26,7 @@ following notices cover bundled non-code assets and directly shipped UI assets.
 - License: [Pixabay Content License](https://pixabay.com/service/license-summary/)
 - Bundled file: `desktop/src/assets/sfx/mouse-click.mp3`
 
-The sound is used as a low-volume decorative UI interaction cue and is not
-required to understand application state.
+The Electron release used the sound as a decorative UI interaction cue.
 
 ## Language flag SVGs
 

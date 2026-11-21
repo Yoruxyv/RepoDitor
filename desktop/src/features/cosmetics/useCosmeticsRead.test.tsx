@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { CosmeticsViewDto, DesktopOperationResult } from "@electron/contracts";
+import type { CosmeticsViewDto, DesktopOperationResult } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { cosmetics } from "@/test/repoditorApiFixture";
 import { useCosmeticsRead } from "./useCosmeticsRead";

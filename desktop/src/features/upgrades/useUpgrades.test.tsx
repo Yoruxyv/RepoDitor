@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopOperationResult, PlayerUpgradeDto } from "@electron/contracts";
+import type { DesktopOperationResult, PlayerUpgradeDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { saveId, upgrades } from "@/test/repoditorApiFixture";
 import { useUpgrades } from "./useUpgrades";

@@ -33,10 +33,11 @@ from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.storage.repository import read_save_bytes
 
 MAX_ID = 2_000
-MAX_NATIVE_BATCH = 64
+# Signed bindings remain below the Windows command-line bound at this batch size.
+MAX_NATIVE_BATCH = 112
 NATIVE_THUMBNAIL_SIDE = 96
-# Reserve space for the JSON envelope and each image's fixed metadata in the 2 MiB frame.
-NATIVE_BATCH_BASE64_BUDGET = 2 * 1024 * 1024 - 16384
+# Match the native Cosmetics batch frame while reserving room for its JSON metadata.
+NATIVE_BATCH_BASE64_BUDGET = 4 * 1024 * 1024 - 32768
 
 
 def serialize_cosmetic_artwork(decoded: DecodedCosmeticArtwork) -> dict[str, object]:

@@ -13,22 +13,21 @@ shares evidence-backed semantics rather than Desktop implementation code.
 | `desktop/src-tauri/src/`                      | Rust bootstrap, bounded Python process transport, validated projections and gated synthetic recovery.           |
 | `desktop/python/repo_save_editor/`            | Authoritative Desktop save semantics, encryption, validation, backups and transactions.                         |
 | `desktop/python/tests/`                       | Python domain, storage, protocol and synthetic integration regressions.                                         |
-| `desktop/electron/`                           | Shipping Electron main/preload, IPC validation and process ownership; retained during Tauri migration.          |
-| `desktop/installer/`                          | Installer host, UI, NSIS overrides and C# test fixtures; `scripts/` owns installer build and lifecycle tooling. |
-| `desktop/scripts/`                            | `quality/`, `tauri/`, `packaging/` and `release/` tooling, with implementation and Node tests kept together.    |
-| `desktop/e2e/electron/`, `desktop/e2e/tauri/` | Host-specific source and packaged journeys, permission boundaries and interruption/recovery tests.              |
-| `desktop/e2e/`                                | Shared `support/` harnesses, tracked `fixtures/` inputs and `fixture_generators/` used by both host suites.     |
+| `desktop/installer/`                          | Installer host, UI and C# test fixtures; `scripts/` owns installer build and lifecycle tooling. |
+| `desktop/scripts/`                            | `quality/`, `tauri/` and `release/` tooling, with implementation and Node tests kept together.    |
+| `desktop/e2e/tauri/` | Packaged journeys, permission boundaries and interruption/recovery tests. |
+| `desktop/e2e/`                                | Shared `support/` harnesses, tracked `fixtures/` inputs and `fixture_generators/` used by packaged Tauri tests.     |
 | `scripts/git-hooks/`, `.github/workflows/`    | Repository Git gates and CI orchestration; npm command names remain the stable contributor interface.           |
 | `web/`                                        | Independent browser product, with its own source, API and test ownership.                                       |
 
 Installer lifecycle helpers and their checks stay together because the launcher
 stages neighboring worker scripts into a disposable test directory. E2E specs are
-grouped by the host being validated; shared fixtures and harnesses retain one owner.
+grouped by desktop journey; shared fixtures and harnesses retain one owner.
 Standard package, Cargo, Tauri, TypeScript and Python configuration stays at its
 existing package root rather than moving alongside operational scripts.
 
 Generated output is separate from this source map. `.venv/` holds the local Python
-environment; `node_modules/`, `desktop/dist/`, `desktop/dist-electron/`,
+environment; `node_modules/`,
 `desktop/src-tauri/{target,gen}/` and `desktop/release/` hold dependencies or generated
 application artifacts. `desktop/build/` also retains synthetic snapshots, frozen
 backend bundles, nested checkpoint copies and recovery diagnostics. These locations
@@ -55,14 +54,14 @@ merge these with existing preferences rather than replacing them.
 }
 ```
 
-The diagram below describes the shipping Electron Desktop boundary.
+The Windows Desktop boundary is:
 
 ```text
 React renderer
       |
-sandboxed preload with typed channels
+Tauri WebView2 with scoped commands
       |
-Electron main IPC validation
+Rust admission and process supervision
       |
 Python desktop API JSON protocol
       |
@@ -76,14 +75,14 @@ R.E.P.O. .es3 files
 ## Boundaries
 
 - `desktop/src/` owns presentation, renderer-local theme/language preferences, and typed in-memory pending edits. It cannot read files, spawn processes, parse raw saves, or derive game mechanics.
-- `desktop/electron/` owns narrow IPC validation, the secure preload surface, Python process lifecycle, and the fixed GitHub repository-metadata request. It exposes no arbitrary renderer fetch API and caches successful metadata for the Electron session. Within local artwork, `icons/protocol.cts` owns opaque-token protocol serving and trusted-root file checks, `icons/upgradeTextureCache.cts` owns decoded upgrade cache/manifest/watch state and cache diagnostics, and `icons/png.cts` owns the shared bounded-PNG validation.
+- `desktop/src-tauri/` owns window capabilities, typed command admission, sidecar supervision, renderer-safe DTOs and opaque artwork tokens.
 - `desktop/python/repo_save_editor/desktop_api/` translates the stable command protocol into Python service calls. Standard output is reserved for bounded NDJSON protocol records; commands that support streaming may emit multiple records, while diagnostics use standard error.
 - `desktop/python/repo_save_editor/services/` owns editor behavior for discovery, players, upgrades, run
   data, maps, advanced discovery/refill semantics, MetaSave cosmetic ownership, and save summaries.
 - `desktop/python/repo_save_editor/core/` owns encryption, schema validation, and shared save types.
 - `desktop/python/repo_save_editor/storage/` owns repository access, backups, temporary validation, stale-file protection, and atomic replacement.
 
-Electron keeps `contextIsolation: true`, `nodeIntegration: false`, and renderer sandboxing enabled. Input is validated at both the Electron and Python boundaries. Python verifies the validated R.E.P.O. process is closed before supported writes; startup and focus checks keep the renderer state current, and an unknown process state fails closed.
+Tauri applies an explicit CSP and allowlisted commands to the main WebView2 window. Rust validates the request and response envelopes, and Python independently checks the game state and write preconditions.
 
 Run-save writes (including experimental health transactions) and MetaSave cosmetic
 writes repeat the authoritative Python game-status check after encrypted staging,
@@ -112,15 +111,12 @@ validated. A version warning or process-name check alone cannot enforce that pol
 The lock also does not stabilize filesystem ancestry: current pathname-based
 parent validation leaves directory movement and reparse substitution unresolved.
 
-## Experimental native host
+## Native Desktop host
 
-The opt-in Windows Tauri host under `desktop/src-tauri/` exposes
-`environment_detect`, `saves_open`, `players_list`, `upgrades_list`, `run_get`, `advanced_get`, `game_status` and `preview_close`. Its typed
-read adapter composes the discovery adapter with save-open, player-list, upgrade-list, Run, Items and game-status
-contracts, and exposes no write method. Its entry reuses discovery, save-loading,
-Overview, Players, Upgrades, Run, Items, selected-save header, preferences and game-safety presentation.
-Electron remains the shipping host;
-its preload, IPC, save services, installer and release defaults are unchanged.
+The Tauri host under `desktop/src-tauri/` is the only Desktop runtime built
+from this tree. The portable configuration exposes reads. Private candidates
+add session-scoped writes through separately qualified native capabilities
+and a verified profile backup.
 
 The Rust source root keeps application bootstrap and typed command registration in
 `main.rs`, with public error mapping in `error.rs`. `backend/` owns fixed sidecar
@@ -137,30 +133,26 @@ dates, JavaScript-safe numbers, save counts, session fingerprints, response ID
 identity, required visual keys and root/game consistency before returning the
 existing renderer contracts. Save opening accepts only the existing opaque ID
 format; Python re-discovers and loads that ID through its unchanged save-domain
-service. Rust performs no decryption or save interpretation. No write, arbitrary
-path, executable, argument, network, filesystem or shell command is exposed.
+service. Rust performs no decryption or save interpretation. Commands accept fixed operations and opaque identities.
 
 Overview is a read-only session snapshot. Reopening reads current bytes and a
 fresh fingerprint, including changes made after discovery; it does not apply a
 write-only stale-file rule to reads. Players uses Python's existing `players-list`
-service and Electron's numeric-ID, nonempty-name and JavaScript-safe health DTO
+service and the numeric-ID, nonempty-name and JavaScript-safe health DTO
 contract. Duplicate IDs are rejected; Python's dictionary projection produces
-unique IDs. Health may exceed maximum health in an existing save, as in Electron;
+unique IDs. Health may exceed maximum health in an existing save;
 the shared progress display clamps it without altering the saved value.
 The existing Players hook accepts an injected list method, loads once per open
 workspace and retains selection across tabs. Retry and reopening read current
 bytes. Ordinary production Health remains read-only. Optional Steam avatars use
 the dedicated `players_avatar` read command and Python's selected-save membership
-and SteamID64 validation. Native and Electron boundaries validate the same two
+and SteamID64 validation. Native boundaries validate two
 HTTPS Steam CDN hosts; Tauri permits those hosts for images only, with no generic
 network command or broader connection policy.
 
-Electron preparation starts one optional lookup for the first player returned by
-the Players projection, concurrently with Maps and other unfinished domains. Its
-promise passes to the shared avatar hook without a duplicate request or a sixth
-preparation task. Cached editor entry starts a fresh session lookup; pending
-promises are not retained in the projection cache. Tauri starts its selected-player
-lookup after entering the editor. Neither host waits for Steam before opening it.
+Preparation starts one optional lookup for the first player returned by the
+Players projection. The selected-player hook reuses it during entry. Steam
+responses do not gate opening the workspace.
 
 The shared avatar hook loads only the selected player. It serializes lookups, caches by player within
 the open save session, and permits at most one automatic retry for a classified
@@ -182,7 +174,7 @@ the fingerprint of the opened snapshot. Reopening refreshes the workspace and
 selection after external changes.
 Players and Upgrades share the selected-player state. The injected Upgrades hook
 coalesces overlapping reads and ignores late results after unmount. The shared
-view retains editable Electron controls by default; the ordinary native variant renders
+view renders
 read-only text fields with keyboard focus/copying and no mutation handlers,
 pending edits or revert actions. Validated `iconKey` metadata is discarded;
 the native host registers its own opaque upgrade artwork tokens. Missing artwork
@@ -227,7 +219,7 @@ refresh issues new tokens and later reads validate their sources. Closing the
 workspace clears its active artwork. Returning focus checks the installed
 source proof for a prepared session and clears artwork if that proof changed.
 
-Tauri retains one complete preparation in memory, bounded to 16 MiB of data URL
+Tauri retains up to two complete preparations in memory, bounded to 16 MiB of data URL
 characters. Reopening reads the save and all five projections again. The native
 Maps read optionally supplies a proof of the reviewed Steam installation and
 every input under its data directory because an Upgrade texture or mesh can
@@ -247,7 +239,7 @@ own workspace.
 Game status retains the
 distinct `unknown` state. The existing startup/focus/retry hook and safety modal
 block workspace interaction while status is running, unknown or initially
-unchecked, as in Electron. Native close cancels outstanding backend work.
+unchecked. Native close cancels outstanding backend work.
 
 Native upgrade artwork uses `upgrade_artwork_get` and `upgrade_artwork_cancel`,
 never a file protocol or renderer path. A successful save-open scopes the registry;
@@ -270,8 +262,7 @@ A missing image falls back without hiding valid neighbors. A valid image that
 exceeds the remaining response budget uses the single-image read. The renderer
 deduplicates in-flight tokens,
 bounds the queue and cancels abandoned work without delaying save/status
-lanes. There is no persistent pixel cache: every acquisition revalidates sources,
-and completed native tokens do not populate the Electron loaded-image cache.
+lanes. Validated installed revisions and artwork identities bind the persistent editor cache.
 After save reconciliation is acknowledged, the workspace refreshes only tokens,
 preserving canonical values and selection. Installed artwork availability grants no save-write capability.
 
@@ -282,8 +273,7 @@ The stat list may be a subset or empty; read values are not constrained to the
 editor's Int32 write bounds. Resume value/options must be nonempty, unique and
 include the observed value; Rust has no location catalog or save-domain rules.
 The injected Run hook coalesces reads and discards late results on unmount. The
-shared view preserves Electron's numeric editors and location selector; native
-Run renders copyable read-only text fields without pending/revert/save controls
+shared view supplies numeric editors and a location selector in authorized sessions. Run renders copyable read-only text fields without pending/revert/save controls
 in ordinary builds. Explicitly admitted synthetic UI builds reuse the same view
 for durable Run drafts, review, Save and Revert. Canonical snapshots supersede
 older in-flight Run reads. Values outside JavaScript's exact integer range never
@@ -293,14 +283,14 @@ Items calls Python's existing `advanced-get` service. Rust validates all six uni
 domain keys, evidence enums, nullable nonnegative counts, boolean capabilities,
 canonical item-key/name/instance relationships, unique identities, signed safe
 stored charge and charge/recharge consistency. Counts remain nonnegative; stored
-charge follows Electron's signed read contract without applying write bounds.
+charge follows the signed read contract without applying write bounds.
 The 2 MiB frame bounds every item array and string; the six-domain membership and
 existing icon/upgrade-key limits provide additional structural/metadata bounds.
 Rust does not classify items, infer game evidence or maintain a recharge evidence
 store. Private recharge evidence, raw fields and internal artwork keys are discarded. The shared view preserves
 grouping, search, filter/sort, charge states, skeletons and failures. Ordinary native passes
 no mutation handlers: refill/revert/pending/save controls stay absent even when
-the retained backend capability reports support. Electron's editors remain the default.
+the retained backend capability reports support.
 
 The host issues opaque Item tokens per distinct regular Item type in the bounded
 Items projection. Tokens are scoped to the opened save and the projection's
@@ -321,8 +311,7 @@ SHA-256 artwork revisions. Unavailable results require a null path and empty ros
 available-empty catalogs remain distinct. Unknown valid map families are retained.
 Artwork metadata is discarded and icon tokens are always null. The existing Maps
 view and injected hook preserve cards, layout, skeletons, refresh data, translated
-errors and superseded/unmounted response handling. Electron keeps its default API.
-Map projections grant no map-artwork streaming, cache or map-control authority.
+errors and superseded/unmounted response handling. Map artwork uses a separate read-only token and grants no map-control authority.
 
 Cosmetics is a separate global workspace, available without selecting or opening a
 Run save. Its fixed `cosmetics_get` command accepts no renderer path or save ID and
@@ -331,11 +320,10 @@ JavaScript-safe signed IDs/metadata, nonnegative counts, unique identities, know
 roster ordering, unknown-owned roster agreement, state/count/capability consistency,
 required removal reasons and optional icon keys. Eligibility validation consumes
 the [existing frozen capability evidence](../../tools/capabilities/evidence/cosmetics.v2.json)
-used by Python/Electron's generated policies; it does not infer authority from a
+and the aligned Python and Web snapshots. The host does not infer authority from a
 catalog size or maintain another catalog. Tests compare that evidence with both
 generated consumers. Unknown IDs, signed metadata and eligible-but-removal-blocked
-entries retain the existing Electron contract. Icon tokens remain null and private
-MetaSave fields are discarded.
+entries retain the established semantics. Eligible icons receive opaque native tokens, and private MetaSave fields are discarded.
 
 Cosmetic presentation can reuse the existing Unity 6 catalog reader even when the
 build has no artwork approval. The fallback rechecks Steam provenance and bounded
@@ -343,8 +331,8 @@ top-level source identities before and after each uncached read; it never reuses
 the historical cache for a newly recognized build. Display metadata does not grant
 write authority. Legacy Cosmetics writes use a separate catalog loader restricted
 to the evidence-backed builds, and revalidate that catalog before the final game
-check. Read projections may explicitly deny eligibility for known IDs; both native
-and Electron boundaries still reject eligibility outside the frozen proven set.
+check. Read projections may explicitly deny eligibility for known IDs; the native
+boundary rejects eligibility outside the frozen proven set.
 Build `26407089` has readable metadata and independently reviewed artwork, but no
 Cosmetics mutation approval.
 Cosmetic, map and upgrade artwork retain their independent build/assembly checks.
@@ -358,7 +346,7 @@ for the admitted read to release before starting one fresh read. Its composition
 the Cosmetics summary/catalog with null mutation handlers. Search, filters, sorting,
 metadata and counters remain available; ownership/preset/pending/revert/save controls
 are omitted. The editable hook, artwork preparation and pending-write workspace are
-not mounted by this host. Electron's default composition remains editable. The shared
+available only to admitted edit sessions. The shared
 game-safety boundary also covers global Cosmetics, including when no Run save is open.
 
 The local main-window capability grants those read commands plus `players_avatar`.
@@ -703,11 +691,11 @@ domain operations share one worker mutex. Game status bypasses that mutex; its
 existing admission permit bounds the separate lane to one active or admitted
 request, with no status backlog or additional mutex/pool. At most one domain child
 and one status child can execute concurrently, each owning its own Job Object.
-Each 30-second deadline includes dispatch and domain-queue time, unlike Electron's
+Each 30-second deadline includes dispatch and domain-queue time. The historical Electron implementation used
 concurrent process calls. Expired/closing requests fail before spawning. Queued requests also
 observe cancellation. Every child retains the 2 MiB stdout limit, 64 KiB stderr
 limit and bounded pipe queue. Public failures use allowlisted codes and sanitized
-messages; translated UI errors retain the Electron mapping. A Windows
+messages. Translated UI errors retain their stable codes. A Windows
 kill-on-close Job Object owns the assigned process tree;
 normal close signals shared cancellation to both lanes and rejects new admission.
 The window stays open until the existing request permits are released after child
@@ -731,7 +719,7 @@ must retain Python's authoritative `require_game_closed` check immediately aroun
 real writes; cached renderer status is never write authorization.
 
 The portable preview staging command copies the whole PyInstaller `--onedir`
-tree into `build/tauri-preview/backend`. The host build embeds a versioned Windows
+tree into `build/tauri-portable/backend`. The host build embeds a versioned Windows
 resource derived from its compiled synthetic feature flags and packaged/development
 mode. Staging reads that resource as data, without executing the host, and admits
 only the read-only variant.
@@ -770,7 +758,7 @@ ordinary/synthetic hosts and frozen backends, and runs native permission, handof
 final-state and process-recovery checks. Missing required cases or skipped cases
 fail the gate. Native fixtures share immutable backend bundles while saves and
 profiles remain isolated. The workflow's aggregate quality gate requires success;
-it does not replace the separate Electron checks. Hosted WebView2/native behavior
+Hosted WebView2/native behavior
 still requires actual CI confirmation for a given change.
 
 The native startup diagnostic retains its 5,000 ms subprocess deadline and 16 KiB
@@ -810,23 +798,16 @@ or an OS failure to create or terminate a process remain environmental limitatio
 these checks do not establish a hard real-time guarantee under a stalled kernel.
 
 Staging never changes production release output. See
-[Desktop setup and preview checks](../../desktop/README.md#optional-native-discovery-preview).
+[Desktop setup and preview checks](../../desktop/README.md#validation-and-portable-windows-package).
 
-Installer ownership is independent of the application host. The existing C#
-WebView2 installer and React UI remain the required installation interface,
-including path/scope selection, elevation, updates, uninstall, signing and safe
-cleanup. Its authenticated [extraction progress contract](../installer-progress.md)
-must retain measured byte counters and authoritative completion checks.
-
-The existing NSIS include uses electron-builder's `customInit`/`customUnInit`,
-scope/registry macros and pinned Nsis7z extraction override. It is not a drop-in
-Tauri installer-hooks file. A custom template or dedicated NSIS integration must
-preserve that contract; hooks alone do not establish compatibility. The current
-native preview has no installer and uses a different executable/backend layout
-from the C# host's Electron payload postconditions. Those checks must be adapted
-to real native artifacts, never bypassed with placeholder Electron files. Full
-install/update/uninstall and cross-host upgrade validation remain required before
-changing the production installer integration.
+Installer ownership is independent of the application host. Tauri's current-user
+NSIS installer bundles the verified portable host, frozen sidecar and licenses.
+The installer uses NSIS progress and the WebView2 Evergreen bootstrapper. Its
+registration, shortcut and install directory are distinct from the Electron
+v0.2.1 package. The later Electron installer prototype's authenticated
+[extraction progress contract](../installer-progress.md) is historical.
+See the
+[installer migration gate](../release-checklist.md#w9-b-installer-migration-acceptance).
 
 ## Web boundary
 
@@ -848,42 +829,17 @@ No server-side save-processing route is permitted.
 
 ## Desktop local presentation assets
 
-Electron serves optional local images through registered `repoditor-icon:` tokens.
-The renderer receives no image paths or filesystem authority. Failed or unavailable
-images use Phosphor; artwork availability never changes mutation permissions.
-Web does not read installed Desktop artwork.
+Tauri serves validated local thumbnails through opaque native tokens. The
+renderer receives image data without installed paths or filesystem authority.
+Unavailable artwork falls back to Phosphor. Artwork and metadata caches carry
+no mutation authority.
 
-| Content         | Source order                                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Regular items   | Verified installed BakedIcons, then Phosphor. Seven known missing icons have no production reconstruction path.                          |
-| Cosmetics       | Verified installed BakedIcons, validated decoded Sprite cache, bounded installed Sprite extraction, then Phosphor.                       |
-| Player upgrades | Existing validated game-cache PNG where available, then validated derived cache and supported installed texture decoding, then Phosphor. |
-
-Regular items and cosmetics never consult the game's LocalLow artwork cache.
-Maps remain a read-only installed-location listing; loading-Sprite research is
-documented in [asset research](../research/asset-research.md#maps).
-
-### Cache ownership
-
-| Artifact                                           | Owner and invalidation                                                                                                                                                                                                                  |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Canonical identities and cosmetic display metadata | Python `baked_artwork.py`, schema 8, `%LOCALAPPDATA%\RepoDitor\cache\baked-artwork.json`; reviewed build/assembly and source identities. Historical cosmetic catalogs retain their separate cache. No PNG pixels or mutation authority. |
-| Installed baked PNG validation                     | Electron `bakedArtwork.cts`, `presentation/baked/manifest.json`, format 1; installed index identity plus per-PNG validation stamps. PNGs stay in the game installation.                                                                 |
-| Decoded cosmetic Sprite PNGs                       | Electron cosmetic artwork cache, `presentation/cosmetics`, format 1; cosmetic ID, source identity, PNG hash and source watches.                                                                                                         |
-| Derived upgrade PNGs                               | Electron `upgradeTextureCache.cts`, `presentation`, format 3; upgrade key, derived source identity, artifact-producing file watches, assembly and Steam manifest.                                                                       |
-
-Electron cache roots are under its `userData` directory, normally
-`%APPDATA%\repoditor-desktop`. The cache types have different keys and invalidation
-contracts; a baked validation manifest is not storage for reconstructed pixels.
-Source changes, missing/corrupt PNGs and unreadable caches trigger regeneration or
-fallback. Cache-write failure must not block presentation.
-
-Cosmetic preparation checks baked and decoded readiness before starting a finite
-Sprite batch. Navigation shares in-flight work, valid results survive relaunch,
-and failed optional work does not repeatedly scan the game. Upgrade preparation
-retains its own finite coordinator. `python/client.cts` owns command allowlists,
-output/time limits and child cleanup on shutdown.
-`GameIcon` confines image loading to the thumbnail box and falls back on null/error.
+On Windows, native artwork and editor caches are scoped beneath
+`%LOCALAPPDATA%\io.github.yoruxyv.repoditor.preview`. They validate current
+installed source identities before reuse. The released v0.2.1 Electron
+presentation data beneath `%APPDATA%\repoditor-desktop` remains a separate
+legacy cache. The native host rebuilds its own derived images from installed
+sources.
 
 Tauri shows the dedicated Opening Save screen while Editor Preparation resolves
 Players, Upgrades, Run, Items, Maps and artwork. The editor and its navigation
@@ -1139,12 +1095,11 @@ not become Steam-verified merely because their physical path resembles `steamapp
 
 ## Python runtime resolution
 
-Runtime selection is centralized in `desktop/electron/python/client.cts`:
-
-- development launches the repository-root `.venv/Scripts/python.exe -m repo_save_editor.desktop_api`;
-- packaged Windows builds launch `process.resourcesPath/backend/repoditor-backend.exe` directly.
-
-The package command builds the sidecar with Python 3.13. The packaged application does not fall back to a system Python installation.
+The native host resolves the frozen `backend/repoditor-backend.exe` from the
+owned artifact layout. Development uses `desktop/build/backend`. The portable
+package includes the complete Python 3.13 onedir payload. The fixed Rust command
+adapter controls the executable, arguments, size and time limits, cancellation,
+and Windows process-tree cleanup.
 
 ## Installed item recharge capability
 
@@ -1175,11 +1130,11 @@ rechecks capability before applying a refill edit.
 
 The measured uncached discovery cost on the validated installation was about 0.8 seconds, so the
 initial production path performs discovery on the relevant Python read/write command rather than
-adding an Electron-main cache and its invalidation surface.
+adding a second host cache and its invalidation surface.
 
 ## Supported production scope
 
-Electron covers the supported production workflow: discovery/select/open, Overview, Players,
+The Tauri desktop covers the supported read workflow and, in the private maintainer candidate, all five reviewed editing domains. The editor supports discovery/select/open, Overview, Players,
 Upgrades, Run, Items with exact-instance refill-to-full, Cosmetics bulk ownership and paired
 preset clearing, Maps,
 pending edits, revert, safe writes, backups, stale-file protection, and failure states. Run saves

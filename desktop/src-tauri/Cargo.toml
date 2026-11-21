@@ -1,6 +1,6 @@
 [package]
 name = "repoditor-preview"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 publish = false
 
@@ -9,6 +9,7 @@ native-ui-test = []
 health-transport = []
 production-health = ["health-transport"]
 private-editing = ["production-health"]
+public-editing = ["production-health"]
 synthetic-health-recovery = ["health-transport"]
 synthetic-health-ui = ["synthetic-health-recovery"]
 
@@ -24,7 +25,7 @@ tauri = { version = "2.12.5", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Registry", "Win32_System_Threading", "Win32_Security", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 strip = true

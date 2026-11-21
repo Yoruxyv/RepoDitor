@@ -18,6 +18,13 @@ export const ko: Record<keyof typeof en, string> = {
   "update.description": "새 버전이 있습니다. 릴리스 노트를 확인하고 업데이트를 다운로드하세요.",
   "update.viewRelease": "릴리스 보기",
   "update.later": "나중에",
+  "migration.title": "RepoDitor v0.2.1이 아직 설치되어 있습니다",
+  "migration.description":
+    "RepoDitor v0.3.0으로 전환해 주세요. 이전 Electron 버전에는 버그가 있거나 최신 R.E.P.O. 버전과 호환되지 않을 수 있습니다. v0.3.0이 정상적으로 작동하는지 확인한 뒤 Windows 설정에서 v0.2.1을 제거해 주세요.",
+  "migration.openInstalledApps": "설치된 앱 열기",
+  "migration.remindLater": "나중에 다시 알림",
+  "migration.dismiss": "다시 표시하지 않기",
+  "migration.settingsUnavailable": "Windows 설정에서 앱 → 설치된 앱으로 이동하세요.",
   "compatibility.title": "게임 호환성 제한",
   "compatibility.dismiss": "알림 닫기",
   "compatibility.build": "R.E.P.O. 빌드 {build}",
@@ -187,8 +194,6 @@ export const ko: Record<keyof typeof en, string> = {
   "upgrades.empty": "이 세이브에는 플레이어 업그레이드가 없습니다.",
   "upgrades.input": "{player}의 {upgrade}",
   "upgrades.error": "업그레이드 값은 0에서 2,147,483,647 사이의 정수여야 합니다.",
-  "upgrades.reviewDrafts": "저장하기 전에 업그레이드 변경 사항을 검토하세요.",
-  "upgrades.revertDrafts": "업그레이드 초안 되돌리기",
   "upgrades.saveUnavailable":
     "체력과 업그레이드는 따로 저장하세요. 한 그룹을 되돌리거나 큰 업그레이드 변경 묶음을 줄이세요.",
   "run.readOnlyDescription": "저장된 런 값과 재개 위치를 확인합니다.",
@@ -270,6 +275,8 @@ export const ko: Record<keyof typeof en, string> = {
   "cosmetics.clearPending": "모든 프리셋 지우기 대기 중",
   "cosmetics.lockAll": "모든 코스메틱 잠그기",
   "cosmetics.lockPending": "모두 잠그기 대기 중",
+  "cosmetics.saveUnavailable":
+    "코스메틱 편집을 위한 MetaSave를 확인할 수 없습니다. 새로 고친 후 다시 시도하세요.",
   "cosmetics.lockUnavailable":
     "보유한 코스메틱이 장착 중이거나 프리셋에서 사용 중이면 모두 잠글 수 없습니다.",
   "cosmetics.context": "코스메틱 정보",

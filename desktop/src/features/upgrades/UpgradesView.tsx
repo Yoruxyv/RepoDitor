@@ -7,7 +7,7 @@
 import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import type { PlayerDto, PlayerUpgradeDto } from "@electron/contracts";
+import type { PlayerDto, PlayerUpgradeDto } from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { GameIcon } from "@/components/GameIcon";
 import { Select } from "@/components/Select";

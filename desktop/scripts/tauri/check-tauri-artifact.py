@@ -59,6 +59,11 @@ def check_backend(path: Path) -> None:
     }
     if scripts != expected:
         raise ValueError("Unexpected frozen startup scripts; synthetic backends cannot be staged.")
+    for name in archive.toc:
+        if name.endswith(".pyz"):
+            modules = archive.open_embedded_archive(name).toc
+            if "_repoditor_health_qualification" in modules:
+                raise ValueError("A private approval bundle cannot be staged for production.")
 
 
 def digest(path: Path) -> str:
@@ -67,12 +72,15 @@ def digest(path: Path) -> str:
 
 
 if __name__ == "__main__":
-    host, backend = (Path(value) for value in sys.argv[1:])
-    if host_authority(host) != b"repoditor-tauri-authority-v2:read-only":
+    host, backend = (Path(value) for value in sys.argv[1:3])
+    authority = sys.argv[3] if len(sys.argv) > 3 else "read-only"
+    if authority not in {"read-only", "public-editing"} or host_authority(host) != (
+        f"repoditor-tauri-authority-v2:{authority}".encode()
+    ):
         raise ValueError("Synthetic or development host authority cannot be staged for production.")
     check_backend(backend)
     sys.stdout.write(
         json.dumps(
-            {"authority": "read-only", "hostSha256": digest(host), "backendSha256": digest(backend)}
+            {"authority": authority, "hostSha256": digest(host), "backendSha256": digest(backend)}
         )
     )

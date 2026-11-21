@@ -1,7 +1,7 @@
 # RepoDitor Python Backend
 
 This directory contains RepoDitor's Python save-domain implementation and the
-desktop API sidecar bundled with the Electron application.
+desktop API sidecar bundled with the Tauri application.
 
 The directory itself is the Python source root. The importable package is
 `repo_save_editor`.
@@ -23,7 +23,7 @@ renderer:
 - stale-save detection
 - backup creation
 - staged verification and atomic save replacement
-- the narrow JSON desktop API consumed by Electron
+- the narrow JSON desktop API consumed by Tauri
 
 The React renderer never receives raw decrypted save data and does not perform
 filesystem access, encryption, or save-domain calculations.
@@ -39,7 +39,7 @@ desktop/python/
 |-- README.md
 |-- repo_save_editor/
 |   |-- core/         # crypto, schema validation, shared save primitives
-|   |-- desktop_api/  # JSON command boundary used by Electron
+|   |-- desktop_api/  # JSON command boundary used by Tauri
 |   |-- services/     # discovery and save-domain behavior
 |   |   |-- game/     # installation, maps and process discovery
 |   |   |-- items/    # item identity, charge and mutation rules
@@ -86,7 +86,7 @@ compatibility limits or strict process-memory bounds; see the
 [save-processing architecture](../../docs/architecture/architecture.md) for exact
 limits, operation boundaries and allocation limitations.
 
-During development, Electron launches the repository-root `.venv` and
+The Tauri development and portable hosts launch the frozen Python sidecar. For direct Python development, activate the repository-root `.venv` and
 uses `repo_save_editor.desktop_api`.
 
 For packaged Windows builds, PyInstaller bundles this package into the

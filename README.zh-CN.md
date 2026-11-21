@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-43.3.0-47848F?style=flat-square&labelColor=1a1a2e&logo=electron&logoColor=white" alt="Electron 43.3.0">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&labelColor=1a1a2e&logo=tauri&logoColor=white" alt="Tauri 2">
   <img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&labelColor=1a1a2e&logo=react&logoColor=white" alt="React 19.2.8">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&labelColor=1a1a2e&logo=python&logoColor=white" alt="Python 3.11 or newer">
   <img src="https://img.shields.io/github/v/release/Yoruxyv/RepoDitor?style=flat-square&label=release&labelColor=1a1a2e" alt="Latest release">
@@ -41,7 +41,7 @@
 
 ### 用一个专注的 Windows 桌面应用查看和编辑本地 R.E.P.O. 存档 — 无需 BepInEx
 
-RepoDitor 是一个非官方、独立运行的 Electron 存档编辑器，用于处理本地 R.E.P.O. `.es3` 数据。
+RepoDitor 是一个非官方、独立运行的 Tauri 存档编辑器，用于处理本地 R.E.P.O. `.es3` 数据。
 
 桌面界面只提供范围明确、带类型约束的操作；随应用打包的 Python backend 负责存档解析、验证、备份、游戏语义和加密写入。
 
@@ -200,23 +200,13 @@ RepoDitor Desktop 当前未签名；历史 v0.1.0 installer 同样未签名。re
 
 ## 🔐 安全模型
 
-renderer 在 sandbox 中运行，并启用了 `contextIsolation: true` 和
-`nodeIntegration: false`。它不能读取任意文件、启动进程、解密存档、
-调用任意 IPC，也不会接收到原始的已解密存档 JSON。
+WebView2 renderer 使用 CSP 和范围受限的 Tauri 命令。 GitHub 版本检查使用固定 endpoint。
 
-Steam 头像补充是可选功能，而且采用 fail-soft 方式：只会查询格式合理的 Steam ID；
-返回的图片 URL 必须通过严格的 HTTPS host 验证；profile 数据也永远不会写入存档。
-GitHub stars 只通过带类型约束的 Electron IPC 请求一个固定的元数据 endpoint，
-成功结果会在当前 session 中缓存；renderer 不会获得可用于任意网络请求的 fetch API。
-
-这些就是当前会在后台发起网络请求的可选功能。项目链接只有在用户主动操作后才会
-在外部打开；当前源码中没有 analytics 或 telemetry 集成。
-
-如需私下报告安全漏洞，请查看 [SECURITY.md](SECURITY.md)。
+[SECURITY.md](SECURITY.md)
 
 ## 🔎 开源与本地数据
 
-RepoDitor 是开源项目。Electron 桌面应用、Python 存档 backend、打包配置以及
+RepoDitor 是开源项目。Tauri 桌面应用、Python 存档 backend、打包配置以及
 CI/release workflow 都可以在这个 repository 中查看，也可以按照文档里的开发和
 打包命令自行从源码构建。公开源码本身并不能证明你下载的 binary 与源码完全一致；
 发布的 checksum 验证的是 artifact 完整性，而不是代码安全性或发布者身份。
@@ -242,7 +232,7 @@ repository endpoint 读取；Steam 头像补充则会把从存档中得到、格
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **存档状态**         | 每次明确打开存档时，都会让 Python 读取、解密并验证当前 `.es3`，然后只返回带类型约束的投影数据和源文件 fingerprint。已解密的存档 JSON 不会持久化。只有在另一次打开操作确认 fingerprint 仍然相同时，renderer 才能在当前应用 session 内复用已经准备好的编辑器数据；成功写入后，该缓存条目会失效。 |
 | **物品/外观图像**    | 优先使用已安装游戏中经过验证的 baked PNG。外观可回退到本地 Sprite 解码；缺少图像的物品使用 Phosphor。两者均不读取 LocalLow 图像缓存。React 只接收不透明 token。                                                                                                                                |
-| **派生的升级图像**   | Python 从已安装游戏中解析并解码受支持的 texture。Electron 把验证后的派生 PNG 保存在 `%APPDATA%\repoditor-desktop\presentation`，只有受监控的源文件 identity 没有变化时才会复用；未被引用的派生 PNG 会被清理。如果条目缺失、变化、格式异常或无法读取，则重新生成，或者回退到 Phosphor 图标。    |
+| **派生的升级图像**   | [Artwork cache](docs/architecture/architecture.md#desktop-local-presentation-assets) |
 | **已安装外观元数据** | 受支持版本的 `baked-artwork.json` 验证 schema、安装位置和源文件 identity。历史版本使用独立的目录缓存。展示元数据不构成所有权证据或修改权限。                                                                                                                                                   |
 
 主题和语言偏好使用 renderer storage。RepoDitor 只有在用户明确执行受支持的保存操作后
@@ -281,9 +271,9 @@ RepoDitor 自己的界面目前提供：
 ```text
 React renderer
   ↓ typed feature calls
-Sandboxed Electron preload
-  ↓ narrow IPC contracts
-Electron main process
+WebView2 with scoped Tauri commands
+  ↓ Rust admission and process supervision
+Tauri native host
   ↓ structured requests
 Bundled Python desktop API
   ↓
@@ -303,7 +293,7 @@ reader 使用明确的兼容性 gate；如果存在不确定性，展示或功�
 
 自动化测试只使用生成或经过脱敏处理的 fixture 和临时副本，绝不会使用真实用户存档。
 repository 会检查 Python 格式和测试、renderer import 边界、lint、TypeScript build、
-组件/contract 测试、Windows Electron E2E、package 内容、无需 Vite 的 packaged E2E
+组件/contract 测试、Windows packaged Tauri E2E、package 内容、无需 Vite 的 packaged E2E
 以及安装程序结构。
 
 ```powershell
@@ -320,7 +310,8 @@ npm run release:check
 npm run build
 npm run bundle:check
 npm test
-npm run test:e2e
+npm run package:tauri
+npm run test:e2e:tauri
 ```
 
 ## 🛠️ 开发
@@ -334,6 +325,7 @@ uv sync --locked
 
 Set-Location desktop
 npm ci
+npm run build:sidecar
 npm run dev
 ```
 
@@ -341,18 +333,7 @@ npm run dev
 
 ## 📦 打包与发布
 
-在 `desktop/` 下运行 `npm run package`，会构建一个锁定依赖的 Python 3.13
-PyInstaller **onedir** sidecar、生产版 Electron 应用、未打包的 packaged smoke test、
-带安装向导的 NSIS 安装程序，并在 `desktop/release/` 下执行本地 artifact 验证。
-Electron Builder 会把 sidecar 目录安装到 `resources/backend/`，同时保留固定入口
-`resources/backend/repoditor-backend.exe`。这条本地构建路径有意不做签名。
-
-官方 tagged GitHub release 使用独立的 fail-closed 签名命令，在生成 SHA-256 文件之前
-验证 Authenticode 签名，并且只有现有 package 检查全部通过后才会发布。
-如果签名审批或凭据暂时不可用，另一个临时的手动 workflow 可以发布明确标注为未签名的
-release；它仍然保留质量、package、packaged-E2E、安装程序和 checksum gate，
-只是跳过签名验证。当前要求以及保留的历史 v0.1.0 baseline 请查看
-[release checklist](docs/release-checklist.md)。
+在 `desktop/` 下运行 `npm run package:tauri` 可生成包含 Python backend 的便携包。安装程序及 v0.2.1 迁移见[发布检查清单](docs/release-checklist.md)。
 
 ## ⚠️ 限制
 
@@ -376,7 +357,7 @@ release；它仍然保留质量、package、packaged-E2E、安装程序和 check
 | ------------------------------------------------ | ----------------------------------------------- |
 | [文档索引](docs/README.md)                       | 技术文档和 release 文档的整理入口               |
 | [架构](docs/architecture/architecture.md)        | 桌面端边界、职责和数据流                        |
-| [Electron UI](docs/architecture/electron-ui.md)  | renderer identity、响应式布局、外观与无障碍设计 |
+| [Desktop UI](docs/architecture/electron-ui.md)  | renderer identity、响应式布局、外观与无障碍设计 |
 | [存档格式](docs/research/save-format.md)         | 已确认的加密存档结构                            |
 | [逆向工程](docs/research/reverse-engineering.md) | 历史证据、当前支持范围以及尚未解决的语义        |
 | [Release checklist](docs/release-checklist.md)   | 当前 release gate 和历史 v0.1.0 baseline        |

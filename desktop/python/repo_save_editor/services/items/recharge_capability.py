@@ -11,6 +11,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from repo_save_editor.services.baked_artwork import installed_source_stamp
+from repo_save_editor.services.game.write_evidence import RECHARGE_IDENTITIES
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.items.recharge_evidence import (
     RechargeEvidence,
@@ -116,6 +117,19 @@ def discover_installed_recharge_capabilities(
     }
 
 
+def _restrict_recharge(
+    metadata: dict[str, InstalledItemMetadata], context: RechargeSourceContext
+) -> None:
+    if not (context.presentation_only or context.reviewed_recharge):
+        return
+    for name, value in metadata.items():
+        if context.presentation_only or (
+            value.recharge_capability is ItemRechargeCapability.RECHARGEABLE
+            and name not in RECHARGE_IDENTITIES
+        ):
+            metadata[name] = replace(value, recharge_capability=ItemRechargeCapability.UNKNOWN)
+
+
 def discover_installed_item_metadata_with_evidence(
     item_names: Iterable[str],
     game_dir: Path | None = None,
@@ -163,11 +177,7 @@ def discover_installed_item_metadata_with_evidence(
         hit = discovered is not None
         if discovered is None:
             discovered = dict(_cached_item_metadata(context, names, revision))
-        if context.presentation_only:
-            discovered = {
-                name: replace(value, recharge_capability=ItemRechargeCapability.UNKNOWN)
-                for name, value in discovered.items()
-            }
+        _restrict_recharge(discovered, context)
         if (
             cache is not None or context.unity_version is not None or context.presentation_only
         ) and not _metadata_source_matches(game_dir, context, revision):

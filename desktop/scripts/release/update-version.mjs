@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   assertVersionAlignment,
   readVersionSources,
+  replaceCargoVersion,
   replacePyprojectVersion,
   replacePythonVersion,
   validateVersion,
@@ -46,6 +47,7 @@ export function updateRepositoryVersion(
 
   const packageJson = JSON.parse(originals.packageJson);
   const packageLock = JSON.parse(originals.packageLock);
+  const tauriConfig = JSON.parse(originals.tauriConfig);
   const rootPackage = packageLock.packages?.[""];
   if (!rootPackage || typeof rootPackage !== "object") {
     throw new Error('desktop/package-lock.json is missing packages[""].');
@@ -54,16 +56,21 @@ export function updateRepositoryVersion(
   packageJson.version = version;
   packageLock.version = version;
   rootPackage.version = version;
+  tauriConfig.version = version;
 
   log("RepoDitor version update\n");
   try {
     writeJson(paths.packageJson, packageJson, originals.packageJson);
     writeJson(paths.packageLock, packageLock, originals.packageLock);
+    writeJson(paths.tauriConfig, tauriConfig, originals.tauriConfig);
+    writeFileSync(paths.cargoManifest, replaceCargoVersion(originals.cargoManifest, version));
+    writeFileSync(paths.cargoLock, replaceCargoVersion(originals.cargoLock, version, true));
     writeFileSync(paths.pyproject, replacePyprojectVersion(originals.pyproject, version));
     writeFileSync(paths.pythonInit, replacePythonVersion(originals.pythonInit, version));
 
     log(`package.json        ${before.packageJson} -> ${version}`);
     log(`package-lock.json   ${before.packageLockRoot} -> ${version}`);
+    log(`Tauri and Cargo     ${before.tauriConfig} -> ${version}`);
     log(`pyproject.toml      ${before.pyproject} -> ${version}`);
     log(`__init__.py         ${before.pythonInit} -> ${version}`);
     log("\nRefreshing uv.lock...");

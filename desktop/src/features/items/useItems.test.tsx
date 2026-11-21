@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopOperationResult, AdvancedSaveDto } from "@electron/contracts";
+import type { DesktopOperationResult, AdvancedSaveDto } from "@/app/desktopContracts";
 import { PreferencesProvider } from "@/app/PreferencesProvider";
 import { advanced, saveId } from "@/test/repoditorApiFixture";
 import { useItems } from "./useItems";
@@ -110,7 +110,7 @@ describe("injected Items reads", () => {
     await act(async () => complete({ ok: true, data: advanced }));
     expect(result.current.advanced).toBeNull();
   });
-  it("maps thrown reads to a public error and keeps supplied Electron initial data", async () => {
+  it("maps thrown reads to a public error and keeps supplied initial data", async () => {
     const get = vi.fn().mockRejectedValue(new Error("private"));
     const { result } = renderHook(() => useItems(saveId, { ok: true, data: advanced }, get), {
       wrapper,

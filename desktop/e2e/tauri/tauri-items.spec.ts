@@ -1,19 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { _electron as electron, expect, test, type Page, type TestInfo } from "@playwright/test";
-import type { AdvancedSaveDto, DesktopOperationResult } from "../../electron/contracts.cjs";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import type { AdvancedSaveDto, DesktopOperationResult } from "../../src/app/desktopContracts";
 import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
   PYTHON_ROOT,
   createRunSaveFixture,
   getPythonExecutable,
-  isolatedApplicationEnvironment,
 } from "../support/fixtureEnvironment";
 import { createGameFixture } from "../support/harness";
 import { close, launch, native, stageSyntheticBackend } from "../support/tauriHarness";
-import { waitForWorkspaceOrContinue } from "../support/waits";
 
 function rewriteSave(savePath: string, mode: "rich" | "changed" | "missing" | "empty") {
   execFileSync(
@@ -42,9 +40,8 @@ function rewriteSave(savePath: string, mode: "rich" | "changed" | "missing" | "e
   );
 }
 
-async function openItems(page: Page, reference = false) {
+async function openItems(page: Page) {
   await page.getByRole("button", { name: /Open workspace/ }).click();
-  if (reference) await waitForWorkspaceOrContinue(page);
   const tab = page.getByRole("tab", { name: "Items", exact: true });
   await tab.waitFor({ state: "visible" });
   const started = performance.now();
@@ -52,26 +49,20 @@ async function openItems(page: Page, reference = false) {
   return started;
 }
 
-async function compareDto(page: Page, reference: Page) {
+async function compareDto(page: Page) {
   const actual = await native<DesktopOperationResult<AdvancedSaveDto>>(page, "advanced_get", {
     saveId: E2E_SAVE_ID,
   });
-  const expected = await reference.evaluate((id) => window.repoditor.advanced.get(id), E2E_SAVE_ID);
   expect(actual.ok).toBe(true);
-  expect(expected.ok).toBe(true);
-  if (!actual.ok || !expected.ok) throw new Error("Synthetic Items could not be read");
-  expect({
-    ...actual.data,
-    items: actual.data.items.map((item) => ({ ...item, iconToken: null })),
-  }).toEqual({
-    ...expected.data,
-    items: expected.data.items.map((item) => ({ ...item, iconToken: null })),
-  });
+  if (!actual.ok) throw new Error("Synthetic Items could not be read");
   expect(actual.data.domains).toHaveLength(6);
   expect(JSON.stringify(actual)).not.toContain("rechargeEvidence");
   for (const item of actual.data.items) {
     expect(item.saveKey).toBe(`Item ${item.name}/${item.instanceId}`);
-    if (item.iconToken !== null) expect(item.iconToken).toMatch(/^item-artwork:[0-9a-f]{32}$/);
+    if (item.iconToken !== null)
+      expect(item.iconToken).toMatch(
+        item.isUpgrade ? /^upgrade-artwork:[0-9a-f]{32}$/ : /^item-artwork:[0-9a-f]{32}$/,
+      );
   }
   return actual.data;
 }
@@ -84,43 +75,36 @@ async function choose(page: Page, label: string, option: string) {
   await expect(control).toBeFocused();
 }
 
-async function compareInteractions(page: Page, reference: Page) {
-  for (const target of [page, reference]) {
-    await target.getByRole("searchbox", { name: "Search items" }).fill("  HAMMER  ");
-    await expect(target.getByText("2 matching items")).toBeVisible();
-    await expect(target.getByTestId("item-instance-Item Melee Inflatable Hammer/1")).toContainText(
-      "Current charge: 99",
-    );
-    await expect(target.getByTestId("item-instance-Item Melee Inflatable Hammer/2")).toContainText(
-      "Full",
-    );
-    await target.getByRole("button", { name: "Clear item search" }).click();
-    await expect(target.getByRole("searchbox", { name: "Search items" })).toBeFocused();
-  }
-  for (const option of ["Rechargeable items", "Non-rechargeable items", "Upgrades", "All items"]) {
-    for (const target of [page, reference]) await choose(target, "Filter", option);
-    expect(
-      await page
-        .locator('[data-testid^="item-group-"]')
-        .evaluateAll((elements) => elements.map((element) => element.getAttribute("data-testid"))),
-    ).toEqual(
-      await reference
-        .locator('[data-testid^="item-group-"]')
-        .evaluateAll((elements) => elements.map((element) => element.getAttribute("data-testid"))),
-    );
-  }
-  for (const option of ["Name Z–A", "Quantity high to low", "Name A–Z"]) {
-    for (const target of [page, reference]) await choose(target, "Sort", option);
-    expect(
-      await page
-        .locator('[data-testid^="item-group-"]')
-        .evaluateAll((elements) => elements.map((element) => element.getAttribute("data-testid"))),
-    ).toEqual(
-      await reference
-        .locator('[data-testid^="item-group-"]')
-        .evaluateAll((elements) => elements.map((element) => element.getAttribute("data-testid"))),
-    );
-  }
+async function compareInteractions(page: Page) {
+  await page.getByRole("searchbox", { name: "Search items" }).fill("  HAMMER  ");
+  await expect(page.getByText("2 matching items")).toBeVisible();
+  await expect(page.getByTestId("item-instance-Item Melee Inflatable Hammer/1")).toContainText(
+    "Current charge: 99",
+  );
+  await expect(page.getByTestId("item-instance-Item Melee Inflatable Hammer/2")).toContainText(
+    "Full",
+  );
+  await page.getByRole("button", { name: "Clear item search" }).click();
+  await expect(page.getByRole("searchbox", { name: "Search items" })).toBeFocused();
+  await choose(page, "Filter", "Rechargeable items");
+  await expect(page.getByTestId("item-instance-Item Melee Inflatable Hammer/1")).toBeVisible();
+  await expect(page.getByTestId("item-instance-Item Cart Medium/1")).toHaveCount(0);
+  await choose(page, "Filter", "Upgrades");
+  await expect(page.getByTestId("item-group-Upgrade Player Health")).toBeVisible();
+  await expect(page.getByTestId("item-group-Melee Inflatable Hammer")).toHaveCount(0);
+  await choose(page, "Filter", "All items");
+  const groups = page.locator('[data-testid^="item-group-"]');
+  await choose(page, "Sort", "Name Z–A");
+  const descending = await groups.evaluateAll((elements) =>
+    elements.map((element) => element.id || element.getAttribute("data-testid")),
+  );
+  expect(descending.length).toBeGreaterThan(1);
+  await choose(page, "Sort", "Name A–Z");
+  expect(
+    await groups.evaluateAll((elements) =>
+      elements.map((element) => element.id || element.getAttribute("data-testid")),
+    ),
+  ).toEqual(descending.toReversed());
   await page.getByRole("searchbox", { name: "Search items" }).fill("no such item");
   await expect(page.getByText("No items match this search.")).toBeVisible();
   await page.getByRole("button", { name: "Clear item search" }).click();
@@ -139,25 +123,22 @@ async function compareInteractions(page: Page, reference: Page) {
     await expect(icon).not.toHaveAttribute("data-icon-source", "local");
 }
 
-async function layouts(page: Page, reference: Page, info: TestInfo) {
+async function layouts(page: Page, info: TestInfo) {
   for (const size of [
     { width: 1600, height: 900 },
     { width: 1200, height: 800 },
     { width: 960, height: 640 },
   ]) {
-    for (const target of [page, reference]) {
-      await target.setViewportSize(size);
-      await target.evaluate(() => window.scrollTo(0, 0));
-      expect(
-        await target.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
-    }
+    await page.setViewportSize(size);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
     await page.screenshot({ path: info.outputPath(`native-items-${size.width}.png`) });
-    await reference.screenshot({ path: info.outputPath(`electron-items-${size.width}.png`) });
   }
 }
 
-test("packaged Items preserve evidence, dynamic instances and readonly search/filter/sort parity", async ({
+test("packaged Items preserve evidence, dynamic instances and read-only search, filtering and sorting", async ({
   browserName,
 }, info) => {
   expect(browserName).toBe("chromium");
@@ -166,13 +147,6 @@ test("packaged Items preserve evidence, dynamic instances and readonly search/fi
   const savePath = await createRunSaveFixture(home);
   rewriteSave(savePath, "rich");
   await createGameFixture(home);
-  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData/LocalLow"));
-  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
-  const reference = await electron.launch({
-    executablePath: path.join(DESKTOP_ROOT, "release/win-unpacked/RepoDitor.exe"),
-    args: ["--disable-gpu", `--user-data-dir=${path.join(home, "electron-profile")}`],
-    env: environment,
-  });
   let preview: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     preview = await launch(
@@ -180,12 +154,7 @@ test("packaged Items preserve evidence, dynamic instances and readonly search/fi
       home,
     );
     const page = preview.page;
-    const referencePage = await reference.firstWindow();
     const original = await readFile(savePath);
-    const referenceOpened = performance.now();
-    const referenceTab = await openItems(referencePage, true);
-    await expect(referencePage.getByRole("searchbox", { name: "Search items" })).toBeVisible();
-    const referenceVisible = performance.now();
     const clicked = performance.now();
     const itemsTab = await openItems(page);
     await expect(page.getByRole("searchbox", { name: "Search items" })).toBeVisible();
@@ -195,11 +164,9 @@ test("packaged Items preserve evidence, dynamic instances and readonly search/fi
       JSON.stringify({
         openToItemsValueMs: nativeVisible - clicked,
         itemsTabToValueMs: nativeVisible - itemsTab,
-        electronOpenToItemsValueMs: referenceVisible - referenceOpened,
-        electronItemsTabToValueMs: referenceVisible - referenceTab,
       }),
     );
-    const initial = await compareDto(page, referencePage);
+    const initial = await compareDto(page);
     expect(initial.items.map((item) => item.chargeState)).toEqual(
       expect.arrayContaining(["stored", "default_full", "not_applicable", "unknown"]),
     );
@@ -212,61 +179,47 @@ test("packaged Items preserve evidence, dynamic instances and readonly search/fi
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("searchbox", { name: "Search items" })).toBeFocused();
-    await compareInteractions(page, referencePage);
-    await layouts(page, referencePage, info);
+    await compareInteractions(page);
+    await layouts(page, info);
     expect(await readFile(savePath)).toEqual(original);
     rewriteSave(savePath, "changed");
     const changed = await readFile(savePath);
     expect(
-      (await compareDto(page, referencePage)).items.find(
+      (await compareDto(page)).items.find(
         (item) => item.saveKey === "Item Melee Inflatable Hammer/1",
       )?.storedCharge,
     ).toBe(9007199254740991);
-    for (const target of [page, referencePage]) {
-      await target.getByRole("button", { name: "Change save" }).click();
-      await openItems(target, target === referencePage);
-      await expect(
-        target.getByTestId("item-instance-Item Melee Inflatable Hammer/1"),
-      ).toContainText("Current charge: 9007199254740991");
-    }
+    await page.getByRole("button", { name: "Change save" }).click();
+    await openItems(page);
+    await expect(page.getByTestId("item-instance-Item Melee Inflatable Hammer/1")).toContainText(
+      "Current charge: 9007199254740991",
+    );
     expect(await readFile(savePath)).toEqual(changed);
     await rename(savePath, `${savePath}.hidden`);
     const missing = await native(page, "advanced_get", { saveId: E2E_SAVE_ID });
     expect(missing).toMatchObject({ ok: false, error: { code: "save_missing" } });
-    expect(missing).toEqual(
-      await referencePage.evaluate((id) => window.repoditor.advanced.get(id), E2E_SAVE_ID),
-    );
     await rename(`${savePath}.hidden`, savePath);
     await writeFile(savePath, "bad");
     const corrupt = await native(page, "advanced_get", { saveId: E2E_SAVE_ID });
     expect(corrupt).toMatchObject({ ok: false, error: { code: "save_corrupt" } });
-    expect(corrupt).toEqual(
-      await referencePage.evaluate((id) => window.repoditor.advanced.get(id), E2E_SAVE_ID),
-    );
     expect(await readFile(savePath, "utf8")).toBe("bad");
     for (const mode of ["missing", "empty"] as const) {
       rewriteSave(savePath, mode);
       const source = await readFile(savePath);
-      for (const target of [page, referencePage]) {
-        await target.getByRole("button", { name: "Change save" }).click();
-        await openItems(target, target === referencePage);
-        await expect(
-          target.getByText(
-            mode === "missing"
-              ? "Items are unavailable for this save."
-              : "This save contains no item instances.",
-          ),
-        ).toBeVisible();
-      }
-      expect((await compareDto(page, referencePage)).items).toEqual([]);
+      await page.getByRole("button", { name: "Change save" }).click();
+      await openItems(page);
+      await expect(
+        page.getByText(
+          mode === "missing"
+            ? "Items are unavailable for this save."
+            : "This save contains no item instances.",
+        ),
+      ).toBeVisible();
+      expect((await compareDto(page)).items).toEqual([]);
       expect(await readFile(savePath)).toEqual(source);
     }
   } finally {
-    try {
-      if (preview) await close(preview.child, preview.browser);
-    } finally {
-      await reference.close();
-    }
+    if (preview) await close(preview.child, preview.browser);
   }
 });
 
@@ -429,7 +382,7 @@ test("a controlled expensive Items read keeps UI and game-status checks independ
           uiElapsedMs,
           focusToSafetyDialogMs,
           records,
-          note: "Synthetic 2s Items backend, not production work. UI retains previous known status during recheck, then blocks on unknown as in Electron. Game status executes independently of active Items; deadlines remain unchanged.",
+          note: "Synthetic 2s Items backend, not production work. UI retains previous known status during recheck, then blocks on unknown. Game status executes independently of active Items; deadlines remain unchanged.",
         },
         null,
         2,

@@ -1,24 +1,22 @@
 /**
- * Renderer lifecycle for one opaque Run-save session and explicit writes.
+ * Renderer lifecycle for one opaque Run-save session during preparation.
  *
- * Pending feature edits remain outside this hook; it sends their typed union only on
- * explicit save and accepts Python's returned fingerprint/session as authoritative.
  */
 import { useEffect, useRef, useState } from "react";
 
 import type {
   DesktopOperationErrorCode,
-  RepoDitorApi,
-  SaveChange,
+  DesktopOperationResult,
   SaveOpenResult,
   SaveSession,
-  SaveWriteResult,
-} from "@electron/contracts";
+} from "@/app/desktopContracts";
 import { usePreferences } from "@/app/preferences";
 import { operationErrorKey, type TranslationKey } from "@/app/i18n";
 
-const desktopOpen: RepoDitorApi["saves"]["open"] = (saveId) => window.repoditor.saves.open(saveId);
-type OpenSave = (saveId: string, signal: AbortSignal) => ReturnType<typeof desktopOpen>;
+type OpenSave = (
+  saveId: string,
+  signal: AbortSignal,
+) => Promise<DesktopOperationResult<SaveOpenResult>>;
 
 function openErrorKey(code: DesktopOperationErrorCode): TranslationKey {
   if (code === "save_stale") return "error.saveOpenStale";
@@ -31,15 +29,12 @@ function openErrorKey(code: DesktopOperationErrorCode): TranslationKey {
  *
  * @returns The renderer-safe session, operations, and translated failure state.
  */
-export function useSaveSession(openSave: OpenSave = desktopOpen) {
+export function useSaveSession(openSave: OpenSave) {
   const { t } = usePreferences();
   const [session, setSession] = useState<SaveSession | null>(null);
   const [openingSaveId, setOpeningSaveId] = useState<string | null>(null);
   const [drainingOpen, setDrainingOpen] = useState(false);
   const [error, setError] = useState<TranslationKey | null>(null);
-  const [saveError, setSaveError] = useState<TranslationKey | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [lastBackupPath, setLastBackupPath] = useState<string | null>(null);
   const requestInFlight = useRef(false);
   const activeOpen = useRef<AbortController | null>(null);
   useEffect(() => () => activeOpen.current?.abort(), []);
@@ -53,8 +48,6 @@ export function useSaveSession(openSave: OpenSave = desktopOpen) {
     activeOpen.current = request;
     setOpeningSaveId(saveId);
     setError(null);
-    setSaveError(null);
-    setLastBackupPath(null);
     try {
       const result = await openSave(saveId, request.signal);
       if (request.signal.aborted) return null;
@@ -84,41 +77,10 @@ export function useSaveSession(openSave: OpenSave = desktopOpen) {
   function enter(opened: SaveOpenResult): void {
     setSession(opened.session);
     setError(null);
-    setSaveError(null);
-    setLastBackupPath(null);
-  }
-
-  async function write(changes: SaveChange[]): Promise<SaveWriteResult | null> {
-    if (requestInFlight.current || session === null || changes.length === 0) {
-      return null;
-    }
-    requestInFlight.current = true;
-    setSaving(true);
-    setSaveError(null);
-    setLastBackupPath(null);
-    try {
-      const result = await window.repoditor.saves.write(session.id, session.fingerprint, changes);
-      if (result.ok) {
-        setLastBackupPath(result.data.backupPath);
-        setSession(result.data.session);
-        return result.data;
-      } else {
-        setSaveError(operationErrorKey(result.error.code));
-        return null;
-      }
-    } catch {
-      setSaveError("error.write");
-      return null;
-    } finally {
-      requestInFlight.current = false;
-      setSaving(false);
-    }
   }
 
   function close(): void {
     setSession(null);
-    setSaveError(null);
-    setLastBackupPath(null);
   }
 
   return {
@@ -126,13 +88,9 @@ export function useSaveSession(openSave: OpenSave = desktopOpen) {
     openingSaveId,
     drainingOpen,
     error: error ? t(error) : null,
-    saveError: saveError ? t(saveError) : null,
-    saving,
-    lastBackupPath,
     open,
     cancelOpen,
     enter,
-    write,
     close,
   };
 }
