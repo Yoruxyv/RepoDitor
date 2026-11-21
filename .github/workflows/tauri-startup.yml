@@ -28,9 +28,9 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
-      - name: Sync locked packaging dependencies
+      - name: Sync locked test and packaging dependencies
         working-directory: .
-        run: uv sync --locked --group package
+        run: uv sync --locked --group test --group package
       - uses: actions/setup-node@v4
         with:
           node-version: 24
