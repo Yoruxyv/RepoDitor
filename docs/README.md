@@ -27,7 +27,7 @@ installation instructions, and user-facing feature summary remain in the
 
 ## Release operations
 
-- [Changelog](changelog/) — versioned user-facing release notes.
+- [Changelog](changelog/README.md) — versioned user-facing release notes.
 - [Release checklist](release-checklist.md) — version, package, signing, and
   publication gates.
 - [Installer progress](installer-progress.md) — genuine extraction telemetry,
