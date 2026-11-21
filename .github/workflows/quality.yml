@@ -160,8 +160,41 @@ jobs:
       - name: Build and verify portable Tauri package
         run: npm run package:tauri
 
+      - name: Build test-only read-only UI host (never staged)
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $previousTauriConfig = $env:TAURI_CONFIG
+          try {
+            $env:TAURI_CONFIG = Get-Content -LiteralPath 'src-tauri/startup.test.conf.json' -Raw
+            cargo build --manifest-path src-tauri/Cargo.toml --release --locked --features tauri/custom-protocol,native-ui-test
+          } finally {
+            $env:TAURI_CONFIG = $previousTauriConfig
+          }
+          $uiHostDir = Join-Path (Get-Location) 'build/test-only-portable-ui-host'
+          Remove-Item -LiteralPath $uiHostDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $uiHostDir | Out-Null
+          $uiHostExe = Join-Path $uiHostDir 'repoditor-preview.exe'
+          Copy-Item -LiteralPath 'src-tauri/target/release/repoditor-preview.exe' -Destination $uiHostExe -Force
+          $backendTarget = (Resolve-Path -LiteralPath 'build/tauri-portable/backend').Path
+          New-Item -ItemType Junction -Path (Join-Path $uiHostDir 'backend') -Target $backendTarget | Out-Null
+          $artifact = Get-Content -LiteralPath 'build/tauri-portable/artifact-check.json' -Raw | ConvertFrom-Json
+          $actualProdHash = (Get-FileHash -LiteralPath 'build/tauri-portable/RepoDitor.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualProdHash -ne $artifact.hostSha256) {
+            throw 'Portable production host hash changed while building the test-only UI host.'
+          }
+
       - name: Packaged Tauri desktop journeys
-        run: npm run test:e2e:tauri
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run test:tauri
+          npm run typecheck:e2e
+          $env:REPODITOR_PRODUCTION_EXECUTABLE = 'build/tauri-portable/RepoDitor.exe'
+          npm exec -- playwright test e2e/tauri/tauri-portable-launch.spec.ts --output=test-results/tauri-portable-production --retries=0
+          $env:REPODITOR_E2E_EXECUTABLE = 'build/test-only-portable-ui-host/repoditor-preview.exe'
+          $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
+          npm exec -- playwright test e2e/tauri/tauri-preview.spec.ts e2e/tauri/tauri-upgrades.spec.ts e2e/tauri/tauri-run.spec.ts e2e/tauri/tauri-items.spec.ts e2e/tauri/tauri-maps.spec.ts e2e/tauri/tauri-cosmetics.spec.ts e2e/tauri/tauri-status.spec.ts --output=test-results/tauri-preview
 
       - name: Upload package smoke diagnostics
         if: ${{ failure() }}

@@ -12,7 +12,14 @@ import {
   E2E_SAVE_ID,
   EXPECTED_DESKTOP_VERSION,
 } from "../support/fixtureEnvironment";
-import { close, launch, native, openRunWorkspace } from "../support/tauriHarness";
+import {
+  close,
+  launch,
+  native,
+  openRunWorkspace,
+  verifyPackagedProductionAuthority,
+  verifyPackagedProductionLaunch,
+} from "../support/tauriHarness";
 import { windowsProbeShell } from "../support/tauriStartup";
 
 const hosted =
@@ -80,18 +87,40 @@ async function uninstall(name: "RepoDitor" | typeof product, localAppData: strin
   await expect.poll(() => existsSync(exe), { timeout: 30_000 }).toBe(false);
 }
 
-test("packaged production commands are scoped and reject an unapproved fixture", async ({ browserName }, info) => {
+test("packaged production commands are scoped and reject an unapproved fixture", async ({
+  browserName,
+}, info) => {
   expect(browserName).toBe("chromium");
   const profile = info.outputPath("profile");
   await mkdir(profile, { recursive: true });
   const run = await createRunSaveFixture(profile);
   const meta = createMetaSaveFixture(profile);
   const before = await Promise.all([run, meta].map(sha256));
-  const executable = path.resolve(
+  const productionExecutable = path.resolve(
     DESKTOP_ROOT,
     process.env.REPODITOR_E2E_EXECUTABLE ?? "build/tauri-release/RepoDitor.exe",
   );
-  const app = await launch(executable, profile);
+  const prodProfile = info.outputPath("profile-production");
+  await mkdir(prodProfile, { recursive: true });
+  const prodEnv = {
+    REPODITOR_E2E_LOCAL_APP_DATA_LOW: path.join(profile, "AppData", "LocalLow"),
+  };
+  await verifyPackagedProductionAuthority(productionExecutable, prodProfile, {
+    expectedAuthority: "public-editing",
+    runSavePath: run,
+    metaSavePath: meta,
+    extraEnvironment: prodEnv,
+  });
+  await verifyPackagedProductionLaunch(productionExecutable, prodProfile, prodEnv);
+  expect(await Promise.all([run, meta].map(sha256))).toEqual(before);
+
+  const uiExecutable = path.resolve(
+    DESKTOP_ROOT,
+    process.env.REPODITOR_E2E_UI_EXECUTABLE ??
+      process.env.REPODITOR_E2E_EXECUTABLE ??
+      "build/tauri-release/RepoDitor.exe",
+  );
+  const app = await launch(uiExecutable, profile);
   try {
     const notice = app.page.getByRole("dialog", { name: "RepoDitor v0.2.1 is still installed" });
     if (await native(app.page, "legacy_install_registered")) {
@@ -188,10 +217,28 @@ test("production installer and published v0.2.1 coexist, reinstall and roll back
     );
     await verifyGameData();
   };
+  const uiHostExecutable = process.env.REPODITOR_E2E_UI_EXECUTABLE
+    ? path.resolve(DESKTOP_ROOT, process.env.REPODITOR_E2E_UI_EXECUTABLE)
+    : null;
   const launchApplication = async (phase: string, legacyExpected: boolean, executable = exe) => {
+    const prodProfile = info.outputPath(`${phase}-production`);
+    await mkdir(prodProfile, { recursive: true });
+    const prodEnv = {
+      REPODITOR_E2E_LOCAL_APP_DATA_LOW: localLow,
+      WEBVIEW2_USER_DATA_FOLDER: path.join(prodProfile, "webview2"),
+    };
+    await verifyPackagedProductionAuthority(executable, prodProfile, {
+      expectedAuthority: "public-editing",
+      runSavePath: run,
+      metaSavePath: meta,
+      extraEnvironment: prodEnv,
+    });
+    await verifyPackagedProductionLaunch(executable, prodProfile, prodEnv);
+    await verifyGameData();
+
     const appProfile = info.outputPath(phase);
     await mkdir(appProfile, { recursive: true });
-    const app = await launch(executable, appProfile, {
+    const app = await launch(uiHostExecutable ?? executable, appProfile, {
       REPODITOR_E2E_LOCAL_APP_DATA_LOW: localLow,
       WEBVIEW2_USER_DATA_FOLDER: path.join(appProfile, "webview2"),
     });
@@ -222,6 +269,7 @@ test("production installer and published v0.2.1 coexist, reinstall and roll back
     } finally {
       await close(app.child, app.browser);
     }
+    await verifyGameData();
   };
   const removeTauri = async () => {
     await uninstall(product, localAppData);

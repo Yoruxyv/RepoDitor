@@ -37,8 +37,8 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
     _parse_cached_catalog,
     _parse_cosmetic_metadata,
 )
-from repo_save_editor.services.cosmetics.installed_reader import (
-    CosmeticCatalogResolver,
+from repo_save_editor.services.cosmetics.installed_reader import CosmeticCatalogResolver
+from repo_save_editor.services.cosmetics.installed_reader_native import (
     NativeCosmeticCatalogResolver,
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata

@@ -25,7 +25,7 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
     _catalog_payload,
     _parse_cached_catalog,
 )
-from repo_save_editor.services.cosmetics.installed_reader import read_installed_catalog
+from repo_save_editor.services.cosmetics.installed_reader_native import read_installed_catalog
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.write_evidence import (
     COSMETIC_CATALOG_DIGEST,

@@ -76,8 +76,9 @@ test("synthetic upgrade drafts review and revert without writing save or receipt
     await beta.fill("2147483648");
     await expect(beta).toHaveAttribute("aria-invalid", "true");
     await expect(app.page.getByRole("alert")).toContainText("2,147,483,647");
-    await app.page.getByRole("button", { name: "Revert upgrade drafts", exact: true }).click();
+    await app.page.getByRole("button", { name: "Revert all", exact: true }).click();
     await expect(beta).toHaveValue("0");
+    await expect(beta).not.toHaveAttribute("aria-invalid", "true");
     await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
       "No pending changes",
     );
@@ -413,8 +414,13 @@ test("reverting an upgrade from a mixed draft leaves only the Health edit to sav
     await expect(app.page.getByRole("button", { name: "Save Changes", exact: true })).toBeEnabled();
     expect(await readFile(f.source)).toEqual(f.before);
     await app.page.getByRole("tab", { name: "Upgrades", exact: true }).click();
-    await app.page.getByRole("button", { name: "Revert upgrade drafts", exact: true }).click();
+    await app.page.getByRole("button", { name: "Revert", exact: true }).click();
+    await expect(app.page.getByRole("spinbutton", { name: "Strength for Alpha" })).toHaveValue("2");
+    await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
+      "1 pending change",
+    );
     await app.page.getByRole("tab", { name: "Players", exact: true }).click();
+    await expect(health).toHaveValue("17");
     await app.page.getByRole("button", { name: "Save Changes", exact: true }).click();
     await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "saved");
     const backups = (await readdir(path.dirname(f.source))).filter((name) =>

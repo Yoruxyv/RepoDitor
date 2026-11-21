@@ -64,9 +64,36 @@ jobs:
           Invoke-WebRequest 'https://github.com/Yoruxyv/RepoDitor/releases/download/v0.2.1/RepoDitor-Setup-0.2.1-x64.exe' -OutFile $legacy
           "REPODITOR_CI_SETUP=$($setup.FullName)" >> $env:GITHUB_ENV
           "REPODITOR_LEGACY_SETUP=$legacy" >> $env:GITHUB_ENV
+      - name: Build test-only public-editing UI host (never packaged)
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $config = Get-Content -LiteralPath 'build/release-installer/public-editing.json' -Raw | ConvertFrom-Json
+          $browser = Get-Content -LiteralPath 'src-tauri/startup.test.conf.json' -Raw | ConvertFrom-Json
+          $config.app | Add-Member -NotePropertyName windows -NotePropertyValue $browser.app.windows -Force
+          $previousTauriConfig = $env:TAURI_CONFIG
+          try {
+            $env:TAURI_CONFIG = $config | ConvertTo-Json -Depth 12 -Compress
+            cargo build --manifest-path src-tauri/Cargo.toml --release --locked --features tauri/custom-protocol,public-editing,native-ui-test
+          } finally {
+            $env:TAURI_CONFIG = $previousTauriConfig
+          }
+          $uiHostDir = Join-Path (Get-Location) 'build/test-only-public-editing-ui-host'
+          Remove-Item -LiteralPath $uiHostDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $uiHostDir | Out-Null
+          $uiHostExe = Join-Path $uiHostDir 'repoditor-preview.exe'
+          Copy-Item -LiteralPath 'src-tauri/target/release/repoditor-preview.exe' -Destination $uiHostExe -Force
+          $backendTarget = (Resolve-Path -LiteralPath 'build/tauri-release/backend').Path
+          New-Item -ItemType Junction -Path (Join-Path $uiHostDir 'backend') -Target $backendTarget | Out-Null
+          $artifact = Get-Content -LiteralPath 'build/tauri-release/artifact-check.json' -Raw | ConvertFrom-Json
+          $actualProdHash = (Get-FileHash -LiteralPath 'build/tauri-release/RepoDitor.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualProdHash -ne $artifact.hostSha256) {
+            throw 'Production portable host hash changed while building the test-only UI host.'
+          }
+          "REPODITOR_E2E_UI_EXECUTABLE=$uiHostExe" >> $env:GITHUB_ENV
       - name: Install, launch WebView2, uninstall and verify synthetic game data
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
+          $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
           npm run typecheck:e2e
           npm exec -- playwright test e2e/installer/tauri-installer.spec.ts --output=test-results/tauri-installer --retries=0
       - name: Retain checksums and test diagnostics

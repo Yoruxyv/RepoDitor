@@ -1,8 +1,8 @@
 /** Shared isolated packaged native harness; fixture sidecars never ship. */
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { randomUUID } from "node:crypto";
-import { access, mkdir, symlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { access, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -388,6 +388,257 @@ export async function launch(
     windows = windowsStartup(child.pid, home, interop);
     const cleanupError = await reapFailedStartup(child, exited, home);
     await browser?.close();
+    await record("failed", cleanupError);
+    throw new Error(
+      `${startupText(String(error), home)}; diagnostics: ${path.basename(startupPath)}`,
+    );
+  }
+}
+
+interface WindowsWebViewChildProbe {
+  kind?: string;
+  debuggingPort?: number | null;
+  fixtureUserData?: boolean;
+}
+
+interface WindowsStartupProbe {
+  probeError?: string;
+  hostAlive?: boolean;
+  hostWindowPresent?: boolean;
+  hostResponding?: boolean | null;
+  webviewChildren?: WindowsWebViewChildProbe[];
+}
+
+export interface ProductionAuthorityOptions {
+  expectedAuthority: "read-only" | "public-editing";
+  runSavePath: string;
+  metaSavePath: string;
+  extraEnvironment?: Record<string, string>;
+}
+
+function asWindowsProbe(value: unknown): WindowsStartupProbe {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
+function productionWebViewReady(probe: WindowsStartupProbe): boolean {
+  if (probe.probeError || !probe.hostAlive || !probe.hostWindowPresent || !probe.hostResponding) {
+    return false;
+  }
+  const children = probe.webviewChildren ?? [];
+  const hasBrowser = children.some((child) => child.kind === "browser" && child.fixtureUserData);
+  const hasRenderer = children.some((child) => child.kind === "renderer" && child.fixtureUserData);
+  return hasBrowser && hasRenderer;
+}
+
+async function fileSha256(file: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(file))
+    .digest("hex");
+}
+
+function invokePackagedSidecar(
+  backendExecutable: string,
+  args: string[],
+  environment: Record<string, string>,
+): Record<string, unknown> {
+  const output = execFileSync(backendExecutable, args, {
+    cwd: path.dirname(backendExecutable),
+    env: environment,
+    encoding: "utf8",
+    input: "",
+    windowsHide: true,
+    timeout: 30_000,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+  return JSON.parse(output) as Record<string, unknown>;
+}
+
+/** Verify PE authority, frozen backend integrity, and fail-closed production sidecar commands. */
+export async function verifyPackagedProductionAuthority(
+  executable: string,
+  home: string,
+  options: ProductionAuthorityOptions,
+) {
+  const backendExecutable = path.join(path.dirname(executable), "backend", "repoditor-backend.exe");
+  await access(executable);
+  await access(backendExecutable);
+
+  const checked = JSON.parse(
+    execFileSync(
+      getPythonExecutable(),
+      [
+        "-B",
+        path.join(DESKTOP_ROOT, "scripts/tauri/check-tauri-artifact.py"),
+        executable,
+        backendExecutable,
+        options.expectedAuthority,
+      ],
+      { cwd: DESKTOP_ROOT, encoding: "utf8", windowsHide: true, timeout: 30_000 },
+    ),
+  ) as { authority: string; hostSha256: string; backendSha256: string };
+  expect(checked.authority).toBe(options.expectedAuthority);
+  expect(checked.hostSha256).toBe(await fileSha256(executable));
+  expect(checked.backendSha256).toBe(await fileSha256(backendExecutable));
+
+  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData", "LocalLow"));
+  environment["USERPROFILE"] = process.env["USERPROFILE"] ?? home;
+  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
+  environment["PATH"] = `${process.env["SYSTEMROOT"]}\\System32;${process.env["SYSTEMROOT"]}`;
+  Object.assign(environment, options.extraEnvironment ?? {});
+
+  const [runBefore, metaBefore] = await Promise.all([
+    fileSha256(options.runSavePath),
+    fileSha256(options.metaSavePath),
+  ]);
+  const operation = "a".repeat(32);
+  const healthPayload = JSON.stringify({
+    health: [{ playerId: "111", before: 80, value: 17 }],
+  });
+  const metaIntent = JSON.stringify({ kind: "unlock", cosmeticIds: [0] });
+
+  expect(
+    invokePackagedSidecar(
+      backendExecutable,
+      ["production-health", "state", E2E_SAVE_ID, "", "", "null"],
+      environment,
+    ),
+  ).toMatchObject({ ok: true, state: "disabled" });
+
+  for (const action of ["prepare", "apply"] as const) {
+    expect(
+      invokePackagedSidecar(
+        backendExecutable,
+        ["production-health", action, E2E_SAVE_ID, operation, runBefore, healthPayload],
+        environment,
+      ),
+    ).toMatchObject({
+      ok: true,
+      transaction: { status: "rejected", reason: "save_unsupported" },
+    });
+  }
+
+  expect(
+    invokePackagedSidecar(backendExecutable, ["production-meta-state"], environment),
+  ).toMatchObject({ ok: true, state: "disabled" });
+
+  for (const command of ["production-meta-prepare", "production-meta-write"] as const) {
+    expect(
+      invokePackagedSidecar(
+        backendExecutable,
+        [command, operation, metaBefore, metaIntent, ""],
+        environment,
+      ),
+    ).toMatchObject({ status: "rejected", reason: "save_unsupported" });
+  }
+
+  expect(await fileSha256(options.runSavePath)).toBe(runBefore);
+  expect(await fileSha256(options.metaSavePath)).toBe(metaBefore);
+  return checked;
+}
+
+/** Verify an untouched production binary launches WebView2 cleanly without CDP flags. */
+export async function verifyPackagedProductionLaunch(
+  executable: string,
+  home: string,
+  extraEnvironment: Record<string, string> = {},
+) {
+  const interop = prepareWindowsProbe();
+  const environment = isolatedApplicationEnvironment(home, path.join(home, "AppData", "LocalLow"));
+  environment["USERPROFILE"] = process.env["USERPROFILE"] ?? home;
+  environment["REPODITOR_E2E_STEAM_ROOT"] = path.join(home, "SteamLibrary");
+  environment["PATH"] = `${process.env["SYSTEMROOT"]}\\System32;${process.env["SYSTEMROOT"]}`;
+  delete environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"];
+  delete environment["WEBVIEW2_REMOTE_DEBUGGING_PORT"];
+  delete environment["REPODITOR_TEST_CDP_PORT"];
+  Object.assign(environment, extraEnvironment);
+
+  const child = spawn(executable, [], {
+    cwd: path.dirname(executable),
+    env: environment,
+    windowsHide: false,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const startupPath = path.join(home, `startup-${randomUUID()}.json`);
+  let stdout = "";
+  let stderr = "";
+  let spawnError: string | null = null;
+  let windows: unknown;
+  let beforeCleanup: { exitCode: number | null; signal: NodeJS.Signals | null } | null = null;
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout = (stdout + chunk.toString()).slice(0, 8192);
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr = (stderr + chunk.toString()).slice(0, 8192);
+  });
+  child.once("error", (error) => {
+    spawnError = startupText(String(error), home);
+  });
+  const exited = new Promise<void>((resolve) => child.once("close", () => resolve()));
+  const record = async (state: string, cleanupError: string | null = null) => {
+    const report = {
+      state,
+      executable: path.basename(executable),
+      pid: child.pid ?? null,
+      requestedCdpPort: null,
+      spawnError,
+      exitCode: child.exitCode,
+      signal: child.signalCode,
+      stdout: startupText(stdout, home),
+      stderr: startupText(stderr, home),
+      cleanupError,
+      beforeCleanup,
+      directories: startupDirectories(home),
+      environment: startupEnvironment(environment, home),
+      windows: windows ?? windowsStartup(child.pid, home, interop),
+    };
+    await writeFile(startupPath, JSON.stringify(report, null, 2));
+    if (state === "failed") {
+      console.error(`Packaged production startup diagnostics: ${JSON.stringify(report)}`);
+    }
+  };
+
+  try {
+    const deadline = performance.now() + 25_000;
+    let readyProbe: WindowsStartupProbe | null = null;
+    while (performance.now() < deadline) {
+      if (spawnError) throw new Error(`Production spawn failed: ${spawnError}`);
+      if (child.exitCode !== null) {
+        throw new Error(`Production host exited early with code ${child.exitCode}`);
+      }
+      const rawProbe = windowsStartup(child.pid, home, interop);
+      const probe = asWindowsProbe(rawProbe);
+      windows = rawProbe;
+      if (productionWebViewReady(probe)) {
+        readyProbe = probe;
+        break;
+      }
+      await delay(250);
+    }
+    if (!readyProbe) {
+      throw new Error("Production WebView2 window and renderer did not become ready");
+    }
+    const exposedDebugPort = (readyProbe.webviewChildren ?? []).some(
+      (entry) => entry.debuggingPort !== null && entry.debuggingPort !== undefined,
+    );
+    expect(exposedDebugPort).toBe(false);
+    if (!child.pid) throw new Error("Production PID missing");
+    execFileSync(
+      getPythonExecutable(),
+      [path.join(DESKTOP_ROOT, "e2e/support/close-preview.py"), String(child.pid)],
+      { windowsHide: true },
+    );
+    await Promise.race([exited, delay(15_000, "timeout", { ref: false })]);
+    if (child.exitCode === null) {
+      throw new Error("Production host did not shut down normally after WM_CLOSE");
+    }
+    expect(child.exitCode).toBe(0);
+    await record("ready-production");
+    return { startupPath };
+  } catch (error) {
+    beforeCleanup = { exitCode: child.exitCode, signal: child.signalCode };
+    windows = windows ?? windowsStartup(child.pid, home, interop);
+    const cleanupError = await reapFailedStartup(child, exited, home);
     await record("failed", cleanupError);
     throw new Error(
       `${startupText(String(error), home)}; diagnostics: ${path.basename(startupPath)}`,

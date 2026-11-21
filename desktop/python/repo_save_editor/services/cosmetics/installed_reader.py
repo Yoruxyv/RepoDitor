@@ -19,10 +19,8 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
     _Resolver,
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
-from repo_save_editor.services.game.installed_build import owned_file
 from repo_save_editor.services.unity_artwork import ArtworkFileIndex
-from repo_save_editor.services.unity_presentation import PresentationFileIndex
-from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
+from repo_save_editor.services.unity_serialized import SerializedFileIndex
 
 
 class CosmeticCatalogResolver(_Resolver):
@@ -44,40 +42,13 @@ class CosmeticCatalogResolver(_Resolver):
         return self._indexes[key]
 
 
-class NativeCosmeticCatalogResolver(CosmeticCatalogResolver):
-    def __init__(self, data_dir: Path) -> None:
-        super().__init__(data_dir)
-        self.targets: dict[tuple[Path, int], SerializedFileIndex] = {}
-
-    def open(self, path: Path) -> SerializedFileIndex:
-        key = os.path.normcase(os.fspath(path))
-        if key not in self._indexes:
-            if len(self._indexes) >= MAX_OPEN_FILES:
-                raise UnityMetadataError("Too many serialized files were required.")
-            self._indexes[key] = PresentationFileIndex(owned_file(self.data_dir, path))
-        return self._indexes[key]
-
-    def target_index(self, source: SerializedFileIndex, file_id: int) -> SerializedFileIndex:
-        if file_id <= 0:
-            return super().target_index(source, file_id)
-        key = (source.path, file_id)
-        target = self.targets.get(key)
-        if target is None:
-            target = super().target_index(source, file_id)
-            # The native catalog verifies the installed identities around this scan.
-            if len(self.targets) < MAX_OPEN_FILES:
-                self.targets[key] = target
-        return target
-
-
 def read_installed_catalog(
-    game_root: Path, *, native: bool = False
+    game_root: Path,
 ) -> tuple[tuple[InstalledCosmeticMetadata, ...], tuple[tuple[str, int, int], ...]]:
     """Scan exact ordered metadata and targets without caches or artwork decoding."""
     catalog = []
     targets = []
-    resolver_type = NativeCosmeticCatalogResolver if native else CosmeticCatalogResolver
-    with resolver_type(game_root / "REPO_Data") as resolver:
+    with CosmeticCatalogResolver(game_root / "REPO_Data") as resolver:
         level0 = resolver.open(game_root / "REPO_Data" / "level0")
         record, prefix, _ = _find_unique_meta_manager(resolver, level0)
         pointers = _find_cosmetic_vector(resolver, level0, record, prefix)

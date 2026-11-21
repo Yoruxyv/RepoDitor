@@ -173,7 +173,14 @@ test("Health batch Save persists both players with one exact backup after revert
     await expect(app.page.getByRole("button", { name: "Save Changes", exact: true })).toBeEnabled();
     expect(await readFile(f.source)).toEqual(f.before);
     await noEvidence(f.source);
-    await app.page.getByRole("button", { name: "Revert upgrade drafts", exact: true }).click();
+    await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
+      "3 pending changes",
+    );
+    await app.page.getByRole("button", { name: "Revert", exact: true }).click();
+    await expect(app.page.getByRole("spinbutton", { name: "Strength for Beta" })).toHaveValue("0");
+    await expect(app.page.getByTestId("workspace-pending-edit-count")).toHaveText(
+      "2 pending changes",
+    );
     await app.page.getByRole("tab", { name: "Players", exact: true }).click();
     await app.page.getByRole("button", { name: "Save Changes", exact: true }).click();
     await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "saved");
