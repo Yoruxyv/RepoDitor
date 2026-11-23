@@ -36,6 +36,11 @@ pub struct Canonical {
     artwork_revision: Option<String>,
     #[serde(rename = "itemArtworkRetained")]
     item_artwork_retained: bool,
+    #[serde(
+        rename = "upgradeArtworkRetained",
+        skip_serializing_if = "Option::is_none"
+    )]
+    upgrade_artwork_retained: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -299,6 +304,7 @@ fn canonical(
             .filter(|revision| saves::valid_fingerprint(revision))
             .map(str::to_owned),
         item_artwork_retained: false,
+        upgrade_artwork_retained: None,
     })
 }
 
@@ -974,8 +980,16 @@ pub async fn production_recover(app: tauri::AppHandle, raw: Value) -> Transactio
     )
     .await;
     if let Some(projection) = &mut result.canonical {
+        let mut artwork = host.artwork.lock().unwrap();
+        projection.upgrade_artwork_retained = Some(artwork.retain_upgrade_artwork(
+            save,
+            generation,
+            projection.opened.fingerprint(),
+            projection.artwork_revision.as_deref(),
+            &mut projection.upgrades,
+        ));
         if let Some(advanced) = &mut projection.advanced {
-            projection.item_artwork_retained = host.artwork.lock().unwrap().retain_item_artwork(
+            projection.item_artwork_retained = artwork.retain_item_artwork(
                 save,
                 generation,
                 projection.opened.fingerprint(),

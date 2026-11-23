@@ -370,6 +370,7 @@ def test_advanced_read_marks_matching_upgrade_item_for_internal_visual_resolutio
     tmp_path: Path, sample_save
 ) -> None:
     dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    dictionaries.pop("playerUpgradeStrength", None)
     dictionaries["item"] = {"Item Upgrade Player Grab Strength/1": 1}
     save_path = _write_save(tmp_path, sample_save)
 

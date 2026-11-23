@@ -139,7 +139,13 @@ fn upgrade_batches_bind_to_the_save_and_drop_images_after_a_session_change() {
     let mut registry = Registry::default();
     let mut values = upgrades(2);
     registry.open("save", &fp);
-    registry.register("save", registry.generation("save"), Some(&fp), &mut values);
+    registry.register(
+        "save",
+        registry.generation("save"),
+        Some(&fp),
+        None,
+        &mut values,
+    );
     let tokens: Vec<_> = values
         .iter()
         .map(|row| row.icon_token.clone().unwrap())
@@ -172,13 +178,14 @@ fn upgrade_batches_bind_to_the_save_and_drop_images_after_a_session_change() {
 fn scopes_tokens_to_current_save_and_revokes_inflight_work() {
     let mut registry = Registry::default();
     let mut rows = upgrades(20);
-    registry.register("save", None, Some(&"a".repeat(64)), &mut rows);
+    registry.register("save", None, Some(&"a".repeat(64)), None, &mut rows);
     assert!(rows.iter().all(|row| row.icon_token.is_none()));
     registry.open("save", &"a".repeat(64));
     registry.register(
         "save",
         registry.generation("save"),
         Some(&"a".repeat(64)),
+        None,
         &mut rows,
     );
     assert_eq!(registry.entries.len(), MAX_IMAGES);
@@ -218,16 +225,16 @@ fn rereading_unchanged_upgrades_keeps_artwork_active_until_the_save_changes() {
     registry.open("save", &fingerprint);
     let generation = registry.generation("save");
     let mut rows = upgrades(1);
-    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    registry.register("save", generation, Some(&fingerprint), None, &mut rows);
     let token = rows[0].icon_token.take().unwrap();
     let (_, _, _, decoding) = registry.begin(&token).unwrap();
 
-    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    registry.register("save", generation, Some(&fingerprint), None, &mut rows);
     assert_eq!(rows[0].icon_token.as_ref(), Some(&token));
     assert!(!decoding.load(Ordering::SeqCst));
     assert!(registry.finish(&token, &decoding));
 
-    registry.register("save", generation, Some(&fingerprint), &mut rows);
+    registry.register("save", generation, Some(&fingerprint), None, &mut rows);
     let refreshed = rows[0].icon_token.take().unwrap();
     assert_ne!(refreshed, token);
     assert!(registry.begin(&token).is_err());
@@ -244,15 +251,64 @@ fn stale_lists_cannot_register_and_refresh_revokes_old_tokens() {
     let generation = registry.generation("save");
     registry.open("other", &"a".repeat(64));
     let mut rows = upgrades(1);
-    registry.register("save", generation, Some(&"a".repeat(64)), &mut rows);
+    registry.register("save", generation, Some(&"a".repeat(64)), None, &mut rows);
     assert!(rows[0].icon_token.is_none());
     registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
-    registry.register("save", generation, Some(&"a".repeat(64)), &mut rows);
+    registry.register("save", generation, Some(&"a".repeat(64)), None, &mut rows);
     let old = rows[0].icon_token.clone().unwrap();
-    registry.register("save", generation, Some(&"b".repeat(64)), &mut rows);
+    registry.register("save", generation, Some(&"b".repeat(64)), None, &mut rows);
     assert_ne!(rows[0].icon_token.as_deref(), Some(old.as_str()));
     assert!(registry.begin(&old).is_err());
+}
+
+#[cfg(feature = "production-health")]
+#[test]
+fn confirmed_save_keeps_upgrade_tokens_only_for_the_current_source_and_session() {
+    let before = "a".repeat(64);
+    let after = "b".repeat(64);
+    let second = "c".repeat(64);
+    let revision = "d".repeat(64);
+    let mut registry = Registry::default();
+    registry.open("save", &before);
+    let generation = registry.generation("save");
+    let mut rows = upgrades(1);
+    registry.register(
+        "save",
+        generation,
+        Some(&before),
+        Some(&revision),
+        &mut rows,
+    );
+    let token = rows[0].icon_token.clone().unwrap();
+    let (_, _, _, inflight) = registry.begin(&token).unwrap();
+    for fingerprint in [&after, &second] {
+        let mut canonical = upgrades(1);
+        assert!(registry.retain_upgrade_artwork(
+            "save",
+            generation,
+            fingerprint,
+            Some(&revision),
+            &mut canonical
+        ));
+        assert_eq!(canonical[0].icon_token.as_deref(), Some(token.as_str()));
+        let (_, bound, _, request) = registry.begin(&token).unwrap();
+        assert_eq!(&bound, fingerprint);
+        assert!(registry.finish(&token, &request));
+    }
+    assert!(!registry.finish(&token, &inflight));
+    let mut changed = upgrades(1);
+    assert!(!registry.retain_upgrade_artwork("save", generation, &second, None, &mut changed));
+    assert!(changed[0].icon_token.is_none());
+    assert!(registry.begin(&token).is_err());
+    registry.open("save", &second);
+    assert!(!registry.retain_upgrade_artwork(
+        "save",
+        generation,
+        &second,
+        Some(&revision),
+        &mut changed
+    ));
 }
 
 #[test]
@@ -285,6 +341,11 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
         "isUpgrade":true,"storedCharge":null,"chargeState":"unknown","rechargeCapability":"unknown",
         "canRefillToFull":false,"iconKey":null,"upgradeVisualKey":"playerUpgradeTest0"}),
     );
+    rows.push(
+        json!({"name":"Upgrade Player Health","saveKey":"Item Upgrade Player Health/72","instanceId":"72",
+        "isUpgrade":true,"storedCharge":null,"chargeState":"unknown","rechargeCapability":"unknown",
+        "canRefillToFull":false,"iconKey":null,"upgradeVisualKey":"playerUpgradeHealth"}),
+    );
     let mut raw = serde_json::to_vec(&json!({"ok":true,"advanced":{"domains":domains,
         "items":rows,"unlinkedChargeEntryCount":0}}))
     .unwrap();
@@ -295,7 +356,13 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
     registry.open("save", &"a".repeat(64));
     let generation = registry.generation("save");
     let mut upgraded = upgrades(1);
-    registry.register("save", generation, Some(&"a".repeat(64)), &mut upgraded);
+    registry.register(
+        "save",
+        generation,
+        Some(&"a".repeat(64)),
+        None,
+        &mut upgraded,
+    );
     registry.register_items("save", generation, Some(&"b".repeat(64)), None, &mut items);
     assert_eq!(*items.upgrade_icons().next().unwrap().1, None);
     registry.register_items("save", generation, Some(&"a".repeat(64)), None, &mut items);
@@ -303,6 +370,10 @@ fn item_tokens_cover_the_bounded_projection_and_reuse_one_entry_per_type() {
         *items.upgrade_icons().next().unwrap().1,
         upgraded[0].icon_token
     );
+    let truck_token = items.upgrade_icons().nth(1).unwrap().1.clone().unwrap();
+    let (_, _, key, request) = registry.begin(&truck_token).unwrap();
+    assert_eq!(key, "playerUpgradeHealth");
+    assert!(registry.finish(&truck_token, &request));
     registry.register_items("save", generation, Some(&"b".repeat(64)), None, &mut items);
     let tokens: Vec<_> = items
         .item_icons()

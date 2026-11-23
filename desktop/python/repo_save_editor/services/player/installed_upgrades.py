@@ -22,6 +22,23 @@ _INSTALLED_NAME_ALIASES = {
     "Throw": "Grab Throw",
 }
 
+# Verified prefab relationships in docs/research/asset-research.md. A truck
+# pickup can be present before its player-upgrade dictionary exists in the Run.
+_TRUCK_VISUAL_KEYS = (
+    "playerUpgradeCrouchRest",
+    "playerUpgradeDeathHeadBattery",
+    "playerUpgradeExtraJump",
+    "playerUpgradeHealth",
+    "playerUpgradeLaunch",
+    "playerUpgradeMapPlayerCount",
+    "playerUpgradeRange",
+    "playerUpgradeSpeed",
+    "playerUpgradeStamina",
+    "playerUpgradeStrength",
+    "playerUpgradeTumbleClimb",
+    "playerUpgradeTumbleWings",
+)
+
 MetadataLoader = Callable[[Iterable[str]], Mapping[str, InstalledItemMetadata]]
 IconLoader = Callable[[IconDomain, Iterable[str]], frozenset[str]]
 
@@ -42,10 +59,10 @@ def match_upgrade_items(
     keys: Iterable[str],
     item_names: Iterable[str],
 ) -> dict[str, str]:
-    """Map uniquely matched installed Item prefab names to dynamic save upgrade keys."""
+    """Map exact truck prefab names to unique artwork keys, independent of edit authority."""
     owners: dict[str, str] = {}
     ambiguous: set[str] = set()
-    for key in dict.fromkeys(keys):
+    for key in dict.fromkeys((*keys, *_TRUCK_VISUAL_KEYS)):
         for candidate in upgrade_item_candidates(key):
             identity = candidate.casefold()
             owner = owners.get(identity)

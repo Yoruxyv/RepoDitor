@@ -85,6 +85,7 @@ def _player_avatar(args: argparse.Namespace) -> dict[str, object]:
 
 def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
     from repo_save_editor.desktop_api.player.upgrades import list_upgrades
+    from repo_save_editor.services.baked_artwork import entry_artwork_revision
     from repo_save_editor.services.items.recharge_capability import (
         discover_installed_item_metadata,
     )
@@ -96,13 +97,17 @@ def _list_upgrades(args: argparse.Namespace) -> dict[str, object]:
         return _missing_save()
     if not args.reuse_installed_metadata:
         return list_upgrades(args.save_id)
-    return list_upgrades(
+    revision = entry_artwork_revision()
+    result = list_upgrades(
         args.save_id,
         presentation_loader=partial(
             discover_installed_upgrade_presentations,
             metadata_loader=partial(discover_installed_item_metadata, reuse_native_metadata=True),
         ),
     )
+    if result.get("ok") is True and revision and revision == entry_artwork_revision():
+        result["artworkRevision"] = revision
+    return result
 
 
 def _upgrade_texture(args: argparse.Namespace) -> dict[str, object]:

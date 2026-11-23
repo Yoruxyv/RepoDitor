@@ -16,6 +16,7 @@ export interface HealthCanonical {
   run?: RunStateDto | null;
   advanced?: AdvancedSaveDto | null;
   itemArtworkRetained?: boolean;
+  upgradeArtworkRetained?: boolean;
 }
 
 export interface HealthValueIntent {
