@@ -1,5 +1,49 @@
 use super::allowed_navigation;
 
+#[cfg(feature = "production-health")]
+#[test]
+fn save_retains_prepared_upgrade_tokens_even_when_the_entry_projection_is_not_cacheable() {
+    use super::{artwork::Registry, bind_editor_entry, upgrades, Outcome};
+    use serde_json::json;
+
+    let before = "a".repeat(64);
+    let after = "b".repeat(64);
+    let revision = "c".repeat(64);
+    let mut registry = Registry::default();
+    registry.open("save", &before);
+    let generation = registry.generation("save");
+    let upgrades = json!({"ok": true, "upgrades": [{
+        "key": "playerUpgradeStrength", "label": "Strength", "presentationSource": "installed",
+        "gameplayCap": null, "iconKey": null, "values": [{"playerId": "111", "value": 2}]
+    }]});
+    let mut raw = json!({
+        "ok": true, "fingerprint": before, "cacheRevision": null, "artworkRevision": revision,
+        "upgrades": upgrades,
+        "maps": {"ok": true, "available": false, "catalogPath": null, "maps": [],
+                 "entryArtworkRevision": revision}
+    });
+
+    let (entry, _) = bind_editor_entry(&raw, &mut registry, "save", &before, generation).unwrap();
+    let Outcome::Success { data: initial, .. } = entry.upgrades else {
+        panic!("Upgrade projection should be available");
+    };
+    let token = initial[0].icon_token.as_ref().unwrap();
+    raw["upgrades"]["upgrades"][0]["values"][0]["value"] = json!(7);
+    let mut saved = upgrades::parse(&serde_json::to_vec(&raw["upgrades"]).unwrap()).unwrap();
+    assert!(registry.retain_upgrade_artwork(
+        "save",
+        generation,
+        &after,
+        Some(&revision),
+        &mut saved
+    ));
+    assert_eq!(saved[0].icon_token.as_ref(), Some(token));
+    assert_eq!(
+        serde_json::to_value(&saved).unwrap()[0]["values"][0]["value"],
+        7
+    );
+}
+
 #[test]
 fn entry_source_proof_distinguishes_incompatible_responses_from_changed_bytes() {
     use super::{check_entry_fingerprint, BackendError};
