@@ -69,6 +69,7 @@ export const ko: Record<keyof typeof en, string> = {
   "action.revert": "되돌리기",
   "action.revertAll": "모두 되돌리기",
   "action.review": "검토",
+  "action.hideReview": "검토 숨기기",
   "action.saveChanges": "변경 사항 저장",
   "action.saving": "저장 중…",
   "action.changeSave": "세이브 변경",

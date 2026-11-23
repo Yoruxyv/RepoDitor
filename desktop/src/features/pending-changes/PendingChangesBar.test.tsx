@@ -68,48 +68,86 @@ describe("PendingChangesBar", () => {
     const reviewButton = screen.getByRole("button", { name: "Review" });
     await user.click(reviewButton);
     expect(review.hasAttribute("hidden")).toBe(false);
-    expect(review.className).not.toContain("overflow");
-    expect(review.querySelector("ul")?.className).toContain("overflow-y-auto");
+    expect(review.className).toContain("overflow-y-auto");
     expect(reviewButton.getAttribute("aria-expanded")).toBe("true");
+    expect(reviewButton.textContent).toBe("Hide review");
     expect(reviewButton.className).toContain("aria-expanded:border-accent");
     expect(reviewButton.className).toContain("aria-expanded:text-accent");
     expect(document.activeElement).toBe(reviewButton);
     expect(screen.getByText("12 → 20")).toBeTruthy();
-    await user.click(reviewButton);
+    review.focus();
+    await user.keyboard("{Escape}");
     expect(review.hasAttribute("hidden")).toBe(true);
     expect(reviewButton.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(reviewButton);
   });
 
-  it("bounds only the review list for many changes without changing page scroll", async () => {
+  it.each([1, 20, 100])(
+    "bounds review with %i pending edits without changing page scroll",
+    async (count) => {
+      const user = userEvent.setup();
+      const scrollTo = vi.spyOn(window, "scrollTo");
+      const edits = Array.from({ length: count }, (_, index): PendingEdit => ({
+        feature: "players",
+        entity: `player-${index}`,
+        field: "health",
+        before: 12,
+        after: index + 20,
+        label: "Health",
+        subject: `Player ${index}`,
+      }));
+      render(
+        <PreferencesProvider>
+          <PendingChangesBar
+            backupPath={null}
+            edits={edits}
+            error={null}
+            saving={false}
+            onRevert={vi.fn()}
+            onSave={vi.fn()}
+          />
+        </PreferencesProvider>,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Review" }));
+      const review = screen.getByTestId("workspace-review");
+      expect(review.className).toContain("max-h-[min(32dvh,18rem)]");
+      expect(review.className).toContain("overflow-y-auto");
+      expect(review.querySelectorAll("li")).toHaveLength(count);
+      expect(scrollTo).not.toHaveBeenCalled();
+    },
+  );
+
+  it("collapses on save and lets review open and hide while saving without changing edits", async () => {
     const user = userEvent.setup();
-    const scrollTo = vi.spyOn(window, "scrollTo");
-    const edits = Array.from({ length: 20 }, (_, index): PendingEdit => ({
-      feature: "players",
-      entity: `player-${index}`,
-      field: "health",
-      before: 12,
-      after: index + 20,
-      label: "Health",
-      subject: `Player ${index}`,
-    }));
-    render(
+    const onSave = vi.fn();
+    const onRevert = vi.fn();
+    const view = (saving: boolean) => (
       <PreferencesProvider>
         <PendingChangesBar
           backupPath={null}
-          edits={edits}
+          edits={[edit]}
           error={null}
-          saving={false}
-          onRevert={vi.fn()}
-          onSave={vi.fn()}
+          saving={saving}
+          reviewPath="fixture.es3"
+          onRevert={onRevert}
+          onSave={onSave}
         />
-      </PreferencesProvider>,
+      </PreferencesProvider>
     );
-
+    const { rerender } = render(view(false));
     await user.click(screen.getByRole("button", { name: "Review" }));
-    const review = screen.getByTestId("workspace-review");
-    expect(review.querySelector("ul")?.className).toContain("max-h-[min(45dvh,24rem)]");
-    expect(review.className).not.toContain("overflow");
-    expect(scrollTo).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    rerender(view(true));
+    expect(screen.getByTestId("workspace-review").hidden).toBe(true);
+    const progress = screen.getByRole("progressbar", { name: "Saving safely…" });
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText("12 → 20")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Hide review" }));
+    expect(screen.getByRole("progressbar")).toBe(progress);
+    expect(screen.getByTestId("workspace-review").hidden).toBe(true);
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(onRevert).not.toHaveBeenCalled();
   });
 
   it("keeps Revert All and Save Changes usable while review is open", async () => {
