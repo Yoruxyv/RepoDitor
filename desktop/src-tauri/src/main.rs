@@ -280,13 +280,13 @@ fn bind_editor_entry(
     let mut upgrades = entry_projection(&raw["upgrades"], upgrades::parse);
     let mut items = entry_projection(&raw["items"], items::parse);
     let mut maps = entry_projection(&raw["maps"], maps::parse);
+    let revision = raw["cacheRevision"]
+        .as_str()
+        .filter(|revision| raw["maps"]["entryArtworkRevision"] == *revision);
     if let Ok(rows) = &mut upgrades {
-        registry.register(save, generation, Some(fingerprint), rows);
+        registry.register(save, generation, Some(fingerprint), revision, rows);
     }
     if let Ok(rows) = &mut items {
-        let revision = raw["cacheRevision"]
-            .as_str()
-            .filter(|revision| raw["maps"]["entryArtworkRevision"] == *revision);
         registry.register_items(save, generation, Some(fingerprint), revision, rows);
     }
     if let Ok(catalog) = &mut maps {
@@ -478,7 +478,7 @@ async fn upgrades_list(
     if preparing && preparation.is_none() {
         return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
     }
-    let (fingerprint, cancelled) = preparation.unzip();
+    let cancelled = preparation.map(|(_, cancelled)| cancelled);
     backend::request(
         app,
         Operation::Upgrades(id.clone(), cancelled),
@@ -486,12 +486,28 @@ async fn upgrades_list(
             let mut values = upgrades::parse(bytes)?;
             let raw = error::json(bytes)?;
             let mut registry = state.artwork.lock().unwrap();
-            if preparing && registry.generation(&id) != generation {
+            if generation.is_some() && registry.generation(&id) != generation {
                 return Err(BackendError::Cancelled);
             }
-            check_entry_fingerprint(raw["fingerprint"].as_str(), fingerprint.as_deref())?;
-            check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
-            registry.register(&id, generation, raw["fingerprint"].as_str(), &mut values);
+            let current = registry
+                .session_preparation(&id)
+                .map(|(fingerprint, _)| fingerprint);
+            let fingerprint = raw["fingerprint"].as_str();
+            if preparing {
+                check_entry_fingerprint(fingerprint, current.as_deref())?;
+            }
+            check_entry_fingerprint(fingerprint, prepare_fingerprint.as_deref())?;
+            // Read-only queries can return updated values without issuing artwork
+            // tokens for bytes outside the open workspace's validated snapshot.
+            if cfg!(feature = "synthetic-health-recovery") || fingerprint == current.as_deref() {
+                registry.register(
+                    &id,
+                    generation,
+                    fingerprint,
+                    raw["artworkRevision"].as_str(),
+                    &mut values,
+                );
+            }
             Ok(values)
         },
     )
@@ -839,6 +855,12 @@ async fn advanced_get(
                 return Err(BackendError::Cancelled);
             }
             check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
+            if refreshing {
+                let current = registry
+                    .session_preparation(&id)
+                    .map(|(fingerprint, _)| fingerprint);
+                check_entry_fingerprint(raw["fingerprint"].as_str(), current.as_deref())?;
+            }
             registry.register_items(
                 &id,
                 generation,

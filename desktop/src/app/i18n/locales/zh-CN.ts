@@ -63,6 +63,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "action.revert": "还原",
   "action.revertAll": "全部还原",
   "action.review": "查看",
+  "action.hideReview": "隐藏更改详情",
   "action.saveChanges": "保存更改",
   "action.saving": "正在保存…",
   "action.changeSave": "更换存档",

@@ -94,6 +94,19 @@ def test_upgrade_batch_preserves_valid_images_when_other_keys_are_unavailable(na
     assert save.read_bytes() == before
 
 
+def test_truck_upgrade_decodes_without_a_matching_player_dictionary(native_artwork, sample_save):
+    root, save, _, _ = native_artwork
+    expected = get(native_artwork)["artwork"]
+    dictionaries = sample_save["dictionaryOfDictionaries"]["value"]
+    del dictionaries["playerUpgradeHealth"]
+    dictionaries["item"] = {"Item Upgrade Player Health/1": 1}
+    _write_save(root, sample_save)
+    fingerprint = hashlib.sha256(save.read_bytes()).hexdigest()
+    assert expected is not None
+    assert get(native_artwork, fingerprint=fingerprint)["artwork"] == expected
+    assert get(native_artwork, key="playerUpgradeOther", fingerprint=fingerprint)["artwork"] is None
+
+
 def test_upgrade_preparation_caches_only_confirmed_prefab_absence(native_artwork):
     _, _, _, data = native_artwork
     installation = icons.artwork_installation(None)

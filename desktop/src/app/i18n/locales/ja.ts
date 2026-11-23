@@ -70,6 +70,7 @@ export const ja: Record<keyof typeof en, string> = {
   "action.revert": "元に戻す",
   "action.revertAll": "すべて元に戻す",
   "action.review": "確認",
+  "action.hideReview": "確認内容を隠す",
   "action.saveChanges": "変更を保存",
   "action.saving": "保存中…",
   "action.changeSave": "セーブを変更",

@@ -186,6 +186,22 @@ export function useItems(
     setPendingByItem({});
   }
 
+  function clearUpgradeArtwork(): void {
+    snapshotVersion.current += 1;
+    setState((current) => {
+      if (!current.advanced) return current;
+      return {
+        ...current,
+        advanced: {
+          ...current.advanced,
+          items: current.advanced.items.map((item) =>
+            item.isUpgrade ? { ...item, iconToken: null } : item,
+          ),
+        },
+      };
+    });
+  }
+
   async function refreshArtwork(fingerprint: string): Promise<void> {
     const version = snapshotVersion.current;
     const result = await get(saveId, fingerprint, true);
@@ -224,5 +240,6 @@ export function useItems(
     reload: () => load(false),
     refreshAfterSave: () => load(true),
     refreshArtwork,
+    clearUpgradeArtwork,
   };
 }

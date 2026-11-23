@@ -70,6 +70,7 @@ export const en = {
   "action.revert": "Revert",
   "action.revertAll": "Revert all",
   "action.review": "Review",
+  "action.hideReview": "Hide review",
   "action.saveChanges": "Save Changes",
   "action.saving": "Saving…",
   "action.changeSave": "Change save",

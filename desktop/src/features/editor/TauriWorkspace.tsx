@@ -108,9 +108,11 @@ export function TauriWorkspace({
     players.players,
     (projection) => {
       players.acceptSnapshot(projection.players);
-      if (projection.upgrades) upgrades.acceptSnapshot(projection.upgrades);
+      if (projection.upgrades)
+        upgrades.acceptSnapshot(projection.upgrades, projection.upgradeArtworkRetained);
       if (projection.run) run.acceptSnapshot(projection.run);
       if (projection.advanced) items.acceptSnapshot(projection.advanced);
+      else if (projection.upgradeArtworkRetained === false) items.clearUpgradeArtwork();
       onCanonical(projection.opened);
     },
     tauriHealthApi,
@@ -150,6 +152,7 @@ export function TauriWorkspace({
   const refreshItems = items.refreshArtwork;
   const hasCanonicalItems = health.canonical?.advanced != null;
   const itemArtworkRetained = health.canonical?.itemArtworkRetained === true;
+  const upgradeArtworkRetained = health.canonical?.upgradeArtworkRetained;
   useEffect(() => {
     if (health.locked) return;
     if (
@@ -157,15 +160,20 @@ export function TauriWorkspace({
       artworkFingerprint.current.upgrades !== currentSession.fingerprint
     ) {
       artworkFingerprint.current.upgrades = currentSession.fingerprint;
-      void refreshUpgrades();
+      if (upgradeArtworkRetained !== true) {
+        void refreshUpgrades(
+          upgradeArtworkRetained === false ? currentSession.fingerprint : undefined,
+        );
+      }
     }
     if (
       section === "items" &&
-      hasCanonicalItems &&
+      (hasCanonicalItems || upgradeArtworkRetained === false) &&
       artworkFingerprint.current.items !== currentSession.fingerprint
     ) {
       artworkFingerprint.current.items = currentSession.fingerprint;
-      if (!itemArtworkRetained) void refreshItems(currentSession.fingerprint);
+      if (!itemArtworkRetained || upgradeArtworkRetained === false)
+        void refreshItems(currentSession.fingerprint);
     }
   }, [
     currentSession.fingerprint,
@@ -175,6 +183,7 @@ export function TauriWorkspace({
     refreshItems,
     refreshUpgrades,
     section,
+    upgradeArtworkRetained,
   ]);
   const pendingSections: Partial<Record<Section, number>> = {
     players: health.healthEdits.length,

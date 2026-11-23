@@ -4,10 +4,10 @@
  * The natural-flow review list and sticky controls are presentation only; callers own
  * pending state and route save actions through their authoritative session boundary.
  */
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { usePreferences } from "@/app/preferences";
-import type { Translate } from "@/app/i18n";
+import type { Translate, TranslationKey } from "@/app/i18n";
 import type { PendingEdit } from "@/features/pending-changes/pendingEdits";
 
 interface PendingChangesBarProps {
@@ -73,26 +73,54 @@ function displayLabel(edit: PendingEdit, t: Translate): string {
   return edit.label;
 }
 
-function usePendingReview(hasEdits: boolean, required: boolean, onSave: () => void) {
+function usePendingReview(
+  hasEdits: boolean,
+  saving: boolean,
+  required: boolean,
+  onSave: () => void,
+) {
   const [reviewing, setReviewing] = useState(false);
   const reviewButton = useRef<HTMLButtonElement>(null);
+  const reviewPanel = useRef<HTMLElement>(null);
   const opensReview = required && !reviewing;
 
   useEffect(() => {
-    if (!hasEdits) setReviewing(false);
-  }, [hasEdits]);
+    if (!hasEdits || saving) {
+      if (reviewPanel.current?.contains(document.activeElement)) reviewButton.current?.focus();
+      setReviewing(false);
+    }
+  }, [hasEdits, saving]);
+
+  function closeOnEscape(event: KeyboardEvent) {
+    if (event.key !== "Escape" || !reviewing) return;
+    event.stopPropagation();
+    setReviewing(false);
+    reviewButton.current?.focus();
+  }
 
   function saveOrReview(event: MouseEvent<HTMLButtonElement>) {
+    if (saving) return;
     if (opensReview) {
       setReviewing(true);
       reviewButton.current?.focus();
     } else if (!required || event.detail < 2) {
       // A double-click that opens review must not also confirm it.
+      setReviewing(false);
+      reviewButton.current?.focus();
       onSave();
     }
   }
 
-  return { reviewing, setReviewing, reviewButton, saveOrReview };
+  const reviewLabel: TranslationKey = reviewing ? "action.hideReview" : "action.review";
+  return {
+    reviewing,
+    setReviewing,
+    reviewLabel,
+    reviewButton,
+    reviewPanel,
+    closeOnEscape,
+    saveOrReview,
+  };
 }
 
 export function PendingChangesBar({
@@ -109,11 +137,15 @@ export function PendingChangesBar({
   reviewPath,
 }: PendingChangesBarProps) {
   const { t } = usePreferences();
-  const { reviewing, setReviewing, reviewButton, saveOrReview } = usePendingReview(
-    edits.length > 0,
-    reviewPath !== undefined,
-    onSave,
-  );
+  const {
+    reviewing,
+    setReviewing,
+    reviewLabel,
+    reviewButton,
+    reviewPanel,
+    closeOnEscape,
+    saveOrReview,
+  } = usePendingReview(edits.length > 0, saving, reviewPath !== undefined, onSave);
   const savingSafelyLabel = t("status.savingSafely");
   const visible = edits.length > 0 || saving || error !== null || backupPath !== null;
 
@@ -147,19 +179,24 @@ export function PendingChangesBar({
         ) : null}
         <div className="mx-auto w-full max-w-[1280px]">
           {edits.length > 0 ? (
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape dismisses the keyboard-scrollable review region.
             <section
               aria-label={t("pending.unsaved")}
-              className="mb-3 border-b border-line pb-3"
+              className="mb-3 max-h-[min(32dvh,18rem)] overflow-y-auto overscroll-contain border-b border-line pr-1 pb-3"
               data-testid={`${testIdPrefix}-review`}
               hidden={!reviewing}
               id={`${testIdPrefix}-review`}
+              ref={reviewPanel}
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users need a tab stop to scroll this region.
+              tabIndex={0}
+              onKeyDown={closeOnEscape}
             >
               {reviewPath ? (
                 <p className="mb-3 wrap-break-word font-mono text-xs text-secondary">
                   {t("workspace.source")} {reviewPath}
                 </p>
               ) : null}
-              <ul className="grid max-h-[min(45dvh,24rem)] gap-3 overflow-y-auto overscroll-contain pr-1">
+              <ul className="grid gap-3">
                 {edits.map((edit) => (
                   <li
                     className="grid min-w-0 gap-1 border-l-2 border-accent pl-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-4"
@@ -212,12 +249,12 @@ export function PendingChangesBar({
                   ref={reviewButton}
                   aria-controls={`${testIdPrefix}-review`}
                   aria-expanded={reviewing}
-                  className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent aria-expanded:border-accent aria-expanded:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={saving}
+                  className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent aria-expanded:border-accent aria-expanded:text-accent"
                   type="button"
                   onClick={() => setReviewing((current) => !current)}
+                  onKeyDown={closeOnEscape}
                 >
-                  {t("action.review")}
+                  {t(reviewLabel)}
                 </button>
                 <button
                   className="ui-feedback rounded-sm border border-control px-3 py-2 font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"

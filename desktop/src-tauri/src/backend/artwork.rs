@@ -70,6 +70,7 @@ pub struct Registry {
     pending_open: Option<(String, Arc<AtomicBool>)>,
     session: Option<(String, Uuid, String, Arc<AtomicBool>)>,
     fingerprint: String,
+    upgrade_revision: Option<String>,
     entries: HashMap<String, Entry>,
     item_fingerprint: String,
     item_revision: Option<String>,
@@ -99,6 +100,7 @@ impl Registry {
             cancelled.store(true, Ordering::SeqCst);
         }
         self.fingerprint.clear();
+        self.upgrade_revision = None;
         self.item_fingerprint.clear();
         self.item_revision = None;
     }
@@ -150,11 +152,13 @@ impl Registry {
         save: &str,
         generation: Option<Uuid>,
         fingerprint: Option<&str>,
+        artwork_revision: Option<&str>,
         upgrades: &mut [Upgrade],
     ) {
         if generation.is_none() || generation != self.generation(save) {
             return;
         }
+        let revision = artwork_revision.filter(|revision| valid_revision(revision));
         let rows: Vec<_> = upgrades
             .iter_mut()
             .filter(|upgrade| {
@@ -162,7 +166,11 @@ impl Registry {
             })
             .take(MAX_IMAGES)
             .collect();
-        if fingerprint == Some(self.fingerprint.as_str()) {
+        let same_projection = revision == self.upgrade_revision.as_deref()
+            && fingerprint == Some(self.fingerprint.as_str());
+        if !same_projection {
+            revoke(&mut self.entries);
+        } else if revision.is_none() {
             // Keep active decodes. Settled images get fresh tokens so an installed asset
             // change can still be picked up when the artwork is read again.
             self.entries.retain(|_, entry| {
@@ -173,23 +181,72 @@ impl Registry {
                 }
                 active
             });
-        } else {
-            revoke(&mut self.entries);
         }
         self.cancel_abandoned_batch();
+        self.upgrade_revision = revision.map(str::to_owned);
         let Some(fingerprint) = fingerprint.filter(|s| valid_revision(s)) else {
             return;
         };
         self.fingerprint = fingerprint.into();
         for upgrade in rows {
-            let existing = self
-                .entries
-                .iter()
-                .find(|(_, entry)| entry.key == upgrade.key)
-                .map(|(token, _)| token.clone());
-            upgrade.icon_token = Some(existing.unwrap_or_else(|| {
-                register(&mut self.entries, Scope::Upgrade, &upgrade.key, None)
-            }));
+            upgrade.icon_token = self.upgrade_token(&upgrade.key);
+        }
+    }
+
+    fn upgrade_token(&mut self, key: &str) -> Option<String> {
+        if key.contains(['/', '\\']) || key.chars().any(char::is_control) {
+            return None;
+        }
+        if let Some((token, _)) = self.entries.iter().find(|(_, entry)| entry.key == key) {
+            return Some(token.clone());
+        }
+        (self.entries.len() < MAX_IMAGES)
+            .then(|| register(&mut self.entries, Scope::Upgrade, key, None))
+    }
+
+    #[cfg(feature = "production-health")]
+    pub fn retain_upgrade_artwork(
+        &mut self,
+        save: &str,
+        generation: Option<Uuid>,
+        fingerprint: &str,
+        artwork_revision: Option<&str>,
+        upgrades: &mut [Upgrade],
+    ) -> bool {
+        let Some((id, current_generation, session_fingerprint, _)) = &mut self.session else {
+            return false;
+        };
+        if id != save || generation != Some(*current_generation) {
+            return false;
+        }
+        let retained = *session_fingerprint == self.fingerprint
+            && artwork_revision.is_some()
+            && artwork_revision == self.upgrade_revision.as_deref();
+        *session_fingerprint = fingerprint.to_owned();
+        if retained {
+            // In-flight requests captured the old save fingerprint. Stop those
+            // requests while retaining the authorizations for the confirmed source.
+            for entry in self.entries.values() {
+                entry.cancelled.store(true, Ordering::SeqCst);
+            }
+            for upgrade in upgrades.iter_mut().take(MAX_IMAGES) {
+                upgrade.icon_token = self.upgrade_token(&upgrade.key);
+            }
+        } else {
+            revoke(&mut self.entries);
+            self.upgrade_revision = None;
+        }
+        self.cancel_abandoned_batch();
+        self.fingerprint = fingerprint.to_owned();
+        retained
+    }
+
+    fn bind_item_upgrades(&mut self, projection: &mut crate::projections::items::Advanced) {
+        if self.entries.is_empty() {
+            self.upgrade_revision = self.item_revision.clone();
+        }
+        for (key, icon) in projection.upgrade_icons() {
+            *icon = self.upgrade_token(key);
         }
     }
     pub fn register_items(
@@ -212,14 +269,18 @@ impl Registry {
         self.item_revision = artwork_revision
             .filter(|revision| valid_revision(revision))
             .map(str::to_owned);
-        if self.fingerprint == fingerprint {
-            for (key, icon) in projection.upgrade_icons() {
-                *icon = self
-                    .entries
-                    .iter()
-                    .find(|(_, entry)| entry.key == key)
-                    .map(|(token, _)| token.clone());
-            }
+        if self.entries.is_empty()
+            && self
+                .session
+                .as_ref()
+                .is_some_and(|(_, _, current, _)| current == fingerprint)
+        {
+            self.fingerprint = fingerprint.into();
+        }
+        if self.fingerprint == fingerprint
+            && (self.upgrade_revision == self.item_revision || self.entries.is_empty())
+        {
+            self.bind_item_upgrades(projection);
         }
         // One token per type, bounded by the validated 2 MiB Items projection.
         let mut tokens = HashMap::new();
@@ -260,15 +321,8 @@ impl Registry {
         for (name, icon) in projection.item_icons() {
             *icon = tokens.get(&name).map(|token| (*token).clone());
         }
-        if self.fingerprint == self.item_fingerprint {
-            self.fingerprint = fingerprint.into();
-            for (key, icon) in projection.upgrade_icons() {
-                *icon = self
-                    .entries
-                    .iter()
-                    .find(|(_, entry)| entry.key == key)
-                    .map(|(token, _)| token.clone());
-            }
+        if self.fingerprint == fingerprint && self.upgrade_revision == self.item_revision {
+            self.bind_item_upgrades(projection);
         }
         // Keep the already decoded tokens, while subsequent reads verify the new save bytes.
         self.item_fingerprint = fingerprint.into();

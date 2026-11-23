@@ -348,7 +348,11 @@ export function useNativeArtwork(
     if (!allowed) return undefined;
     if (variant !== "cosmetic") {
       if (preparing.get(variant)?.has(token)) return PREPARING_IMAGE;
-      return entryArtwork[variant].get(token);
+      const image = entryArtwork[variant].get(token);
+      if (image === undefined && variant === "item" && scope === "upgrade") {
+        return entryArtwork.upgrade.get(token);
+      }
+      return image;
     }
     const key = cosmeticReuseKey(token, reuseKey);
     return (key && cosmeticThumbnails.get(key)) || null;

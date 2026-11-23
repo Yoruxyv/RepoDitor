@@ -72,6 +72,7 @@ export const id: Record<keyof typeof en, string> = {
   "action.revert": "Batalkan",
   "action.revertAll": "Batalkan semua",
   "action.review": "Tinjau",
+  "action.hideReview": "Sembunyikan tinjauan",
   "action.saveChanges": "Simpan Perubahan",
   "action.saving": "Menyimpan…",
   "action.changeSave": "Ganti save",

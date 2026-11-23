@@ -175,6 +175,7 @@ test("packaged Upgrades retain dynamic values, shared selection and read-only la
     });
     expect(read.ok).toBe(true);
     if (!read.ok) throw new Error("Changed synthetic upgrades could not be read");
+    expect(read.data.every((item) => item.iconToken === null)).toBe(true);
     expect(read.data.find((item) => item.key === "playerUpgradeFutureBoost")?.values).toEqual([
       { playerId: "111", value: 37 },
     ]);

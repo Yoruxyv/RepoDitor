@@ -53,8 +53,14 @@ function prepareArtworkPlan({
       if (!groups.has(item.name)) groups.set(item.name, item.iconToken);
   }
   const itemGroups = [...groups].sort(([left], [right]) => left.localeCompare(right));
+  const upgradeTokens = upgrades.ok ? upgrades.data.map((row) => row.iconToken) : [];
+  for (const [, token] of itemGroups) {
+    if (token?.startsWith("upgrade-artwork:") && !upgradeTokens.includes(token)) {
+      upgradeTokens.push(token);
+    }
+  }
   const plan = {
-    upgrade: upgrades.ok ? upgrades.data.map((row) => row.iconToken) : [],
+    upgrade: upgradeTokens,
     map: maps.ok ? maps.data.maps.map((row) => row.iconToken) : [],
     item: itemGroups.map(([, token]) => token),
   };

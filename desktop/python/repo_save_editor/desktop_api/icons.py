@@ -26,6 +26,7 @@ from repo_save_editor.services.game.installed_build import (
 from repo_save_editor.services.icon_cache import get_icon_cache_roots
 from repo_save_editor.services.items.discovery import discover_item_type_names
 from repo_save_editor.services.items.models import AdvancedSaveError
+from repo_save_editor.services.player.installed_upgrades import match_upgrade_items
 from repo_save_editor.services.player.upgrade_textures import (
     DecodedUpgradeTexture,
     decode_installed_upgrade_texture,
@@ -146,6 +147,12 @@ def _native_upgrade_images(
         if sha256(source).hexdigest() != fingerprint:
             return {}
         membership = {upgrade.key for upgrade in discover_player_upgrades(data)}
+        if any(key not in membership for key in safe):
+            try:
+                item_types = discover_item_type_names(data)
+            except AdvancedSaveError:
+                item_types = ()  # Invalid Items data does not block player-upgrade artwork.
+            membership.update(match_upgrade_items(membership, item_types).values())
         admitted = tuple(key for key in safe if key in membership)
         if not admitted:
             return {}

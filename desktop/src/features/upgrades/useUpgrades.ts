@@ -57,7 +57,10 @@ function applyCanonicalUpgradeValues(
 export function useUpgrades(
   saveId: string,
   initialResult: DesktopOperationResult<PlayerUpgradeDto[]> | null = null,
-  list: (saveId: string) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>,
+  list: (
+    saveId: string,
+    fingerprint?: string,
+  ) => Promise<DesktopOperationResult<PlayerUpgradeDto[]>>,
   loadInitially = true,
   prepare = list,
 ) {
@@ -167,30 +170,37 @@ export function useUpgrades(
     setPendingByUpgrade({});
   }
 
-  function acceptSnapshot(upgrades: PlayerUpgradeDto[]): void {
+  function acceptSnapshot(upgrades: PlayerUpgradeDto[], artworkRetained?: boolean): void {
     snapshotVersion.current += 1;
-    const known = new Map(state.upgrades.map((upgrade) => [upgrade.key, upgrade]));
-    setState({
-      loading: false,
-      error: null,
-      upgrades: upgrades.map((upgrade) => {
-        const presentation = known.get(upgrade.key);
-        return presentation ? { ...presentation, values: upgrade.values } : upgrade;
-      }),
+    setState((current) => {
+      const known = new Map(current.upgrades.map((upgrade) => [upgrade.key, upgrade]));
+      return {
+        loading: false,
+        error: null,
+        upgrades: upgrades.map((upgrade) => {
+          const presentation = known.get(upgrade.key);
+          if (!presentation) return upgrade;
+          return {
+            ...presentation,
+            values: upgrade.values,
+            iconToken: artworkRetained === undefined ? presentation.iconToken : upgrade.iconToken,
+          };
+        }),
+      };
     });
   }
 
-  async function refreshArtwork(): Promise<void> {
+  async function refreshArtwork(fingerprint?: string): Promise<void> {
     const version = snapshotVersion.current;
-    const result = await list(saveId);
+    const result = await (fingerprint === undefined ? list(saveId) : list(saveId, fingerprint));
     if (!mounted.current || version !== snapshotVersion.current || !result.ok) return;
-    const tokens = new Map(result.data.map((upgrade) => [upgrade.key, upgrade.iconToken]));
+    const presentation = new Map(result.data.map((upgrade) => [upgrade.key, upgrade]));
     setState((current) => ({
       ...current,
-      upgrades: current.upgrades.map((upgrade) => ({
-        ...upgrade,
-        iconToken: tokens.get(upgrade.key) ?? null,
-      })),
+      upgrades: current.upgrades.map((upgrade) => {
+        const fresh = presentation.get(upgrade.key);
+        return fresh ? { ...fresh, values: upgrade.values } : { ...upgrade, iconToken: null };
+      }),
     }));
   }
 

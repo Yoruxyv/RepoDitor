@@ -562,18 +562,20 @@ def _canonical(
         "upgrades": serialize_upgrades(data),
         "run": serialize_run(data),
     }
+    artwork_revision = entry_artwork_revision(game_root) if game_root is not None else None
     if valid_refill_intent(intent) or (
         intent is not None
         and valid_mixed_intent(intent)
         and cast(dict[str, object], intent["mixed"])["refillToFull"]
     ):
-        artwork_revision = entry_artwork_revision(game_root) if game_root is not None else None
         advanced = serialize_advanced_save(data, reuse_native_metadata=game_root is not None)
         if advanced.get("ok") is not True:
             raise DesktopSaveError("save_unsupported", "Canonical item state is unavailable.")
         result["advanced"] = advanced["advanced"]
-        if artwork_revision and artwork_revision == entry_artwork_revision(game_root):
-            result["artworkRevision"] = artwork_revision
+        if artwork_revision is not None and artwork_revision != entry_artwork_revision(game_root):
+            artwork_revision = None
+    if artwork_revision is not None:
+        result["artworkRevision"] = artwork_revision
     return result
 
 

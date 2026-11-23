@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { cancelEntryArtwork, preloadEntryArtwork } from "@/app/tauriArtwork";
 import { tauriHealthApi } from "@/app/tauriHealthApi";
 import { tauriReadApi } from "@/app/tauriReadApi";
 import { renderWithPreferences } from "@/test/render";
@@ -15,6 +17,10 @@ import {
 } from "@/test/repoditorApiFixture";
 import { TauriWorkspace } from "./TauriWorkspace";
 
+vi.mock("@tauri-apps/api/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tauri-apps/api/core")>()),
+  invoke: vi.fn(),
+}));
 vi.mock("@/app/tauriHealthApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/app/tauriHealthApi")>()),
   tauriHealthApi: {
@@ -646,6 +652,7 @@ describe("native upgrade drafts", () => {
               },
               players,
               upgrades: projected,
+              ...(production ? { upgradeArtworkRetained: true } : {}),
             },
           };
         },
@@ -678,7 +685,9 @@ describe("native upgrade drafts", () => {
       expect(await screen.findByText("McJannek Station")).toBeTruthy();
       expect(tauriReadApi.maps.list).toHaveBeenCalledOnce();
       await user.click(screen.getByRole("tab", { name: "Upgrades" }));
-      await waitFor(() => expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(tauriReadApi.upgrades.list).toHaveBeenCalledTimes(production ? 1 : 2),
+      );
       expect(tauriHealthApi.writeUpgrades).toHaveBeenCalledWith(
         expect.objectContaining({
           saveId: session.id,
@@ -746,6 +755,92 @@ describe("native upgrade drafts", () => {
       expect.objectContaining({ health: [{ playerId: "111", before: 80, value: 12 }] }),
       true,
     );
+  });
+
+  it("keeps verified upgrade thumbnails across repeated Health saves and player changes", async () => {
+    const token = `upgrade-artwork:${"a".repeat(32)}`;
+    const dataUrl = "data:image/png;base64,AAAA";
+    const visual = upgrades.map((upgrade) =>
+      upgrade.key === "playerUpgradeStrength" ? { ...upgrade, iconToken: token } : upgrade,
+    );
+    vi.mocked(invoke).mockResolvedValue({
+      ok: true,
+      data: { token, revision: "a".repeat(64), dataUrl },
+    });
+    vi.mocked(tauriReadApi.upgrades.list)
+      .mockResolvedValueOnce({ ok: true, data: visual })
+      .mockResolvedValue({ ok: true, data: upgrades });
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: true,
+      production: true,
+      domains: ["health", "upgrades"],
+      state: "idle",
+      pending: null,
+      canonical: { opened: openResult().data, players, upgrades: visual },
+      upgradeSession: "production-session",
+    });
+    let canonical = {
+      opened: openResult().data,
+      players,
+      upgrades: visual,
+      upgradeArtworkRetained: true,
+    };
+    const result = (operationId: string) => ({
+      operationId,
+      status: "applied" as const,
+      fingerprint: canonical.opened.session.fingerprint,
+      backupAvailable: true,
+      reason: null,
+      canonical,
+    });
+    vi.mocked(tauriHealthApi.writeHealthBatch).mockImplementation(async ({ operationId }) => ({
+      ...result(operationId),
+      canonical: null,
+    }));
+    vi.mocked(tauriHealthApi.recover).mockImplementation(async (_save, operationId) =>
+      result(operationId),
+    );
+
+    const artworkPlan = { upgrade: [token], map: [], item: [] };
+    try {
+      await preloadEntryArtwork(artworkPlan, new AbortController().signal);
+      renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+      const user = await openUpgrades();
+      const thumbnail = "upgrade-icon-playerUpgradeStrength";
+      for (const [value, digest] of [
+        [17, "b"],
+        [15, "c"],
+      ] as const) {
+        await user.click(screen.getByRole("tab", { name: "Players" }));
+        const health = screen.getByRole("spinbutton", { name: "Current health" });
+        fireEvent.change(health, { target: { value: String(value) } });
+        await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+        canonical = {
+          ...canonical,
+          opened: openResult({ ...session, fingerprint: digest.repeat(64) }).data,
+          players: players.map((player) =>
+            player.id === "111" ? { ...player, health: value } : player,
+          ),
+        };
+        await user.click(screen.getByRole("button", { name: "Review" }));
+        await user.click(screen.getByRole("button", { name: "Save Changes" }));
+        await waitFor(() =>
+          expect(screen.getByTestId("health-status").dataset.phase).toBe("saved"),
+        );
+        expect(screen.getByTestId("workspace").dataset.sessionFingerprint).toBe(digest.repeat(64));
+        expect(screen.queryByTestId(`${thumbnail}-loading`)).toBeNull();
+        expect(screen.getByTestId(thumbnail).querySelector("img")?.getAttribute("src")).toBe(
+          dataUrl,
+        );
+      }
+      await user.click(screen.getByRole("combobox", { name: "Player" }));
+      await user.click(screen.getByRole("option", { name: "Beta" }));
+      expect(screen.getByTestId(thumbnail).querySelector("img")?.getAttribute("src")).toBe(dataUrl);
+      expect(tauriReadApi.upgrades.list).toHaveBeenCalledOnce();
+      expect(invoke).toHaveBeenCalledExactlyOnceWith("upgrade_artwork_get", { token });
+    } finally {
+      cancelEntryArtwork();
+    }
   });
 
   it("marks Health drafts on the Players tab across selection, navigation, Revert and Save", async () => {
