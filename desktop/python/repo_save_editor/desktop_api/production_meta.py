@@ -29,8 +29,6 @@ from repo_save_editor.services.cosmetics.installed_reader_native import read_ins
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.write_evidence import (
     COSMETIC_CATALOG_DIGEST,
-    COSMETIC_SOURCES,
-    GAMEPLAY_PINS,
     SAVE_FORMAT_PINS,
     source_pins_match,
 )
@@ -89,14 +87,17 @@ def production_meta(
     bundle = private_bundle()
     private = bundle is not None and bundle.session
     try:
+        approved = None
         if bundle is not None and private:
             game, build = verified_private_game(bundle)
             expected = bundle.source_pins + bundle.save_format_pins
         else:
             game, build = _installed_game()
-            _verify_public_sources(game, build)
+            approved = _verify_public_sources(game, build)
             expected = (
-                GAMEPLAY_PINS + SAVE_FORMAT_PINS + tuple(digest for _, digest in COSMETIC_SOURCES)
+                approved.gameplay
+                + SAVE_FORMAT_PINS
+                + tuple(digest for _, digest in approved.cosmetics)
             )
         root = get_default_save_root()
         if root is None:
@@ -111,16 +112,19 @@ def production_meta(
     def verify_sources() -> None:
         if bundle is not None and private:
             _verify_private_sources(game, build, bundle)
-        else:
-            _verify_public_sources(game, build)
+        elif _verify_public_sources(game, build) != approved:
+            raise RecoveryError("save_verification_unavailable")
 
     def admit(_root: Path) -> tuple[dict[str, str], tuple[InstalledCosmeticMetadata, ...]]:
         verify_sources()
-        catalog = (
-            verified_private_cosmetics(game.root, bundle)
-            if bundle is not None and private
-            else _verified_catalog(game.root, COSMETIC_SOURCES, COSMETIC_CATALOG_DIGEST, False)
-        )
+        if bundle is not None and private:
+            catalog = verified_private_cosmetics(game.root, bundle)
+        elif approved is not None:
+            catalog = _verified_catalog(
+                game.root, approved.cosmetics, COSMETIC_CATALOG_DIGEST, False
+            )
+        else:
+            raise RecoveryError("save_verification_unavailable")
         verify_sources()
         admission = {
             "identity": "repoditor-production-meta-v1",

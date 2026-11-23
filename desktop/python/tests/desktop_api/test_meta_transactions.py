@@ -18,6 +18,10 @@ from repo_save_editor.desktop_api.cosmetics import save_cosmetics
 from repo_save_editor.services.cosmetics import admission, synthetic_fixture
 from repo_save_editor.services.cosmetics.synthetic_fixture import MANIFEST, PIN
 from repo_save_editor.services.game.processes import GameProcessStatus as Status
+from repo_save_editor.services.game.write_evidence import (
+    APPROVED_WRITE_SOURCES,
+    ApprovedWriteSources,
+)
 from repo_save_editor.storage import health_recovery as storage
 from repo_save_editor.storage.health_recovery import Receipt, _receipt_bytes
 
@@ -513,13 +517,13 @@ def test_production_meta_requires_a_separate_source_pin_and_preserves_recovery(
     digest = sha256(
         json.dumps(production._catalog_payload(catalog), sort_keys=True).encode()
     ).hexdigest()
-    for name, _ in production.COSMETIC_SOURCES:
+    reviewed_sources = APPROVED_WRITE_SOURCES[0].cosmetics
+    for name, _ in reviewed_sources:
         source = game / name
         if not source.exists():
             source.write_bytes(name.encode())
     cosmetics = tuple(
-        (name, run_admission.source_digest(game, game / name))
-        for name, _ in production.COSMETIC_SOURCES
+        (name, run_admission.source_digest(game, game / name)) for name, _ in reviewed_sources
     )
     monkeypatch.setattr(production, "_installed_game", lambda: (installation, build))
     monkeypatch.setattr(production, "get_default_save_root", lambda: root)
@@ -527,13 +531,18 @@ def test_production_meta_requires_a_separate_source_pin_and_preserves_recovery(
 
     command = production.production_meta
     assert command("state", None)["state"] == "disabled"
-    monkeypatch.setattr(run_admission, "GAMEPLAY_PINS", gameplay)
+    monkeypatch.setattr(
+        run_admission,
+        "APPROVED_WRITE_SOURCES",
+        (ApprovedWriteSources(gameplay, (), reviewed_sources),),
+    )
     monkeypatch.setattr(run_admission, "SAVE_FORMAT_PINS", save_format)
-    monkeypatch.setattr(production, "GAMEPLAY_PINS", gameplay)
     monkeypatch.setattr(production, "SAVE_FORMAT_PINS", save_format)
     monkeypatch.setattr(production, "COSMETIC_CATALOG_DIGEST", digest)
     assert command("state", None).get("admission") is None
-    monkeypatch.setattr(production, "COSMETIC_SOURCES", cosmetics)
+    monkeypatch.setattr(
+        run_admission, "APPROVED_WRITE_SOURCES", (ApprovedWriteSources(gameplay, (), cosmetics),)
+    )
     state = command("state", None)
     assert state["admission"]["identity"] == "repoditor-production-meta-v1"
     assert state["view"]["knownCatalogCount"] == 28

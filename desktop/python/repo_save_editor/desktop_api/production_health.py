@@ -33,10 +33,10 @@ from repo_save_editor.services.game.processes import (
 )
 from repo_save_editor.services.game.write_evidence import (
     APPROVED_RUN_DOMAINS,
-    GAMEPLAY_PINS,
+    APPROVED_WRITE_SOURCES,
     RECHARGE_IDENTITIES,
-    RECHARGE_SOURCES,
     SAVE_FORMAT_PINS,
+    ApprovedWriteSources,
     source_digest,
     source_pins_match,
 )
@@ -106,21 +106,26 @@ def _installed_game() -> tuple[GameInstallation, ValidatedInstalledBuild]:
     return game, build
 
 
-def _game() -> tuple[Path, str, frozenset[str]]:
+def _game() -> tuple[Path, str, frozenset[str], ApprovedWriteSources]:
     game, build = _installed_game()
-    _verify_public_sources(game, build)
+    approved = _verify_public_sources(game, build)
     domains = APPROVED_RUN_DOMAINS
-    if RECHARGE_IDENTITIES and source_pins_match(game.root, RECHARGE_SOURCES):
+    if RECHARGE_IDENTITIES and source_pins_match(game.root, approved.recharge):
+        if _verify_public_sources(game, build) != approved:
+            raise RecoveryError("save_verification_unavailable")
         domains |= {"refillToFull"}
-        _verify_public_sources(game, build)
-    return game.root / HEALTH_BUILD_SOURCES[0], build.build_id, domains
+    return game.root / HEALTH_BUILD_SOURCES[0], build.build_id, domains, approved
 
 
-def _verify_public_sources(game: GameInstallation, build: ValidatedInstalledBuild) -> None:
+def _verify_public_sources(
+    game: GameInstallation, build: ValidatedInstalledBuild
+) -> ApprovedWriteSources:
     try:
-        expected = GAMEPLAY_PINS + SAVE_FORMAT_PINS
-        if _source_pins(game, build, HEALTH_BUILD_SOURCES + SAVE_FORMAT_SOURCES) != expected:
-            raise RecoveryError("save_unsupported")
+        installed = _source_pins(game, build, HEALTH_BUILD_SOURCES + SAVE_FORMAT_SOURCES)
+        for approved in APPROVED_WRITE_SOURCES:
+            if installed == approved.gameplay + SAVE_FORMAT_PINS:
+                return approved
+        raise RecoveryError("save_unsupported")
     except FileNotFoundError as exc:
         raise RecoveryError("save_unsupported") from exc
     except (OSError, ValueError) as exc:
@@ -225,16 +230,16 @@ def _authorized_root(save: str, approval: Approval | None) -> Path:
 
 def _authorize_build(
     bundle: Bundle | None, approval: Approval | None, save: str
-) -> tuple[Path, str, frozenset[str]]:
+) -> tuple[Path, str, frozenset[str], ApprovedWriteSources | None]:
     if bundle is None:
         return _game()
     if not bundle.session:
-        return _qualification_game(bundle, approval, save)
+        return (*_qualification_game(bundle, approval, save), None)
     game, installed = verified_private_game(bundle)
     domains = {"health", "upgrades", "run"}
     if bundle.recharge_identities and source_pins_match(game.root, bundle.item_sources):
         domains.add("refillToFull")
-    return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset(domains)
+    return game.root / HEALTH_BUILD_SOURCES[0], installed.build_id, frozenset(domains), None
 
 
 def _reviewed_recharge(names: tuple[str, ...]) -> dict[str, ItemRechargeCapability]:
@@ -255,11 +260,12 @@ def production_health(
     bundle = private_bundle()
     approval = read_approval(bundle) if bundle and not bundle.session else None
 
-    def authorize() -> tuple[Path, str, frozenset[str]]:
+    def authorize() -> tuple[Path, str, frozenset[str], ApprovedWriteSources | None]:
         return _authorize_build(bundle, approval, save)
 
     try:
-        executable, build, domains = authorize()
+        authorization = authorize()
+        executable, _, domains, _ = authorization
         root = _authorized_root(save, approval)
     except RecoveryError as exc:
         if action == "state":
@@ -267,7 +273,7 @@ def production_health(
         return _outcome(operation, "rejected", exc.code)
 
     def verify_build() -> None:
-        if authorize() != (executable, build, domains):
+        if authorize() != authorization:
             raise RecoveryError("save_verification_unavailable")
 
     def status_with_build_check() -> GameProcessStatus:
