@@ -757,7 +757,7 @@ describe("native upgrade drafts", () => {
     );
   });
 
-  it("keeps verified upgrade thumbnails across repeated Health saves and player changes", async () => {
+  it.each(["Health", "Upgrade"])("keeps thumbnails through %s saves", async (domain) => {
     const token = `upgrade-artwork:${"a".repeat(32)}`;
     const dataUrl = "data:image/png;base64,AAAA";
     const visual = upgrades.map((upgrade) =>
@@ -793,7 +793,9 @@ describe("native upgrade drafts", () => {
       reason: null,
       canonical,
     });
-    vi.mocked(tauriHealthApi.writeHealthBatch).mockImplementation(async ({ operationId }) => ({
+    const write =
+      domain === "Health" ? tauriHealthApi.writeHealthBatch : tauriHealthApi.writeUpgrades;
+    vi.mocked(write).mockImplementation(async ({ operationId }) => ({
       ...result(operationId),
       canonical: null,
     }));
@@ -807,21 +809,40 @@ describe("native upgrade drafts", () => {
       renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
       const user = await openUpgrades();
       const thumbnail = "upgrade-icon-playerUpgradeStrength";
+      const originalImage = screen.getByTestId(thumbnail).querySelector("img");
+      expect(originalImage?.getAttribute("src")).toBe(dataUrl);
       for (const [value, digest] of [
         [17, "b"],
         [15, "c"],
       ] as const) {
-        await user.click(screen.getByRole("tab", { name: "Players" }));
-        const health = screen.getByRole("spinbutton", { name: "Current health" });
-        fireEvent.change(health, { target: { value: String(value) } });
-        await user.click(screen.getByRole("tab", { name: "Upgrades" }));
         canonical = {
           ...canonical,
           opened: openResult({ ...session, fingerprint: digest.repeat(64) }).data,
-          players: players.map((player) =>
-            player.id === "111" ? { ...player, health: value } : player,
-          ),
         };
+        if (domain === "Health") {
+          await user.click(screen.getByRole("tab", { name: "Players" }));
+          const health = screen.getByRole("spinbutton", { name: "Current health" });
+          fireEvent.change(health, { target: { value: String(value) } });
+          await user.click(screen.getByRole("tab", { name: "Upgrades" }));
+          canonical.players = players.map((player) =>
+            player.id === "111" ? { ...player, health: value } : player,
+          );
+        } else {
+          fireEvent.change(screen.getByRole("spinbutton", { name: "Strength for Alpha" }), {
+            target: { value: String(value) },
+          });
+          canonical.upgrades = visual.map((upgrade) =>
+            upgrade.key === "playerUpgradeStrength"
+              ? {
+                  ...upgrade,
+                  values: upgrade.values.map((entry) =>
+                    entry.playerId === "111" ? { ...entry, value } : entry,
+                  ),
+                }
+              : upgrade,
+          );
+        }
+        const imageBeforeSave = screen.getByTestId(thumbnail).querySelector("img");
         await user.click(screen.getByRole("button", { name: "Review" }));
         await user.click(screen.getByRole("button", { name: "Save Changes" }));
         await waitFor(() =>
@@ -829,9 +850,12 @@ describe("native upgrade drafts", () => {
         );
         expect(screen.getByTestId("workspace").dataset.sessionFingerprint).toBe(digest.repeat(64));
         expect(screen.queryByTestId(`${thumbnail}-loading`)).toBeNull();
-        expect(screen.getByTestId(thumbnail).querySelector("img")?.getAttribute("src")).toBe(
-          dataUrl,
-        );
+        expect(screen.getByTestId(thumbnail).querySelector("img")).toBe(imageBeforeSave);
+        if (domain === "Upgrade") {
+          expect(
+            screen.getByRole("spinbutton", { name: "Strength for Alpha" }).getAttribute("value"),
+          ).toBe(String(value));
+        }
       }
       await user.click(screen.getByRole("combobox", { name: "Player" }));
       await user.click(screen.getByRole("option", { name: "Beta" }));

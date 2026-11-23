@@ -280,7 +280,7 @@ fn bind_editor_entry(
     let mut upgrades = entry_projection(&raw["upgrades"], upgrades::parse);
     let mut items = entry_projection(&raw["items"], items::parse);
     let mut maps = entry_projection(&raw["maps"], maps::parse);
-    let revision = raw["cacheRevision"]
+    let revision = raw["artworkRevision"]
         .as_str()
         .filter(|revision| raw["maps"]["entryArtworkRevision"] == *revision);
     if let Ok(rows) = &mut upgrades {

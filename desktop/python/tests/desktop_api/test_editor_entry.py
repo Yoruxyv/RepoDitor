@@ -10,6 +10,7 @@ from repo_save_editor.desktop_api.player.players import list_players
 from repo_save_editor.desktop_api.run import get_run_state
 from repo_save_editor.services import baked_artwork
 from repo_save_editor.services.items.discovery import discover_item_type_names
+from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
 
 
@@ -61,6 +62,39 @@ def test_editor_entry_projects_one_snapshot_and_rechecks_it(
         assert discoveries == [names, names]
         assert refreshed["advanced"] == result["items"]["advanced"]
         assert refreshed["artworkRevision"] == "c" * 64
+
+
+@pytest.mark.parametrize("after", ["a" * 64, "b" * 64, None])
+def test_entry_artwork_proof_does_not_depend_on_complete_item_metadata(
+    tmp_path, sample_save, monkeypatch, after
+):
+    save_id = "REPO_SAVE_2026_08_08_10_20_30"
+    path = tmp_path / save_id / f"{save_id}.es3"
+    path.parent.mkdir()
+    original = encrypt_save(sample_save)
+    path.write_bytes(original)
+    before = "a" * 64
+    unknown = InstalledItemMetadata(ItemRechargeCapability.UNKNOWN, None)
+    monkeypatch.setattr(editor_entry, "entry_artwork_revision", lambda: before)
+    monkeypatch.setattr(editor_entry, "editor_item_metadata", lambda *_: {"Item Tool": unknown})
+    monkeypatch.setattr(
+        editor_entry,
+        "list_maps",
+        lambda **_: {
+            "ok": True,
+            "available": False,
+            "catalogPath": None,
+            "maps": [],
+            "entryArtworkRevision": after,
+        },
+    )
+
+    result = editor_entry.prepare_editor_entry(save_id, sha256(original).hexdigest(), tmp_path)
+
+    assert result["ok"] is True
+    assert result["cacheRevision"] is None
+    assert result.get("artworkRevision") == (before if after == before else None)
+    assert path.read_bytes() == original
 
 
 @pytest.mark.parametrize("matches", [True, False])

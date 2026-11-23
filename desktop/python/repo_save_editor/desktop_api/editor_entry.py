@@ -59,10 +59,21 @@ def prepare_editor_entry(
     session = verified.get("session")
     if not isinstance(session, dict) or session.get("fingerprint") != fingerprint:
         return _failure("save_stale", "The selected save changed during editor preparation.")
-    cache_revision = (
+    artwork_revision = (
         initial_revision
         if initial_revision == prepared["maps"].get("entryArtworkRevision")
-        and (not metadata or any(item.canonical_name is not None for item in metadata.values()))
         else None
     )
-    return {"ok": True, "fingerprint": fingerprint, "cacheRevision": cache_revision, **prepared}
+    # Incomplete metadata is retried on reopen, independently of the installed artwork proof.
+    cache_revision = (
+        artwork_revision
+        if not metadata or any(item.canonical_name is not None for item in metadata.values())
+        else None
+    )
+    return {
+        "ok": True,
+        "fingerprint": fingerprint,
+        "artworkRevision": artwork_revision,
+        "cacheRevision": cache_revision,
+        **prepared,
+    }
