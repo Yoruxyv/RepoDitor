@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -127,12 +127,11 @@ describe("UpgradesView", () => {
       />,
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("upgrade-icon-playerUpgradeHealth").dataset.iconSource).toBe(
-        "local",
-      ),
-    );
-    fireEvent.load(screen.getByTestId("upgrade-icon-playerUpgradeHealth").querySelector("img")!);
+    const thumbnail = screen.getByTestId("upgrade-icon-playerUpgradeHealth");
+    const image = await within(thumbnail).findByAltText("");
+    expect(thumbnail.dataset.iconSource).toBe("local");
+    fireEvent.load(image);
+    expect(thumbnail.getAttribute("aria-busy")).toBe("false");
     expect(screen.getByTestId("upgrade-icon-playerUpgradeSuperMegaJump").dataset.iconSource).toBe(
       "fallback",
     );
