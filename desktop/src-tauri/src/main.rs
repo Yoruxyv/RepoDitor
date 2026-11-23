@@ -478,7 +478,7 @@ async fn upgrades_list(
     if preparing && preparation.is_none() {
         return Outcome::for_service(Err(BackendError::Request), Service::Upgrade);
     }
-    let (fingerprint, cancelled) = preparation.unzip();
+    let cancelled = preparation.map(|(_, cancelled)| cancelled);
     backend::request(
         app,
         Operation::Upgrades(id.clone(), cancelled),
@@ -492,20 +492,22 @@ async fn upgrades_list(
             let current = registry
                 .session_preparation(&id)
                 .map(|(fingerprint, _)| fingerprint);
-            let expected = if cfg!(feature = "synthetic-health-recovery") {
-                fingerprint.as_deref()
-            } else {
-                current.as_deref()
-            };
-            check_entry_fingerprint(raw["fingerprint"].as_str(), expected)?;
-            check_entry_fingerprint(raw["fingerprint"].as_str(), prepare_fingerprint.as_deref())?;
-            registry.register(
-                &id,
-                generation,
-                raw["fingerprint"].as_str(),
-                raw["artworkRevision"].as_str(),
-                &mut values,
-            );
+            let fingerprint = raw["fingerprint"].as_str();
+            if preparing {
+                check_entry_fingerprint(fingerprint, current.as_deref())?;
+            }
+            check_entry_fingerprint(fingerprint, prepare_fingerprint.as_deref())?;
+            // Read-only queries can return updated values without issuing artwork
+            // tokens for bytes outside the open workspace's validated snapshot.
+            if cfg!(feature = "synthetic-health-recovery") || fingerprint == current.as_deref() {
+                registry.register(
+                    &id,
+                    generation,
+                    fingerprint,
+                    raw["artworkRevision"].as_str(),
+                    &mut values,
+                );
+            }
             Ok(values)
         },
     )
