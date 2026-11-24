@@ -66,6 +66,7 @@ export function SaveWorkspace({
               {t("save.workspace.validated")}
             </span>
           </div>
+          <p className="mt-2 text-xs/5 text-secondary">{t("save.workspace.compatibility")}</p>
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
           <label className="relative inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-sm border border-control bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus">

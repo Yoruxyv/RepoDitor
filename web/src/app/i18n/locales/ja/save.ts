@@ -40,6 +40,8 @@ export const saveJa: TranslationShape<typeof saveEn> = {
     selected: "選択中のセーブ",
     runSave: "Run セーブ",
     validated: "ローカルで検証済み",
+    compatibility:
+      "編集できるのは対応済みのセーブ項目のみです。ブラウザーではゲームのビルドを確認できません。",
     changeFile: "ファイルを変更",
     clear: "クリア",
   },

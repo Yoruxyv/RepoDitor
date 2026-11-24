@@ -389,6 +389,8 @@ def proof_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProofWor
         monkeypatch.setattr(workflow, name, value)
     _write_json(workspace.recharge_evidence, _recharge_evidence(BASE_ITEMS))
     _write_json(workspace.cosmetics_evidence, _cosmetics_evidence(game_root, len(BASE_COSMETICS)))
+    # The synthetic install and its capability sets are unrelated to the released Desktop review.
+    monkeypatch.setattr(workflow, "align_web_snapshots", lambda *_: None)
     assert workflow.update() == 0
     assert workflow.check_installed(game_root) == 0
     return workspace

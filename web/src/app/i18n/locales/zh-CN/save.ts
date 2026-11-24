@@ -40,6 +40,7 @@ export const saveZhCn: TranslationShape<typeof saveEn> = {
     selected: "已选存档",
     runSave: "Run 存档",
     validated: "已在本地验证",
+    compatibility: "只能编辑受支持的存档字段。浏览器无法验证游戏构建版本。",
     changeFile: "更换文件",
     clear: "清除",
   },

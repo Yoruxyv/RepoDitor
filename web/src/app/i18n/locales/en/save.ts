@@ -38,6 +38,8 @@ export const saveEn = {
     selected: "Selected save",
     runSave: "Run save",
     validated: "Validated locally",
+    compatibility:
+      "Edits are limited to supported save fields. The browser cannot verify the game build.",
     changeFile: "Change file",
     clear: "Clear",
   },

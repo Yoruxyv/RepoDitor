@@ -6,20 +6,33 @@ on:
     paths:
       - "web/**"
       - "compatibility/**"
+      - "tools/capabilities/**"
+      - "desktop/python/repo_save_editor/services/game/write_evidence.py"
+      - "desktop/python/repo_save_editor/services/cosmetics/known_cosmetics.py"
       - ".github/workflows/web.yml"
   push:
     branches: [main]
     paths:
       - "web/**"
       - "compatibility/**"
+      - "tools/capabilities/**"
+      - "desktop/python/repo_save_editor/services/game/write_evidence.py"
+      - "desktop/python/repo_save_editor/services/cosmetics/known_cosmetics.py"
       - ".github/workflows/web.yml"
   workflow_dispatch:
+    inputs:
+      production_smoke:
+        description: Check the live production deployment after an approved deploy
+        type: boolean
+        default: false
+  schedule:
+    - cron: "43 3 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: web-${{ github.workflow }}-${{ github.ref }}
+  group: web-${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'schedule' || inputs.production_smoke) && 'production' || 'source' }}
   cancel-in-progress: true
 
 defaults:
@@ -29,6 +42,7 @@ defaults:
 jobs:
   quality:
     name: Format, lint, test, and build
+    if: github.event_name != 'schedule' && !inputs.production_smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +67,7 @@ jobs:
 
   e2e:
     name: Playwright critical flows
+    if: github.event_name != 'schedule' && !inputs.production_smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +92,7 @@ jobs:
 
   lighthouse:
     name: Lighthouse budgets
+    if: github.event_name != 'schedule' && !inputs.production_smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,5 +110,33 @@ jobs:
         with:
           name: web-lighthouse-reports
           path: web/.lighthouse
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production-smoke:
+    name: Production deployment smoke
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.production_smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:production
+      - name: Upload production smoke diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-production-smoke-diagnostics
+          path: |
+            web/playwright-report
+            web/test-results
           if-no-files-found: ignore
           retention-days: 7

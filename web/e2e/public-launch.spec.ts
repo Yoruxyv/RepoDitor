@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { capabilitySignature } from "../scripts/capability-signature";
+
 const PUBLIC_ORIGIN = "https://repoditor.vercel.app/";
 const GITHUB_URL = "https://github.com/Yoruxyv/RepoDitor";
 const GOOGLE_VERIFICATION_PATH = "/google640d7641fe06cabc.html";
@@ -15,6 +17,14 @@ function readPngDimensions(body: Buffer): { height: number; width: number } {
   expect(body.subarray(0, pngSignature.length).equals(pngSignature)).toBe(true);
   return { width: body.readUInt32BE(16), height: body.readUInt32BE(20) };
 }
+
+test("deployed capability snapshots match the reviewed evidence", async ({ page }) => {
+  expect((await page.goto("/"))?.status()).toBe(200);
+  await expect(page.locator('meta[name="repoditor-capabilities"]')).toHaveAttribute(
+    "content",
+    capabilitySignature,
+  );
+});
 
 test("public footer and policy deep links survive refresh without browser errors", async ({
   page,

@@ -206,6 +206,29 @@ describe("Run save mutations", () => {
     expect(hasPendingChanges(editSession)).toBe(false);
   });
 
+  it("preserves an unsupported stored resume location while allowing a currency edit", async () => {
+    const editSession = session(RUN_SOURCE.replace('"save level":0', '"save level":7'));
+
+    expect(inspectRunSave(editSession.working)).toMatchObject({
+      resumeLocation: null,
+      resumeValue: 7,
+    });
+    expect(() => setResumeLocation(editSession.working, "shop")).toThrow(/cannot be changed/iu);
+    expect(hasPendingChanges(editSession)).toBe(false);
+
+    setCurrency(editSession.working, 13);
+    const output = await prepareVerifiedExport(editSession);
+    const reopened = await loadSaveBytes(
+      new Uint8Array(await output.blob.arrayBuffer()),
+      output.fileName,
+    );
+    expect(inspectRunSave(reopened.data)).toMatchObject({
+      currency: 13,
+      resumeLocation: null,
+      resumeValue: 7,
+    });
+  });
+
   it("does not invent absent upgrade dictionaries", () => {
     const editSession = session();
 

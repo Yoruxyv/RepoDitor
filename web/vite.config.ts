@@ -7,6 +7,7 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
 import { handleSteamAvatarRequest, MAX_AVATAR_REQUEST_BYTES } from "./api/steam-avatars.ts";
+import { capabilitySignature } from "./scripts/capability-signature.ts";
 
 function webHeaders(source: IncomingHttpHeaders): Headers {
   const headers = new Headers();
@@ -89,7 +90,17 @@ function localAvatarEndpoint(): Plugin {
 export default defineConfig({
   build: { sourcemap: false },
   cacheDir: ".vite-cache",
-  plugins: [react(), tailwindcss(), localAvatarEndpoint()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    localAvatarEndpoint(),
+    {
+      name: "repoditor-capability-signature",
+      transformIndexHtml: () => [
+        { tag: "meta", attrs: { name: "repoditor-capabilities", content: capabilitySignature } },
+      ],
+    },
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

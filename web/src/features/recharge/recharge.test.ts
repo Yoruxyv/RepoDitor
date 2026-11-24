@@ -78,12 +78,12 @@ describe("recharge capability snapshot", () => {
     expect(RECHARGE_CAPABILITY_SNAPSHOT).toMatchObject({
       compatibility: {
         steamAppId: "3241660",
-        steamBuildId: "23363152",
-        unityVersion: "2022.3.67f2",
+        steamBuildId: "26813769",
+        unityVersion: "6000.3.28f1",
       },
       snapshotVersion: 1,
     });
-    expect(RECHARGE_CAPABILITY_SNAPSHOT.provenance).toContain("reverse-engineering.md");
+    expect(RECHARGE_CAPABILITY_SNAPSHOT.provenance).toContain("#web-write-compatibility");
     expect(RECHARGE_CAPABILITY_SNAPSHOT.fullChargeRepresentation).toContain("itemStatBattery");
     expect(SUPPORTED_RECHARGEABLE_ITEM_IDENTITIES).toHaveLength(29);
     expect(new Set(SUPPORTED_RECHARGEABLE_ITEM_IDENTITIES).size).toBe(29);

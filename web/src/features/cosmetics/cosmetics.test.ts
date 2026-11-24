@@ -56,10 +56,10 @@ function session(data: SaveObject) {
 describe("known cosmetic snapshot", () => {
   it("is explicit, versioned, deterministic, and duplicate-free", () => {
     expect(snapshot.snapshotVersion).toBe(1);
-    expect(snapshot.gameCompatibility).toMatch(/installed MetaManager cosmeticAssets/iu);
-    expect(snapshot.gameCompatibility).toMatch(/verified against UnityPy/iu);
+    expect(snapshot.compatibility.steamBuildId).toBe("26813769");
+    expect(snapshot.gameCompatibility).toContain("Exact reviewed Cosmetics IDs");
     expect(snapshot.provenance).toBe(
-      "docs/research/current-game-compatibility.md#independent-catalog-and-managed-semantics",
+      "docs/maintenance/game-update-capabilities.md#web-write-compatibility",
     );
     expect(snapshot.evidenceSha256).toMatch(/^[a-f\d]{64}$/u);
     expect(Array.isArray(snapshot.cosmeticIds)).toBe(true);

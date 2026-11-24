@@ -40,6 +40,8 @@ export const saveKo: TranslationShape<typeof saveEn> = {
     selected: "선택한 세이브",
     runSave: "Run 세이브",
     validated: "로컬 검증 완료",
+    compatibility:
+      "지원되는 저장 항목만 편집할 수 있습니다. 브라우저에서는 게임 빌드를 확인할 수 없습니다.",
     changeFile: "파일 변경",
     clear: "지우기",
   },
