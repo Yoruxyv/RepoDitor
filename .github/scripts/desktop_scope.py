@@ -24,6 +24,7 @@ _SHARED_WEB_SNAPSHOTS = {
 def _independent(path: bytes) -> bool:
     return (
         path in _INDEPENDENT_FILES
+        or path.startswith(b".github/links/")
         or (path.startswith(b"web/") and path not in _SHARED_WEB_SNAPSHOTS)
         or (path.startswith(b"docs/") and path.endswith(b".md"))
         or (b"/" not in path and path.startswith(b"README.") and path.endswith(b".md"))

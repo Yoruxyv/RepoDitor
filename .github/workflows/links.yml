@@ -31,17 +31,23 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .lycheecache
-          key: lychee-${{ runner.os }}-${{ github.sha }}
+          key: lychee-v2-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            lychee-${{ runner.os }}-
+            lychee-v2-${{ runner.os }}-
 
-      - name: Check links
+      - name: Test link result policy
+        run: python3 -B -m unittest discover -s .github/links
+
+      # Badge images are checked in the scheduled and manual full sweeps.
+      - name: Collect link results
+        id: check
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
+          lycheeVersion: v0.24.2
           args: >-
             --cache
             --max-cache-age 1d
-            --cache-exclude-status '429,500..=599'
+            --cache-exclude-status '408,429,500..=599'
             --no-progress
             --root-dir '${{ github.workspace }}'
             --exclude-loopback
@@ -52,10 +58,17 @@ jobs:
             --retry-wait-time 2
             --timeout 10
             --max-concurrency 8
+            ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && '--exclude "^https://img[.]shields[.]io/(badge/|github/(v/release/|actions/workflow/status/))"' || '' }}
             './**/*.md'
             './**/*.html'
-          fail: true
-          failIfEmpty: true
-          format: markdown
-          jobSummary: true
+          # The next step checks the original exit code and structured report together.
+          fail: false
+          format: json
+          output: ${{ runner.temp }}/lychee-report.json
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enforce link results
+        env:
+          LYCHEE_EXIT_CODE: ${{ steps.check.outputs.exit_code }}
+          LYCHEE_REPORT: ${{ runner.temp }}/lychee-report.json
+        run: python3 -B .github/links/report.py

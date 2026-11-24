@@ -17,6 +17,7 @@ class DesktopScopeTests(unittest.TestCase):
             b"docs/maintenance/changes.md",
             b"web/src/app/new.ts",
             b".github/workflows/web.yml",
+            b".github/links/report.py",
         ]
         for event in ("pull_request", "push"):
             with self.subTest(event=event):
