@@ -321,6 +321,7 @@ export async function launch(
   let stderr = "";
   let spawnError: string | null = null;
   let lastCdpError: string | null = null;
+  let cdpConnectedAfterMs: number | null = null;
   let windows: unknown;
   let endpoint: unknown;
   let beforeCleanup: { exitCode: number | null; signal: NodeJS.Signals | null } | null = null;
@@ -346,6 +347,7 @@ export async function launch(
       stdout: startupText(stdout, home),
       stderr: startupText(stderr, home),
       lastCdpError,
+      cdpConnectedAfterMs,
       cleanupError,
       beforeCleanup,
       endpoint: endpoint ?? (await cdpEndpoint(port)),
@@ -362,7 +364,12 @@ export async function launch(
     const deadline = performance.now() + 20_000;
     while (performance.now() < deadline) {
       try {
-        browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 1000 });
+        const remaining = Math.max(1, Math.floor(deadline - performance.now()));
+        browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {
+          timeout: Math.min(1000, remaining),
+        });
+        lastCdpError = null;
+        cdpConnectedAfterMs = Date.now() - spawnedAt;
         break;
       } catch (error) {
         lastCdpError = startupText(String(error), home);

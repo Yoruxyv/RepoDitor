@@ -1,0 +1,31 @@
+name: Desktop CI scope
+
+on:
+  workflow_call:
+    outputs:
+      desktop:
+        description: Whether the checked-out changes require Desktop CI
+        value: ${{ jobs.classify.outputs.desktop }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Classify Desktop changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      desktop: ${{ steps.scope.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test scope rules
+        run: python3 -B -m unittest discover -s .github/scripts
+      - name: Check required Desktop coverage
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: python3 -B .github/scripts/desktop_scope.py

@@ -59,11 +59,11 @@ export async function waitForPreviewPage(
   const contexts = browser.contexts();
   const page = contexts.flatMap((context) => context.pages())[0];
   if (page) return page;
-  // The WebView2 browser endpoint can be ready before its first page target.
+  // A late CDP connection still needs a bounded window to expose its first page target.
   const remaining = Math.floor(deadline - performance.now());
   const context = contexts[0];
   if (!context || remaining <= 0) throw new Error("Preview page missing");
-  return context.waitForEvent("page", { timeout: remaining });
+  return context.waitForEvent("page", { timeout: Math.max(remaining, 5000) });
 }
 
 export function startupText(value: string, home: string): string {

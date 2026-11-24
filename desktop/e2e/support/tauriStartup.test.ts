@@ -31,7 +31,7 @@ describe("bounded preview page readiness", () => {
     expect(fixture.waitForEvent).not.toHaveBeenCalled();
   });
 
-  it("waits for a late page target within the remaining launch deadline", async () => {
+  it("gives a late CDP connection a bounded five seconds for the page target", async () => {
     const fixture = browser([]);
     let attach!: (page: Page) => void;
     fixture.waitForEvent.mockReturnValue(
@@ -41,11 +41,8 @@ describe("bounded preview page readiness", () => {
     );
     const ready = waitForPreviewPage(fixture.browser, performance.now() + 2000);
     expect(fixture.waitForEvent).toHaveBeenCalledExactlyOnceWith("page", {
-      timeout: expect.any(Number),
+      timeout: 5000,
     });
-    const timeout = fixture.waitForEvent.mock.calls[0]?.[1].timeout;
-    expect(timeout).toBeGreaterThan(0);
-    expect(timeout).toBeLessThanOrEqual(2000);
     attach(page);
     await expect(ready).resolves.toBe(page);
   });
