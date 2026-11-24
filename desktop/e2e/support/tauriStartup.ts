@@ -54,15 +54,18 @@ export function prepareWindowsProbe(): string {
 
 export async function waitForPreviewPage(
   browser: Pick<Browser, "contexts">,
-  deadline: number,
+  connectionDeadline: number,
+  connectedAt: number,
 ): Promise<Page> {
   const contexts = browser.contexts();
   const page = contexts.flatMap((context) => context.pages())[0];
   if (page) return page;
-  // The WebView2 browser endpoint can be ready before its first page target.
+  // Use the connection time so scheduling delay cannot erase or extend the page budget.
+  const deadline = Math.max(connectionDeadline, Math.min(connectedAt, connectionDeadline) + 5000);
   const remaining = Math.floor(deadline - performance.now());
   const context = contexts[0];
-  if (!context || remaining <= 0) throw new Error("Preview page missing");
+  if (!context) throw new Error("Preview CDP connection has no browser context");
+  if (remaining <= 0) throw new Error("Preview page deadline expired");
   return context.waitForEvent("page", { timeout: remaining });
 }
 

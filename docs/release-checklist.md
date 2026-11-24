@@ -29,6 +29,17 @@ Keep the required **Quality gate**, **Windows package smoke**, and **Windows
 Tauri save safety** contexts where configured. Remove the retired **Windows
 Electron E2E** context from the ruleset and replace **Current-user production
 installer lifecycle** with **Current-user Tauri installer lifecycle** if required.
+
+Quality and Installer lifecycle classify the tested tree with the shared
+[Desktop scope rules](../.github/scripts/desktop_scope.py). Independent Web and
+documentation changes can skip the Desktop jobs. Desktop code, shared evidence
+and fixtures, packaged inputs and unknown paths require full validation. An
+unavailable comparison also requires full validation. The **Quality gate**
+checks the scope result, Python results and each Desktop job's expected result.
+Installer lifecycle reports a failed scope decision as a failed check.
+Manual Quality and Installer lifecycle runs exercise all jobs. **Release**
+still requires `main` and `confirm=VALIDATE` and runs the full installer lifecycle.
+
 Publishing, tagging, and executable artifact uploads are disabled in these
 workflows. Before introducing publication, restrict the job to the reviewed
 default-branch commit and a protected maintainer-approved environment.

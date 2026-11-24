@@ -12,8 +12,15 @@ permissions:
   contents: read
 
 jobs:
+  scope:
+    uses: ./.github/workflows/desktop-scope.yml
+
   current-user-lifecycle:
     name: Current-user Tauri installer lifecycle
+    needs: scope
+    if: >-
+      always() && (needs.scope.result != 'success' ||
+      (!cancelled() && (github.event_name == 'workflow_dispatch' || needs.scope.outputs.desktop != 'false')))
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -21,6 +28,16 @@ jobs:
         working-directory: desktop
         shell: pwsh
     steps:
+      - name: Require a valid Desktop scope decision
+        if: ${{ always() }}
+        working-directory: .
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          DESKTOP_REQUIRED: ${{ needs.scope.outputs.desktop }}
+        run: |
+          if ($env:SCOPE_RESULT -cne 'success' -or $env:DESKTOP_REQUIRED -cne 'true') {
+            throw 'The Desktop scope did not authorize this required installer check.'
+          }
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:

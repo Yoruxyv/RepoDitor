@@ -15,6 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    uses: ./.github/workflows/desktop-scope.yml
+
   python-quality:
     name: Python static quality
     runs-on: ubuntu-latest
@@ -76,6 +79,8 @@ jobs:
 
   desktop-quality:
     name: Desktop quality
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -119,6 +124,8 @@ jobs:
 
   package-smoke:
     name: Windows package smoke
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     runs-on: windows-latest
 
     defaults:
@@ -207,8 +214,11 @@ jobs:
 
   windows-tauri-safety:
     name: Windows Tauri save safety
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     runs-on: windows-latest
-    timeout-minutes: 45
+    # The cold #136 main run was still progressing through the native matrix at 45 minutes.
+    timeout-minutes: 60
 
     defaults:
       run:
@@ -313,6 +323,7 @@ jobs:
     name: Quality gate
     needs:
       [
+        scope,
         python-quality,
         python-tests,
         desktop-quality,
@@ -324,30 +335,31 @@ jobs:
 
     steps:
       - name: Verify quality checks
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          DESKTOP_REQUIRED: ${{ needs.scope.outputs.desktop }}
+          PYTHON_QUALITY: ${{ needs.python-quality.result }}
+          PYTHON_TESTS: ${{ needs.python-tests.result }}
+          DESKTOP_QUALITY: ${{ needs.desktop-quality.result }}
+          PACKAGE_SMOKE: ${{ needs.package-smoke.result }}
+          SAVE_SAFETY: ${{ needs.windows-tauri-safety.result }}
         run: |
-          if [ "${{ needs.python-quality.result }}" != "success" ]; then
-            echo "Python static quality failed."
-            exit 1
-          fi
-
-          if [ "${{ needs.python-tests.result }}" != "success" ]; then
-            echo "Python runtime compatibility tests failed."
-            exit 1
-          fi
-
-          if [ "${{ needs.desktop-quality.result }}" != "success" ]; then
-            echo "Desktop quality failed."
-            exit 1
-          fi
-
-          if [ "${{ needs.package-smoke.result }}" != "success" ]; then
-            echo "Windows package smoke failed."
-            exit 1
-          fi
-
-          if [ "${{ needs.windows-tauri-safety.result }}" != "success" ]; then
-            echo "Windows Tauri save safety failed."
-            exit 1
-          fi
-
-          echo "All quality checks passed."
+          expect_result() {
+            if [[ "$2" != "$3" ]]; then
+              echo "::error::$1 was '${2:-missing}' (expected '$3')."
+              exit 1
+            fi
+          }
+          expect_result "Desktop scope" "$SCOPE_RESULT" success
+          expect_result "Python static quality" "$PYTHON_QUALITY" success
+          expect_result "Python runtime compatibility tests" "$PYTHON_TESTS" success
+          case "$DESKTOP_REQUIRED" in
+            true) expected_desktop=success ;;
+            false) expected_desktop=skipped ;;
+            *) echo "::error::Desktop scope decision is missing or invalid."; exit 1 ;;
+          esac
+          expect_result "Desktop quality" "$DESKTOP_QUALITY" "$expected_desktop"
+          expect_result "Windows package smoke" "$PACKAGE_SMOKE" "$expected_desktop"
+          expect_result "Windows Tauri save safety" "$SAVE_SAFETY" "$expected_desktop"
+          echo "All applicable quality checks passed."
