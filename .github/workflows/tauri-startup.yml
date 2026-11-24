@@ -1,13 +1,7 @@
 name: Tauri packaged startup smoke (test-only)
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - desktop/**
-      - pyproject.toml
-      - uv.lock
-      - .github/workflows/tauri-startup.yml
+  # The required Windows safety gate already exercises this startup on Desktop PRs.
   workflow_dispatch:
 
 permissions:

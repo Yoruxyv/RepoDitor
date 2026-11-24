@@ -361,15 +361,18 @@ export async function launch(
   };
   let browser: Browser | undefined;
   try {
-    const deadline = performance.now() + 20_000;
+    const connectionStartedAt = performance.now();
+    const deadline = connectionStartedAt + 20_000;
+    let connectedAt = deadline;
     while (performance.now() < deadline) {
       try {
         const remaining = Math.max(1, Math.floor(deadline - performance.now()));
         browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {
           timeout: Math.min(1000, remaining),
         });
+        connectedAt = performance.now();
         lastCdpError = null;
-        cdpConnectedAfterMs = Date.now() - spawnedAt;
+        cdpConnectedAfterMs = Math.round(connectedAt - connectionStartedAt);
         break;
       } catch (error) {
         lastCdpError = startupText(String(error), home);
@@ -379,7 +382,7 @@ export async function launch(
       }
     }
     if (!browser) throw new Error("Preview WebView2 did not become available");
-    const page = await waitForPreviewPage(browser, deadline);
+    const page = await waitForPreviewPage(browser, deadline, connectedAt);
     await page.waitForFunction(
       () =>
         typeof (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })

@@ -27,11 +27,11 @@ describe("bounded preview page readiness", () => {
 
   it("uses the attached page when CDP already exposes it", async () => {
     const fixture = browser([page]);
-    await expect(waitForPreviewPage(fixture.browser, performance.now() + 1000)).resolves.toBe(page);
+    await expect(waitForPreviewPage(fixture.browser, 20_000, 10_000)).resolves.toBe(page);
     expect(fixture.waitForEvent).not.toHaveBeenCalled();
   });
 
-  it("gives a late CDP connection a bounded five seconds for the page target", async () => {
+  it("keeps a near-deadline CDP connection's page budget after the clock crosses the deadline", async () => {
     const fixture = browser([]);
     let attach!: (page: Page) => void;
     fixture.waitForEvent.mockReturnValue(
@@ -39,9 +39,11 @@ describe("bounded preview page readiness", () => {
         attach = resolve;
       }),
     );
-    const ready = waitForPreviewPage(fixture.browser, performance.now() + 2000);
+    const clock = vi.spyOn(performance, "now").mockReturnValueOnce(20_001);
+    const ready = waitForPreviewPage(fixture.browser, 20_000, 19_999);
+    clock.mockRestore();
     expect(fixture.waitForEvent).toHaveBeenCalledExactlyOnceWith("page", {
-      timeout: 5000,
+      timeout: 4998,
     });
     attach(page);
     await expect(ready).resolves.toBe(page);
@@ -50,14 +52,23 @@ describe("bounded preview page readiness", () => {
   it("fails when no page arrives or the launch deadline has elapsed", async () => {
     const fixture = browser([]);
     fixture.waitForEvent.mockRejectedValue(new Error("Page event timed out"));
-    await expect(waitForPreviewPage(fixture.browser, performance.now() + 1000)).rejects.toThrow(
-      "Page event timed out",
-    );
+    const clock = vi.spyOn(performance, "now").mockReturnValueOnce(20_001);
+    const waiting = waitForPreviewPage(fixture.browser, 20_000, 20_001);
+    clock.mockRestore();
+    await expect(waiting).rejects.toThrow("Page event timed out");
+    expect(fixture.waitForEvent).toHaveBeenCalledExactlyOnceWith("page", { timeout: 4999 });
     fixture.waitForEvent.mockClear();
-    await expect(waitForPreviewPage(fixture.browser, performance.now())).rejects.toThrow(
-      "Preview page missing",
-    );
+    const expired = vi.spyOn(performance, "now").mockReturnValueOnce(25_000);
+    const failed = waitForPreviewPage(fixture.browser, 20_000, 20_001);
+    expired.mockRestore();
+    await expect(failed).rejects.toThrow("Preview page deadline expired");
     expect(fixture.waitForEvent).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing CDP context immediately", async () => {
+    await expect(waitForPreviewPage({ contexts: () => [] }, 20_000, 19_999)).rejects.toThrow(
+      "Preview CDP connection has no browser context",
+    );
   });
 });
 
