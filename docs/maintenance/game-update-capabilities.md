@@ -1,7 +1,7 @@
 # Game-update capability maintenance
 
-RepoDitor keeps Web capability policy reproducible from reviewed evidence rather than from
-hand-maintained runtime arrays. The committed evidence is data-only:
+RepoDitor generates Web capability snapshots from reviewed evidence. The committed records
+cover the exact identities, their historical parser/oracle checks, and the latest Desktop review.
 
 - `tools/capabilities/evidence/recharge.v1.json` records exact installed `ItemBattery`
   classifications, parser fingerprints, build metadata, and the independent UnityPy oracle.
@@ -10,13 +10,14 @@ hand-maintained runtime arrays. The committed evidence is data-only:
   ownership/index contract, and historical parity with both ownership lists of an approved
   game-generated full-unlock MetaSave. The source save remains private and outside the repository.
 
-- `tools/capabilities/evidence/cosmetics.v2.json` is the active current-build approval;
-  the historical V1 record remains separate. See the current-approval section below.
+- `tools/capabilities/evidence/cosmetics.v2.json` covers the expanded 557-ID catalog;
+  the historical V1 record remains separate.
+- `tools/capabilities/evidence/web-desktop-review.v1.json` binds both Web snapshots to the
+  accepted Desktop v0.3.2 evidence for Steam builds `26732417` and `26813769`.
 
-`npm run capabilities:update` generates the Web snapshots plus Desktop Python and Electron cosmetic
-policy modules from those files. Generated files must not be edited by hand. Output is
-deterministic, contains no timestamps, and preserves non-contiguous cosmetic IDs exactly; a gap is
-never inferred to be an owned or mutable ID.
+`npm run capabilities:update` regenerates the Web snapshots and the Desktop Python cosmetic
+policy. Edit reviewed evidence through the approval workflow.
+Generation preserves exact non-contiguous IDs and produces deterministic output.
 
 ## Tauri editing across Steam patches
 
@@ -71,11 +72,25 @@ private acceptance build.
 
 ## Routine checks
 
+### Browser regression and deployment
+
+`Compatibility / Desktop-Web Alignment` checks the approved review, underlying parser/oracle
+records, and generated snapshots. Changes to the capability tools and Desktop write evidence
+also trigger Web quality, Playwright, and Lighthouse validation.
+
+The Web workflow compares the public deployment's capability signature with the checked-out
+snapshots once a day. After an authorized deploy, run **Web → Run workflow** on `main` with
+`production_smoke` selected, or run `npm run test:production` from `web/`. The signature checks
+the deployed compatibility data. Review UI-only changes through the normal deployment check.
+
 ### Public Steam build monitoring
 
-The independent `Steam public build monitoring` workflow checks app `3241660`
-by manual dispatch. Scheduled monitoring is deferred beyond v0.3.0. Synthetic
-monitor and artwork regressions run in Quality without contacting Steam.
+The `Steam public build monitoring` workflow checks app `3241660` daily at
+03:17 UTC and supports manual dispatch. It compares the public BuildID to the
+reviewed write builds in the Web/Desktop record (`26732417` and `26813769`).
+Synthetic monitor tests run in Compatibility without contacting Steam.
+GitHub runs schedules on the default branch and can delay them or disable them
+after repository inactivity. [GitHub Actions schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 The source is Valve SteamCMD's anonymous `app_info_print 3241660` metadata, using
 only the exact `depots.branches.public.buildid` field. The official
@@ -93,12 +108,12 @@ the monitor job fails visibly and cannot notify a new build. No third-party
 metadata service is used. Steam availability and future client output changes
 remain external limitations.
 
-The monitoring baseline is the independently reviewed artwork build `26407089`,
-separate from mutation evidence. A regression requires this baseline to match
-the latest admitted Unity 6 artwork build. A changed public build creates or
-updates one bot-owned compatibility review issue; it does not approve artwork or
-save operations. Repeated observations of the same build do not comment, reopen
-or rewrite the issue. A later build updates its generated block, preserves human
+The monitor also reports the independently reviewed artwork build `26407089`.
+A regression requires this baseline to match the latest admitted Unity 6 artwork
+build. On `main`, an unreviewed public build creates or updates one bot-owned
+compatibility review issue. Save and artwork approvals still go through their
+existing evidence checks. Repeated observations of the same build do not comment,
+reopen or rewrite the issue. A later build updates its generated block, preserves human
 notes outside that block and reopens the review. Ambiguous issue ownership or an
 incomplete bounded history scan fails closed. Notification has no automatic
 retry and at most three issue-list requests plus one write; HTTPS response sizes
@@ -146,13 +161,15 @@ npm run capabilities:check
 npm run capabilities:check:installed -- --game-dir "D:\SteamLibrary\steamapps\common\REPO"
 ```
 
-The first command is CI-safe and non-mutating. It validates schemas, evidence and parser
+The first command is CI-safe and read-only. It validates schemas, evidence and parser
 fingerprints, regenerates expected content in memory, and prints semantic additions/removals on
 drift. The second command reads one local installation through Desktop's production discovery and
 Unity parser. Omit `--game-dir` to use normal Desktop discovery.
 
-An installed check can report build drift, Recharge additions/removals, unresolved identities, and
-Cosmetics additions/removals. It does not itself run proof-only UnityPy or managed-code tooling.
+An installed check compares the parser/oracle baselines. For `26813769`, use the reviewed Tauri
+fingerprints above. The older installed checker can report drift or an unsupported parser layout
+even when public write approval uses the newer pinned sources. It does not run independent UnityPy
+or managed-code tooling.
 Extraction failure is reported as failure, never as an empty capability set. A successful empty
 catalog remains an exact semantic result and is reported as removals. No snapshot is changed by
 either check.
@@ -256,6 +273,29 @@ the source file never are.
 If the historical capture's build is unknown, keep it `null` rather than inventing metadata. A
 new known build may be recorded only from new evidence.
 
+## Web write compatibility
+
+The v0.5.3 Web review uses the gameplay acceptance and immutable file evidence in
+[Desktop v0.3.2](https://github.com/Yoruxyv/RepoDitor/releases/tag/v0.3.2).
+The existing 29 Recharge identities and exact 557 Cosmetics IDs carry forward. The generator
+checks these sets and fingerprints the reviewed Desktop approvals, including the shared
+save-format sources, before emitting either snapshot. It keeps the older UnityPy and
+managed-code proofs as historical evidence. The snapshots identify the latest reviewed build.
+Browser imports have no
+trusted Steam BuildID or installed-file fingerprints.
+
+Web validates the specific supported save fields and guards each existing edit. Normal and Shop
+are the reviewed Resume targets. Web preserves the existing explicit repair for legacy value
+`2`. Other Resume integers stay readable and unchanged when other Run fields are edited.
+Recharge remains limited to exact eligible instances. Cosmetics preserves unknown IDs and
+respects equipment and preset references. The export reopens the encrypted copy and checks the
+data locally.
+
+For a later Steam patch, compare the existing Desktop source evidence first. When dependencies
+and supported identities match, reuse the same contracts. If a relevant dependency changes,
+review the affected domains and update the Web/Desktop evidence in the same change as the
+new Desktop approval. The monitor only raises a review notification.
+
 ## Review and CI
 
 After an evidence update:
@@ -272,15 +312,16 @@ and generated artifacts only; it does not claim that a live local game installat
 ## Current cosmetic approval and per-capability status
 
 `cosmetics.v1.json` remains immutable historical evidence for build 23363152 and IDs 0–546.
-`cosmetics.v2.json` is the active approval record for build 26294889 / Unity 6000.3.17f1 and
-IDs 0–556. Its evidence schema v2 records `ownershipOracle.sourceSaveCosmeticIds` separately:
+`cosmetics.v2.json` records the exact independent catalog proof for build 26294889 /
+Unity 6000.3.17f1 and IDs 0–556. Its evidence schema v2 records
+`ownershipOracle.sourceSaveCosmeticIds` separately:
 the historical game-generated full-unlock save proved 547 IDs, while the current 557-ID policy
 uses exact independent catalog/target agreement and the unchanged managed ownership contract.
 It does not claim a fresh 557-ID in-game capture. The user confirmed in-game Unlock All recognition
 for all 557 on 2026-11-01; individual unlock, removal and game-restart persistence were not separately
 confirmed. Snapshot formats remain v1. `known-cosmetics.v1.json` and the generated Python
 policies are active runtime artifacts populated from V2 evidence, not obsolete historical snapshots;
-their consumers have not migrated to a different payload format.
+Web metadata also identifies the newer Desktop review while retaining this source proof.
 
 The historical reader stays pinned. `cosmetics/installed_reader.py` reuses its bounded
 traversal and the reviewed header specialization for the maintainer's current-build scan.
@@ -300,8 +341,8 @@ The capture uses canonical UTF-8/LF bytes so its SHA-256 remains stable after Gi
 Review the managed IL independently before supplying a contract proof. Then run the existing
 `update --game-dir ... --cosmetics-oracle ... --cosmetics-contract-proof ...` route, followed
 by `check` and a second identical update to verify determinism. Never edit generated ID arrays.
-Recharge approval is a separate operation and continues to require its own build-specific oracle
-and game/save evidence. Its active record remains `recharge.v1.json` for build 23363152.
+Changes to Recharge identities require their own oracle and game/save evidence.
+`recharge.v1.json` preserves the historical parser/oracle record for build 23363152.
 
 `python -m tools.capabilities status --game-dir ...` reports the installed build and the separately
 approved build/count for each domain. `check-installed` remains non-mutating and exits nonzero

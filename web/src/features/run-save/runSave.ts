@@ -195,6 +195,11 @@ export function describeResumeLocation(value: ResumeLocation | null, raw: number
   return value ? RESUME_LOCATION_LABELS[value] : `Unsupported saved value (${raw})`;
 }
 
+export function canEditStoredResumeLocation(value: number): boolean {
+  // Preserve the existing explicit Normal/Shop recovery for the observed legacy value 2.
+  return value === 2 || resumeLocation(value) !== null;
+}
+
 export function inspectRunSave(data: SaveObject): RunSaveState {
   const names = playerNames(data);
   const savedHealth =
@@ -318,8 +323,16 @@ export function setResumeLocation(data: SaveObject, value: unknown): void {
       `Resume location must be ${RESUME_LOCATION_LABELS.normal} or ${RESUME_LOCATION_LABELS.shop}.`,
     );
   }
+  const stats = runStats(data);
+  if (
+    !canEditStoredResumeLocation(
+      storedInteger(stats, RUN_SAVE_KEY.level, 0, RUN_VALUE_LABEL.resumeLocation),
+    )
+  ) {
+    throw new RunEditError("The saved resume location is unsupported and cannot be changed.");
+  }
   writeInteger(
-    runStats(data),
+    stats,
     RUN_SAVE_KEY.level,
     value === "normal" ? 0 : 1,
     0,

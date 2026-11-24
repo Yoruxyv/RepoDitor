@@ -2,6 +2,8 @@ name: Steam public build monitoring
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
 
 permissions:
   contents: read
@@ -69,7 +71,7 @@ jobs:
               for key in ("state", "build", "checkedAt"):
                   output.write(f"{key}={data[key]}\n")
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
-              summary.write(f"Steam public build: {data['state']}\n\nObserved: {data['build']}\n\nReviewed artwork: {data['reviewedBuild']}\n\nNo compatibility approval is implied.\n")
+              summary.write(f"Steam public build: {data['state']}\n\nObserved: {data['build']}\n\nReviewed writes: {data['reviewedWriteBuilds']}\n\nReviewed artwork: {data['reviewedArtworkBuild']}\n\nNo compatibility approval is implied.\n")
           PY
       - name: Report unavailable observation
         if: failure()
@@ -79,7 +81,7 @@ jobs:
   notify:
     name: Maintain compatibility review issue
     needs: observe
-    if: needs.observe.outputs.state == 'CHANGED'
+    if: github.ref == 'refs/heads/main' && needs.observe.outputs.state == 'CHANGED'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:

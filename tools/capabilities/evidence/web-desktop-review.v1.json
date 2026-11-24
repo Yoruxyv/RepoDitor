@@ -1,0 +1,6 @@
+{
+  "reviewedSteamBuildIds": ["26732417", "26813769"],
+  "desktopReleaseCommit": "c9a01cde6b34a88fd68ec0b2eee8d3ec77e3f170",
+  "desktopPolicySha256": "sha256:39ac47952665311a56c315d79b823de4ca14d6b92083f1ad086a467cc2af4657",
+  "cosmeticIdsSha256": "sha256:b109da5d83c8be2225df1d78ca7aa5b09447d9908d4f9019790f8076b3574e90"
+}

@@ -134,8 +134,14 @@ def test_status_distinguishes_current_cosmetics_from_historical_recharge(
     monkeypatch.setattr(workflow, "_installation", lambda _game_dir: (None, "26294889"))
     assert workflow.report_status() == 0
     text = capsys.readouterr().out
-    assert "Recharge: approved build 23363152; 29 identities; UNAPPROVED installed build" in text
-    assert "Cosmetics: approved build 26294889; 557 identities; build matches evidence" in text
+    assert (
+        "Recharge: parser/oracle evidence build 23363152; 29 identities; build differs from capture"
+        in text
+    )
+    assert (
+        "Cosmetics: parser/oracle evidence build 26294889; 557 identities; build matches capture"
+        in text
+    )
     assert "no in-game validation" in text
 
 

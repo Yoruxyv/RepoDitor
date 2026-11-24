@@ -40,6 +40,8 @@ export const saveId: TranslationShape<typeof saveEn> = {
     selected: "Save terpilih",
     runSave: "Save Run",
     validated: "Divalidasi secara lokal",
+    compatibility:
+      "Pengeditan dibatasi pada bidang save yang didukung. Browser tidak dapat memverifikasi build game.",
     changeFile: "Ganti file",
     clear: "Bersihkan",
   },

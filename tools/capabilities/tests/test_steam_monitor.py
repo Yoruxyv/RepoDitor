@@ -4,7 +4,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Self
+from typing import Never, Self
 from urllib.error import URLError
 from urllib.request import Request
 
@@ -12,13 +12,16 @@ import pytest
 
 from repo_save_editor.services.game import installed_build
 from tools.capabilities import steam_monitor as monitor
+from tools.capabilities.schema import CapabilityDataError
 
 CHECKED_AT = "2026-11-08T06:00:00+00:00"
-NEW_BUILD = "26407090"
+REVIEWED_WRITE_BUILD = "26813769"
+EARLIER_REVIEWED_WRITE_BUILD = "26732417"
+NEW_BUILD = "26813770"
 
 
 def metadata(
-    build: str = monitor.REVIEWED_ARTWORK_BUILD,
+    build: str = REVIEWED_WRITE_BUILD,
     *,
     app: str = monitor.APP_ID,
     branch: str = "public",
@@ -31,15 +34,22 @@ def metadata(
 
 
 @pytest.mark.parametrize(
-    ("build", "state"), [(monitor.REVIEWED_ARTWORK_BUILD, "UNCHANGED"), (NEW_BUILD, "CHANGED")]
+    ("build", "state"),
+    [
+        (REVIEWED_WRITE_BUILD, "UNCHANGED"),
+        (EARLIER_REVIEWED_WRITE_BUILD, "UNCHANGED"),
+        (NEW_BUILD, "CHANGED"),
+        (monitor.REVIEWED_ARTWORK_BUILD, "CHANGED"),
+    ],
 )
-def test_only_exact_public_branch_is_compared_to_independent_artwork_review(
-    build: str, state: str
-) -> None:
+def test_only_exact_public_branch_is_compared_to_the_write_review(build: str, state: str) -> None:
     result = monitor.observe(metadata(build))
     assert result["state"] == state
     assert result["build"] == build
-    assert result["reviewedBuild"] == monitor.REVIEWED_ARTWORK_BUILD
+    assert (
+        result["reviewedWriteBuilds"] == f"{EARLIER_REVIEWED_WRITE_BUILD}, {REVIEWED_WRITE_BUILD}"
+    )
+    assert result["reviewedArtworkBuild"] == monitor.REVIEWED_ARTWORK_BUILD
     assert "anonymous" in result["source"]
     assert result["checkedAt"].endswith("+00:00")
 
@@ -127,24 +137,44 @@ class IssueFixture:
         return self.issues[0]
 
 
-def test_unchanged_build_never_requests_issue_write_authority() -> None:
+@pytest.mark.parametrize("build", [EARLIER_REVIEWED_WRITE_BUILD, REVIEWED_WRITE_BUILD])
+def test_reviewed_build_never_requests_issue_write_authority(build: str) -> None:
     def forbidden(*_args: object) -> object:
         pytest.fail("Unchanged metadata attempted a GitHub request")
 
-    assert monitor.notify(monitor.REVIEWED_ARTWORK_BUILD, CHECKED_AT, forbidden) == "UNCHANGED"
+    assert monitor.notify(build, CHECKED_AT, forbidden) == "UNCHANGED"
+
+
+def test_invalid_write_review_cannot_generate_a_build_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable() -> Never:
+        raise CapabilityDataError("Stale review")
+
+    monkeypatch.setattr(monitor, "read_review", unavailable)
+    assert monitor.observe(metadata(NEW_BUILD))["state"] == "UNKNOWN"
+    with pytest.raises(CapabilityDataError):
+        monitor.notify(NEW_BUILD, CHECKED_AT, IssueFixture().request)
 
 
 def test_one_issue_is_created_deduplicated_updated_and_reopened_with_human_notes_preserved() -> (
     None
 ):
     github = IssueFixture()
-    assert monitor.notify(NEW_BUILD, CHECKED_AT, github.request) == "CREATED"
+    observation = monitor.observe(metadata(NEW_BUILD))
+    assert observation["state"] == "CHANGED"
+    assert (
+        monitor.notify(observation["build"], observation["checkedAt"], github.request) == "CREATED"
+    )
     body = github.issues[0]["body"]
     assert isinstance(body, str)
     assert NEW_BUILD in body
+    assert (
+        f"Reviewed write builds: `{EARLIER_REVIEWED_WRITE_BUILD}`, `{REVIEWED_WRITE_BUILD}`" in body
+    )
     assert monitor.REVIEWED_ARTWORK_BUILD in body
     assert "not artwork or save-mutation approval" in body
-    assert CHECKED_AT in body
+    assert observation["checkedAt"] in body
     github.issues[0]["body"] = "Human introduction\n" + body + "\nHuman notes"
     github.issues[0]["state"] = "closed"
     assert monitor.notify(NEW_BUILD, CHECKED_AT, github.request) == "ALREADY_NOTIFIED"
@@ -158,6 +188,21 @@ def test_one_issue_is_created_deduplicated_updated_and_reopened_with_human_notes
     assert updated_body.endswith("\nHuman notes")
     assert sum(method == "POST" for method, _, _ in github.calls) == 1
     assert sum(method == "PATCH" for method, _, _ in github.calls) == 1
+
+
+def test_existing_artwork_monitor_issue_deduplicates_the_same_build() -> None:
+    github = IssueFixture()
+    github.issues.append(
+        {
+            "number": 7,
+            "title": monitor.ISSUE_TITLE,
+            "body": f"{monitor.START}\n<!-- public-build:{NEW_BUILD};reviewed-artwork:26407089 -->\n{monitor.END}",
+            "state": "closed",
+            "user": {"login": "github-actions[bot]"},
+        }
+    )
+    assert monitor.notify(NEW_BUILD, CHECKED_AT, github.request) == "ALREADY_NOTIFIED"
+    assert [method for method, _, _ in github.calls] == ["GET"]
 
 
 def test_lost_creation_response_does_not_duplicate_the_next_notification() -> None:

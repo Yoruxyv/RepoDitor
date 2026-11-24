@@ -179,6 +179,8 @@ def _workspace(
     monkeypatch.setattr(workflow, "WEB_RECHARGE_PATH", recharge_snapshot_path)
     monkeypatch.setattr(workflow, "WEB_COSMETICS_PATH", cosmetics_snapshot_path)
     monkeypatch.setattr(workflow, "DESKTOP_COSMETICS_PATH", desktop_snapshot_path)
+    # This workspace exercises historical parser/oracle approvals with invented IDs.
+    monkeypatch.setattr(workflow, "align_web_snapshots", lambda *_: None)
     return (
         recharge_evidence,
         cosmetics_evidence,

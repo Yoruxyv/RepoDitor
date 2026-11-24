@@ -36,6 +36,12 @@ function. A different static host remains usable for all editor features, but au
 require an equivalent same-origin function with the same contract and protections. The production
 deployment must keep this route same-origin and must not introduce server-side save processing.
 
+Web's write evidence covers the existing operations on reviewed R.E.P.O. v0.5.2 and v0.5.3
+save structures. Browsers cannot inspect Steam installation files or establish the build that
+authored an imported save. The editor validates supported operations individually and preserves
+unreviewed values, including unrecognized Resume locations, when exporting other edits. See the
+[compatibility and deployment checks](../docs/maintenance/game-update-capabilities.md#web-write-compatibility).
+
 ## Privacy and browser storage
 
 Save contents are processed locally and are not persisted by RepoDitor Web. Loaded sessions live

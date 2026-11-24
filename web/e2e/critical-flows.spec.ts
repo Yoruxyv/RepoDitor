@@ -56,6 +56,33 @@ test("Health respects the current and final upgrade caps before export", async (
   await expect(await exported).toBeTruthy();
 });
 
+test("unsupported resume remains read-only while currency exports safely", async ({ page }) => {
+  const source = new TextDecoder().decode(await decryptEs3(await saveFixture("run")));
+  const save = JSON.parse(source) as {
+    dictionaryOfDictionaries: { value: { runStats: Record<string, number> } };
+  };
+  save.dictionaryOfDictionaries.value.runStats["save level"] = 7;
+  const encrypted = await encryptEs3(new TextEncoder().encode(JSON.stringify(save)));
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: Buffer.from(encrypted),
+    mimeType: "application/octet-stream",
+    name: "REPO_SAVE.es3",
+  });
+
+  await expect(page.getByText(/the browser cannot verify the game build/iu)).toBeVisible();
+  await page.getByRole("tab", { name: "Run" }).click();
+  const resume = page.getByLabel("Next spawn");
+  await expect(resume).toHaveText("Unsupported saved value (7)");
+  await expect(resume).toBeDisabled();
+  await page.getByRole("spinbutton", { name: "Currency" }).fill("13");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download verified copy" }).click();
+  const output = await readFile(await (await download).path());
+  const reopened = JSON.parse(new TextDecoder().decode(await decryptEs3(output))) as unknown;
+  save.dictionaryOfDictionaries.value.runStats.currency = 13;
+  expect(reopened).toEqual(save);
+});
+
 test("returning to a missing Level clears the draft and keeps Level absent in export", async ({
   page,
 }) => {

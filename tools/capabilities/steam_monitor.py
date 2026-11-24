@@ -13,6 +13,8 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from tools.capabilities.web_review import read_review
+
 APP_ID = "3241660"
 # Independent artwork review baseline; tests require it to match the admitted artwork builds.
 REVIEWED_ARTWORK_BUILD = "26407089"
@@ -104,16 +106,22 @@ def observe(payload: bytes) -> dict[str, str]:
     report = {
         "state": "UNKNOWN",
         "build": "",
-        "reviewedBuild": REVIEWED_ARTWORK_BUILD,
+        "reviewedWriteBuilds": "",
+        "reviewedArtworkBuild": REVIEWED_ARTWORK_BUILD,
         "checkedAt": datetime.now(UTC).isoformat(timespec="seconds"),
         "source": SOURCE,
     }
     try:
-        report["build"] = public_build(payload)
+        reviewed = read_review()["reviewedSteamBuildIds"]
+        build = public_build(payload)
     except (ValueError, UnicodeError, StopIteration):
-        report["reason"] = "Steam public metadata is unavailable or invalid."
+        report["reason"] = (
+            "Steam public metadata or reviewed write evidence is unavailable or invalid."
+        )
         return report
-    report["state"] = "UNCHANGED" if report["build"] == REVIEWED_ARTWORK_BUILD else "CHANGED"
+    report["reviewedWriteBuilds"] = ", ".join(reviewed)
+    report["build"] = build
+    report["state"] = "UNCHANGED" if build in reviewed else "CHANGED"
     return report
 
 
@@ -179,12 +187,15 @@ def notify(build: str, checked_at: str, request: GitHubRequest = _github) -> str
     checked = datetime.fromisoformat(checked_at)
     if checked.tzinfo is None or checked.utcoffset() != UTC.utcoffset(checked):
         raise ValueError("Invalid observation timestamp.")
-    if build == REVIEWED_ARTWORK_BUILD:
+    reviewed = read_review()["reviewedSteamBuildIds"]
+    if build in reviewed:
         return "UNCHANGED"
-    marker = f"<!-- public-build:{build};reviewed-artwork:{REVIEWED_ARTWORK_BUILD} -->"
+    build_marker = f"<!-- public-build:{build};"
+    reviewed_builds = ", ".join(f"`{entry}`" for entry in reviewed)
     block = f"""{START}
-{marker}
+{build_marker}reviewed-write:{reviewed[-1]} -->
 Detected public Steam build: `{build}`
+Reviewed write builds: {reviewed_builds}
 Latest independently reviewed artwork build: `{REVIEWED_ARTWORK_BUILD}`
 Observed at: {checked.isoformat(timespec="seconds")}
 Source: {SOURCE}
@@ -194,8 +205,8 @@ This is a compatibility-review notification, not artwork or save-mutation approv
 Local verification (read-only installed files; synthetic save tests only):
 1. Verify the installed public appmanifest for app `{APP_ID}` and record its exact build.
 2. Run `uv run --locked python -m tools.capabilities status --game-dir <game-root>`.
-3. Follow [game-update verification](https://github.com/Yoruxyv/RepoDitor/blob/main/docs/maintenance/game-update-capabilities.md): verify source/assembly hashes, canonical artwork mappings and bounded decoding independently for Cosmetics, Upgrades/Items and Maps.
-4. Run the synthetic artwork and save-safety regressions. Review mutation evidence separately; do not change allowlists or hashes automatically.
+3. Follow [game-update verification](https://github.com/Yoruxyv/RepoDitor/blob/main/docs/maintenance/game-update-capabilities.md): compare the required source pins and review only the affected write contracts.
+4. Run the affected synthetic save-safety regressions. Review artwork separately when relevant. No evidence is updated automatically.
 {END}"""
     issue = _existing_issue(request)
     if issue is None:
@@ -215,7 +226,7 @@ Local verification (read-only installed files; synthetic save tests only):
         raise ValueError("Invalid compatibility review issue.")
     before, _, remainder = body.partition(START)
     generated, _, after = remainder.partition(END)
-    if marker in generated:
+    if build_marker in generated:
         return "ALREADY_NOTIFIED"
     request("PATCH", f"/issues/{number}", {"body": before + block + after, "state": "open"})
     return "UPDATED"

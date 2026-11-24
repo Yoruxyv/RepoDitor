@@ -51,6 +51,7 @@ from tools.capabilities.schema import (
     sha256_file,
     sha256_text_file,
 )
+from tools.capabilities.web_review import align_web_snapshots, read_review
 
 REPOSITORY_ROOT: Final = Path(__file__).resolve().parents[2]
 EVIDENCE_ROOT: Final = REPOSITORY_ROOT / "tools" / "capabilities" / "evidence"
@@ -183,11 +184,10 @@ def expected_artifacts() -> ExpectedArtifacts:
         "Cosmetics",
     )
     _validate_committed_cosmetic_proof(cosmetics_evidence)
-    return ExpectedArtifacts(
-        recharge_snapshot(recharge_evidence, RECHARGE_EVIDENCE_PATH),
-        cosmetics_snapshot(cosmetics_evidence, COSMETICS_EVIDENCE_PATH),
-        _desktop_cosmetics_module(cosmetics_evidence),
-    )
+    recharge = recharge_snapshot(recharge_evidence, RECHARGE_EVIDENCE_PATH)
+    cosmetics = cosmetics_snapshot(cosmetics_evidence, COSMETICS_EVIDENCE_PATH)
+    align_web_snapshots(recharge, cosmetics)
+    return ExpectedArtifacts(recharge, cosmetics, _desktop_cosmetics_module(cosmetics_evidence))
 
 
 def _json_text(value: object) -> str:
@@ -447,18 +447,20 @@ def report_status(game_dir: Path | None = None) -> int:
     """Report approved builds per domain without treating discovery as full support."""
     try:
         _, build_id = _installation(game_dir)
+        review = read_review()
         recharge = load_recharge_evidence(RECHARGE_EVIDENCE_PATH)
         cosmetics = load_cosmetics_evidence(COSMETICS_EVIDENCE_PATH)
     except CapabilityDataError as error:
         print(f"Compatibility status unavailable: {error}")
         return 1
     print(f"Observed Steam build: {build_id or 'unknown'} (installation discovery only)")
+    print(f"Web evidence reviewed for Steam builds {', '.join(review['reviewedSteamBuildIds'])}.")
     for name, approved, count in (
         ("Recharge", recharge.compatibility.steam_build_id, len(recharge.rechargeable_identities)),
         ("Cosmetics", cosmetics.compatibility.steam_build_id, len(cosmetics.cosmetic_ids)),
     ):
-        state = "build matches evidence" if build_id == approved else "UNAPPROVED installed build"
-        print(f"  {name}: approved build {approved}; {count} identities; {state}")
+        state = "build matches capture" if build_id == approved else "build differs from capture"
+        print(f"  {name}: parser/oracle evidence build {approved}; {count} identities; {state}")
     print(
         "Artwork availability grants no mutation permission. This command performs no in-game validation."
     )
