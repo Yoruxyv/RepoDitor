@@ -20,11 +20,30 @@ never inferred to be an owned or mutable ID.
 
 ## Tauri editing across Steam patches
 
-The `26732417` private preview has direct in-game acceptance for Health, Upgrades,
-Run and Normal/Shop resume, Item Recharge, and Cosmetics. The production
-backend uses [the accepted fingerprints](../../desktop/python/repo_save_editor/services/game/write_evidence.py).
+Production uses the [reviewed Desktop fingerprints](../../desktop/python/repo_save_editor/services/game/write_evidence.py)
+for R.E.P.O. v0.5.2 (Steam build `26732417`) and v0.5.3 (Steam build
+`26813769`). The v0.5.2 private preview established the five editing domains.
+For v0.5.3, the maintainer confirmed gameplay and normal resave/reload for the
+private-preview checklist:
+
+- Health editing.
+- A Tumble Climb upgrade edit.
+- Run value edits and both Normal and Shop resume.
+- A Recharge on an eligible depleted item instance.
+- A supported Cosmetics ownership change and Clear All Presets.
+
+The report did not enumerate each Run field, identify the recharged item type,
+or distinguish Unlock from Lock. Approval for the existing operation families
+also relies on the earlier v0.5.2 acceptance and the verified v0.5.3 sources.
+All eight ES3 and runtime hashes match v0.5.2. The 29 reviewed Recharge
+identities and the full 557-entry Cosmetics catalog digest also match.
+`Assembly-CSharp.dll`, `globalgamemanagers`, and the pinned Item and Cosmetics
+assets have v0.5.3 hashes. The recharge identities, catalog digest, and
+mutation validators are shared across the two approved revisions.
+
 Approval carries to a new Steam BuildID when the installation has valid Steam
-provenance and the SHA-256 pins for the required domains still match.
+provenance and the SHA-256 pins for the required domains still match the
+reviewed revision selected by the gameplay sources.
 The live BuildID remains part of session checks. Reopen the editor and the save
 after a Steam update.
 

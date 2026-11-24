@@ -2,6 +2,7 @@
 
 | Version             | Highlights                                                                                |
 | ------------------- | ----------------------------------------------------------------------------------------- |
+| [v0.3.2](v0.3.2.md) | Restores Desktop editing for R.E.P.O. v0.5.3                                              |
 | [v0.3.0](v0.3.0.md) | Tauri 2 migration, domain-specific compatibility, and branded Windows setup and removal   |
 | [v0.2.1](v0.2.1.md) | Save-safety hotfix for signed 32-bit values                                               |
 | [v0.2.0](v0.2.0.md) | Faster save opening, installed-game artwork and metadata, and stronger editing safeguards |

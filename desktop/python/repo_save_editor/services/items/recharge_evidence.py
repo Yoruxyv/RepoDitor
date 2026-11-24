@@ -16,7 +16,7 @@ from repo_save_editor.services.game.installed_build import (
     validated_installed_build,
 )
 from repo_save_editor.services.game.write_evidence import (
-    RECHARGE_SOURCES,
+    APPROVED_WRITE_SOURCES,
     RECHARGE_UNITY,
     source_pins_match,
 )
@@ -121,7 +121,10 @@ def resolve_recharge_source_context(
     if build is None and not presentation_only and bundle is None:
         # The reviewed Unity layout is safe to read only from its pinned sources.
         build = installed_build_identity(installation)
-        if build is not None and source_pins_match(installation.root, RECHARGE_SOURCES):
+        if build is not None and any(
+            source_pins_match(installation.root, approved.recharge)
+            for approved in APPROVED_WRITE_SOURCES
+        ):
             qualified_unity = RECHARGE_UNITY
         else:
             build = None

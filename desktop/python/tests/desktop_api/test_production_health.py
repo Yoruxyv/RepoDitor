@@ -23,6 +23,7 @@ from repo_save_editor.services.game.discovery import (
     discover_game_installation,
 )
 from repo_save_editor.services.game.processes import GameProcessStatus
+from repo_save_editor.services.game.write_evidence import ApprovedWriteSources
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.saves.private_health import Bundle
 from repo_save_editor.storage import health_recovery as storage
@@ -84,6 +85,8 @@ def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
         ("item", True, False, True),
         ("cosmetics", True, True, False),
         ("item-and-cosmetics", True, False, False),
+        ("other-approved-assets", True, False, False),
+        ("mixed-gameplay", False, False, False),
         ("game-code", False, False, False),
         ("es3-serializer", False, False, False),
         ("crypto-runtime", False, False, False),
@@ -135,6 +138,13 @@ def test_write_admission_reuses_only_the_reviewed_domain_evidence(
     def pin(name):
         return sha256(name.encode()).hexdigest()
 
+    other_revision_files = {
+        "other-approved-assets": (item, cosmetics_source, managers),
+        "mixed-gameplay": (admission.HEALTH_BUILD_SOURCES[-1],),
+    }
+    for name in other_revision_files.get(change, ()):
+        (game / name).write_bytes(f"other revision {name}".encode())
+
     format_pins = tuple(map(pin, admission.SAVE_FORMAT_SOURCES))
     pin_count = {"legacy-approval": 0, "incomplete-evidence": -1}.get(change, len(format_pins))
     format_pins = format_pins[:pin_count]
@@ -159,12 +169,19 @@ def test_write_admission_reuses_only_the_reviewed_domain_evidence(
         lambda: discover_game_installation(steam_roots=(steam,), environment={}),
     )
     if public:
-        monkeypatch.setattr(admission, "GAMEPLAY_PINS", bundle.source_pins)
+        other = ApprovedWriteSources(
+            tuple(pin(f"other revision {name}") for name in admission.HEALTH_BUILD_SOURCES),
+            tuple((name, pin(f"other revision {name}")) for name, _ in bundle.item_sources),
+            tuple((name, pin(f"other revision {name}")) for name, _ in bundle.cosmetic_sources),
+        )
+        matching = ApprovedWriteSources(
+            bundle.source_pins, bundle.item_sources, bundle.cosmetic_sources
+        )
+        # The later approved record must work even when the first one fails to match.
+        approved = (matching, other) if change == "none" else (other, matching)
+        monkeypatch.setattr(admission, "APPROVED_WRITE_SOURCES", approved)
         monkeypatch.setattr(admission, "SAVE_FORMAT_PINS", format_pins)
-        monkeypatch.setattr(admission, "RECHARGE_SOURCES", bundle.item_sources)
-        monkeypatch.setattr(meta_admission, "GAMEPLAY_PINS", bundle.source_pins)
         monkeypatch.setattr(meta_admission, "SAVE_FORMAT_PINS", format_pins)
-        monkeypatch.setattr(meta_admission, "COSMETIC_SOURCES", bundle.cosmetic_sources)
         monkeypatch.setattr(
             meta_admission, "COSMETIC_CATALOG_DIGEST", bundle.cosmetic_catalog_digest
         )
@@ -193,7 +210,7 @@ def test_write_admission_reuses_only_the_reviewed_domain_evidence(
         assert meta_admission.production_meta("state", None) == {"ok": True, "state": "disabled"}
         return
 
-    _, current_build, domains = admission._authorize_build(session_bundle, None, SAVE)
+    _, current_build, domains, _ = admission._authorize_build(session_bundle, None, SAVE)
     assert current_build == build_id
     assert domains == {"health", "upgrades", "run"} | ({"refillToFull"} if recharge else set())
     assert bundle.reviewed_recharge((reviewed, "Item Unknown")) == {
@@ -263,7 +280,11 @@ def test_private_health_edit_uses_zero_only_for_absent_fields(
     bundle = Bundle(tmp_path, b"", "901", (), session=True) if private_session else None
     monkeypatch.setattr(admission, "private_bundle", lambda: bundle)
     monkeypatch.setattr(admission, "get_default_save_root", lambda: root)
-    monkeypatch.setattr(admission, "_game", lambda: (tmp_path / "REPO.exe", "901", {"health"}))
+    monkeypatch.setattr(
+        admission,
+        "_game",
+        lambda: (tmp_path / "REPO.exe", "901", frozenset({"health"}), None),
+    )
     monkeypatch.setattr(
         admission,
         "verified_private_game",
@@ -338,15 +359,20 @@ from repo_save_editor.services.game.processes import ProcessInspection
 root, steam, game = map(Path, sys.argv[1:4])
 health.platform = "win32"
 pin = lambda name: sha256(name.encode()).hexdigest()
-health.GAMEPLAY_PINS = tuple(map(pin, health.HEALTH_BUILD_SOURCES))
+gameplay = tuple(map(pin, health.HEALTH_BUILD_SOURCES))
+updated_gameplay = (*gameplay[:-1], pin("other reviewed revision"))
 health.SAVE_FORMAT_PINS = tuple(map(pin, health.SAVE_FORMAT_SOURCES))
-health.RECHARGE_SOURCES = (("REPO_Data/resources.assets", pin("reviewed recharge")),)
+recharge = (("REPO_Data/resources.assets", pin("reviewed recharge")),)
 capabilities = lambda names: {name: ItemRechargeCapability.RECHARGEABLE for name in names}
 health.RECHARGE_IDENTITIES = frozenset({"Item Melee Inflatable Hammer"})
 transactions.serialize_advanced_save = partial(transactions.serialize_advanced_save, capability_loader=capabilities)
 if sys.argv[4] == "health-only":
     health.APPROVED_RUN_DOMAINS = frozenset({"health"})
-    health.RECHARGE_SOURCES = ()
+    recharge = ()
+health.APPROVED_WRITE_SOURCES = (
+    health.ApprovedWriteSources(gameplay, recharge, ()),
+    health.ApprovedWriteSources(updated_gameplay, recharge, ()),
+)
 health.discover_game_installation = lambda: discover_game_installation(steam_roots=(steam,), environment={})
 health.get_default_save_root = lambda: root
 health.inspect_windows_processes = lambda executable: ProcessInspection(
@@ -356,6 +382,8 @@ health.inspect_windows_processes = lambda executable: ProcessInspection(
 def publication():
     if sys.argv[4] == "build-replaced":
         (game / health.HEALTH_BUILD_SOURCES[-1]).write_bytes(b"unreviewed replacement")
+    if sys.argv[4] == "build-other-approved":
+        (game / health.HEALTH_BUILD_SOURCES[-1]).write_bytes(b"other reviewed revision")
     return sys.argv[4] != "closed-editor"
 print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]), publication_allowed=publication)))
 """
@@ -422,14 +450,18 @@ print(json.dumps(health.production_health(*sys.argv[5:9], json.loads(sys.argv[9]
         assert command("acknowledge")["status"] == "unchanged"
         # Each authorization is one operation; a recovered ID cannot be replayed.
         assert command("apply")["reason"] == "write_duplicate"
-        operation = "b" * 32
-        assert command("apply", "build-replaced")["reason"] == "save_unsupported"
-        assert save.read_bytes() == original
-        (game / admission.HEALTH_BUILD_SOURCES[-1]).write_bytes(
-            admission.HEALTH_BUILD_SOURCES[-1].encode()
-        )
-        assert command("acknowledge")["status"] == "unchanged"
-        operation = "c" * 32
+        for rejected_operation, status, reason in (
+            ("b" * 32, "build-replaced", "save_unsupported"),
+            ("c" * 32, "build-other-approved", "save_verification_unavailable"),
+        ):
+            operation = rejected_operation
+            assert command("apply", status)["reason"] == reason
+            assert save.read_bytes() == original
+            (game / admission.HEALTH_BUILD_SOURCES[-1]).write_bytes(
+                admission.HEALTH_BUILD_SOURCES[-1].encode()
+            )
+            assert command("acknowledge")["status"] == "unchanged"
+        operation = "d" * 32
         assert command("apply")["status"] == "applied"
     else:
         assert command("prepare")["status"] == "prepared"

@@ -17,6 +17,10 @@ from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.installed_maps import read_installed_levels
 from repo_save_editor.services.game.map_artwork import artwork_revision
 from repo_save_editor.services.game.maps import discover_installed_maps
+from repo_save_editor.services.game.write_evidence import (
+    APPROVED_WRITE_SOURCES,
+    ApprovedWriteSources,
+)
 from repo_save_editor.services.items import recharge_capability, recharge_evidence
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.items.recharge_capability import (
@@ -180,10 +184,17 @@ def test_item_identity_replacement_never_reuses_artwork_or_grants_recharge(
     )
     monkeypatch.setattr(
         recharge_evidence,
-        "RECHARGE_SOURCES",
-        tuple(
-            (f"REPO_Data/{name}", sha256((data / name).read_bytes()).hexdigest())
-            for name in ("resources.assets", "globalgamemanagers.assets")
+        "APPROVED_WRITE_SOURCES",
+        (
+            *APPROVED_WRITE_SOURCES,
+            ApprovedWriteSources(
+                (),
+                tuple(
+                    (f"REPO_Data/{name}", sha256((data / name).read_bytes()).hexdigest())
+                    for name in ("resources.assets", "globalgamemanagers.assets")
+                ),
+                (),
+            ),
         ),
     )
     qualified, proof = discover_installed_item_metadata_with_evidence((ITEM,))
