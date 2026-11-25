@@ -31,13 +31,13 @@ npm run bundle:check
 npm test
 npm run release:check
 npm run package:tauri
-npm run test:e2e:tauri
+npm run test:e2e
 npm run test:tauri-safety
 ```
 
 The read-only development package is staged under `build/tauri-portable/`.
 Synthetic E2E uses isolated profiles and fixtures. Keep PowerShell 7 (`pwsh.exe`)
-on `PATH` for Windows probes. `npm run test:e2e:tauri` runs the Rust tests first to
+on `PATH` for Windows probes. `npm run test:e2e` runs the Rust tests first to
 compile the fault-injection sidecar used by the packaged journeys. Run
 `npm run test:tauri` first if invoking those Playwright specs directly.
 

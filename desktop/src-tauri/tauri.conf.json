@@ -6,7 +6,7 @@
   "identifier": "io.github.yoruxyv.repoditor.preview",
   "build": {
     "beforeDevCommand": "npm run dev:tauri-ui",
-    "beforeBuildCommand": "npm run build:tauri-ui",
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://127.0.0.1:1420/tauri.html",
     "frontendDist": "../build/tauri-ui"
   },

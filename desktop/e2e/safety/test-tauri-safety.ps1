@@ -74,7 +74,7 @@ try {
     # Even cargo test validates the configured resource; rebuild it before any Rust compile.
     Run-Checked 'npm' @('run', 'build:sidecar')
     if (-not $NormalBackend) { $NormalBackend = 'build/backend/repoditor-backend' }
-    Run-Checked 'npm' @('run', 'build:tauri-ui')
+    Run-Checked 'npm' @('run', 'build')
     $env:REPODITOR_RECOVERY_DEFAULT_EXECUTABLE = Build-Host 'default' '' $false $true
     $env:REPODITOR_ARTIFACT_BACKEND = [IO.Path]::GetFullPath($NormalBackend, $desktop)
     $env:REPODITOR_NATIVE_OUTPUT = Join-Path $nativeOutput 'startup'

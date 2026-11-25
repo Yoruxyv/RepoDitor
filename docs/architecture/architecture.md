@@ -983,7 +983,7 @@ same isolated profile. Open Cosmetics again and export the observations.
 
 ```powershell
 $env:REPODITOR_CACHE_DIAGNOSTICS = '1'
-npm run dev:tauri
+npm run dev
 # In a second shell after the journey
 npm run --silent tauri:cache:diagnostics
 ```
