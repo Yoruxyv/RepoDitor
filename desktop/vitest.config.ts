@@ -12,17 +12,17 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version) },
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@": fileURLToPath(new URL("./renderer", import.meta.url)),
     },
   },
   test: {
     // Limit Windows filesystem contention between jsdom and native I/O tests.
     maxWorkers: process.platform === "win32" ? 2 : undefined,
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./renderer/test/setup.ts"],
     include: [
-      "src/**/*.test.{ts,tsx}",
-      "e2e/support/*.test.ts",
+      "renderer/**/*.test.{ts,tsx}",
+      "e2e/support/**/*.test.ts",
       "installer/ui/src/**/*.test.{ts,tsx}",
     ],
     coverage: {

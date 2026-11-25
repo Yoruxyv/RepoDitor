@@ -10,7 +10,8 @@ from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 
-from repo_save_editor.services.baked_artwork import installed_source_stamp
+from repo_save_editor.services.artwork.baked_artwork import installed_source_stamp
+from repo_save_editor.services.artwork.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.game.write_evidence import RECHARGE_IDENTITIES
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.items.recharge_evidence import (
@@ -22,7 +23,6 @@ from repo_save_editor.services.items.recharge_evidence import (
 from repo_save_editor.services.items.runtime_metadata import (
     discover_installed_item_metadata as discover_installed_item_metadata_from_assets,
 )
-from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.saves.private_health import private_bundle
 
 _METADATA_VERSION = 1

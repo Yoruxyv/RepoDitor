@@ -51,7 +51,7 @@ npm test
 
 These checks must pass without new lint warnings. Follow the configured
 TypeScript, ESLint, React/Hooks, accessibility, SonarJS, Tailwind, and import rules.
-Run `npm run package:tauri` and `npm run test:e2e:tauri` for changes crossing
+Run `npm run package:tauri` and `npm run test:e2e` for changes crossing
 the native boundary or affecting a real Desktop journey. Run
 `npm run test:tauri-safety` for changes to authorization, transactions or process supervision.
 Run `npm run bundle:check` after production build when renderer size is affected

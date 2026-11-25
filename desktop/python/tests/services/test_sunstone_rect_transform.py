@@ -17,7 +17,11 @@ from repo_save_editor.services.unity_serialized import (
     UnityMetadataError,
 )
 from repo_save_editor.services.unity_textures import find_prefab_renderers, parse_transform
-from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
+from tools.capabilities.tests.unity_serialized_fixture import (
+    aligned_string,
+    pptr,
+    write_serialized_file,
+)
 
 
 def _game_object(name: str, components: list[int]) -> bytes:

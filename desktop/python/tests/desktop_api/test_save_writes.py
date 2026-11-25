@@ -7,9 +7,9 @@ from unittest.mock import Mock
 import pytest
 
 from repo_save_editor.core.crypto import encrypt_save
-from repo_save_editor.desktop_api.run import get_run_state
-from repo_save_editor.desktop_api.run_save_changes import apply_run_save_changes
-from repo_save_editor.desktop_api.saves import open_save, save_changes
+from repo_save_editor.desktop_api.saves.run import get_run_state
+from repo_save_editor.desktop_api.saves.saves import open_save, save_changes
+from repo_save_editor.desktop_api.transactions.run_save_changes import apply_run_save_changes
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.player.upgrades import UPGRADE_VALUE_MAX

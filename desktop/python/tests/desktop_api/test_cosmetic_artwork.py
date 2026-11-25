@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
-from repo_save_editor.desktop_api import cosmetic_artwork as native
-from repo_save_editor.desktop_api.cosmetic_artwork import get_cosmetic_artwork
+from repo_save_editor.desktop_api.cosmetics import cosmetic_artwork as native
+from repo_save_editor.desktop_api.cosmetics.cosmetic_artwork import get_cosmetic_artwork
 from repo_save_editor.services.cosmetics.installed_artwork import (
     ArtworkWatch,
     DecodedCosmeticArtwork,
@@ -20,7 +20,7 @@ from repo_save_editor.services.texture_codec import encode_rgba_png
 
 def test_invalid_ids_never_decode() -> None:
     with patch(
-        "repo_save_editor.desktop_api.cosmetic_artwork.prepare_installed_cosmetic_artwork"
+        "repo_save_editor.desktop_api.cosmetics.cosmetic_artwork.prepare_installed_cosmetic_artwork"
     ) as decode:
         for value in ("-1", "01", "1.0", "2147483648", "", " 1", "1 ", "Ù¡", "NaN", "9" * 5000):
             assert get_cosmetic_artwork(value)["ok"] is False
@@ -39,7 +39,7 @@ def test_success_payload_includes_source_watches(tmp_path: Path) -> None:
         watches=(ArtworkWatch(tmp_path / "source.bundle", 12, 1234),),
     )
     with patch(
-        "repo_save_editor.desktop_api.cosmetic_artwork.prepare_installed_cosmetic_artwork",
+        "repo_save_editor.desktop_api.cosmetics.cosmetic_artwork.prepare_installed_cosmetic_artwork",
         return_value=(image,),
     ):
         response = get_cosmetic_artwork("7")
@@ -51,7 +51,7 @@ def test_success_payload_includes_source_watches(tmp_path: Path) -> None:
 
 def test_unsupported_assets_fail_soft() -> None:
     with patch(
-        "repo_save_editor.desktop_api.cosmetic_artwork.prepare_installed_cosmetic_artwork",
+        "repo_save_editor.desktop_api.cosmetics.cosmetic_artwork.prepare_installed_cosmetic_artwork",
         side_effect=ImportError("optional dependencies"),
     ):
         assert get_cosmetic_artwork("0") == {"ok": True, "artwork": None}

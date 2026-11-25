@@ -198,10 +198,10 @@ jobs:
           npm run test:tauri
           npm run typecheck:e2e
           $env:REPODITOR_PRODUCTION_EXECUTABLE = 'build/tauri-portable/RepoDitor.exe'
-          npm exec -- playwright test e2e/tauri/tauri-portable-launch.spec.ts --output=test-results/tauri-portable-production --retries=0
+          npm exec -- playwright test e2e/tauri/startup/tauri-portable-launch.spec.ts --output=test-results/tauri-portable-production --retries=0
           $env:REPODITOR_E2E_EXECUTABLE = 'build/test-only-portable-ui-host/repoditor-preview.exe'
           $env:REPODITOR_NATIVE_BROWSER_ARGS = '1'
-          npm exec -- playwright test e2e/tauri/tauri-preview.spec.ts e2e/tauri/tauri-upgrades.spec.ts e2e/tauri/tauri-run.spec.ts e2e/tauri/tauri-items.spec.ts e2e/tauri/tauri-maps.spec.ts e2e/tauri/tauri-cosmetics.spec.ts e2e/tauri/tauri-status.spec.ts --output=test-results/tauri-preview
+          npm exec -- playwright test e2e/tauri/startup/tauri-preview.spec.ts e2e/tauri/read-only/tauri-upgrades.spec.ts e2e/tauri/read-only/tauri-run.spec.ts e2e/tauri/read-only/tauri-items.spec.ts e2e/tauri/read-only/tauri-maps.spec.ts e2e/tauri/read-only/tauri-cosmetics.spec.ts e2e/tauri/read-only/tauri-status.spec.ts --output=test-results/tauri-preview
 
       - name: Upload package smoke diagnostics
         if: ${{ failure() }}

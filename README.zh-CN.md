@@ -311,7 +311,7 @@ npm run build
 npm run bundle:check
 npm test
 npm run package:tauri
-npm run test:e2e:tauri
+npm run test:e2e
 ```
 
 ## 🛠️ 开发

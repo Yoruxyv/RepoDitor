@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.desktop_api import saves
-from repo_save_editor.desktop_api.health_recovery import (
+from repo_save_editor.desktop_api.saves import saves
+from repo_save_editor.desktop_api.transactions.health_recovery import (
     prepare_health,
     recover_health,
     write_health,
@@ -29,7 +29,7 @@ ID = "REPO_SAVE_2026_08_08_10_20_30"
 OP = "a" * 32
 NEXT = "b" * 32
 PROJECT = Path(__file__).resolve().parents[4]
-WORKER = PROJECT / "desktop/e2e/support/recovery-sidecar.py"
+WORKER = PROJECT / "desktop/e2e/support/fixtures/recovery-sidecar.py"
 # The Windows venv launcher redirects to a child; Unix venv interpreters retain their PID.
 PYTHON = sys._base_executable if os.name == "nt" else sys.executable
 
@@ -749,7 +749,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / 'desktop/python'))
 if sys.platform == 'win32':
     sys.path.insert(0, str(Path.cwd() / '.venv/Lib/site-packages'))
-from repo_save_editor.desktop_api.health_recovery import prepare_health, write_health
+from repo_save_editor.desktop_api.transactions.health_recovery import prepare_health, write_health
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage.health_recovery import HealthTransaction
 from repo_save_editor.storage.windows_save_directory import SaveDirectory

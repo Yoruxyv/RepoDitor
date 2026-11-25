@@ -14,7 +14,7 @@ from repo_save_editor.services.unity_serialized import (
     SerializedFileIndex,
     UnityMetadataError,
 )
-from tests.unity_serialized_fixture import write_serialized_file
+from tools.capabilities.tests.unity_serialized_fixture import write_serialized_file
 
 
 def test_artwork_reader_preserves_capability_version_boundary(tmp_path: Path) -> None:

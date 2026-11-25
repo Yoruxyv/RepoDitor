@@ -5,8 +5,8 @@ import pytest
 
 from repo_save_editor.core.schema import SaveSchemaError
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api import run_save_changes as run_save_changes_module
-from repo_save_editor.desktop_api.run_save_changes import (
+from repo_save_editor.desktop_api.transactions import run_save_changes as run_save_changes_module
+from repo_save_editor.desktop_api.transactions.run_save_changes import (
     MAX_CHANGES,
     apply_run_save_changes,
     requested_refill_item_types,

@@ -1,6 +1,6 @@
 import pytest
 
-from repo_save_editor.desktop_api.game_status import (
+from repo_save_editor.desktop_api.editor.game_status import (
     GameSafetyError,
     get_game_status,
     require_game_closed,

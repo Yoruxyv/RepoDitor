@@ -1,0 +1,351 @@
+/** Player selection and health editing from Python-calculated player DTOs. */
+import { ArrowClockwiseIcon, HeartIcon, UserIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+
+import type { PlayerDto } from "@/app/tauri/desktopContracts";
+import { usePreferences } from "@/app/preferences/preferences";
+import { Skeleton, SkeletonRegion } from "@/components/Skeleton";
+import type { PlayerHealthEdit } from "@/features/pending-changes/pendingEdits";
+import { SelectedPlayerIdentity } from "@/components/player/SelectedPlayerIdentity";
+
+interface PlayersViewProps {
+  readonly players: PlayerDto[];
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly selectedPlayerId: string | null;
+  readonly pendingByPlayer: Record<string, PlayerHealthEdit>;
+  readonly avatarUrls: Record<string, string | null>;
+  readonly resetVersion?: number;
+  readonly healthEditingDisabled?: boolean;
+  readonly onHealthValidityChange?: (invalid: boolean) => void;
+  readonly onSelect: (playerId: string) => void;
+  readonly onRejectAvatar: (playerId: string, url: string) => void;
+  readonly onHealthChange: ((player: PlayerDto, health: number) => void) | null;
+  readonly onRevertHealth: ((playerId: string) => void) | null;
+  readonly onRetry: () => void;
+}
+
+function parseHealth(input: string, maximum: number): number | null {
+  const parsed = Number(input);
+  return input.trim() !== "" && Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= maximum
+    ? parsed
+    : null;
+}
+
+function PlayersSkeleton({ label }: { readonly label: string }) {
+  return (
+    <SkeletonRegion
+      className="grid min-w-0 gap-7 md:grid-cols-[15rem_minmax(0,1fr)]"
+      label={label}
+      testId="players-skeleton"
+    >
+      <div>
+        <div className="flex items-end justify-between gap-3">
+          <Skeleton className="h-7 w-24" />
+          <Skeleton className="h-3 w-5" />
+        </div>
+        <div className="mt-4 grid gap-2">
+          {[0, 1, 2].map((row) => (
+            <div className="border border-line bg-surface px-4 py-3" key={row}>
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="mt-2 h-3 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-14 shrink-0" testId="player-avatar-skeleton" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-44 max-w-full" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        </div>
+        <div className="mt-7 max-w-sm border-t border-line pt-6">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="mt-2 h-3 w-52 max-w-full" />
+          <div className="mt-3 flex gap-3">
+            <Skeleton className="h-10 w-28" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+          <Skeleton className="mt-4 h-3 w-40" />
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
+export function PlayersView({
+  players,
+  loading,
+  error,
+  selectedPlayerId,
+  pendingByPlayer,
+  avatarUrls,
+  resetVersion = 0,
+  healthEditingDisabled = false,
+  onHealthValidityChange,
+  onSelect,
+  onRejectAvatar,
+  onHealthChange,
+  onRevertHealth,
+  onRetry,
+}: PlayersViewProps) {
+  const { t } = usePreferences();
+  const playersLabel = t("nav.players");
+  const player = players.find((item) => item.id === selectedPlayerId) ?? null;
+
+  if (loading && players.length === 0) {
+    return <PlayersSkeleton label={t("players.loading")} />;
+  }
+
+  if (error) {
+    return (
+      <section aria-labelledby="players-error-title">
+        <h2 className="text-xl font-semibold text-ink" id="players-error-title">
+          {t("players.unavailable")}
+        </h2>
+        <p className="mt-2 text-sm text-secondary" role="alert">
+          {error}
+        </p>
+        <button
+          className="mt-5 inline-flex items-center gap-2 rounded-sm border border-control px-4 py-2 text-sm font-semibold text-ink hover:border-accent hover:text-accent"
+          type="button"
+          onClick={onRetry}
+        >
+          <ArrowClockwiseIcon aria-hidden="true" size={16} />
+          {t("action.tryAgain")}
+        </button>
+      </section>
+    );
+  }
+
+  if (!player) {
+    return (
+      <section aria-labelledby="players-empty-title">
+        <h2 className="text-xl font-semibold text-ink" id="players-empty-title">
+          {t("players.emptyTitle")}
+        </h2>
+        <p className="mt-2 text-sm text-secondary">{t("players.emptyDescription")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <div aria-busy={loading} className="grid min-w-0 gap-7 md:grid-cols-[15rem_minmax(0,1fr)]">
+      <section aria-labelledby="player-list-title">
+        <div className="flex items-end justify-between gap-3">
+          <h2 className="text-xl font-semibold text-ink" id="player-list-title">
+            {playersLabel}
+          </h2>
+          <span className="font-mono text-xs text-muted">{players.length}</span>
+        </div>
+        <div className="mt-4 grid gap-2" aria-label={playersLabel}>
+          {players.map((item) => {
+            const selected = item.id === player.id;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`min-w-0 rounded-sm border px-4 py-3 text-left transition duration-150 ${
+                  selected
+                    ? "border-accent bg-accent-muted text-ink"
+                    : "border-control bg-surface text-secondary hover:border-accent hover:text-ink"
+                }`}
+                key={item.id}
+                type="button"
+                onClick={() => onSelect(item.id)}
+              >
+                <span className="block truncate text-sm font-semibold">{item.name}</span>
+                <span className="mt-1 block truncate font-mono text-xs text-muted">{item.id}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section
+        className="min-w-0 border-t border-line pt-6 md:border-l md:border-t-0 md:pl-7 md:pt-0"
+        aria-labelledby="player-detail-title"
+      >
+        <SelectedPlayerIdentity
+          avatarUrl={avatarUrls[player.id]}
+          fallbackTestId="avatar-fallback"
+          headingId="player-detail-title"
+          player={player}
+          onRejectAvatar={(url) => onRejectAvatar(player.id, url)}
+        />
+
+        <PlayerHealth
+          key={player.id}
+          player={player}
+          pendingByPlayer={pendingByPlayer}
+          resetVersion={resetVersion}
+          healthEditingDisabled={healthEditingDisabled}
+          {...(onHealthValidityChange ? { onHealthValidityChange } : {})}
+          onHealthChange={onHealthChange}
+          onRevertHealth={onRevertHealth}
+        />
+      </section>
+    </div>
+  );
+}
+
+function PlayerHealth({
+  player,
+  pendingByPlayer,
+  resetVersion,
+  healthEditingDisabled,
+  onHealthValidityChange,
+  onHealthChange,
+  onRevertHealth,
+}: Pick<
+  PlayersViewProps,
+  | "pendingByPlayer"
+  | "resetVersion"
+  | "onHealthChange"
+  | "onRevertHealth"
+  | "healthEditingDisabled"
+  | "onHealthValidityChange"
+> & { readonly player: PlayerDto }) {
+  const { t } = usePreferences();
+  const readOnly = onHealthChange === null;
+  const currentHealthLabel = t("players.currentHealth");
+  const pending = readOnly ? undefined : pendingByPlayer[player.id];
+  const health = pending?.after ?? player.health;
+  const [input, setInput] = useState<string | null>(null);
+  useEffect(() => setInput(null), [resetVersion]);
+  const healthInput = readOnly ? String(health) : (input ?? String(health));
+  const parsedHealth = parseHealth(healthInput, player.maxHealth);
+  const invalid = !readOnly && parsedHealth === null;
+  const healthError = invalid ? t("players.healthError", { max: player.maxHealth }) : null;
+  useEffect(() => {
+    onHealthValidityChange?.(invalid);
+  }, [invalid, onHealthValidityChange]);
+  const visualHealth = Math.min(Math.max(parsedHealth ?? health, 0), player.maxHealth);
+  const healthPercent = Math.round((visualHealth * 100) / Math.max(1, player.maxHealth));
+  const isAtFullHealth = parsedHealth === player.maxHealth;
+  const healthDescription = [
+    "player-health-help",
+    healthError ? "player-health-error" : null,
+    pending ? "player-health-pending" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  function editHealth(value: string): void {
+    if (!onHealthChange || healthEditingDisabled) return;
+    setInput(value);
+    const next = parseHealth(value, player.maxHealth);
+    if (next !== null) onHealthChange(player, next);
+  }
+
+  return (
+    <div className="mt-7 max-w-sm border-t border-line pt-6">
+      <label
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink"
+        htmlFor="player-health"
+      >
+        <HeartIcon aria-hidden="true" className="text-muted" size={15} />
+        {currentHealthLabel}
+      </label>
+      {!readOnly ? (
+        <p className="mt-1 text-xs/5 text-muted" id="player-health-help">
+          {t("players.healthHelper")}
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-start gap-3">
+        <div className="flex items-center gap-2">
+          <input
+            aria-describedby={readOnly ? undefined : healthDescription}
+            aria-invalid={healthError ? "true" : undefined}
+            className="w-28 rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
+            id="player-health"
+            inputMode="numeric"
+            max={player.maxHealth}
+            min="0"
+            readOnly={readOnly}
+            disabled={healthEditingDisabled}
+            step="1"
+            type="number"
+            value={healthInput}
+            onBlur={() => setInput(null)}
+            onChange={(event) => editHealth(event.target.value)}
+          />
+          <span
+            aria-label={t("players.maximumHealth", { value: player.maxHealth })}
+            className="font-mono text-sm text-secondary"
+          >
+            / {player.maxHealth}
+          </span>
+        </div>
+        {!readOnly ? (
+          <button
+            className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-control disabled:hover:text-secondary"
+            disabled={isAtFullHealth || healthEditingDisabled}
+            type="button"
+            onClick={() => editHealth(String(player.maxHealth))}
+          >
+            {t("players.healFull")}
+          </button>
+        ) : null}
+        {pending ? (
+          <button
+            className="rounded-sm border border-control px-3 py-2 text-sm font-semibold text-secondary hover:border-accent hover:text-accent"
+            disabled={healthEditingDisabled}
+            type="button"
+            onClick={() => {
+              setInput(null);
+              onRevertHealth?.(player.id);
+            }}
+          >
+            {t("action.revert")}
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <progress
+            aria-label={currentHealthLabel}
+            aria-valuemax={player.maxHealth}
+            aria-valuemin={0}
+            aria-valuenow={visualHealth}
+            className="sr-only"
+            max={player.maxHealth}
+            value={visualHealth}
+          />
+          <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-sm bg-surface-raised">
+            <div
+              className="h-full bg-accent"
+              data-testid="player-health-progress-fill"
+              style={{ width: `${healthPercent}%` }}
+            />
+          </div>
+        </div>
+        <span aria-hidden="true" className="w-10 text-right font-mono text-xs text-muted">
+          {healthPercent}%
+        </span>
+      </div>
+      {healthError ? (
+        <p className="mt-2 text-xs text-danger" id="player-health-error" role="alert">
+          {healthError}
+        </p>
+      ) : null}
+      {pending ? (
+        <p
+          className="mt-4 text-xs font-medium text-accent"
+          data-testid="pending-health-edit"
+          id="player-health-pending"
+        >
+          {t("status.pending", { before: pending.before, after: pending.after })}
+        </p>
+      ) : null}
+      {!readOnly && !pending ? (
+        <p className="mt-4 flex items-center gap-2 text-xs text-muted">
+          <UserIcon aria-hidden="true" size={15} /> {t("players.noPendingHealth")}
+        </p>
+      ) : null}
+    </div>
+  );
+}

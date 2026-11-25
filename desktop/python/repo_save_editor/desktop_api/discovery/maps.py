@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_save_editor.desktop_api.protocol import _failure
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
-from repo_save_editor.services.editor_artwork_cache import cached_editor_images
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
+from repo_save_editor.services.artwork.editor_artwork_cache import cached_editor_images
 from repo_save_editor.services.game.map_artwork import artwork_revision, decode_map_artwork
 from repo_save_editor.services.game.maps import MapDiscoveryError, discover_installed_maps
 

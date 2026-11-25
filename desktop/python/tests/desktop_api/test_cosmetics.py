@@ -6,8 +6,8 @@ from unittest.mock import Mock
 import pytest
 
 from repo_save_editor.core.crypto import decrypt_save, encrypt_save
-from repo_save_editor.desktop_api import cosmetics as cosmetics_api
-from repo_save_editor.desktop_api.cosmetics import get_cosmetics, save_cosmetics
+from repo_save_editor.desktop_api.cosmetics import cosmetics as cosmetics_api
+from repo_save_editor.desktop_api.cosmetics.cosmetics import get_cosmetics, save_cosmetics
 from repo_save_editor.services.cosmetics import presentation_catalog as presentation
 from repo_save_editor.services.cosmetics.installed_catalog import _catalog_payload
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata

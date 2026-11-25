@@ -12,15 +12,16 @@ from pathlib import Path
 import pytest
 
 from repo_save_editor.core import save_resources as resources
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as storage
+from repo_save_editor.storage import receipt_intents
 from repo_save_editor.storage.repository import SaveRepository
 
 SAVE = "REPO_SAVE_2026_08_08_10_20_30"
 OP = "a" * 32
 OTHER = "b" * 32
-WORKER = Path(__file__).resolve().parents[3] / "e2e/support/recovery-sidecar.py"
+WORKER = Path(__file__).resolve().parents[3] / "e2e/support/fixtures/recovery-sidecar.py"
 PYTHON = sys._base_executable if os.name == "nt" else sys.executable
 
 
@@ -136,11 +137,11 @@ def test_health_intent_boundary_fits_the_unchanged_receipt_envelope(delta):
     def size():
         return len(json.dumps(intent, separators=(",", ":")).encode())
 
-    target = storage.HEALTH_INTENT_LIMIT + delta
+    target = receipt_intents.HEALTH_INTENT_LIMIT + delta
     for edit in changes:
         edit["playerId"] = "0" * min(target - size(), 20 - len(edit["playerId"])) + edit["playerId"]
     assert size() == target
-    assert storage.valid_health_batch_intent(intent) is (delta <= 0)
+    assert receipt_intents.valid_health_batch_intent(intent) is (delta <= 0)
     if delta <= 0:
         receipt = storage.Receipt(
             OP,

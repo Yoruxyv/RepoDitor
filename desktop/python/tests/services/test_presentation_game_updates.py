@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from repo_save_editor.services import baked_artwork
+from repo_save_editor.services.artwork import baked_artwork
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.installed_maps import read_installed_levels
@@ -40,7 +40,12 @@ from tests.services.test_upgrade_textures import (
     _write_resource_manager,
     _write_upgrade_assets,
 )
-from tests.unity_serialized_fixture import aligned_string, mono_script, pptr, write_serialized_file
+from tools.capabilities.tests.unity_serialized_fixture import (
+    aligned_string,
+    mono_script,
+    pptr,
+    write_serialized_file,
+)
 
 BASE_BUILD = "26732417"
 NEXT_BUILD = "26732418"
@@ -268,8 +273,8 @@ def test_compatible_future_manifest_cannot_enter_private_or_public_write_flow(
     assert game is not None
     installed = installed_build.installed_build_identity(game)
     assert installed is not None
-    run = importlib.import_module("repo_save_editor.desktop_api.production_health")
-    meta = importlib.import_module("repo_save_editor.desktop_api.production_meta")
+    run = importlib.import_module("repo_save_editor.desktop_api.transactions.production_health")
+    meta = importlib.import_module("repo_save_editor.desktop_api.transactions.production_meta")
     monkeypatch.setattr(run, "_installed_game", lambda: (game, installed))
     monkeypatch.setattr(meta, "_installed_game", lambda: (game, installed))
     monkeypatch.setattr(

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from repo_save_editor.core.crypto import encrypt_save
-from repo_save_editor.desktop_api.saves import open_save
+from repo_save_editor.desktop_api.saves.saves import open_save
 from repo_save_editor.storage.repository import SaveRepository
 
 

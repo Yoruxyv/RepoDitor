@@ -6,9 +6,10 @@ from hashlib import sha256
 import pytest
 
 from repo_save_editor.core.crypto import _decrypt_plaintext, _encrypt_plaintext
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as storage
+from repo_save_editor.storage import receipt_intents
 from repo_save_editor.storage.repository import SaveRepository
 
 SAVE = "REPO_SAVE_2026_08_08_10_20_30"
@@ -247,12 +248,12 @@ def test_upgrade_intent_byte_ceiling_keeps_receipts_bounded(delta):
     def size():
         return len(json.dumps(intent, ensure_ascii=False, separators=(",", ":")).encode())
 
-    target = storage.UPGRADE_INTENT_LIMIT + delta
+    target = receipt_intents.UPGRADE_INTENT_LIMIT + delta
     for edit in values:
         count = min(target - size(), 512 - len(edit["key"]))
         edit["key"] += "X" * count
     assert size() == target
-    assert storage.valid_upgrade_intent(intent) is (delta <= 0)
+    assert receipt_intents.valid_upgrade_intent(intent) is (delta <= 0)
     if delta <= 0:
         receipt = storage.Receipt(
             OP,

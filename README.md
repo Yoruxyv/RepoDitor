@@ -332,7 +332,7 @@ npm run build
 npm run bundle:check
 npm test
 npm run package:tauri
-npm run test:e2e:tauri
+npm run test:e2e
 ```
 
 ## 🛠️ Development
@@ -358,7 +358,7 @@ pull-request expectations.
 From `desktop/`, `npm run package:installer` builds the Windows x64 NSIS
 installer and its SHA-256 file in `build/installer/`. It also stages the
 portable app in `build/tauri-portable/`. Both include the frozen Python 3.13
-sidecar. Run `npm run test:e2e:tauri` against the portable package.
+sidecar. Run `npm run test:e2e` against the portable package.
 The published v0.2.1 installer is the upgrade and rollback reference. See the
 [release checklist](docs/release-checklist.md) for migration and release approval.
 

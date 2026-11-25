@@ -8,9 +8,9 @@ import { compile } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const rendererRoot = path.join(desktopRoot, "src");
+const rendererRoot = path.join(desktopRoot, "renderer");
 const rendererCss = readFileSync(path.join(rendererRoot, "index.css"), "utf8");
-const themeCss = readFileSync(path.join(desktopRoot, "src", "styles", "theme.css"), "utf8");
+const themeCss = readFileSync(path.join(desktopRoot, "renderer", "styles", "theme.css"), "utf8");
 const textTokens = ["ink", "secondary", "muted", "accent", "success", "warning", "danger"];
 const surfaceTokens = ["app", "surface", "surface-raised"];
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from repo_save_editor.services.artwork.native_artwork_cache import artwork_cache_root
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.items import recharge_capability, recharge_evidence
 from repo_save_editor.services.items.installed_metadata import (
@@ -26,23 +27,22 @@ from repo_save_editor.services.items.recharge_capability import (
     discover_installed_recharge_capabilities,
 )
 from repo_save_editor.services.items.runtime_metadata import discover_installed_item_metadata
-from repo_save_editor.services.native_artwork_cache import artwork_cache_root
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_serialized import (
     UNITY_VERSION,
     SerializedFileIndex,
     UnityMetadataError,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     aligned_string as _aligned_string,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     mono_script as _mono_script,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     pptr as _pptr,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     write_serialized_file as _write_serialized_file,
 )
 

@@ -13,13 +13,13 @@ import pytest
 
 from repo_save_editor.desktop_api import icons
 from repo_save_editor.desktop_api.discovery import maps
-from repo_save_editor.services import baked_artwork
+from repo_save_editor.services.artwork import baked_artwork
+from repo_save_editor.services.artwork.native_artwork_cache import artwork_cache_root
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import (
     discover_game_installation,
     validate_game_installation,
 )
-from repo_save_editor.services.native_artwork_cache import artwork_cache_root
 from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_hash import unity_hash128
 from tests.desktop_api.test_editor_domains import _write_save

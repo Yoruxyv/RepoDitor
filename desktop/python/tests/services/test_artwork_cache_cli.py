@@ -8,8 +8,12 @@ from pathlib import Path
 import pytest
 
 from desktop.scripts.tauri import artwork_cache as cli
-from repo_save_editor.services.cache_activity import CacheBusyError, cache_activity, offline_cache
-from repo_save_editor.services.native_artwork_cache import (
+from repo_save_editor.services.artwork.cache_activity import (
+    CacheBusyError,
+    cache_activity,
+    offline_cache,
+)
+from repo_save_editor.services.artwork.native_artwork_cache import (
     DIAGNOSTICS_FILE,
     DIAGNOSTICS_RECORDS,
     PNG_SLOTS,

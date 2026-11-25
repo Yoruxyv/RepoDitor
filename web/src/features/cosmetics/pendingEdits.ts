@@ -1,8 +1,8 @@
 import { resolveLocalizedMessage, type Translate } from "@/app/i18n/catalog";
 import { approvedOwnedCosmeticIds, inspectMetaCosmetics } from "@/features/cosmetics/cosmetics";
-import type { PendingEdit } from "@/features/save-file/pendingEdits";
-import type { EditSession } from "@/features/save-file/session";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
+import type { PendingEdit } from "@/features/save-file/session/pendingEdits";
+import type { EditSession } from "@/features/save-file/session/session";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
 
 export function getCosmeticPendingEdits(
   session: EditSession,

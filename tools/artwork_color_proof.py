@@ -19,7 +19,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from repo_save_editor.services.baked_artwork import _installation, _item_keys
+from repo_save_editor.services.artwork.baked_artwork import _installation, _item_keys
 from repo_save_editor.services.cosmetics.installed_reader import CosmeticCatalogResolver
 from repo_save_editor.services.game.installed_build import (
     SUNSTONE_ARTWORK_ASSEMBLY_SHA256,

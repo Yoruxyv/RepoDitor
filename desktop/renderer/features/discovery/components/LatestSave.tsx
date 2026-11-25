@@ -1,0 +1,65 @@
+/** Primary discovered-save action card using metadata only, never decrypted data. */
+import { ClockIcon, FileIcon, HardDriveIcon } from "@phosphor-icons/react";
+
+import type { SaveSummary } from "@/app/tauri/desktopContracts";
+import { usePreferences } from "@/app/preferences/preferences";
+import {
+  formatDateTime,
+  formatFileSize,
+  formatRelativeTime,
+} from "@/features/discovery/formatters";
+
+interface LatestSaveProps {
+  readonly save: SaveSummary;
+  readonly isDisabled: boolean;
+  readonly isOpening: boolean;
+  readonly onOpen: ((saveId: string) => void) | null;
+}
+
+export function LatestSave({ save, isDisabled, isOpening, onOpen }: LatestSaveProps) {
+  const { locale, t } = usePreferences();
+  return (
+    <section aria-labelledby="latest-save-title">
+      <h2 className="text-lg font-semibold text-ink" id="latest-save-title">
+        {t("saves.latest")}
+      </h2>
+
+      <div className="mt-3 overflow-hidden rounded-sm border border-line bg-surface">
+        {/* Replacing this button cancels an in-progress press when the slot changes. */}
+        <button
+          className="w-full border-l-2 border-accent p-5 text-left transition duration-150 hover:bg-raised active:translate-y-px disabled:cursor-wait disabled:opacity-70 sm:p-6"
+          data-save-id={save.id}
+          disabled={isDisabled || onOpen === null}
+          key={save.id}
+          type="button"
+          onClick={() => onOpen?.(save.id)}
+        >
+          <div className="flex items-start gap-4">
+            <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-sm bg-accent-muted text-accent">
+              <FileIcon aria-hidden="true" size={21} weight="regular" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-3xl font-semibold uppercase leading-none tracking-[-0.01em] text-ink sm:text-4xl">
+                {save.name}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[0.8125rem] text-secondary">
+                <span className="inline-flex items-center gap-2">
+                  <ClockIcon aria-hidden="true" size={15} weight="regular" />
+                  <span>{formatRelativeTime(save.modifiedAt, locale, t)}</span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <HardDriveIcon aria-hidden="true" size={15} weight="regular" />
+                  <span>{formatFileSize(save.sizeBytes, locale)}</span>
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted">{formatDateTime(save.modifiedAt, locale)}</p>
+              <p className="mt-4 text-sm font-semibold text-accent">
+                {t(isOpening ? "saves.openingSave" : "saves.openWorkspace")}
+              </p>
+            </div>
+          </div>
+        </button>
+      </div>
+    </section>
+  );
+}

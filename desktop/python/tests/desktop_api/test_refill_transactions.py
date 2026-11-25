@@ -8,10 +8,11 @@ from hashlib import sha256
 import pytest
 
 from repo_save_editor.core.crypto import encrypt_save
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.items.models import ItemRechargeCapability as Capability
 from repo_save_editor.storage import health_recovery as storage
+from repo_save_editor.storage import receipt_intents
 from repo_save_editor.storage.repository import SaveRepository
 
 SAVE = "REPO_SAVE_2026_08_08_10_20_30"
@@ -258,7 +259,7 @@ def test_utf8_refill_intent_fits_unchanged_receipt_ceiling(delta):
         padding = min(target - size(), 50)
         edit["saveKey"] = edit["saveKey"].replace("/", "x" * padding + "/")
     assert size() == target
-    assert storage.valid_refill_intent(intent) is (delta <= 0)
+    assert receipt_intents.valid_refill_intent(intent) is (delta <= 0)
     if delta <= 0:
         receipt = storage.Receipt(
             OP,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AppFooter, AppHeader } from "@/app/AppShell";
 import { useI18n } from "@/app/i18n/context";
 import { I18nProvider } from "@/app/i18n/I18nProvider";
-import { SaveFilePanel } from "@/features/save-file/SaveFilePanel";
+import { SaveFilePanel } from "@/features/save-file/components/SaveFilePanel";
 
 function AppContent() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);

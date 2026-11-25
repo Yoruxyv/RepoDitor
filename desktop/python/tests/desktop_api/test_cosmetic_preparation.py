@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from repo_save_editor.desktop_api.cosmetic_preparation import (
+from repo_save_editor.desktop_api.cosmetics.cosmetic_preparation import (
     parse_cosmetic_ids,
     stream_cosmetic_artwork,
 )
@@ -51,11 +51,11 @@ def test_streams_once_and_validates_order() -> None:
 
     with (
         patch(
-            "repo_save_editor.desktop_api.cosmetic_preparation.prepare_installed_cosmetic_artwork",
+            "repo_save_editor.desktop_api.cosmetics.cosmetic_preparation.prepare_installed_cosmetic_artwork",
             side_effect=feed,
         ) as decode,
         patch(
-            "repo_save_editor.desktop_api.cosmetic_preparation.serialize_cosmetic_artwork",
+            "repo_save_editor.desktop_api.cosmetics.cosmetic_preparation.serialize_cosmetic_artwork",
             side_effect=lambda artwork: {"cosmeticId": artwork.cosmetic_id},
         ),
     ):
@@ -69,7 +69,7 @@ def test_rejects_wrong_order_without_partial_artwork() -> None:
     records: list[dict[str, object]] = []
     prepared = (SimpleNamespace(cosmetic_id=1), SimpleNamespace(cosmetic_id=0))
     with patch(
-        "repo_save_editor.desktop_api.cosmetic_preparation.prepare_installed_cosmetic_artwork",
+        "repo_save_editor.desktop_api.cosmetics.cosmetic_preparation.prepare_installed_cosmetic_artwork",
         return_value=prepared,
     ):
         stream_cosmetic_artwork((0, 1), records.append)

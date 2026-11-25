@@ -8,8 +8,8 @@ from pathlib import Path
 
 from repo_save_editor.core.types import SaveData
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
-from repo_save_editor.desktop_api.saves import load_discovered_save
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
+from repo_save_editor.desktop_api.saves.saves import load_discovered_save
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.icon_cache import IconDomain, available_icon_keys
 from repo_save_editor.services.items.discovery import (
     discover_advanced_save,

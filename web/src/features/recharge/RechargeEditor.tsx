@@ -8,7 +8,7 @@ import {
   rechargeAllSupportedItems,
   type RechargeState,
 } from "@/features/recharge/recharge";
-import type { EditSession } from "@/features/save-file/session";
+import type { EditSession } from "@/features/save-file/session/session";
 
 interface RechargeEditorProps {
   readonly busy: boolean;

@@ -14,7 +14,11 @@ from repo_save_editor.services.game import map_artwork as art
 from repo_save_editor.services.game.maps import GameMap, MapCatalog
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION, ArtworkFileIndex
 from repo_save_editor.services.unity_serialized import ObjectRecord
-from tests.unity_serialized_fixture import aligned_string, pptr, write_serialized_file
+from tools.capabilities.tests.unity_serialized_fixture import (
+    aligned_string,
+    pptr,
+    write_serialized_file,
+)
 
 
 def catalog(tmp_path: Path) -> MapCatalog:

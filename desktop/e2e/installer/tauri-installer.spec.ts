@@ -11,7 +11,7 @@ import {
   DESKTOP_ROOT,
   E2E_SAVE_ID,
   EXPECTED_DESKTOP_VERSION,
-} from "../support/fixtureEnvironment";
+} from "../support/fixtures/fixtureEnvironment";
 import {
   close,
   launch,
@@ -19,8 +19,8 @@ import {
   openRunWorkspace,
   verifyPackagedProductionAuthority,
   verifyPackagedProductionLaunch,
-} from "../support/tauriHarness";
-import { windowsProbeShell } from "../support/tauriStartup";
+} from "../support/harness/tauriHarness";
+import { windowsProbeShell } from "../support/startup/tauriStartup";
 
 const hosted =
   process.platform === "win32" &&

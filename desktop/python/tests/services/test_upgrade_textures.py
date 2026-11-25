@@ -28,7 +28,7 @@ from repo_save_editor.services.unity_textures import (
     parse_mesh_vertex_data,
     parse_texture2d,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     UNITY_VERSION,
     aligned_string,
     pptr,

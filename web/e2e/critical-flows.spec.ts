@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
-import { decryptEs3, encryptEs3 } from "../src/features/save-file/es3";
+import { decryptEs3, encryptEs3 } from "../src/features/save-file/processing/es3";
 import { loadSave, saveFixture, loadBulkCosmeticFixture } from "./fixtures";
 
 test.beforeEach(async ({ page }) => page.goto("/"));

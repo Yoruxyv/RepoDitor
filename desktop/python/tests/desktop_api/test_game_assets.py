@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.desktop_api import game_assets
-from repo_save_editor.desktop_api.game_assets import (
+from repo_save_editor.desktop_api.editor import game_assets
+from repo_save_editor.desktop_api.editor.game_assets import (
     parse_upgrade_keys_payload,
     prepare_game_assets,
     read_upgrade_keys_stdin,

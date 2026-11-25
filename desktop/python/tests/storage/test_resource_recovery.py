@@ -7,13 +7,13 @@ import pytest
 
 from repo_save_editor.core import save_resources as resources
 from repo_save_editor.core.crypto import encrypt_save
-from repo_save_editor.desktop_api.cosmetics import get_cosmetics
-from repo_save_editor.desktop_api.health_recovery import (
+from repo_save_editor.desktop_api.cosmetics.cosmetics import get_cosmetics
+from repo_save_editor.desktop_api.saves.saves import open_save
+from repo_save_editor.desktop_api.transactions.health_recovery import (
     prepare_health,
     recover_health,
     write_health,
 )
-from repo_save_editor.desktop_api.saves import open_save
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as recovery
 from repo_save_editor.storage.repository import SaveRepository
