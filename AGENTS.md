@@ -21,7 +21,7 @@ configuration. Keep combined chains small enough to load without truncation.
 | -------------------------------------------------------- | ---------------------------------------------------------- |
 | Desktop contracts and validation                         | [desktop/AGENTS.md](desktop/AGENTS.md)                     |
 | Python save semantics and asset parsing                  | [desktop/python/AGENTS.md](desktop/python/AGENTS.md)       |
-| Desktop React presentation                               | [desktop/src/AGENTS.md](desktop/src/AGENTS.md)             |
+| Desktop React presentation                               | [desktop/renderer/AGENTS.md](desktop/renderer/AGENTS.md)   |
 | Source and packaged Desktop E2E                          | [desktop/e2e/AGENTS.md](desktop/e2e/AGENTS.md)             |
 | Installer, packaging configuration and lifecycle tooling | [desktop/installer/AGENTS.md](desktop/installer/AGENTS.md) |
 | Browser product, API, and Web E2E                        | [web/AGENTS.md](web/AGENTS.md)                             |

@@ -15,7 +15,7 @@ import globals from "globals";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 const configDirectory = dirname(fileURLToPath(import.meta.url));
-const rendererEntryPoint = fileURLToPath(new URL("./src/index.css", import.meta.url));
+const rendererEntryPoint = fileURLToPath(new URL("./renderer/index.css", import.meta.url));
 const rendererTsconfig = fileURLToPath(new URL("./tsconfig.app.json", import.meta.url));
 // Resource lifecycle handlers such as onLoad/onError are not user interactions.
 const interactionHandlers = [
@@ -100,7 +100,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["src/**/*.{ts,tsx}", "installer/ui/src/**/*.{ts,tsx}"],
+    files: ["renderer/**/*.{ts,tsx}", "installer/ui/src/**/*.{ts,tsx}"],
     plugins: {
       react,
       "react-hooks": reactHooks,
@@ -152,7 +152,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["renderer/**/*.{ts,tsx}"],
     plugins: { "better-tailwindcss": betterTailwindcss },
     settings: {
       "better-tailwindcss": {
@@ -170,8 +170,8 @@ export default defineConfig([
     files: [
       "**/*.test.{ts,tsx}",
       "e2e/**/*.{ts,tsx}",
-      "src/test/**/*.{ts,tsx}",
-      "src/app/i18n/locales/**/*.{ts,tsx}",
+      "renderer/test/**/*.{ts,tsx}",
+      "renderer/app/i18n/locales/**/*.{ts,tsx}",
     ],
     rules: {
       "sonarjs/no-duplicate-string": "off",

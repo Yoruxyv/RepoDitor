@@ -1,0 +1,73 @@
+/**
+ * Renderer mirror of fail-closed game-process safety state.
+ *
+ * Checks at startup and window-focus/recovery events keep editing state current, while
+ * Python independently rechecks immediately around every real write.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type {
+  DesktopOperationResult,
+  GameProcessState,
+  GameProcessStatus,
+} from "@/app/tauri/desktopContracts";
+
+export type GameSafetyStatus = GameProcessStatus | null;
+
+/**
+ * Track the fail-closed game-process status and recovery-triggered reloads.
+ *
+ * @returns Current status, check state, recovery generation, and a manual check action.
+ */
+export function useGameSafety(getStatus: () => Promise<DesktopOperationResult<GameProcessState>>) {
+  const [status, setStatus] = useState<GameSafetyStatus>(null);
+  const [checking, setChecking] = useState(true);
+  const [recoveryGeneration, setRecoveryGeneration] = useState(0);
+  const sequence = useRef(0);
+  const lastResolvedStatus = useRef<GameProcessStatus | null>(null);
+  const mounted = useRef(false);
+
+  const check = useCallback(async () => {
+    const request = ++sequence.current;
+    if (mounted.current) setChecking(true);
+
+    try {
+      const result = await getStatus();
+      if (mounted.current && sequence.current === request) {
+        const nextStatus = result.ok ? result.data.status : "unknown";
+        if (
+          nextStatus === "not_running" &&
+          (lastResolvedStatus.current === "running" || lastResolvedStatus.current === "unknown")
+        ) {
+          setRecoveryGeneration((current) => current + 1);
+        }
+        lastResolvedStatus.current = nextStatus;
+        setStatus(nextStatus);
+      }
+    } catch {
+      if (mounted.current && sequence.current === request) {
+        lastResolvedStatus.current = "unknown";
+        setStatus("unknown");
+      }
+    } finally {
+      if (mounted.current && sequence.current === request) setChecking(false);
+    }
+  }, [getStatus]);
+
+  useEffect(() => {
+    mounted.current = true;
+    void check();
+
+    function handleFocus(): void {
+      void check();
+    }
+
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [check]);
+
+  return { status, checking, recoveryGeneration, check };
+}

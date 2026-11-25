@@ -1,0 +1,94 @@
+/**
+ * Owns renderer lifetime for local environment discovery and explicit refresh.
+ *
+ * The hook prevents stale responses from replacing newer state; Python and Tauri own
+ * path trust and discovery semantics.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type {
+  DesktopOperationError,
+  DesktopOperationResult,
+  EnvironmentDiscovery,
+} from "@/app/tauri/desktopContracts";
+
+interface DiscoveryState {
+  data: EnvironmentDiscovery | null;
+  error: DesktopOperationError | null;
+  pending: boolean;
+  refreshRevision: number;
+}
+
+export interface EnvironmentDiscoveryController {
+  data: EnvironmentDiscovery | null;
+  error: DesktopOperationError | null;
+  isInitialLoading: boolean;
+  isRefreshing: boolean;
+  refreshRevision: number;
+  refresh: () => Promise<void>;
+}
+
+const INITIAL_STATE: DiscoveryState = {
+  data: null,
+  error: null,
+  pending: false,
+  refreshRevision: 0,
+};
+
+export function useEnvironmentDiscovery(
+  active: boolean,
+  refreshGeneration: number,
+  detect: () => Promise<DesktopOperationResult<EnvironmentDiscovery>>,
+): EnvironmentDiscoveryController {
+  const [state, setState] = useState<DiscoveryState>(INITIAL_STATE);
+  const mounted = useRef(false);
+  const activeRef = useRef(active);
+  const requestInFlight = useRef(false);
+  const refreshQueued = useRef(false);
+
+  const refresh = useCallback(async () => {
+    if (requestInFlight.current) {
+      refreshQueued.current = true;
+      return;
+    }
+
+    requestInFlight.current = true;
+    do {
+      refreshQueued.current = false;
+      setState((current) => ({ ...current, error: null, pending: true }));
+      const result = await detect();
+
+      if (mounted.current) {
+        setState((current) => ({
+          data: result.ok ? result.data : current.data,
+          error: result.ok ? null : result.error,
+          pending: false,
+          refreshRevision: current.refreshRevision + 1,
+        }));
+      }
+    } while (mounted.current && activeRef.current && refreshQueued.current);
+
+    requestInFlight.current = false;
+  }, [detect]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    activeRef.current = active;
+    if (active) void refresh();
+  }, [active, refresh, refreshGeneration]);
+
+  return {
+    data: state.data,
+    error: state.error,
+    isInitialLoading: state.pending && state.data === null,
+    isRefreshing: state.pending && state.data !== null,
+    refreshRevision: state.refreshRevision,
+    refresh,
+  };
+}

@@ -85,7 +85,7 @@ export async function stagePreview(host, backend, destination, expectedAuthority
     path.join(destination, "licenses/THIRD_PARTY_NOTICES.md"),
   );
   await cp(
-    path.join(desktop, "src/assets/fonts/teko/OFL.txt"),
+    path.join(desktop, "renderer/assets/fonts/teko/OFL.txt"),
     path.join(destination, "licenses/Teko-OFL.txt"),
   );
   await writeFile(

@@ -21,8 +21,8 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./renderer/*"]
     }
   },
-  "include": ["src"]
+  "include": ["renderer"]
 }

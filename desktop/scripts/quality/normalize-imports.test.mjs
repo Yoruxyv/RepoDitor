@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scriptPath = path.join(desktopRoot, "scripts", "quality", "normalize-imports.mjs");
-const sourceRoot = path.join(desktopRoot, "src");
+const sourceRoot = path.join(desktopRoot, "renderer");
 const featureOne = path.join(sourceRoot, "features", "__normalize_imports_one");
 const featureTwo = path.join(sourceRoot, "features", "__normalize_imports_two");
 const sharedTarget = path.join(sourceRoot, "shared", "__normalize_imports_target.ts");

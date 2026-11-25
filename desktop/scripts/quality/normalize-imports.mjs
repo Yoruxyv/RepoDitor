@@ -12,7 +12,7 @@ import ts from "typescript";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(scriptDirectory, "../..");
-const srcRoot = path.join(desktopRoot, "src");
+const srcRoot = path.join(desktopRoot, "renderer");
 const tsconfigPath = path.join(desktopRoot, "tsconfig.app.json");
 
 const flags = new Set(process.argv.slice(2));

@@ -8,7 +8,7 @@ following notices cover bundled non-code assets and directly shipped UI assets.
 
 - Copyright 2023 The Teko Project Authors
 - License: SIL Open Font License 1.1
-- Bundled license: `desktop/src/assets/fonts/teko/OFL.txt`
+- Bundled license: `desktop/renderer/assets/fonts/teko/OFL.txt`
 - Upstream: <https://github.com/googlefonts/teko>
 
 ## Phosphor Icons
@@ -24,13 +24,13 @@ following notices cover bundled non-code assets and directly shipped UI assets.
 - Creator: MatthewVakaliuk73627
 - Source: <https://pixabay.com/sound-effects/film-special-effects-mouse-click-290204/>
 - License: [Pixabay Content License](https://pixabay.com/service/license-summary/)
-- Bundled file: `desktop/src/assets/sfx/mouse-click.mp3`
+- File in the Electron source: `desktop/src/assets/sfx/mouse-click.mp3`
 
 The Electron release used the sound as a decorative UI interaction cue.
 
 ## Language flag SVGs
 
-The compact SVG flags under `desktop/src/assets/flags/` are maintained as
+The compact SVG flags under `desktop/renderer/assets/flags/` are maintained as
 RepoDitor UI assets. Repository history does not record an upstream third-party
 asset source. Maintainers should update this notice if different provenance is
 identified.
