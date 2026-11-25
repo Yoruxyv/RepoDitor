@@ -3,15 +3,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
 import { inspectMetaCosmetics, KNOWN_COSMETIC_IDS } from "@/features/cosmetics/cosmetics";
-import { encryptEs3 } from "@/features/save-file/es3";
-import { loadSaveBytes } from "@/features/save-file/pipeline";
+import { encryptEs3 } from "@/features/save-file/processing/es3";
+import { loadSaveBytes } from "@/features/save-file/processing/pipeline";
 import {
   isSaveNumber,
   isSaveObject,
   parseSaveJson,
   serializeSaveJson,
-} from "@/features/save-file/serialization";
-import { inspectRunSave } from "@/features/run-save/runSave";
+} from "@/features/save-file/processing/serialization";
+import { inspectRunSave } from "@/features/run-save/model/runSave";
 
 const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
 const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");

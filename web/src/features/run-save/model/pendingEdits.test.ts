@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { LoadedSave } from "@/features/save-file/pipeline";
-import { createEditSession, resetEditSession } from "@/features/save-file/session";
-import { parseSaveJson } from "@/features/save-file/serialization";
+import type { LoadedSave } from "@/features/save-file/processing/pipeline";
+import { createEditSession, resetEditSession } from "@/features/save-file/session/session";
+import { parseSaveJson } from "@/features/save-file/processing/serialization";
 import { rechargeAllSupportedItems } from "@/features/recharge/recharge";
-import { getRunPendingEdits } from "@/features/run-save/pendingEdits";
+import { getRunPendingEdits } from "@/features/run-save/model/pendingEdits";
 import {
   setCurrency,
   setPlayerHealth,
   setPlayerUpgrade,
   setResumeLocation,
   setRunLevel,
-} from "@/features/run-save/runSave";
+} from "@/features/run-save/model/runSave";
 
 const RUN_SOURCE = JSON.stringify({
   dictionaryOfDictionaries: {

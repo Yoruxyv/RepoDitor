@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { decryptEs3 } from "@/features/save-file/es3";
-import { prepareVerifiedExport } from "@/features/save-file/export";
-import { loadSaveBytes, type LoadedSave } from "@/features/save-file/pipeline";
+import { decryptEs3 } from "@/features/save-file/processing/es3";
+import { prepareVerifiedExport } from "@/features/save-file/processing/export";
+import { loadSaveBytes, type LoadedSave } from "@/features/save-file/processing/pipeline";
 import {
   createEditSession,
   hasPendingChanges,
   resetEditSession,
   type EditSession,
-} from "@/features/save-file/session";
-import { isSaveNumber, parseSaveJson } from "@/features/save-file/serialization";
+} from "@/features/save-file/session/session";
+import { isSaveNumber, parseSaveJson } from "@/features/save-file/processing/serialization";
 import {
   DISPLAY_LEVEL_MAX,
   inspectRunSave,
@@ -21,7 +21,7 @@ import {
   setPlayerUpgrade,
   setResumeLocation,
   setRunLevel,
-} from "@/features/run-save/runSave";
+} from "@/features/run-save/model/runSave";
 
 const RUN_SOURCE =
   '{"playerNames":{"value":{"111":"Alpha","222":"Beta"}},' +

@@ -6,7 +6,7 @@ import {
   canEditStoredResumeLocation,
   RESUME_LOCATION_LABELS,
   type ResumeLocation,
-} from "@/features/run-save/runSave";
+} from "@/features/run-save/model/runSave";
 
 const OPTIONS = ["normal", "shop"] as const satisfies readonly ResumeLocation[];
 

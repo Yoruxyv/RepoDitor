@@ -24,6 +24,7 @@
     "e2e/**/*.ts",
     "playwright*.config.ts",
     "scripts/capability-signature.ts",
+    "scripts/local-avatar-endpoint.ts",
     "vite.config.ts"
   ]
 }

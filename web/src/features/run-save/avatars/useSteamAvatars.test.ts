@@ -2,8 +2,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, StrictMode, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { RunPlayer } from "@/features/run-save/runSave";
-import { useSteamAvatars } from "@/features/run-save/useSteamAvatars";
+import type { RunPlayer } from "@/features/run-save/model/runSave";
+import { useSteamAvatars } from "@/features/run-save/avatars/useSteamAvatars";
 
 const FIRST_ID = "76561197960287930";
 const SECOND_ID = "76561198000000001";

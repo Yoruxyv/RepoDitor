@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { decryptEs3, encryptEs3, Es3CryptoError } from "@/features/save-file/es3";
+import { decryptEs3, encryptEs3, Es3CryptoError } from "@/features/save-file/processing/es3";
 
 interface CompatibilityVector {
   readonly container_base64: string;

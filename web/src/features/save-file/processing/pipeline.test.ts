@@ -1,7 +1,7 @@
 import { isLosslessNumber, LosslessNumber } from "lossless-json";
 import { describe, expect, it } from "vitest";
 
-import { decryptEs3, encryptEs3 } from "@/features/save-file/es3";
+import { decryptEs3, encryptEs3 } from "@/features/save-file/processing/es3";
 import {
   classifySave,
   loadSaveBytes,
@@ -9,8 +9,8 @@ import {
   MAX_SAVE_FILE_BYTES,
   reencryptSave,
   SavePipelineError,
-} from "@/features/save-file/pipeline";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/pipeline";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

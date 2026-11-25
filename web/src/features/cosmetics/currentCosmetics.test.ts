@@ -8,9 +8,9 @@ import {
   unlockRemainingCosmetics,
 } from "@/features/cosmetics/cosmetics";
 import { getCosmeticPendingEdits } from "@/features/cosmetics/pendingEdits";
-import { createEditSession } from "@/features/save-file/session";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
-import { loadSaveBytes, reencryptSave } from "@/features/save-file/pipeline";
+import { createEditSession } from "@/features/save-file/session/session";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
+import { loadSaveBytes, reencryptSave } from "@/features/save-file/processing/pipeline";
 
 function meta() {
   return parseSaveJson(

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { RunPlayer } from "@/features/run-save/runSave";
-import { isPlausibleSteamId, resolveSteamAvatarUrls } from "@/features/run-save/steamProfiles";
+import type { RunPlayer } from "@/features/run-save/model/runSave";
+import {
+  isPlausibleSteamId,
+  resolveSteamAvatarUrls,
+} from "@/features/run-save/avatars/steamProfiles";
 
 interface AvatarState {
   readonly sessionToken: symbol;

@@ -2,7 +2,7 @@ import { ArrowCounterClockwiseIcon, DownloadSimpleIcon } from "@phosphor-icons/r
 import { useEffect, useState } from "react";
 
 import { useI18n } from "@/app/i18n/context";
-import type { PendingEdit } from "@/features/save-file/pendingEdits";
+import type { PendingEdit } from "@/features/save-file/session/pendingEdits";
 
 export type WorkspaceExportState =
   | { readonly status: "idle" }

@@ -5,8 +5,8 @@ import { I18nProvider } from "@/app/i18n/I18nProvider";
 import { CosmeticsEditor } from "@/features/cosmetics/CosmeticsEditor";
 import { KNOWN_COSMETIC_IDS, inspectCosmeticBulkLock } from "@/features/cosmetics/cosmetics";
 import { getCosmeticPendingEdits } from "@/features/cosmetics/pendingEdits";
-import { createEditSession, type EditSession } from "@/features/save-file/session";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
+import { createEditSession, type EditSession } from "@/features/save-file/session/session";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
 
 function metaSession(
   owned: readonly number[] = KNOWN_COSMETIC_IDS.filter((id) => id !== 0),

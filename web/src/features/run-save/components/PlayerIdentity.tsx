@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "@/app/i18n/context";
-import type { RunPlayer } from "@/features/run-save/runSave";
+import type { RunPlayer } from "@/features/run-save/model/runSave";
 
 function initials(name: string): string {
   return (

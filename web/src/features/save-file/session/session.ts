@@ -1,10 +1,10 @@
-import { classifySave, type SaveKind } from "@/features/save-file/classification";
-import type { LoadedSave } from "@/features/save-file/pipeline";
+import { classifySave, type SaveKind } from "@/features/save-file/processing/classification";
+import type { LoadedSave } from "@/features/save-file/processing/pipeline";
 import {
   parseSaveJson,
   serializeSaveJson,
   type SaveObject,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 export interface EditSession {
   readonly baselineSource: string;

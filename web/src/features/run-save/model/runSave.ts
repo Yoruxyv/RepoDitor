@@ -5,8 +5,8 @@ import {
   isSaveObject,
   parseSaveJson,
   type SaveObject,
-} from "@/features/save-file/serialization";
-import type { EditSession } from "@/features/save-file/session";
+} from "@/features/save-file/processing/serialization";
+import type { EditSession } from "@/features/save-file/session/session";
 
 const RUN_SAVE_KEY = {
   level: "save level",

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/app/i18n/I18nProvider";
-import { FindSaveDialog } from "@/features/save-file/FindSaveDialog";
+import { FindSaveDialog } from "@/features/save-file/components/FindSaveDialog";
 import {
   detectInitialGuidancePlatform,
   PROTON_REPO_SUFFIX,

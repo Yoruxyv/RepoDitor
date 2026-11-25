@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { expect, type Page } from "@playwright/test";
-import { encryptEs3 } from "../src/features/save-file/es3";
+import { encryptEs3 } from "../src/features/save-file/processing/es3";
 
 export async function saveFixture(name: "meta" | "run") {
   const encoded = await readFile(

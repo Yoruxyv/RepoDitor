@@ -9,15 +9,15 @@ import {
 } from "@/features/cosmetics/cosmetics";
 import snapshot from "@/features/cosmetics/known-cosmetics.v1.json";
 import { getCosmeticPendingEdits } from "@/features/cosmetics/pendingEdits";
-import type { LoadedSave } from "@/features/save-file/pipeline";
-import { createEditSession, resetEditSession } from "@/features/save-file/session";
+import type { LoadedSave } from "@/features/save-file/processing/pipeline";
+import { createEditSession, resetEditSession } from "@/features/save-file/session/session";
 import {
   isSaveNumber,
   isSaveObject,
   parseSaveJson,
   serializeSaveJson,
   type SaveObject,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 const cosmeticCount = KNOWN_COSMETIC_IDS.length;
 

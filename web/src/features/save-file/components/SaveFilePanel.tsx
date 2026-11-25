@@ -3,17 +3,17 @@ import { lazy, Suspense, useState, type ChangeEvent } from "react";
 
 import { useI18n } from "@/app/i18n/context";
 import type { Translate, TranslationKey } from "@/app/i18n/catalog";
-import { PendingHealthLimitError } from "@/features/run-save/runSave";
-import type { WorkspaceExportState } from "@/features/save-file/PendingChangesBar";
-import { FindSaveDialog } from "@/features/save-file/FindSaveDialog";
+import { PendingHealthLimitError } from "@/features/run-save/model/runSave";
+import type { WorkspaceExportState } from "@/features/save-file/components/PendingChangesBar";
+import { FindSaveDialog } from "@/features/save-file/components/FindSaveDialog";
 import {
   createEditSession,
   resetEditSession,
   type EditSession,
-} from "@/features/save-file/session";
+} from "@/features/save-file/session/session";
 
 const SaveWorkspace = lazy(() =>
-  import("@/features/save-file/SaveWorkspace").then(({ SaveWorkspace: component }) => ({
+  import("@/features/save-file/components/SaveWorkspace").then(({ SaveWorkspace: component }) => ({
     default: component,
   })),
 );
@@ -107,7 +107,7 @@ export function SaveFilePanel({ onWorkspaceChange }: SaveFilePanelProps) {
     setExportState({ status: "idle" });
     setState({ fileName: file.name, status: "loading" });
     try {
-      const { loadSaveFile } = await import("@/features/save-file/pipeline");
+      const { loadSaveFile } = await import("@/features/save-file/processing/pipeline");
       const session = createEditSession(await loadSaveFile(file));
       setState({ session, status: "ready" });
       onWorkspaceChange(true);
@@ -123,7 +123,7 @@ export function SaveFilePanel({ onWorkspaceChange }: SaveFilePanelProps) {
     setExportState({ status: "preparing" });
     try {
       const { downloadVerifiedExport, prepareVerifiedExport } =
-        await import("@/features/save-file/export");
+        await import("@/features/save-file/processing/export");
       const output = await prepareVerifiedExport(session);
       downloadVerifiedExport(output);
       setExportState({

@@ -1,8 +1,8 @@
-import { decryptEs3, encryptEs3 } from "@/features/save-file/es3";
-import { classifySave } from "@/features/save-file/classification";
-import { validatePendingHealthEdits } from "@/features/run-save/runSave";
-import type { EditSession } from "@/features/save-file/session";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
+import { decryptEs3, encryptEs3 } from "@/features/save-file/processing/es3";
+import { classifySave } from "@/features/save-file/processing/classification";
+import { validatePendingHealthEdits } from "@/features/run-save/model/runSave";
+import type { EditSession } from "@/features/save-file/session/session";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });

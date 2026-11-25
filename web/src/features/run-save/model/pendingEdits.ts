@@ -1,13 +1,13 @@
 import { resolveLocalizedMessage, type Translate } from "@/app/i18n/catalog";
-import type { PendingEdit } from "@/features/save-file/pendingEdits";
-import type { EditSession } from "@/features/save-file/session";
-import { parseSaveJson } from "@/features/save-file/serialization";
+import type { PendingEdit } from "@/features/save-file/session/pendingEdits";
+import type { EditSession } from "@/features/save-file/session/session";
+import { parseSaveJson } from "@/features/save-file/processing/serialization";
 import { inspectRecharge } from "@/features/recharge/recharge";
 import {
   inspectRunSave,
   RESUME_LOCATION_LABELS,
   type ResumeLocation,
-} from "@/features/run-save/runSave";
+} from "@/features/run-save/model/runSave";
 
 function getUpgradeEdits(
   baseline: ReturnType<typeof inspectRunSave>,

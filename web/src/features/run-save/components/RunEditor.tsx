@@ -6,13 +6,13 @@ import {
   TrendUpIcon,
   UserIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 
 import { useI18n } from "@/app/i18n/context";
 import { RechargeEditor } from "@/features/recharge/RechargeEditor";
-import type { EditSession } from "@/features/save-file/session";
-import { SelectedPlayerIdentity } from "@/features/run-save/PlayerIdentity";
-import { ResumeLocationMenu } from "@/features/run-save/ResumeLocationMenu";
+import type { EditSession } from "@/features/save-file/session/session";
+import { SelectedPlayerIdentity } from "@/features/run-save/components/PlayerIdentity";
+import { ResumeLocationMenu } from "@/features/run-save/components/ResumeLocationMenu";
 import {
   DISPLAY_LEVEL_MAX,
   getPlayerMaxHealth,
@@ -24,8 +24,10 @@ import {
   setPlayerUpgrade,
   setResumeLocation,
   setRunLevel,
-} from "@/features/run-save/runSave";
-import { useSteamAvatars } from "@/features/run-save/useSteamAvatars";
+} from "@/features/run-save/model/runSave";
+import { useSteamAvatars } from "@/features/run-save/avatars/useSteamAvatars";
+
+import { IntegerInput } from "./IntegerInput";
 
 type EditorSection = "players" | "recharge" | "run" | "upgrades";
 
@@ -36,71 +38,6 @@ interface RunEditorProps {
   readonly busy: boolean;
   readonly onSessionChange: (session: EditSession) => void;
   readonly session: EditSession;
-}
-
-interface IntegerInputProps {
-  readonly error: string;
-  readonly id: string;
-  readonly maximum: number;
-  readonly minimum: number;
-  readonly onValueChange: (value: number) => void;
-  readonly resetToken: object;
-  readonly value: number;
-}
-
-function acceptedInteger(draft: string, minimum: number, maximum: number): number | null {
-  const parsed = Number(draft);
-  return draft.trim() !== "" &&
-    Number.isSafeInteger(parsed) &&
-    parsed >= minimum &&
-    parsed <= maximum
-    ? parsed
-    : null;
-}
-
-function IntegerInput({
-  error,
-  id,
-  maximum,
-  minimum,
-  onValueChange,
-  resetToken,
-  value,
-}: IntegerInputProps) {
-  const [draft, setDraft] = useState(String(value));
-  const invalid = acceptedInteger(draft, minimum, maximum) === null;
-
-  useEffect(() => setDraft(String(value)), [resetToken, value]);
-
-  return (
-    <>
-      <input
-        aria-describedby={invalid ? `${id}-error` : undefined}
-        aria-invalid={invalid || undefined}
-        className="block w-36 max-w-full rounded-sm border border-control bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent"
-        id={id}
-        inputMode="numeric"
-        max={maximum}
-        min={minimum}
-        step="1"
-        type="number"
-        value={draft}
-        onChange={(event) => {
-          const nextDraft = event.target.value;
-          setDraft(nextDraft);
-          const nextValue = acceptedInteger(nextDraft, minimum, maximum);
-          if (nextValue !== null && nextValue !== value) {
-            onValueChange(nextValue);
-          }
-        }}
-      />
-      {invalid ? (
-        <p className="mt-2 text-xs text-accent" id={`${id}-error`} role="alert">
-          {error}
-        </p>
-      ) : null}
-    </>
-  );
 }
 
 function inspectWorkingSave(

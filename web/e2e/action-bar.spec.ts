@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { encryptEs3 } from "../src/features/save-file/es3";
+import { encryptEs3 } from "../src/features/save-file/processing/es3";
 import { loadBulkCosmeticFixture, loadSave } from "./fixtures";
 
 test.beforeEach(async ({ page }) => page.goto("/"));

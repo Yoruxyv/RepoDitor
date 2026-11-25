@@ -6,23 +6,23 @@ import { resolve } from "node:path";
 import { expect, it } from "vitest";
 
 import { rechargeAllSupportedItems } from "@/features/recharge/recharge";
-import { getRunPendingEdits } from "@/features/run-save/pendingEdits";
+import { getRunPendingEdits } from "@/features/run-save/model/pendingEdits";
 import {
   RunEditError,
   type ResumeLocation,
   setPlayerHealth,
   setResumeLocation,
   setRunLevel,
-} from "@/features/run-save/runSave";
-import { encryptEs3 } from "@/features/save-file/es3";
-import { prepareVerifiedExport } from "@/features/save-file/export";
-import { loadSaveBytes } from "@/features/save-file/pipeline";
-import { parseSaveJson, serializeSaveJson } from "@/features/save-file/serialization";
+} from "@/features/run-save/model/runSave";
+import { encryptEs3 } from "@/features/save-file/processing/es3";
+import { prepareVerifiedExport } from "@/features/save-file/processing/export";
+import { loadSaveBytes } from "@/features/save-file/processing/pipeline";
+import { parseSaveJson, serializeSaveJson } from "@/features/save-file/processing/serialization";
 import {
   createEditSession,
   hasPendingChanges,
   type EditSession,
-} from "@/features/save-file/session";
+} from "@/features/save-file/session/session";
 
 interface RunCompatibilityFixture {
   readonly runSave: { dictionaryOfDictionaries: { value: Record<string, unknown> } };

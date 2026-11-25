@@ -1,20 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { decryptEs3 } from "@/features/save-file/es3";
+import { decryptEs3 } from "@/features/save-file/processing/es3";
 import {
   deriveExportFileName,
   downloadVerifiedExport,
   prepareVerifiedExport,
   SaveExportError,
   type VerifiedExport,
-} from "@/features/save-file/export";
-import { classifySave, type LoadedSave, type SaveKind } from "@/features/save-file/pipeline";
-import { createEditSession, type EditSession } from "@/features/save-file/session";
+} from "@/features/save-file/processing/export";
+import {
+  classifySave,
+  type LoadedSave,
+  type SaveKind,
+} from "@/features/save-file/processing/pipeline";
+import { createEditSession, type EditSession } from "@/features/save-file/session/session";
 import {
   parseSaveJson,
   SaveSerializationError,
   serializeSaveJson,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 const RUN_SOURCE =
   '{"playerNames":{"value":{}},"dictionaryOfDictionaries":{"value":{"runStats":{}}},' +

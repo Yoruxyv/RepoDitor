@@ -4,7 +4,7 @@ import {
   isPlausibleSteamId,
   resolveSteamAvatarUrls,
   safeSteamAvatarUrl,
-} from "@/features/run-save/steamProfiles";
+} from "@/features/run-save/avatars/steamProfiles";
 
 const STEAM_ID = "76561197960287930";
 const AVATAR_URL = "https://avatars.fastly.steamstatic.com/avatar.jpg";

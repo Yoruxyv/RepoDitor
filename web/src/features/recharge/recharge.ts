@@ -1,6 +1,10 @@
 import snapshot from "@/features/recharge/recharge-capabilities.v1.json";
-import { classifySave } from "@/features/save-file/classification";
-import { isSaveNumber, isSaveObject, type SaveObject } from "@/features/save-file/serialization";
+import { classifySave } from "@/features/save-file/processing/classification";
+import {
+  isSaveNumber,
+  isSaveObject,
+  type SaveObject,
+} from "@/features/save-file/processing/serialization";
 
 const ITEM_KEY_PATTERN = /^(Item .+)\/(\d+)$/u;
 const PLAIN_INTEGER_PATTERN = /^-?(?:0|[1-9]\d*)$/u;

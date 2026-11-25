@@ -1,11 +1,11 @@
-import { decryptEs3, encryptEs3, Es3CryptoError } from "@/features/save-file/es3";
-import { classifySave, type SaveKind } from "@/features/save-file/classification";
+import { decryptEs3, encryptEs3, Es3CryptoError } from "@/features/save-file/processing/es3";
+import { classifySave, type SaveKind } from "@/features/save-file/processing/classification";
 import {
   parseSaveJson,
   SaveSerializationError,
   serializeSaveJson,
   type SaveObject,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 const SAVE_PIPELINE_ERROR_CODE = {
   decryptFailed: "decrypt-failed",
@@ -25,8 +25,8 @@ const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 export const MAX_SAVE_FILE_BYTES = 16 * 1024 * 1024;
 
-export { classifySave } from "@/features/save-file/classification";
-export type { SaveClassification, SaveKind } from "@/features/save-file/classification";
+export { classifySave } from "@/features/save-file/processing/classification";
+export type { SaveClassification, SaveKind } from "@/features/save-file/processing/classification";
 
 export interface LoadedSave {
   readonly data: SaveObject;

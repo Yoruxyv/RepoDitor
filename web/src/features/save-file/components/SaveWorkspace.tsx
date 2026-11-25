@@ -7,10 +7,10 @@ import { getCosmeticPendingEdits } from "@/features/cosmetics/pendingEdits";
 import {
   PendingChangesBar,
   type WorkspaceExportState,
-} from "@/features/save-file/PendingChangesBar";
-import type { EditSession } from "@/features/save-file/session";
-import { getRunPendingEdits } from "@/features/run-save/pendingEdits";
-import { RunEditor } from "@/features/run-save/RunEditor";
+} from "@/features/save-file/components/PendingChangesBar";
+import type { EditSession } from "@/features/save-file/session/session";
+import { getRunPendingEdits } from "@/features/run-save/model/pendingEdits";
+import { RunEditor } from "@/features/run-save/components/RunEditor";
 
 interface SaveWorkspaceProps {
   readonly busy: boolean;

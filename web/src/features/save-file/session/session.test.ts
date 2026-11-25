@@ -1,18 +1,18 @@
 import { LosslessNumber } from "lossless-json";
 import { describe, expect, it } from "vitest";
 
-import type { LoadedSave, SaveKind } from "@/features/save-file/pipeline";
+import type { LoadedSave, SaveKind } from "@/features/save-file/processing/pipeline";
 import {
   createEditSession,
   hasPendingChanges,
   resetEditSession,
-} from "@/features/save-file/session";
+} from "@/features/save-file/session/session";
 import {
   isSaveNumber,
   parseSaveJson,
   SaveSerializationError,
   type SaveObject,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 const RUN_SOURCE =
   '{"playerNames":{"value":{"111":"Alpha"}},' +

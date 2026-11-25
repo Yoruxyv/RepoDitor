@@ -12,7 +12,7 @@ import {
   unlockRemainingCosmetics,
 } from "@/features/cosmetics/cosmetics";
 import { LockAllConfirmation } from "@/features/cosmetics/LockAllConfirmation";
-import type { EditSession } from "@/features/save-file/session";
+import type { EditSession } from "@/features/save-file/session/session";
 
 interface CosmeticsEditorProps {
   readonly busy: boolean;

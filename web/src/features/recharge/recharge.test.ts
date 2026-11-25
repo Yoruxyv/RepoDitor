@@ -8,16 +8,16 @@ import {
   rechargeAllSupportedItems,
   SUPPORTED_RECHARGEABLE_ITEM_IDENTITIES,
 } from "@/features/recharge/recharge";
-import { prepareVerifiedExport } from "@/features/save-file/export";
-import { loadSaveBytes, type LoadedSave } from "@/features/save-file/pipeline";
-import { createEditSession } from "@/features/save-file/session";
+import { prepareVerifiedExport } from "@/features/save-file/processing/export";
+import { loadSaveBytes, type LoadedSave } from "@/features/save-file/processing/pipeline";
+import { createEditSession } from "@/features/save-file/session/session";
 import {
   isSaveNumber,
   isSaveObject,
   parseSaveJson,
   serializeSaveJson,
   type SaveObject,
-} from "@/features/save-file/serialization";
+} from "@/features/save-file/processing/serialization";
 
 const ITEMS = {
   "Item Cart Medium/3": 2,
