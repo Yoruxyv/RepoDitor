@@ -3,6 +3,10 @@
 These tests exercise the real renderer → Tauri → Python → save boundary;
 component or mocked-bridge tests do not replace them.
 
+The [native safety gate](safety/test-tauri-safety.ps1), Windows job containment,
+and artifact retention belong to `e2e/safety/`. Invoke the gate through
+`npm run test:tauri-safety` from `desktop/`.
+
 - Reuse the existing harness and synthetic fixture generators. Isolate profiles,
   save/game roots, caches, and network behavior; never discover or write real user
   saves, installed game files, or R.E.P.O. LocalLow data. Use mocks for external services.

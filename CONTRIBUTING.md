@@ -103,7 +103,7 @@ canonical source catalog for RepoDitor-owned interface text.
 Locale files live under:
 
 ```text
-desktop/src/app/i18n/locales/
+desktop/renderer/app/i18n/locales/
 web/src/app/i18n/locales/<locale>/<domain>.ts
 ```
 
@@ -165,7 +165,7 @@ order and each language's native label.
 ### Language selector assets
 
 Language-selector flags are bundled SVG assets under
-`desktop/src/assets/flags/`; they are not Unicode flag emoji and are not
+`desktop/renderer/assets/flags/`; they are not Unicode flag emoji and are not
 downloaded at runtime.
 
 RepoDitor Web intentionally uses native language names without flags. The Desktop flag guidance

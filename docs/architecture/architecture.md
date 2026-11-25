@@ -7,24 +7,43 @@ shares evidence-backed semantics rather than Desktop implementation code.
 
 ## Source and validation map
 
-| Location                                      | Ownership                                                                                                       |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `desktop/src/`                                | React presentation, typed drafts and feature orchestration; component tests stay beside their implementation.   |
-| `desktop/src-tauri/src/`                      | Rust bootstrap, bounded Python process transport, validated projections and gated synthetic recovery.           |
-| `desktop/python/repo_save_editor/`            | Authoritative Desktop save semantics, encryption, validation, backups and transactions.                         |
-| `desktop/python/tests/`                       | Python domain, storage, protocol and synthetic integration regressions.                                         |
-| `desktop/installer/`                          | Installer host, UI and C# test fixtures; `scripts/` owns installer build and lifecycle tooling. |
-| `desktop/scripts/`                            | `quality/`, `tauri/` and `release/` tooling, with implementation and Node tests kept together.    |
-| `desktop/e2e/tauri/` | Packaged journeys, permission boundaries and interruption/recovery tests. |
-| `desktop/e2e/`                                | Shared `support/` harnesses, tracked `fixtures/` inputs and `fixture_generators/` used by packaged Tauri tests.     |
-| `scripts/git-hooks/`, `.github/workflows/`    | Repository Git gates and CI orchestration; npm command names remain the stable contributor interface.           |
-| `web/`                                        | Independent browser product, with its own source, API and test ownership.                                       |
+| Location                                   | Ownership                                                                                                       |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `desktop/renderer/`                        | React presentation, typed drafts and feature orchestration; component tests stay beside their implementation.   |
+| `desktop/src-tauri/src/`                   | Rust bootstrap, bounded Python transport, typed commands and projections, and gated transaction transport.      |
+| `desktop/python/repo_save_editor/`         | Authoritative Desktop save semantics, encryption, validation, backups and transactions.                         |
+| `desktop/python/tests/`                    | Python domain, storage, protocol and synthetic integration regressions.                                         |
+| `desktop/installer/`                       | Installer host, UI, C# test fixtures, packaging scripts, and lifecycle tooling.                                 |
+| `desktop/scripts/`                         | `quality/`, `tauri/` and `release/` tooling, with implementation and Node tests kept together.                  |
+| `desktop/e2e/tauri/`                       | Packaged journeys, permission boundaries and interruption/recovery tests.                                       |
+| `desktop/e2e/`                             | Shared `support/` harnesses, tracked `fixtures/` inputs and `fixture_generators/` used by packaged Tauri tests. |
+| `scripts/git-hooks/`, `.github/workflows/` | Repository Git gates and CI orchestration; npm command names remain the stable contributor interface.           |
+| `web/`                                     | Independent browser product, with its own source, API and test ownership.                                       |
 
 Installer lifecycle helpers and their checks stay together because the launcher
 stages neighboring worker scripts into a disposable test directory. E2E specs are
 grouped by desktop journey; shared fixtures and harnesses retain one owner.
 Standard package, Cargo, Tauri, TypeScript and Python configuration stays at its
 existing package root rather than moving alongside operational scripts.
+
+The Desktop renderer groups app shell, preferences, and typed Tauri adapters
+under `renderer/app/`. Run editor session state and draft reconciliation live
+together under `renderer/features/editor/session/` because Health, Upgrades,
+Run and Item views share the same save transaction.
+
+Rust's `main.rs` owns window lifecycle and command registration. The
+`commands/` modules bind IPC to workspace, read, artwork and transaction
+operations. `backend/` owns native session state, the fixed sidecar operation
+table, bounded request execution and opaque artwork tokens. Image decoding and
+response bounds live with that artwork registry. `projections/` validates
+sidecar responses. `transactions/` owns the Run and MetaSave native handoff,
+including separately gated synthetic recovery code.
+
+Python's sidecar entry point owns argument registration and JSON transport.
+Domain API modules own read projections and transaction orchestration. The
+storage layer keeps receipt intent validation separate from the durable recovery
+state machine. Web keeps browser save processing, session state, and UI within
+the save-file feature. Its Run editor has a separate Run model and avatar lookup.
 
 Generated output is separate from this source map. `.venv/` holds the local Python
 environment; `node_modules/`,
@@ -74,7 +93,7 @@ R.E.P.O. .es3 files
 
 ## Boundaries
 
-- `desktop/src/` owns presentation, renderer-local theme/language preferences, and typed in-memory pending edits. It cannot read files, spawn processes, parse raw saves, or derive game mechanics.
+- `desktop/renderer/` owns presentation, renderer-local theme/language preferences, and typed in-memory pending edits. It cannot read files, spawn processes, parse raw saves, or derive game mechanics.
 - `desktop/src-tauri/` owns window capabilities, typed command admission, sidecar supervision, renderer-safe DTOs and opaque artwork tokens.
 - `desktop/python/repo_save_editor/desktop_api/` translates the stable command protocol into Python service calls. Standard output is reserved for bounded NDJSON protocol records; commands that support streaming may emit multiple records, while diagnostics use standard error.
 - `desktop/python/repo_save_editor/services/` owns editor behavior for discovery, players, upgrades, run
@@ -102,12 +121,11 @@ writing and reconciliation use that same lock. A health writer already holding t
 lock does not reacquire it inside `save_changes`. Contention fails immediately;
 process exit releases the OS lock, while pending receipts still require reconciliation.
 
-This coordination covers updated participating backends only. Older deployed
-Electron backends and other tools do not honor it. The currently enforced production
-policy is the read-only Tauri capability set; synthetic health writes remain confined
-to their test root. Production write authorization must remain blocked until old
-writers are enforceably retired or isolated, or a stronger coexistence mechanism is
-validated. A version warning or process-name check alone cannot enforce that policy.
+This coordination covers participating backends. Older Electron backends and
+other tools can write outside RepoDitor's lock. Ordinary read-only builds,
+public-editing builds, and test-only builds have distinct native capabilities.
+Public writing additionally requires the [reviewed game compatibility evidence](../maintenance/game-update-capabilities.md#tauri-editing-across-steam-patches).
+Synthetic transactions require the gated test commands and an isolated fixture root.
 The lock also does not stabilize filesystem ancestry: current pathname-based
 parent validation leaves directory movement and reparse substitution unresolved.
 

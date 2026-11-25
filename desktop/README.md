@@ -3,7 +3,7 @@
 RepoDitor Desktop uses React in the Tauri WebView2 host on Windows. Rust validates
 requests, supervises the bundled sidecar, and returns typed projections. Python
 owns save discovery, game semantics, validation, and transactions. Renderer DTOs
-live in `src/app/desktopContracts.ts` and use the existing `@/` alias.
+live in `renderer/app/tauri/desktopContracts.ts` and use the existing `@/` alias.
 
 ## Development
 
@@ -36,7 +36,10 @@ npm run test:tauri-safety
 ```
 
 The read-only development package is staged under `build/tauri-portable/`.
-Synthetic E2E uses isolated profiles and fixtures.
+Synthetic E2E uses isolated profiles and fixtures. Keep PowerShell 7 (`pwsh.exe`)
+on `PATH` for Windows probes. `npm run test:e2e:tauri` runs the Rust tests first to
+compile the fault-injection sidecar used by the packaged journeys. Run
+`npm run test:tauri` first if invoking those Playwright specs directly.
 
 Run `npm run package:installer` for the branded Windows setup and its SHA-256
 file in `build/installer/`. Its verified portable payload is in

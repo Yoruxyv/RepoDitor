@@ -1,0 +1,1481 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  copyFile,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  stat,
+  truncate,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
+import path from "node:path";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  createMetaSaveFixture,
+  createRunSaveFixture,
+  DESKTOP_ROOT,
+  E2E_SAVE_ID,
+  getPythonExecutable,
+  isolatedApplicationEnvironment,
+  PYTHON_ROOT,
+  stageTestExecutable,
+} from "../../support/fixtures/fixtureEnvironment";
+import { createGameFixture } from "../../support/harness/harness";
+import {
+  close,
+  launch,
+  native,
+  openRunWorkspace,
+  stageFrozenBackend,
+  stageSyntheticBackend,
+} from "../../support/harness/tauriHarness";
+
+interface Transaction {
+  status: string;
+  reason: string | null;
+  backupAvailable: boolean;
+}
+interface Opened {
+  ok: true;
+  data: { session: { fingerprint: string } };
+}
+const OP = "a".repeat(32);
+const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+function required(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} must name a prepared safety artifact`);
+  return path.resolve(DESKTOP_ROOT, value);
+}
+async function fixture(info: TestInfo, host = "REPODITOR_RECOVERY_EXECUTABLE", production = false) {
+  const home = info.outputPath("isolated");
+  await mkdir(home, { recursive: true });
+  const source = await createRunSaveFixture(home);
+  await createGameFixture(home);
+  const executable = path.join(home, "repoditor-preview.exe");
+  await stageTestExecutable(required(host), executable);
+  await stageFrozenBackend(
+    home,
+    required(production ? "REPODITOR_ARTIFACT_BACKEND" : "REPODITOR_RECOVERY_BACKEND"),
+  );
+  return { home, source, executable, before: await readFile(source) };
+}
+function request(fingerprint: string, operationId = OP, health = 17) {
+  return { request: { saveId: E2E_SAVE_ID, fingerprint, playerId: "111", health, operationId } };
+}
+async function workspaceHealthWrite(page: Page, fingerprint: string) {
+  await expect(page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
+  const { upgradeSession } = await native<{ upgradeSession: string }>(page, "test_health_state", {
+    saveId: E2E_SAVE_ID,
+  });
+  expect(upgradeSession).toBeTruthy();
+  return native(page, "test_health_write", {
+    request: { ...request(fingerprint).request, session: upgradeSession },
+  });
+}
+function recovery() {
+  return { request: { saveId: E2E_SAVE_ID, operationId: OP } };
+}
+async function pending(source: string) {
+  return JSON.parse(
+    await readFile(
+      path.join(path.dirname(source), `.${path.basename(source)}.health-pending.json`),
+      "utf8",
+    ),
+  ) as { phase: string; version: number };
+}
+async function exactBackup(source: string, before: Buffer) {
+  const name = (await readdir(path.dirname(source))).find((entry) =>
+    entry.includes(".bak-health-"),
+  );
+  expect(name).toBeTruthy();
+  expect(await readFile(path.join(path.dirname(source), name!))).toEqual(before);
+}
+
+async function holdEntryRequest(page: Page, endpoint = "/editor_entry") {
+  await page.evaluate((path) => {
+    const original = window.fetch.bind(window);
+    const gate = new Promise<void>((resolve) => {
+      window.addEventListener(`repoditor-entry-release:${path}`, () => resolve(), { once: true });
+    });
+    window.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.hostname === "ipc.localhost" && url.pathname === path) await gate;
+      return original(input, init);
+    };
+  }, endpoint);
+  return () =>
+    page.evaluate(
+      (path) => window.dispatchEvent(new Event(`repoditor-entry-release:${path}`)),
+      endpoint,
+    );
+}
+
+test("ordinary packaged opening distinguishes completed data from pending artwork", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("progressive-artwork");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const upgrade = f.upgrades[0];
+  const revision = "a".repeat(64);
+  await writeFile(
+    path.join(home, "upgrade-artwork.json"),
+    JSON.stringify({
+      ok: true,
+      artwork: {
+        upgradeKey: upgrade.key,
+        sourceIdentity: revision,
+        width: 1,
+        height: 1,
+        pngBase64:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4ryHyHwAFoAI7Y0OAZQAAAABJRU5ErkJggg==",
+      },
+    }),
+  );
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    const releaseData = await holdEntryRequest(page, "/upgrades_list");
+    const releaseArtwork = await holdEntryRequest(page, "/upgrade_artwork_get");
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    const workspace = page.getByTestId("workspace");
+    const detail = page.getByTestId("entry-loading-detail");
+    const bar = page.getByRole("progressbar", { name: "Editor preparation progress" });
+    await expect(detail).toHaveText("Preparing editor data…");
+    await expect(workspace).toHaveCount(0);
+    await expect(bar).not.toHaveAttribute("aria-valuenow");
+    await page.screenshot({ path: info.outputPath("opening-data.png") });
+    await releaseData();
+    await expect(detail).toHaveText("Save data ready. Preparing artwork…");
+    await expect(bar).toHaveAttribute("aria-valuenow", "0");
+    await expect(bar).toHaveAttribute(
+      "aria-valuemax",
+      String(1 + f.maps.maps.length + f.advanced.items.length),
+    );
+    await expect(workspace).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Cancel opening" })).toBeEnabled();
+    await page.screenshot({ path: info.outputPath("opening-artwork.png") });
+    await releaseArtwork();
+    await expect(workspace).toHaveAttribute("data-artwork-preparation", "settled");
+    await page.getByRole("button", { name: "Open Upgrades" }).click();
+    await expect(page.getByTestId("upgrades-skeleton")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Strength for Alpha" })).toHaveValue("2");
+    const icon = page.getByTestId(`upgrade-icon-${upgrade.key}`);
+    await expect(icon).toHaveAttribute("data-artwork-revision", revision);
+    await expect(icon.locator("img.opacity-100")).toBeVisible();
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("packaged release notification leaves discovery and editor opening usable", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  // Block real GitHub DNS before the test can attach its controlled response.
+  const app = await launch(f.executable, f.home, {
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:
+      '--no-proxy-server --host-resolver-rules="MAP api.github.com ~NOTFOUND"',
+  });
+  let allowResponse!: () => void;
+  const waiting = new Promise<void>((resolve) => (allowResponse = resolve));
+  try {
+    const { page } = app;
+    const installed = await native<string>(page, "plugin:app|version");
+    await expect(page.getByRole("button", { name: /Open workspace/ })).toBeEnabled();
+    const [major, minor] = installed.split(".").map(Number);
+    const version = `${major}.${minor + 1}.0`;
+    const url = "https://github.com/Yoruxyv/RepoDitor/releases/tag/v" + version;
+    let requests = 0;
+    await page.route(
+      "https://api.github.com/repos/Yoruxyv/RepoDitor/releases/latest",
+      async (route) => {
+        requests += 1;
+        await waiting;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*" },
+          json: { tag_name: "v" + version, html_url: url, draft: false, prerelease: false },
+        });
+      },
+    );
+    await page.evaluate(() => {
+      localStorage.removeItem("repoditor.update.lastCheck");
+      sessionStorage.removeItem("repoditor.update.lastCheck");
+    });
+    await page.reload();
+    await expect.poll(() => requests).toBe(1);
+    const toast = page.getByRole("region", { name: `RepoDitor v${version} is available` });
+    await expect(toast).toHaveCount(0);
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("heading", { name: "Opening save" })).toBeVisible();
+    allowResponse();
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible({ timeout: 15_000 });
+    await expect(toast).toBeVisible();
+    const release = toast.getByRole("link", { name: "View release" });
+    await expect(release).toHaveAttribute("href", url);
+    await expect(release).toHaveAttribute("target", "_blank");
+    await page.getByRole("tab", { name: "Players" }).click();
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toHaveValue("80");
+    await page.screenshot({ path: info.outputPath("update-notification.png") });
+    await toast.getByRole("button", { name: "Later" }).press("Enter");
+    await expect(toast).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        "repoditor.update.dismissed." + version,
+      ),
+    ).toBe("1");
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Open workspace/ })).toBeEnabled();
+    await expect(toast).toHaveCount(0);
+    expect(requests).toBe(1);
+    expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    allowResponse();
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged workspace preserves keyboard focus across navigation", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    await page.setViewportSize({ width: 960, height: 640 });
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    await open.focus();
+    await page.keyboard.press("Enter");
+    const overview = page.getByRole("tab", { name: "Overview", selected: true });
+    await expect(overview).toBeVisible({ timeout: 15_000 });
+    await expect(overview).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("tabpanel", { name: "Overview" })).toBeFocused();
+
+    for (const section of ["Players", "Upgrades", "Run", "Items"]) {
+      await page.getByRole("button", { name: `Open ${section}`, exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("tab", { name: section, selected: true })).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(page.getByRole("tabpanel", { name: section })).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Home");
+      await expect(overview).toBeFocused();
+    }
+    await page.keyboard.press("End");
+    await expect(page.getByRole("tab", { name: "Maps", selected: true })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(overview).toBeFocused();
+
+    const change = page.getByRole("button", { name: "Change save" });
+    await change.focus();
+    await page.keyboard.press("Enter");
+    await expect(open).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(overview).toBeVisible({ timeout: 15_000 });
+    await expect(overview).toBeFocused();
+    await rename(f.source, `${f.source}.hidden`);
+    try {
+      await change.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("heading", { name: "No valid saves yet" })).toBeVisible();
+      await expect(page.locator("#discovery-title")).toBeFocused();
+    } finally {
+      await rename(`${f.source}.hidden`, f.source);
+    }
+    expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged preparation rejects a changed save and retries with fresh projections", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  // An independent valid ES3 container has a new IV and a different byte fingerprint.
+  const replacement = await readFile(await createRunSaveFixture(info.outputPath("replacement")));
+  expect(digest(replacement)).not.toBe(digest(f.before));
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    let entryReads = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/editor_entry") entryReads += 1;
+    });
+    const releaseEntry = await holdEntryRequest(page);
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    await open.click();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Preparing editor data…");
+    await expect(page.getByTestId("workspace")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save Changes" })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("preparation-waiting-for-data.png") });
+    expect(await readFile(f.source)).toEqual(f.before);
+    await writeFile(f.source, replacement);
+    await releaseEntry();
+    await expect(page.getByRole("alert")).toHaveText(
+      "The save changed while it was opening. Reopen it to load the current version. No save files were changed.",
+    );
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    expect(await readFile(f.source)).toEqual(replacement);
+    await open.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      digest(replacement),
+      { timeout: 15_000 },
+    );
+    await expect(
+      native(page, "saves_open", { saveId: E2E_SAVE_ID, verifyFingerprint: digest(f.before) }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "invalid_request" } });
+    for (const name of ["Players", "Upgrades", "Run", "Items", "Maps"]) {
+      await page.getByRole("tab", { name, exact: true }).click();
+      await expect(page.getByTestId(name.toLowerCase() + "-skeleton")).toHaveCount(0);
+    }
+    expect(entryReads).toBe(2);
+    expect(await readFile(f.source)).toEqual(replacement);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged preparation reports missing fingerprint evidence without claiming a save changed", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("entry-proof");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const players = path.join(home, "players-list.json");
+  const original = await readFile(players, "utf8");
+  const response = JSON.parse(original);
+  delete response.fingerprint;
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    const open = page.getByRole("button", { name: /Open workspace/ });
+    for (const proof of [response, { ...response, fingerprint: "invalid" }]) {
+      await writeFile(players, JSON.stringify(proof));
+      await open.click();
+      await expect(page.getByRole("alert")).toHaveText(
+        "RepoDitor could not verify the save source. Rebuild or reinstall the complete preview and try again. No save files were changed.",
+      );
+      await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    }
+    await writeFile(players, original);
+    await open.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      f.opened.session.fingerprint,
+    );
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+async function addAlternateRun(source: string) {
+  const id = E2E_SAVE_ID.replace(/30$/, "31");
+  const file = path.join(path.dirname(path.dirname(source)), id, `${id}.es3`);
+  await mkdir(path.dirname(file), { recursive: true });
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-B",
+      "-c",
+      "import sys; from pathlib import Path; from repo_save_editor.core.crypto import decrypt_save, encrypt_save; save = decrypt_save(Path(sys.argv[1]).read_bytes()); save['dictionaryOfDictionaries']['value']['playerHealth']['111'] = 37; Path(sys.argv[2]).write_bytes(encrypt_save(save))",
+      source,
+      file,
+    ],
+    { env: { ...process.env, PYTHONPATH: PYTHON_ROOT }, windowsHide: true },
+  );
+  return { id, file, bytes: await readFile(file) };
+}
+
+test("a discovery refresh cannot retarget a press on the newest save", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const alternate = await addAlternateRun(f.source);
+  const earlier = new Date("2026-08-09T00:00:00Z");
+  const later = new Date("2026-08-10T00:00:00Z");
+  await utimes(f.source, later, later);
+  await utimes(alternate.file, earlier, earlier);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    const latest = page.getByRole("button", { name: /Open workspace/ });
+    await expect(latest).toHaveAttribute("data-save-id", E2E_SAVE_ID);
+    const newest = new Date("2026-08-11T00:00:00Z");
+    await utimes(alternate.file, newest, newest);
+    const releaseDiscovery = await holdEntryRequest(page, "/environment_detect");
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.locator("section[aria-labelledby='discovery-title']")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    await latest.hover();
+    await page.mouse.down();
+    await releaseDiscovery();
+    await expect(latest).toHaveAttribute("data-save-id", alternate.id);
+    await page.mouse.up();
+
+    await expect(latest).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Opening save" })).toHaveCount(0);
+    await latest.click();
+    await expect(page.getByTestId("workspace")).toHaveAttribute(
+      "data-session-fingerprint",
+      digest(alternate.bytes),
+      { timeout: 15_000 },
+    );
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await readFile(alternate.file)).toEqual(alternate.bytes);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged opening cancels before switching saves and can reopen the original", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const alternate = await addAlternateRun(f.source);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    const first = page.locator(`button[data-save-id="${E2E_SAVE_ID}"]`);
+    const other = page.locator(`button[data-save-id="${alternate.id}"]`);
+    const workspace = page.getByTestId("workspace");
+    const players = page.getByRole("tab", { name: "Players", exact: true });
+    const health = page.getByRole("spinbutton", { name: "Current health", exact: true });
+    await first.click();
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(f.before), {
+      timeout: 15_000,
+    });
+    await players.click();
+    await expect(health).toHaveValue("80");
+    await page.getByRole("button", { name: "Change save" }).click();
+
+    const releaseEntry = await holdEntryRequest(page);
+    await first.click();
+    await expect(page.getByTestId("entry-loading-detail")).toHaveText("Preparing editor data…");
+    await page.getByRole("button", { name: "Cancel opening" }).click();
+    await expect(other).toBeDisabled();
+    await releaseEntry();
+    await expect(other).toBeEnabled();
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await other.click();
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(alternate.bytes), {
+      timeout: 15_000,
+    });
+    await players.click();
+    await expect(health).toHaveValue("37");
+    await page.getByRole("button", { name: "Change save" }).click();
+    await first.click();
+    await expect(workspace).toHaveAttribute("data-session-fingerprint", digest(f.before), {
+      timeout: 15_000,
+    });
+    await players.click();
+    await expect(health).toHaveValue("80");
+    const [otherPlayers, verified] = await Promise.all([
+      native(page, "players_list", { saveId: alternate.id }),
+      native(page, "saves_open", { saveId: E2E_SAVE_ID, verifyFingerprint: digest(f.before) }),
+    ]);
+    expect(otherPlayers).toMatchObject({ ok: true });
+    expect(verified).toMatchObject({
+      ok: true,
+      data: { session: { fingerprint: digest(f.before) } },
+    });
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await readFile(alternate.file)).toEqual(alternate.bytes);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged read-only states explain pending safety and recover Maps in place", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("isolated");
+  const f = await stageSyntheticBackend(home, required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"));
+  const run = await createRunSaveFixture(home);
+  const meta = createMetaSaveFixture(home);
+  const runBefore = await readFile(run);
+  const metaBefore = await readFile(meta);
+  const mapsResponse = path.join(home, "maps-list.json");
+  await writeFile(
+    mapsResponse,
+    JSON.stringify({ ok: true, available: false, catalogPath: null, maps: [] }),
+  );
+  await writeFile(
+    path.join(home, "cosmetics-get.json"),
+    JSON.stringify({
+      ok: false,
+      error: { code: "meta_missing", message: "C:/private/MetaSave.es3" },
+    }),
+  );
+  const app = await launch(f.executable, home, f.environment);
+  try {
+    const { page } = app;
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window);
+      const firstStatus = new Promise<void>((resolve) => {
+        window.addEventListener("repoditor-test-release-status", () => resolve(), { once: true });
+      });
+      const saveOpen = new Promise<void>((resolve) => {
+        window.addEventListener("repoditor-test-release-save-open", () => resolve(), {
+          once: true,
+        });
+      });
+      // Hold responses at the renderer IPC boundary while retaining the packaged bridge.
+      window.fetch = async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (url.hostname === "ipc.localhost" && url.pathname === "/game_status") {
+          await firstStatus;
+        }
+        if (url.hostname === "ipc.localhost" && url.pathname === "/saves_open") await saveOpen;
+        return originalFetch(input, init);
+      };
+    });
+    await page.reload();
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    const content = page.getByTestId("editor-content");
+    const check = page
+      .getByRole("status")
+      .filter({ hasText: "Checking whether R.E.P.O. is closed…" });
+    await expect(check).toBeVisible();
+    await expect(content).toHaveAttribute("inert", "");
+    await expect(content).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-status")));
+    await expect(check).toHaveCount(0);
+    await expect(content).not.toHaveAttribute("inert");
+    const opening = page.getByRole("region", { name: "Opening save" });
+    await expect(opening.getByRole("status")).toHaveText("Reading and validating save data…");
+    const progress = opening.getByRole("progressbar", { name: "Editor preparation progress" });
+    await expect(progress).toBeVisible();
+    await expect(progress).not.toHaveAttribute("aria-valuenow", /./);
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.getByRole("button", { name: /^Theme:/ }).click();
+    await page.getByRole("option", { name: "Dark" }).click();
+    await opening.screenshot({ path: info.outputPath("preparation-dark.png") });
+    await page.setViewportSize({ width: 960, height: 640 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.getByRole("button", { name: /^Theme:/ }).click();
+    await page.getByRole("option", { name: "Light" }).click();
+    await expect(progress.locator(".asset-preparation-sweep")).toHaveCount(0);
+    await expect(opening.locator(".asset-preparation-crate")).toHaveCSS("animation-name", "none");
+    await page.getByRole("button", { name: "Language: English" }).click();
+    await page.getByRole("option", { name: "Bahasa Indonesia" }).click();
+    const localized = page.getByRole("region", { name: "Membuka save" });
+    await expect(localized.getByRole("status")).toHaveText("Membaca dan memvalidasi data save…");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      960,
+    );
+    await localized.screenshot({ path: info.outputPath("preparation-light-id.png") });
+    await page.getByRole("button", { name: "Bahasa: Bahasa Indonesia" }).click();
+    await page.getByRole("option", { name: "English" }).click();
+    const cancel = opening.getByRole("button", { name: "Cancel opening" });
+    await opening.getByRole("heading").focus();
+    await page.keyboard.press("Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(opening).toHaveCount(0);
+    await expect(
+      page.getByText("Opening canceled. The current save read is finishing."),
+    ).toBeVisible();
+    const reopen = page.getByRole("button", { name: /Open workspace/ });
+    await expect(reopen).toBeDisabled();
+    await page.evaluate(() => window.dispatchEvent(new Event("repoditor-test-release-save-open")));
+    await expect(opening).toHaveCount(0);
+    await expect(reopen).toBeFocused();
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("tab", { name: "Overview", selected: true })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Browse this save" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Edit this save" })).toHaveCount(0);
+    const previewUrl = page.url();
+    await expect(page.getByRole("link", { name: "Project source" })).toHaveAttribute(
+      "href",
+      "https://github.com/Yoruxyv/RepoDitor",
+    );
+    const unsafeUrl = "https://github.com/Yoruxyv/RepoDitor?unexpected=1";
+    expect(await page.evaluate((url) => window.open(url, "_blank") === null, unsafeUrl)).toBe(true);
+    await page.evaluate((url) => {
+      location.href = url;
+    }, unsafeUrl);
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    expect(page.url()).toBe(previewUrl);
+    expect(page.context().pages()).toEqual([page]);
+
+    await page.getByRole("tab", { name: "Maps", exact: true }).click();
+    const unavailable = page.getByText(/No validated R\.E\.P\.O\. installation was found/);
+    const empty = page.getByText("No maps were found in the installed catalog.");
+    const refresh = page.getByRole("button", { name: "Refresh", exact: true });
+    const alert = page.getByRole("alert");
+    await expect(unavailable).toBeVisible();
+    await expect(refresh).toBeEnabled();
+    await expect(empty).toHaveCount(0);
+    await writeFile(
+      mapsResponse,
+      JSON.stringify({
+        ok: false,
+        error: { code: "process_failed", message: "C:/private/catalog.json" },
+      }),
+    );
+    await refresh.click();
+    await expect(alert).toBeVisible();
+    await expect(alert).not.toContainText("C:/private");
+    await expect(unavailable).toBeVisible();
+    await writeFile(mapsResponse, JSON.stringify({ ok: true, ...f.maps, maps: [] }));
+    await refresh.click();
+    await expect(empty).toBeVisible();
+    await expect(unavailable).toHaveCount(0);
+    await expect(alert).toHaveCount(0);
+    await writeFile(mapsResponse, JSON.stringify({ ok: true, ...f.maps }));
+    await refresh.click();
+    await expect(page.getByRole("heading", { name: "McJannek Station" })).toBeVisible();
+    await expect(empty).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Maps", selected: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Cosmetics", exact: true }).click();
+    await expect(alert).toHaveText("MetaSave.es3 could not be found.");
+    expect(await readFile(run)).toEqual(runBefore);
+    expect(await readFile(meta)).toEqual(metaBefore);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("closing the workspace cancels the optional avatar process", async ({ browserName }, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-cancel");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const marker = path.join(home, "avatar-started.json");
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_DELAY_COMMAND: "players-avatar",
+    REPODITOR_TEST_DELAY_MS: "4000",
+    REPODITOR_TEST_STARTED_FILE: marker,
+  });
+  try {
+    const { page } = app;
+    const response = page.waitForResponse((reply) => reply.url().endsWith("/players_avatar"));
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
+    await expect.poll(() => readFile(marker, "utf8").catch(() => "")).toBe("players-avatar");
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    expect(await (await response).json()).toMatchObject({
+      ok: false,
+      error: { code: "process_cancelled" },
+    });
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+const AVATAR_FIXTURE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4UCH3HwAGaAKGQO0ErgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+async function avatarLookupCount(timing: string): Promise<number> {
+  return (await readdir(timing)).filter((file) => file.startsWith("players-avatar-")).length;
+}
+
+test("ordinary packaged avatars render and honor Steam cooldown across players, saves and restart", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-prefetch");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const alternateId = E2E_SAVE_ID.replace(/30$/, "31");
+  const alternate = { ...fixture.opened.session, id: alternateId, displayName: "Alternate save" };
+  const environmentFile = path.join(home, "environment.json");
+  const environment = JSON.parse(await readFile(environmentFile, "utf8")) as {
+    saves: unknown[];
+    saveCount: number;
+  };
+  await writeFile(
+    environmentFile,
+    JSON.stringify({
+      ...environment,
+      saves: [...environment.saves, alternate],
+      saveCount: 2,
+    }),
+  );
+  const timing = path.join(home, "timing");
+  await mkdir(timing);
+  const alpha = "76561197960287930";
+  const beta = "76561198000000001";
+  await writeFile(
+    path.join(home, "players-list.json"),
+    JSON.stringify({
+      ok: true,
+      fingerprint: fixture.opened.session.fingerprint,
+      players: [
+        { id: alpha, name: "Alpha", health: 80, maxHealth: 100 },
+        { id: beta, name: "Beta", health: 0, maxHealth: 100 },
+      ],
+    }),
+  );
+  const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
+  const betaAvatarUrl = "https://avatars.fastly.steamstatic.com/synthetic-beta.png";
+  await writeFile(
+    path.join(home, "players-avatar.json"),
+    JSON.stringify({
+      ok: true,
+      avatar: { playerId: alpha, avatarUrl, status: "available", retryAfterMs: null },
+    }),
+  );
+  const avatarEnvironment = {
+    ...fixture.environment,
+    REPODITOR_TEST_TIMING_DIR: timing,
+    WEBVIEW2_USER_DATA_FOLDER: path.join(home, "webview"),
+  };
+  const app = await launch(fixture.executable, home, avatarEnvironment);
+  const installAvatarImage = (page: Page) =>
+    page.route(
+      (url) => [avatarUrl, betaAvatarUrl].includes(url.href),
+      (route) =>
+        route.fulfill({
+          contentType: "image/png",
+          body: AVATAR_FIXTURE_PNG,
+        }),
+    );
+  const openPlayers = async (page: Page, id: string) => {
+    await page.locator(`button[data-save-id="${id}"]`).click();
+    await expect(page.getByRole("heading", { name: "Run snapshot" })).toBeVisible();
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+  };
+  try {
+    const { page } = app;
+    await page.clock.install({ time: new Date(Date.now() - 60_000) });
+    await installAvatarImage(page);
+    await openPlayers(page, E2E_SAVE_ID);
+    const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    const records = await Promise.all(
+      (await readdir(timing)).map(
+        async (file) =>
+          JSON.parse(await readFile(path.join(timing, file), "utf8")) as {
+            operation: string;
+            started: number;
+            finished: number;
+          },
+      ),
+    );
+    const lookups = records.filter(({ operation }) => operation === "players-avatar");
+    expect(lookups).toHaveLength(1);
+    const lookup = lookups[0];
+    const playersRead = records.find(({ operation }) => operation === "players-list");
+    const mapsRead = records.find(({ operation }) => operation === "maps-list");
+    if (!lookup || !playersRead || !mapsRead)
+      throw new Error("Missing preparation process records");
+    expect(lookup.started).toBeGreaterThanOrEqual(playersRead.finished);
+    expect(lookup.started).toBeLessThan(mapsRead.finished);
+    await page.screenshot({ path: info.outputPath("first-player-avatar.png") });
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: { playerId: beta, avatarUrl: null, status: "transient", retryAfterMs: 60_000 },
+      }),
+    );
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    // A rate-limited lookup does not disable the selected player's editor projection.
+    await expect(page.getByRole("spinbutton", { name: "Current health" })).toBeVisible();
+    expect(await avatarLookupCount(timing)).toBe(2);
+    await page.getByRole("button", { name: /Alpha/ }).click();
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await writeFile(
+      path.join(home, "saves-open.json"),
+      JSON.stringify({ ...fixture.opened, session: alternate }),
+    );
+    await openPlayers(page, alternateId);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(2);
+
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: {
+          playerId: beta,
+          avatarUrl: betaAvatarUrl,
+          status: "available",
+          retryAfterMs: null,
+        },
+      }),
+    );
+    await page.clock.fastForward(30_000);
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(2);
+    await page.clock.fastForward(30_000);
+    await expect(avatar).toHaveAttribute("src", betaAvatarUrl);
+    await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
+
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({
+        ok: true,
+        avatar: { playerId: alpha, avatarUrl: null, status: "unavailable", retryAfterMs: null },
+      }),
+    );
+    await openPlayers(page, alternateId);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.getByRole("button", { name: "Change save", exact: true }).click();
+    await openPlayers(page, alternateId);
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
+  } finally {
+    await close(app.child, app.browser);
+  }
+  await writeFile(path.join(home, "saves-open.json"), JSON.stringify(fixture.opened));
+  const restarted = await launch(fixture.executable, home, avatarEnvironment);
+  try {
+    const { page } = restarted;
+    await installAvatarImage(page);
+    await openPlayers(page, E2E_SAVE_ID);
+    const avatar = page.getByRole("tabpanel").locator("img.opacity-100");
+    await expect(avatar).toHaveAttribute("src", avatarUrl);
+    await page.bringToFront();
+    expect(await avatar.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(page.getByTestId("selected-player-identity")).toContainText("Beta");
+    await expect(avatar).toHaveAttribute("src", betaAvatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
+  } finally {
+    await close(restarted.child, restarted.browser);
+  }
+});
+
+test("ordinary packaged avatars recover from an image network failure and reject untrusted URLs", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const home = info.outputPath("avatar-image-failure");
+  const fixture = await stageSyntheticBackend(
+    home,
+    required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"),
+  );
+  const timing = path.join(home, "timing");
+  await mkdir(timing);
+  const avatarUrl = "https://avatars.akamai.steamstatic.com/synthetic.png";
+  const untrustedUrl = "https://example.com/blocked.png";
+  const respond = (playerId: string, url: string) =>
+    writeFile(
+      path.join(home, "players-avatar.json"),
+      JSON.stringify({ ok: true, avatar: { playerId, avatarUrl: url, status: "available" } }),
+    );
+  await respond("111", avatarUrl);
+  const app = await launch(fixture.executable, home, {
+    ...fixture.environment,
+    REPODITOR_TEST_TIMING_DIR: timing,
+  });
+  try {
+    const { page } = app;
+    await page.clock.install();
+    let imageRequests = 0;
+    let untrustedRequests = 0;
+    await page.route(avatarUrl, (route) => {
+      if (++imageRequests === 1) return route.abort("internetdisconnected");
+      return route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG });
+    });
+    await page.route(untrustedUrl, (route) => {
+      untrustedRequests += 1;
+      return route.abort();
+    });
+    await openRunWorkspace(page);
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+    const fallback = page.getByTestId("avatar-fallback");
+    await expect(fallback).toHaveText("A");
+    expect(imageRequests).toBe(1);
+    expect(await avatarLookupCount(timing)).toBe(1);
+    await page.clock.fastForward(30_000);
+    expect(await avatarLookupCount(timing)).toBe(1);
+    await page.clock.fastForward(31_000);
+    const image = page.getByTestId("selected-player-identity").locator("img.opacity-100");
+    await expect(image).toBeVisible();
+    expect(await image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1);
+    expect(imageRequests).toBe(2);
+    expect(await avatarLookupCount(timing)).toBe(2);
+
+    await respond("222", untrustedUrl);
+    await page.getByRole("button", { name: /Beta/ }).click();
+    await expect(fallback).toHaveText("B");
+    expect(await avatarLookupCount(timing)).toBe(3);
+    expect(untrustedRequests).toBe(0);
+    await page.getByRole("button", { name: /Alpha/ }).click();
+    await expect(image).toHaveAttribute("src", avatarUrl);
+    expect(await avatarLookupCount(timing)).toBe(3);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary packaged avatars validate save membership and retain read-only fallback", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const app = await launch(f.executable, f.home);
+  try {
+    const { page } = app;
+    expect(await native(page, "players_avatar", { saveId: E2E_SAVE_ID, playerId: "111" })).toEqual({
+      ok: true,
+      data: { playerId: "111", avatarUrl: null, status: "unavailable", retryAfterMs: null },
+    });
+    expect(
+      await native(page, "players_avatar", { saveId: E2E_SAVE_ID, playerId: "999" }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "invalid_request" },
+    });
+    for (const args of [
+      { saveId: "../save", playerId: "111" },
+      { saveId: E2E_SAVE_ID, playerId: "https://example.com" },
+      { saveId: E2E_SAVE_ID, playerId: 111 },
+      {},
+    ]) {
+      expect(await native(page, "players_avatar", args)).toMatchObject({
+        ok: false,
+        error: { code: "invalid_request" },
+      });
+    }
+    // Synthetic pixels exercise the real packaged CSP without any external service.
+    let forbiddenRequests = 0;
+    await page.route("https://example.com/blocked.png", async (route) => {
+      forbiddenRequests++;
+      await route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG });
+    });
+    for (const host of ["avatars.akamai.steamstatic.com", "avatars.fastly.steamstatic.com"]) {
+      await page.route(`https://${host}/synthetic.png`, (route) =>
+        route.fulfill({ contentType: "image/png", body: AVATAR_FIXTURE_PNG }),
+      );
+    }
+    const imageLoads = await page.evaluate(async () => {
+      async function loaded(url: string) {
+        return new Promise<boolean>((resolve) => {
+          const image = new Image();
+          const done = (ok: boolean) => {
+            clearTimeout(timer);
+            resolve(ok);
+          };
+          const timer = setTimeout(() => done(false), 2000);
+          image.onload = () => done(image.naturalWidth > 0);
+          image.onerror = () => done(false);
+          image.src = url;
+        });
+      }
+      return Promise.all([
+        loaded("https://avatars.akamai.steamstatic.com/synthetic.png"),
+        loaded("https://avatars.fastly.steamstatic.com/synthetic.png"),
+        loaded("https://example.com/blocked.png"),
+      ]);
+    });
+    expect(imageLoads).toEqual([true, true, false]);
+    expect(forbiddenRequests).toBe(0);
+    await page.getByRole("button", { name: /Open workspace/ }).click();
+    await page.getByRole("tab", { name: "Players", exact: true }).click();
+    await expect(page.getByTestId("avatar-fallback")).toHaveText("A");
+    await expect(
+      page.getByRole("spinbutton", { name: "Current health", exact: true }),
+    ).toHaveAttribute("readonly", "");
+    await expect(page.getByRole("button", { name: "Save Changes", exact: true })).toHaveCount(0);
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect((await readdir(path.dirname(f.source))).some((name) => name.includes(".bak-"))).toBe(
+      false,
+    );
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("ordinary frozen reads reject oversized Run and MetaSave inputs", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const meta = path.join(path.dirname(path.dirname(path.dirname(f.source))), "MetaSave.es3");
+  await writeFile(meta, "");
+  const size = 32 * 1024 * 1024 + 1;
+  await truncate(f.source, size);
+  await truncate(meta, size);
+  const app = await launch(f.executable, f.home);
+  try {
+    for (const [command, args] of [
+      ["saves_open", { saveId: E2E_SAVE_ID }],
+      ["cosmetics_get", {}],
+    ] as const) {
+      expect(await native(app.page, command, args)).toMatchObject({
+        ok: false,
+        error: {
+          code: "save_unsupported",
+          message: expect.stringMatching(/size.*resource limits/),
+        },
+      });
+    }
+    expect((await stat(f.source)).size).toBe(size);
+    expect((await stat(meta)).size).toBe(size);
+    expect(await readdir(path.dirname(f.source))).toEqual([path.basename(f.source)]);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("frozen recovery preserves oversized backup and pending evidence", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info);
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  try {
+    expect(await native(app.page, "test_health_write", request(digest(f.before)))).toMatchObject({
+      status: "applied",
+    });
+    const parent = path.dirname(f.source);
+    const names = await readdir(parent);
+    const backup = path.join(
+      parent,
+      names.find((name) => name.includes(".bak-health-"))!,
+    );
+    const receipt = path.join(parent, `.${path.basename(f.source)}.health-pending.json`);
+    const originalReceipt = await readFile(receipt);
+    const applied = await readFile(f.source);
+    await truncate(backup, 32 * 1024 * 1024 + 1);
+    expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+      status: "conflict",
+      reason: "save_unsupported",
+    });
+    expect(await readFile(receipt)).toEqual(originalReceipt);
+    expect(await readFile(f.source)).toEqual(applied);
+    expect((await stat(backup)).size).toBe(32 * 1024 * 1024 + 1);
+    expect(await readdir(parent)).toEqual(names);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+for (const final of ["not_running", "running", "unknown", "query_error"]) {
+  test(`final ${final}: frozen Python blocks unsafe replacement`, async ({ browserName }, info) => {
+    expect(browserName).toBe("chromium");
+    const f = await fixture(info);
+    const app = await launch(f.executable, f.home, {
+      REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+      REPODITOR_RECOVERY_FINAL_GAME_STATUS: final,
+    });
+    try {
+      const opened = await native<Opened>(app.page, "saves_open", { saveId: E2E_SAVE_ID });
+      const applied = final === "not_running";
+      const rejectedReason = final === "running" ? "game_running" : "game_status_unknown";
+      const expectedReason = applied ? null : rejectedReason;
+      const result = await native<Transaction>(
+        app.page,
+        "test_health_write",
+        request(opened.data.session.fingerprint),
+      );
+      expect(result).toMatchObject({
+        status: applied ? "applied" : "uncertain",
+        reason: expectedReason,
+      });
+      if (!applied) expect(await readFile(f.source)).toEqual(f.before);
+      await exactBackup(f.source, f.before);
+      expect(await pending(f.source)).toMatchObject({ version: 3, phase: "verified" });
+      expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+        status: applied ? "applied" : "unchanged",
+        backupAvailable: true,
+      });
+    } finally {
+      await close(app.child, app.browser);
+    }
+  });
+}
+
+for (const host of ["REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", "REPODITOR_SAFETY_NO_ACL_HOST"]) {
+  test(`${host}: full synthetic environment cannot grant missing authority`, async ({
+    browserName,
+  }, info) => {
+    expect(browserName).toBe("chromium");
+    const f = await fixture(info, host, true);
+    const app = await launch(f.executable, f.home);
+    try {
+      for (const command of [
+        "test_health_state",
+        "test_health_write",
+        "test_upgrades_write",
+        "test_run_write",
+        "test_health_recover",
+        "saves_write",
+        "backend_exec",
+        "plugin:fs|write_text_file",
+        "plugin:shell|execute",
+      ]) {
+        const args =
+          command === "test_health_state" ? { saveId: E2E_SAVE_ID } : request(digest(f.before));
+        const result = await native(app.page, command, args).catch((error: unknown) =>
+          String(error),
+        );
+        expect(result).toMatch(/not found|not allowed|not permitted|denied/i);
+      }
+      expect(await readFile(f.source)).toEqual(f.before);
+      expect(
+        (await readdir(path.dirname(f.source))).filter(
+          (name) => name.includes("health") || name.includes(".bak"),
+        ),
+      ).toEqual([]);
+    } finally {
+      await close(app.child, app.browser);
+    }
+  });
+}
+
+test("explicit synthetic UI retains its authorized health and recovery behavior", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_SAFETY_UI_HOST");
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  try {
+    expect(await native(app.page, "test_health_state", { saveId: E2E_SAVE_ID })).toMatchObject({
+      enabled: true,
+      state: "idle",
+    });
+    await app.page.getByRole("button", { name: /Open workspace/ }).click();
+    const playersTab = app.page.getByRole("tab", { name: "Players", exact: true });
+    await playersTab.click();
+    await expect(app.page.getByTestId("health-status")).toHaveAttribute("data-phase", "editing");
+    const health = app.page.getByRole("spinbutton", { name: "Current health" });
+    await health.fill("29");
+    await health.press("Tab");
+    await expect(playersTab).toHaveAttribute("aria-describedby", "native-players-pending");
+    await expect(app.page.locator("#native-players-pending")).toHaveText("1 pending change");
+    await playersTab.focus();
+    await playersTab.press("ArrowRight");
+    await expect(playersTab).toHaveAttribute("aria-describedby", "native-players-pending");
+    await app.page.getByRole("button", { name: "Revert all", exact: true }).click();
+    await expect(app.page.locator("#native-players-pending")).toHaveCount(0);
+    expect(await playersTab.getAttribute("aria-describedby")).toBeNull();
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
+      status: "applied",
+      backupAvailable: true,
+    });
+    await exactBackup(f.source, f.before);
+    expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+      status: "applied",
+      canonical: {
+        players: expect.arrayContaining([expect.objectContaining({ id: "111", health: 17 })]),
+      },
+    });
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("two native hosts serialize writers and reconcile cancellation", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info);
+  const secondHome = path.join(f.home, "second-host");
+  await mkdir(secondHome);
+  const secondExecutable = path.join(secondHome, "repoditor-preview.exe");
+  await stageTestExecutable(f.executable, secondExecutable);
+  await stageFrozenBackend(secondHome, required("REPODITOR_RECOVERY_BACKEND"));
+  const marker = path.join(f.home, "phase.json");
+  const shared = {
+    REPODITOR_E2E_LOCAL_APP_DATA_LOW: path.join(f.home, "AppData/LocalLow"),
+    REPODITOR_E2E_STEAM_ROOT: path.join(f.home, "SteamLibrary"),
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  };
+  const first = await launch(f.executable, f.home, {
+    ...shared,
+    REPODITOR_RECOVERY_PHASE: "before_replace",
+    REPODITOR_RECOVERY_PHASE_FILE: marker,
+  });
+  let second: Awaited<ReturnType<typeof launch>> | undefined;
+  try {
+    second = await launch(secondExecutable, secondHome, shared);
+    const writing = native<Transaction>(first.page, "test_health_write", request(digest(f.before)));
+    await expect
+      .poll(async () => {
+        try {
+          return (JSON.parse(await readFile(marker, "utf8")) as { phase: string }).phase;
+        } catch {
+          return "";
+        }
+      })
+      .toBe("before_replace");
+    expect(
+      await native(second.page, "test_health_write", request(digest(f.before), "b".repeat(32))),
+    ).toMatchObject({ status: "rejected", reason: "write_busy" });
+    expect(await readFile(f.source)).toEqual(f.before);
+    await close(first.child, first.browser);
+    expect(await writing).toMatchObject({ status: "uncertain" });
+    expect(await native(second.page, "test_health_recover", recovery())).toMatchObject({
+      status: "unchanged",
+      backupAvailable: true,
+    });
+  } finally {
+    if (first.child.exitCode === null) await close(first.child, first.browser);
+    if (second?.child.exitCode === null) await close(second.child, second.browser);
+  }
+});
+
+test("a replaced parent remains conflicting across frozen process handoff", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info);
+  const env = isolatedApplicationEnvironment(f.home, path.join(f.home, "AppData/LocalLow"));
+  env.REPODITOR_E2E_STEAM_ROOT = path.join(f.home, "SteamLibrary");
+  env.REPODITOR_RECOVERY_SYNTHETIC_STATUS = "not_running";
+  const prepared = JSON.parse(
+    execFileSync(
+      path.join(required("REPODITOR_RECOVERY_BACKEND"), "repoditor-backend.exe"),
+      [
+        "health-prepare",
+        E2E_SAVE_ID,
+        digest(f.before),
+        JSON.stringify([{ feature: "players", entity: "111", field: "health", after: 17 }]),
+        OP,
+      ],
+      { cwd: f.home, env, windowsHide: true, timeout: 15_000 },
+    ).toString(),
+  ) as { transaction: Transaction };
+  expect(prepared.transaction.status).toBe("prepared");
+  const slot = path.dirname(f.source);
+  const moved = `${slot}-previous`;
+  await rename(slot, moved);
+  await mkdir(slot);
+  for (const name of await readdir(moved))
+    await rename(path.join(moved, name), path.join(slot, name));
+  const receipt = await pending(f.source);
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  try {
+    expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+      status: "conflict",
+      reason: "write_conflict",
+    });
+    expect(await readFile(f.source)).toEqual(f.before);
+    expect(await pending(f.source)).toEqual(receipt);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("frozen numeric rejection preserves original bytes and pending evidence", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info);
+  execFileSync(
+    getPythonExecutable(),
+    [
+      "-B",
+      "-c",
+      "import json,sys; from pathlib import Path; from repo_save_editor.core.crypto import _decrypt_plaintext,_encrypt_plaintext; p=Path(sys.argv[1]); d=json.loads(_decrypt_plaintext(p.read_bytes())); d['future']={'value':'__precise__'}; p.write_bytes(_encrypt_plaintext(json.dumps(d).replace(chr(34)+'__precise__'+chr(34),'0.123456789012345678901234567890').encode()))",
+      f.source,
+    ],
+    { cwd: PYTHON_ROOT, windowsHide: true, timeout: 15_000 },
+  );
+  const before = await readFile(f.source);
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  try {
+    expect(await native(app.page, "test_health_write", request(digest(before)))).toMatchObject({
+      status: "uncertain",
+      reason: "save_write_failed",
+    });
+    expect(await readFile(f.source)).toEqual(before);
+    expect(await pending(f.source)).toMatchObject({ version: 3, phase: "prepared" });
+    expect((await readdir(path.dirname(f.source))).some((name) => name.includes(".bak-"))).toBe(
+      false,
+    );
+    const recovered = await native<Transaction>(app.page, "test_health_recover", recovery());
+    expect(recovered).toMatchObject({ status: "unchanged", backupAvailable: false });
+    expect(await native(app.page, "test_health_recover", recovery())).toEqual(recovered);
+    expect(await native(app.page, "test_health_write", request(digest(before)))).toMatchObject({
+      status: "rejected",
+      reason: "write_duplicate",
+    });
+    expect(await readFile(f.source)).toEqual(before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("known builds remain unsupported and missing provenance remains unknown", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_RECOVERY_DEFAULT_EXECUTABLE", true);
+  const manifest = path.join(f.home, "SteamLibrary/steamapps/appmanifest_3241660.acf");
+  const original = await readFile(manifest, "utf8");
+  const app = await launch(f.executable, f.home);
+  try {
+    // Startup discovery owns the same bounded admission lane as these explicit queries.
+    await expect(app.page.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
+    for (const buildId of ["23363152", "26294889", "99999999"]) {
+      await writeFile(manifest, original.replace(/"buildid" "\d+"/, `"buildid" "${buildId}"`));
+      const result = await native(app.page, "environment_detect");
+      expect(result, JSON.stringify(result)).toMatchObject({
+        ok: true,
+        data: { healthWriteCompatibility: { buildId, status: "unsupported", supported: false } },
+      });
+    }
+    await writeFile(manifest, "malformed synthetic manifest");
+    expect(await native(app.page, "environment_detect")).toMatchObject({
+      ok: true,
+      data: { healthWriteCompatibility: { buildId: null, status: "unknown", supported: false } },
+    });
+    expect(await readFile(f.source)).toEqual(f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+});
+
+test("offline recovery preserves conflict evidence and restores exact backup bytes", async ({
+  browserName,
+}, info) => {
+  expect(browserName).toBe("chromium");
+  const f = await fixture(info, "REPODITOR_SAFETY_UI_HOST");
+  const app = await launch(f.executable, f.home, {
+    REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+  });
+  const receiptPath = path.join(
+    path.dirname(f.source),
+    `.${path.basename(f.source)}.health-pending.json`,
+  );
+  try {
+    await openRunWorkspace(app.page);
+    expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
+      status: "applied",
+    });
+    // A fresh encryption of the fixture gives conflicting bytes; no pending intent is replayed.
+    await createRunSaveFixture(f.home);
+    const conflicting = await readFile(f.source);
+    expect(conflicting).not.toEqual(f.before);
+    const receipt = await readFile(receiptPath);
+    expect(await native(app.page, "test_health_state", { saveId: E2E_SAVE_ID })).toMatchObject({
+      state: "pending",
+    });
+    expect(await readFile(receiptPath)).toEqual(receipt);
+    expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+      status: "conflict",
+      reason: "write_conflict",
+    });
+    expect(await readFile(f.source)).toEqual(conflicting);
+    expect(await readFile(receiptPath)).toEqual(receipt);
+    await exactBackup(f.source, f.before);
+  } finally {
+    await close(app.child, app.browser);
+  }
+  const slot = path.dirname(f.source);
+  const intake = path.join(f.home, "intake");
+  await cp(slot, intake, { recursive: true });
+  const backupName = `${path.basename(f.source)}.bak-health-${OP}`;
+  const candidate = await readFile(path.join(intake, backupName));
+  const receipt = JSON.parse(
+    await readFile(path.join(intake, path.basename(receiptPath)), "utf8"),
+  ) as { before: string };
+  expect(digest(candidate)).toBe(receipt.before);
+  expect(candidate).toEqual(f.before);
+  const quarantine = path.join(f.home, "quarantine");
+  await rename(slot, quarantine);
+  await mkdir(slot);
+  await copyFile(path.join(intake, backupName), f.source);
+  expect(await readFile(f.source)).toEqual(f.before);
+  expect(await readFile(path.join(quarantine, path.basename(receiptPath)))).toEqual(
+    await readFile(path.join(intake, path.basename(receiptPath))),
+  );
+  expect(await readdir(slot)).toEqual([path.basename(f.source)]);
+  const ordinary = path.join(f.home, "repoditor-preview-ordinary.exe");
+  await stageTestExecutable(required("REPODITOR_RECOVERY_DEFAULT_EXECUTABLE"), ordinary);
+  const reopened = await launch(ordinary, f.home);
+  try {
+    expect(await native(reopened.page, "saves_open", { saveId: E2E_SAVE_ID })).toMatchObject({
+      ok: true,
+      data: { session: { fingerprint: digest(f.before) } },
+    });
+    expect(
+      await native(reopened.page, "test_health_write", request(digest(f.before))).catch(String),
+    ).toMatch(/not found|not allowed|not permitted|denied/i);
+  } finally {
+    await close(reopened.child, reopened.browser);
+  }
+});
+
+for (const version of [1, 2]) {
+  test(`legacy receipt ${version} remains blocked without rewriting namespace evidence`, async ({
+    browserName,
+  }, info) => {
+    expect(browserName).toBe("chromium");
+    const f = await fixture(info, "REPODITOR_SAFETY_UI_HOST");
+    const app = await launch(f.executable, f.home, {
+      REPODITOR_RECOVERY_SYNTHETIC_STATUS: "not_running",
+    });
+    const receiptPath = path.join(
+      path.dirname(f.source),
+      `.${path.basename(f.source)}.health-pending.json`,
+    );
+    try {
+      await openRunWorkspace(app.page);
+      expect(await workspaceHealthWrite(app.page, digest(f.before))).toMatchObject({
+        status: "applied",
+      });
+      const raw = JSON.parse(await readFile(receiptPath, "utf8")) as Record<string, unknown>;
+      raw.version = version;
+      delete raw.namespace;
+      if (version === 1) delete raw.intent;
+      await writeFile(receiptPath, JSON.stringify(raw));
+      const receipt = await readFile(receiptPath);
+      const source = await readFile(f.source);
+      expect(await native(app.page, "test_health_state", { saveId: E2E_SAVE_ID })).toMatchObject({
+        state: "pending",
+      });
+      expect(await native(app.page, "test_health_recover", recovery())).toMatchObject({
+        status: "conflict",
+        reason: "write_conflict",
+      });
+      expect(await readFile(receiptPath)).toEqual(receipt);
+      expect(await readFile(f.source)).toEqual(source);
+      await exactBackup(f.source, f.before);
+    } finally {
+      await close(app.child, app.browser);
+    }
+  });
+}

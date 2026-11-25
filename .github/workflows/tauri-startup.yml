@@ -38,7 +38,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri
       - name: Test the ordinary read-only packaged startup
-        run: pwsh -NoProfile -File scripts/tauri/test-tauri-safety.ps1 -TestBrowserArgs -OutputDirectory build/tauri-startup-comparison
+        run: npm run test:tauri-safety -- -TestBrowserArgs -OutputDirectory build/tauri-startup-comparison
       - name: Preserve bounded comparison evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
