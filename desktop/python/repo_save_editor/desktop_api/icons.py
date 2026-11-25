@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import cast
 
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
-from repo_save_editor.desktop_api.saves import load_discovered_save
-from repo_save_editor.services.baked_artwork import (
+from repo_save_editor.desktop_api.saves.saves import load_discovered_save
+from repo_save_editor.services.artwork.baked_artwork import (
     MAX_NATIVE_ITEM_BATCH,
     discover_baked_artwork,
     read_baked_item_pngs,
 )
-from repo_save_editor.services.editor_artwork_cache import cached_editor_images
+from repo_save_editor.services.artwork.editor_artwork_cache import cached_editor_images
 from repo_save_editor.services.game.installed_build import (
     artwork_installation,
     installed_build_identity,

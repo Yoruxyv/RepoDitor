@@ -4,11 +4,13 @@ from types import SimpleNamespace
 import pytest
 
 from repo_save_editor.core.crypto import encrypt_save
-from repo_save_editor.desktop_api import __main__ as cli
-from repo_save_editor.desktop_api import editor_entry, items, saves
+from repo_save_editor.desktop_api import items
+from repo_save_editor.desktop_api import read_commands as cli
+from repo_save_editor.desktop_api.editor import editor_entry
 from repo_save_editor.desktop_api.player.players import list_players
-from repo_save_editor.desktop_api.run import get_run_state
-from repo_save_editor.services import baked_artwork
+from repo_save_editor.desktop_api.saves import saves
+from repo_save_editor.desktop_api.saves.run import get_run_state
+from repo_save_editor.services.artwork import baked_artwork
 from repo_save_editor.services.items.discovery import discover_item_type_names
 from repo_save_editor.services.items.models import InstalledItemMetadata, ItemRechargeCapability
 from repo_save_editor.services.player.installed_upgrades import upgrade_item_candidates
@@ -112,6 +114,6 @@ def test_warm_open_proves_installed_sources_before_reading_the_save(monkeypatch,
 
     monkeypatch.setattr(baked_artwork, "entry_artwork_revision", installed_revision)
     monkeypatch.setattr(saves, "open_save", open_save)
-    result = cli._open_save(SimpleNamespace(save_id="slot", native=True, entry_revision=revision))
+    result = cli.open_save(SimpleNamespace(save_id="slot", native=True, entry_revision=revision))
     assert result.get("verifiedEntryRevision") == (revision if matches else None)
     assert checks == ["installation", "slot"]

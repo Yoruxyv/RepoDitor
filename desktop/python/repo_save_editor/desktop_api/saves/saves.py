@@ -17,9 +17,9 @@ from repo_save_editor.core.save_resources import (
     bounded_save_operation,
 )
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.editor.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure, save_access_reason
-from repo_save_editor.desktop_api.run_save_changes import (
+from repo_save_editor.desktop_api.transactions.run_save_changes import (
     apply_run_save_changes,
     requested_refill_item_types,
 )

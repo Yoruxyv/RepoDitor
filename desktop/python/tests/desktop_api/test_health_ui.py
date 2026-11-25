@@ -11,7 +11,7 @@ from shutil import copyfile, copytree
 
 import pytest
 
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage.health_recovery import HealthTransaction
 from repo_save_editor.storage.repository import SaveRepository
@@ -41,7 +41,7 @@ def command(home, *args):
     }
     environment.pop("REPO_GAME_DIR", None)
     result = subprocess.run(  # noqa: S603 -- fixed test interpreter/entry and synthetic arguments.
-        [PYTHON, "-B", str(PROJECT / "desktop/e2e/support/recovery-sidecar.py"), *args],
+        [PYTHON, "-B", str(PROJECT / "desktop/e2e/support/fixtures/recovery-sidecar.py"), *args],
         cwd=PROJECT,
         env=environment,
         capture_output=True,

@@ -7,9 +7,12 @@ from pathlib import Path
 import pytest
 
 from desktop.scripts.tauri import artwork_cache as cli
-from repo_save_editor.services import editor_artwork_cache
-from repo_save_editor.services.cache_activity import CacheBusyError, cache_activity
-from repo_save_editor.services.native_artwork_cache import artwork_cache_root, native_artwork_cache
+from repo_save_editor.services.artwork import editor_artwork_cache
+from repo_save_editor.services.artwork.cache_activity import CacheBusyError, cache_activity
+from repo_save_editor.services.artwork.native_artwork_cache import (
+    artwork_cache_root,
+    native_artwork_cache,
+)
 from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 

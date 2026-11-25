@@ -10,9 +10,9 @@ from repo_save_editor.desktop_api.items import editor_item_metadata, serialize_a
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.player.upgrades import serialize_upgrades
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
-from repo_save_editor.desktop_api.run import serialize_run
-from repo_save_editor.desktop_api.saves import load_discovered_save, open_save
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
+from repo_save_editor.desktop_api.saves.run import serialize_run
+from repo_save_editor.desktop_api.saves.saves import load_discovered_save, open_save
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.items.discovery import discover_item_type_names
 from repo_save_editor.services.items.models import AdvancedSaveError
 from repo_save_editor.services.player.installed_upgrades import (

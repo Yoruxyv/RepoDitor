@@ -11,10 +11,10 @@ import pytest
 
 from repo_save_editor.core import save_resources
 from repo_save_editor.core.crypto import _decrypt_plaintext, _encrypt_plaintext, decrypt_save
-from repo_save_editor.desktop_api import meta_transactions as api
-from repo_save_editor.desktop_api import production_health as run_admission
-from repo_save_editor.desktop_api import production_meta as production
-from repo_save_editor.desktop_api.cosmetics import save_cosmetics
+from repo_save_editor.desktop_api.cosmetics.cosmetics import save_cosmetics
+from repo_save_editor.desktop_api.transactions import meta_transactions as api
+from repo_save_editor.desktop_api.transactions import production_health as run_admission
+from repo_save_editor.desktop_api.transactions import production_meta as production
 from repo_save_editor.services.cosmetics import admission, synthetic_fixture
 from repo_save_editor.services.cosmetics.synthetic_fixture import MANIFEST, PIN
 from repo_save_editor.services.game.processes import GameProcessStatus as Status
@@ -23,6 +23,7 @@ from repo_save_editor.services.game.write_evidence import (
     ApprovedWriteSources,
 )
 from repo_save_editor.storage import health_recovery as storage
+from repo_save_editor.storage import receipt_intents
 from repo_save_editor.storage.health_recovery import Receipt, _receipt_bytes
 
 OP = "a" * 32
@@ -449,7 +450,7 @@ def test_meta_intents_keep_the_existing_receipt_and_numeric_bounds():
     value = {
         "metaCosmetics": {"action": "unlockIds", "admission": "a" * 64, "ids": list(range(457))}
     }
-    assert storage.valid_meta_intent(value)
+    assert receipt_intents.valid_meta_intent(value)
     receipt = Receipt(
         OP,
         "MetaSave.es3",
@@ -474,7 +475,7 @@ def test_meta_intents_keep_the_existing_receipt_and_numeric_bounds():
     ]:
         damaged = deepcopy(value)
         damaged["metaCosmetics"][field] = bad
-        assert not storage.valid_meta_intent(damaged)
+        assert not receipt_intents.valid_meta_intent(damaged)
 
 
 def test_recovery_receipt_proofs_do_not_consume_encrypted_save_budget(fixture, monkeypatch):

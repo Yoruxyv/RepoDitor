@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.desktop_api.health_recovery import health_state, recover_health
+from repo_save_editor.desktop_api.transactions.health_recovery import health_state, recover_health
 from repo_save_editor.services.cosmetics.schema import validate_meta_save
 from repo_save_editor.storage.repository import EncryptedSaveRepository, SaveRepository
 
@@ -24,8 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / 'desktop/python'))
 if sys.platform == 'win32':
     sys.path.insert(0, str(Path.cwd() / '.venv/Lib/site-packages'))
-from repo_save_editor.desktop_api import saves, cosmetics
-from repo_save_editor.desktop_api.health_recovery import prepare_health, write_health
+from repo_save_editor.desktop_api.cosmetics import cosmetics
+from repo_save_editor.desktop_api.saves import saves
+from repo_save_editor.desktop_api.transactions.health_recovery import prepare_health, write_health
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.storage.health_recovery import HealthTransaction

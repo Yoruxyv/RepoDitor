@@ -12,12 +12,8 @@ from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from repo_save_editor.services.cache_activity import CacheBusyError, offline_cache
-from repo_save_editor.services.game.processes import (
-    ProcessInspectionError,
-    inspect_windows_processes,
-)
-from repo_save_editor.services.native_artwork_cache import (
+from repo_save_editor.services.artwork.cache_activity import CacheBusyError, offline_cache
+from repo_save_editor.services.artwork.native_artwork_cache import (
     CACHE_VERSION,
     CATALOG_LIMIT,
     DIAGNOSTICS_FILE,
@@ -31,6 +27,10 @@ from repo_save_editor.services.native_artwork_cache import (
     NativeArtworkCache,
     artwork_cache_root,
     png_identity,
+)
+from repo_save_editor.services.game.processes import (
+    ProcessInspectionError,
+    inspect_windows_processes,
 )
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 

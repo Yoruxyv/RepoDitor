@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
-from repo_save_editor.services.baked_artwork import discover_baked_artwork
+from repo_save_editor.services.artwork.baked_artwork import discover_baked_artwork
 from repo_save_editor.services.cosmetics.installed_catalog import (
     MAX_OPEN_FILES,
     _parse_cached_catalog,

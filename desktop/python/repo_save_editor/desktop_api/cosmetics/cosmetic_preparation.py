@@ -9,7 +9,7 @@ import json
 from collections.abc import Callable
 from typing import BinaryIO, Final
 
-from repo_save_editor.desktop_api.cosmetic_artwork import serialize_cosmetic_artwork
+from repo_save_editor.desktop_api.cosmetics.cosmetic_artwork import serialize_cosmetic_artwork
 from repo_save_editor.services.cosmetics.installed_artwork import (
     CosmeticArtworkError,
     DecodedCosmeticArtwork,

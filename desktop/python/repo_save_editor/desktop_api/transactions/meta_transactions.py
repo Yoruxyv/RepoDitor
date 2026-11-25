@@ -10,13 +10,13 @@ from typing import Any, TypedDict, cast
 
 from repo_save_editor.core.crypto import encrypt_save_fields
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
-from repo_save_editor.desktop_api.cosmetics import (
+from repo_save_editor.desktop_api.cosmetics.cosmetics import (
     _apply_changes,
     _load_meta_save,
     _meta_path,
     _serialize,
 )
-from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.editor.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
 from repo_save_editor.services.cosmetics.admission import admit_cosmetics
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
@@ -26,9 +26,9 @@ from repo_save_editor.storage.health_recovery import (
     RecoveryError,
     health_lock,
     inspect_pending,
-    valid_meta_intent,
     valid_operation,
 )
+from repo_save_editor.storage.receipt_intents import valid_meta_intent
 from repo_save_editor.storage.repository import (
     SaveBackupError,
     SaveStaleError,

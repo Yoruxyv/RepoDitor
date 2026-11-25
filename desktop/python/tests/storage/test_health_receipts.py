@@ -6,7 +6,7 @@ from hashlib import sha256
 
 import pytest
 
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as storage
 from repo_save_editor.storage.repository import SaveRepository

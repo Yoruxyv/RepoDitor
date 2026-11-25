@@ -10,22 +10,22 @@ from typing import Any, cast
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
 from repo_save_editor.core.schema import SAVE_INT32_MAX, get_dictionaries
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.editor.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.items import RechargeCapabilityLoader, serialize_advanced_save
 from repo_save_editor.desktop_api.player.players import serialize_players
 from repo_save_editor.desktop_api.player.upgrades import serialize_upgrades
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, save_access_reason
-from repo_save_editor.desktop_api.run import serialize_run
-from repo_save_editor.desktop_api.run_save_changes import (
-    apply_run_save_changes,
-    requested_refill_item_types,
-)
-from repo_save_editor.desktop_api.saves import (
+from repo_save_editor.desktop_api.saves.run import serialize_run
+from repo_save_editor.desktop_api.saves.saves import (
     load_discovered_save,
     save_changes,
     serialize_open_save,
 )
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
+from repo_save_editor.desktop_api.transactions.run_save_changes import (
+    apply_run_save_changes,
+    requested_refill_item_types,
+)
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.game.processes import GameProcessStatus, get_game_process_status
 from repo_save_editor.services.items.discovery import discover_advanced_save
 from repo_save_editor.services.items.models import ItemRechargeCapability
@@ -43,9 +43,11 @@ from repo_save_editor.storage.health_recovery import (
     _snapshot,
     health_lock,
     inspect_pending,
+    valid_operation,
+)
+from repo_save_editor.storage.receipt_intents import (
     valid_health_batch_intent,
     valid_mixed_intent,
-    valid_operation,
     valid_refill_intent,
     valid_run_intent,
     valid_upgrade_intent,

@@ -19,19 +19,19 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import GameInstallation, discover_game_installation
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     UNITY_VERSION,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     aligned_string as _aligned_string,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     mono_script as _mono_script,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     pptr as _pptr,
 )
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     write_serialized_file as _write_serialized_file,
 )
 

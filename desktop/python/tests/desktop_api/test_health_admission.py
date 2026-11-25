@@ -9,9 +9,9 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from repo_save_editor.core.crypto import _encrypt_plaintext, decrypt_save, encrypt_save
-from repo_save_editor.desktop_api.health_admission import FixtureHealthTransaction
-from repo_save_editor.desktop_api.health_recovery import prepare_health
-from repo_save_editor.desktop_api.saves import save_changes
+from repo_save_editor.desktop_api.saves.saves import save_changes
+from repo_save_editor.desktop_api.transactions.health_admission import FixtureHealthTransaction
+from repo_save_editor.desktop_api.transactions.health_recovery import prepare_health
 from repo_save_editor.services.game.processes import GameProcessStatus, ProcessInspectionError
 from repo_save_editor.storage.health_recovery import (
     HealthTransaction,

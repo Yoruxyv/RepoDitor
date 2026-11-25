@@ -14,8 +14,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from repo_save_editor.desktop_api import production_health as admission
-from repo_save_editor.desktop_api import production_meta as meta_admission
+from repo_save_editor.desktop_api.transactions import production_health as admission
+from repo_save_editor.desktop_api.transactions import production_meta as meta_admission
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.discovery import (
     APP_MANIFEST_NAME,
@@ -351,8 +351,8 @@ import json, sys
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
-from repo_save_editor.desktop_api import health_recovery as transactions
-from repo_save_editor.desktop_api import production_health as health
+from repo_save_editor.desktop_api.transactions import health_recovery as transactions
+from repo_save_editor.desktop_api.transactions import production_health as health
 from repo_save_editor.services.items.models import ItemRechargeCapability
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.game.processes import ProcessInspection

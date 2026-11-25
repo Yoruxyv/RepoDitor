@@ -11,15 +11,16 @@ import struct
 from hashlib import sha256
 from importlib import import_module
 
-from repo_save_editor.desktop_api.cosmetics import _meta_path, get_cosmetics
+from repo_save_editor.desktop_api.cosmetics.cosmetics import _meta_path, get_cosmetics
 from repo_save_editor.desktop_api.protocol import DesktopSaveError
-from repo_save_editor.services.baked_artwork import (
+from repo_save_editor.services.artwork.baked_artwork import (
     MAX_IDENTITIES,
     entry_artwork_revision,
     native_cosmetic_catalog,
     read_bound_cosmetic_png,
     read_bound_cosmetic_pngs,
 )
+from repo_save_editor.services.artwork.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.cosmetics.installed_artwork import (
     CosmeticArtworkError,
     DecodedCosmeticArtwork,
@@ -29,7 +30,6 @@ from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.presentation_catalog import (
     discover_cosmetic_presentation_catalog,
 )
-from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.storage.repository import read_save_bytes
 
 MAX_ID = 2_000

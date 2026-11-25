@@ -14,7 +14,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Final, Literal, NotRequired, TypedDict
 
-from repo_save_editor.services.cache_activity import cache_activity
+from repo_save_editor.services.artwork.cache_activity import cache_activity
 from repo_save_editor.services.environment.windows_paths import resolve_windows_local_app_data
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 

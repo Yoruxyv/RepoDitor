@@ -5,9 +5,10 @@ from hashlib import sha256
 
 import pytest
 
-from repo_save_editor.desktop_api import health_recovery as api
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery as storage
+from repo_save_editor.storage import receipt_intents
 from repo_save_editor.storage.repository import SaveRepository
 
 SAVE = "REPO_SAVE_2026_08_08_10_20_30"
@@ -284,9 +285,11 @@ def test_largest_five_field_intent_and_receipt_fit_existing_budgets():
     changes[-1]["before"] = "x" * 64
     intent = {"run": changes}
     assert (
-        len(json.dumps(intent, separators=(",", ":")).encode()) <= storage.RUN_INTENT_LIMIT == 512
+        len(json.dumps(intent, separators=(",", ":")).encode())
+        <= receipt_intents.RUN_INTENT_LIMIT
+        == 512
     )
-    assert storage.valid_run_intent(intent)
+    assert receipt_intents.valid_run_intent(intent)
     receipt = storage.Receipt(
         OP,
         f"{SAVE}.es3",
@@ -303,4 +306,4 @@ def test_largest_five_field_intent_and_receipt_fit_existing_budgets():
     )
     assert len(storage._receipt_bytes(receipt)) < 4096
     changes[-1]["before"] += "x"
-    assert not storage.valid_run_intent(intent)
+    assert not receipt_intents.valid_run_intent(intent)

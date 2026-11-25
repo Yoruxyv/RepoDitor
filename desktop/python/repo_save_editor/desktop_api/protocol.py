@@ -1,4 +1,4 @@
-"""Stable result and error primitives for the Electron-facing desktop protocol."""
+"""Stable result and error primitives for the desktop sidecar protocol."""
 
 from __future__ import annotations
 
@@ -28,6 +28,10 @@ def save_access_reason(error: BaseException) -> str | None:
 
 def _failure(code: str, message: str) -> dict[str, object]:
     return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def invalid_request(message: str) -> dict[str, object]:
+    return _failure("invalid_request", message)
 
 
 class DesktopSaveError(Exception):

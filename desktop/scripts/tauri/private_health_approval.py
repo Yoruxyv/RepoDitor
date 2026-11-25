@@ -25,7 +25,7 @@ from validate_run_fixture import (
 from repo_save_editor.core.save_resources import read_encrypted
 from repo_save_editor.core.schema import get_dictionaries
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api.production_health import (
+from repo_save_editor.desktop_api.transactions.production_health import (
     _installed_game,
     _process_status,
     _source_pins,

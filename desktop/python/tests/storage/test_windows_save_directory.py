@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from repo_save_editor.desktop_api import health_recovery as api
-from repo_save_editor.desktop_api.saves import save_changes
+from repo_save_editor.desktop_api.saves.saves import save_changes
+from repo_save_editor.desktop_api.transactions import health_recovery as api
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.storage import health_recovery
 from repo_save_editor.storage.health_recovery import HealthTransaction, health_lock

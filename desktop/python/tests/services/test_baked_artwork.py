@@ -12,19 +12,19 @@ from types import SimpleNamespace
 
 import pytest
 
-from repo_save_editor.services import baked_artwork as baked
+from repo_save_editor.services.artwork import baked_artwork as baked
+from repo_save_editor.services.artwork.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.cosmetics import presentation_catalog as presentation
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.cosmetics.policy import mutation_eligible_ids
 from repo_save_editor.services.game import installed_build
 from repo_save_editor.services.game.discovery import GameInstallation
 from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
-from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.texture_codec import encode_rgba_png
 from repo_save_editor.services.unity_artwork import SUNSTONE_UNITY_VERSION
 from repo_save_editor.services.unity_hash import unity_hash128
 from tests.services.test_installed_cosmetic_catalog import _build_install, _cosmetic_asset
-from tests.unity_serialized_fixture import (
+from tools.capabilities.tests.unity_serialized_fixture import (
     aligned_string,
     mono_script,
     pptr,

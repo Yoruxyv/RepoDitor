@@ -13,7 +13,7 @@ from repo_save_editor.core.save_resources import (
     bounded_save_operation,
 )
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.editor.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, _failure
 from repo_save_editor.services.cosmetics.discovery import discover_cosmetics
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata

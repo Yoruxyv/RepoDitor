@@ -17,7 +17,7 @@ from repo_save_editor.core.crypto import SaveCryptoError
 from repo_save_editor.core.save_resources import SaveResourceError, bounded_save_operation
 from repo_save_editor.core.schema import SAVE_INT32_MAX, get_dictionaries, get_typed_value
 from repo_save_editor.core.types import SaveData
-from repo_save_editor.desktop_api.game_status import GameSafetyError, require_game_closed
+from repo_save_editor.desktop_api.editor.game_status import GameSafetyError, require_game_closed
 from repo_save_editor.desktop_api.protocol import DesktopSaveError, save_access_reason
 from repo_save_editor.services.game.processes import GameProcessStatus
 from repo_save_editor.services.player.state import set_player_health
@@ -40,7 +40,7 @@ from repo_save_editor.storage.repository import (
 from repo_save_editor.storage.windows_save_directory import SaveDirectory
 
 _GRANT_SECONDS = 60
-_FIXTURE_AREA = Path(__file__).resolve().parents[3] / "build" / "health-admission-fixtures"
+_FIXTURE_AREA = Path(__file__).resolve().parents[4] / "build" / "health-admission-fixtures"
 
 
 @dataclass(frozen=True, slots=True)

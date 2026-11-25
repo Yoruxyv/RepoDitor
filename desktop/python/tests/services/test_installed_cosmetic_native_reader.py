@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from repo_save_editor.desktop_api import production_meta as meta_admission
+from repo_save_editor.desktop_api.transactions import production_meta as meta_admission
 from repo_save_editor.services.cosmetics import installed_reader as pinned_reader
 from repo_save_editor.services.cosmetics import installed_reader_native as native_reader
 from repo_save_editor.services.cosmetics.installed_catalog import _catalog_payload

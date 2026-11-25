@@ -13,8 +13,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
-from repo_save_editor.services.native_artwork_cache import (
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
+from repo_save_editor.services.artwork.native_artwork_cache import (
     EditorScope,
     NativeArtworkCache,
     cacheable_png,

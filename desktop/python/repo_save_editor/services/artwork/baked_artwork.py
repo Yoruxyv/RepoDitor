@@ -20,7 +20,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Final
 
-from repo_save_editor.services.native_artwork_cache import (
+from repo_save_editor.services.artwork.native_artwork_cache import (
     PNG_SLOTS,
     NativeArtworkCache,
     cacheable_png,

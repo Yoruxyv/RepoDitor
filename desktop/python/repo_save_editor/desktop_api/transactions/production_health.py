@@ -9,7 +9,7 @@ from pathlib import Path
 from sys import platform
 from typing import Final, cast
 
-from repo_save_editor.desktop_api.health_recovery import (
+from repo_save_editor.desktop_api.transactions.health_recovery import (
     _outcome,
     health_state,
     prepare_health,
@@ -48,8 +48,8 @@ from repo_save_editor.services.saves.private_health import (
     private_bundle,
     read_approval,
 )
-from repo_save_editor.storage.health_recovery import (
-    RecoveryError,
+from repo_save_editor.storage.health_recovery import RecoveryError
+from repo_save_editor.storage.receipt_intents import (
     valid_health_batch_intent,
     valid_mixed_intent,
     valid_refill_intent,

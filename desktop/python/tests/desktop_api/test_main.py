@@ -8,9 +8,11 @@ from types import SimpleNamespace
 import pytest
 
 import repo_save_editor.desktop_api.__main__ as desktop_main
-from repo_save_editor.desktop_api import cosmetics, game_assets, game_status, saves
+from repo_save_editor.desktop_api.cosmetics import cosmetics
 from repo_save_editor.desktop_api.discovery import maps
 from repo_save_editor.desktop_api.discovery.environment import serialize_environment
+from repo_save_editor.desktop_api.editor import game_assets, game_status
+from repo_save_editor.desktop_api.saves import saves
 from repo_save_editor.services.game.discovery import discover_game_installation
 from repo_save_editor.services.saves.discovery import (
     SaveDiscoveryResult,
@@ -23,12 +25,12 @@ from repo_save_editor.services.saves.discovery import (
     ("command", "target", "arguments", "expected_call"),
     [
         ("environment", "discovery.environment:discover_environment", (), ()),
-        ("game-status", "game_status:get_game_status", (), ()),
+        ("game-status", "editor.game_status:get_game_status", (), ()),
         ("maps-list", "discovery.maps:list_maps", (), ()),
         ("maps-list", "discovery.maps:list_maps", ("--entry-artwork-proof",), ()),
         ("icons-roots", "icons:get_icon_roots", (), ()),
-        ("cosmetics-get", "cosmetics:get_cosmetics", (), ()),
-        ("saves-open", "saves:open_save", ("save-id",), ("save-id",)),
+        ("cosmetics-get", "cosmetics.cosmetics:get_cosmetics", (), ()),
+        ("saves-open", "saves.saves:open_save", ("save-id",), ("save-id",)),
         ("players-list", "player.players:list_players", ("save-id",), ("save-id",)),
         (
             "players-avatar",
@@ -37,7 +39,7 @@ from repo_save_editor.services.saves.discovery import (
             ("save-id", "player-id"),
         ),
         ("upgrades-list", "player.upgrades:list_upgrades", ("save-id",), ("save-id",)),
-        ("run-get", "run:get_run_state", ("save-id",), ("save-id",)),
+        ("run-get", "saves.run:get_run_state", ("save-id",), ("save-id",)),
         ("advanced-get", "items:get_advanced_save", ("save-id",), ("save-id",)),
         (
             "advanced-get",

@@ -7,20 +7,21 @@ from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 
-from repo_save_editor.desktop_api.meta_transactions import (
+from repo_save_editor.desktop_api.transactions.meta_transactions import (
     _failure,
     meta_recover,
     meta_state,
     meta_write,
 )
-from repo_save_editor.desktop_api.production_health import (
+from repo_save_editor.desktop_api.transactions.production_health import (
     _installed_game,
     _process_status,
     _verify_private_sources,
     _verify_public_sources,
     verified_private_game,
 )
-from repo_save_editor.services.baked_artwork import entry_artwork_revision
+from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
+from repo_save_editor.services.artwork.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.cosmetics.installed_catalog import (
     _catalog_payload,
     _parse_cached_catalog,
@@ -32,7 +33,6 @@ from repo_save_editor.services.game.write_evidence import (
     SAVE_FORMAT_PINS,
     source_pins_match,
 )
-from repo_save_editor.services.native_artwork_cache import native_artwork_cache
 from repo_save_editor.services.saves.discovery import get_default_save_root
 from repo_save_editor.services.saves.private_health import Bundle, private_bundle
 from repo_save_editor.storage.health_recovery import RecoveryError

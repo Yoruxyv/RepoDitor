@@ -13,7 +13,7 @@ from repo_save_editor.services.unity_serialized import (
     UnityMetadataError,
 )
 from repo_save_editor.services.unity_textures import parse_texture2d
-from tests.unity_serialized_fixture import aligned_string, write_serialized_file
+from tools.capabilities.tests.unity_serialized_fixture import aligned_string, write_serialized_file
 
 
 def _texture_bytes(*, legacy: bool) -> bytes:
