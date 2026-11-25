@@ -1,5 +1,6 @@
-use super::*;
+use super::{image::MAX_PNG, *};
 use crate::projections::upgrades;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
 
 fn upgrades(count: usize) -> Vec<Upgrade> {

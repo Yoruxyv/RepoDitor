@@ -1,4 +1,5 @@
 use super::*;
+use crate::backend::artwork;
 
 #[test]
 fn background_upgrades_are_bounded_separately_and_cancel_when_the_save_closes() {
@@ -16,8 +17,8 @@ fn background_upgrades_are_bounded_separately_and_cancel_when_the_save_closes() 
     let held = state.domain_worker.lock().unwrap();
     let mut request = Request::reserve(state.clone(), slot).unwrap();
     assert!(Request::reserve(state.clone(), slot).is_err());
-    request.2 = cancelled;
-    request.3 = true;
+    request.cancelled = cancelled;
+    request.background = true;
     let executable = process::tests::fixture();
     let marker =
         std::env::temp_dir().join(format!("repoditor-upgrades-{}.ready", uuid::Uuid::new_v4()));
@@ -92,12 +93,12 @@ fn artwork_has_one_independent_cancellable_lane() {
         ["map-artwork", &"b".repeat(64), "--", "--family"]
     );
     assert!(Request::reserve(state.clone(), map.slot()).is_err());
-    request.2 = Arc::new(AtomicBool::new(false));
+    request.cancelled = Arc::new(AtomicBool::new(false));
     let executable = process::tests::fixture();
     let marker =
         std::env::temp_dir().join(format!("repoditor-artwork-{}.ready", uuid::Uuid::new_v4()));
     let observed = marker.clone();
-    let cancelled = request.2.clone();
+    let cancelled = request.cancelled.clone();
     let cancellation = std::thread::spawn(move || {
         let started = Instant::now();
         while !observed.exists() && started.elapsed() < Duration::from_secs(4) {
@@ -257,7 +258,7 @@ fn revoked_session_cannot_spawn_a_queued_writer() {
     };
     let held = state.domain_worker.lock().unwrap();
     let mut request = Request::reserve(state.clone(), 9).unwrap();
-    request.4 = Some(editor);
+    request.editor = Some(editor);
     let (ready, queued) = std::sync::mpsc::sync_channel(0);
     let writer = thread::spawn(move || {
         ready.send(()).unwrap();

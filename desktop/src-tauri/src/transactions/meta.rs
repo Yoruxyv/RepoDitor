@@ -1,6 +1,6 @@
 //! Independent MetaSave authority; Python owns evidence and save semantics.
 #[cfg(feature = "synthetic-health-recovery")]
-use super::recovery::test_root;
+use super::recovery::synthetic::test_root;
 use super::{meta_anchor, recovery::save_permissions};
 use crate::{
     backend::{self, HostState, Operation},
@@ -646,5 +646,5 @@ pub async fn recover(app: tauri::AppHandle, raw: Value, production: bool) -> Res
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/synthetic/meta.rs"]
+#[path = "../../tests/unit/transactions/meta.rs"]
 mod tests;
