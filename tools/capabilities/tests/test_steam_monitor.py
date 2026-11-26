@@ -120,6 +120,18 @@ def test_cold_steamcmd_probe_accepts_interleaved_shutdown_and_bootstrap_output()
     assert monitor.observe(payload + b'"another" {}')["failure"] == "metadata"
 
 
+def test_unexpected_trailer_preview_redacts_paths_arguments_and_identifiers() -> None:
+    result = monitor.observe(
+        metadata() + b"Unknown Steam line '/tmp/private' https://example.test "
+        b"token=private 012345678901234567890123456789"
+    )
+    assert result["failure"] == "metadata"
+    assert "Unknown Steam line" in result["reason"]
+    assert "private" not in result["reason"]
+    assert "example.test" not in result["reason"]
+    assert "0123456789" not in result["reason"]
+
+
 @pytest.mark.parametrize(
     ("payload", "client_exit", "failure", "reason"),
     [

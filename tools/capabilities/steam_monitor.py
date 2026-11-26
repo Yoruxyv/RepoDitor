@@ -37,6 +37,9 @@ UNAVAILABLE_LINE = re.compile(
     rf"No app info for AppID {APP_ID}(?:, please request app info using app_info_request)?\.?|"
     r"Connecting anonymously to Steam Public\.\.\.FAILED \((?:No Connection|Timeout)\)"
 )
+CONSOLE_DETAIL = re.compile(
+    r"""(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|\S*[/\\=@]\S*|[A-Za-z0-9_+.-]{24,})"""
+)
 GitHubRequest = Callable[[str, str, dict[str, object] | None], object]
 
 
@@ -104,12 +107,12 @@ def public_build(payload: bytes) -> str:
             raise ValueError("Steam metadata exceeds the nesting limit.")
         tokens.append(lexeme)
         position = match.end()
-    if any(
-        CONSOLE_LINE.fullmatch(line.strip()) is None
-        for line in text[position:].splitlines()
-        if line.strip()
-    ):
-        raise ValueError("Unexpected trailing Steam metadata.")
+    for raw in text[position:].splitlines():
+        line = raw.strip()
+        if line and CONSOLE_LINE.fullmatch(line) is None:
+            preview = CONSOLE_DETAIL.sub("[redacted]", line[:256])
+            preview = re.sub(r"[^a-zA-Z0-9 :.,()\[\]!?_-]", " ", preview)[:120]
+            raise ValueError(f"Unexpected trailing Steam metadata. Console preview: {preview}")
     value: object = _fields(iter(tokens))
     for field in ("depots", "branches", "public"):
         if not isinstance(value, dict) or field not in value:
