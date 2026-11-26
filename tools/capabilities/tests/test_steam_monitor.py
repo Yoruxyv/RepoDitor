@@ -132,12 +132,22 @@ def test_unexpected_trailer_preview_redacts_paths_arguments_and_identifiers() ->
     assert "0123456789" not in result["reason"]
 
 
+def test_linux_steamcmd_color_reset_is_ignored_only_in_console_output() -> None:
+    captured = metadata(NEW_BUILD).replace(
+        b"Unloading Steam API...OK", b"Unloading Steam API...\x1b[0mOK"
+    )
+    assert monitor.observe(captured)["build"] == NEW_BUILD
+
+    malformed = captured.replace(b'"buildid"', b'\x1b[0m"buildid"', 1)
+    assert monitor.observe(malformed)["failure"] == "metadata"
+
+
 @pytest.mark.parametrize(
     ("payload", "client_exit", "failure", "reason"),
     [
         (b"", 0, "unavailable", "did not return"),
         (
-            b"Connecting anonymously to Steam Public...FAILED (No Connection)\n",
+            b"Connecting anonymously to Steam Public...\x1b[31mFAILED (No Connection)\x1b[0m\n",
             0,
             "unavailable",
             "did not return",

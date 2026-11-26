@@ -25,6 +25,7 @@ ISSUE_TITLE = "R.E.P.O. public Steam build compatibility review"
 START = "<!-- repoditor-steam-public-monitor:start -->"
 END = "<!-- repoditor-steam-public-monitor:end -->"
 TOKEN = re.compile(r'\s*("(?:[^"\\]|\\.)*"|[{}])')
+CONSOLE_STYLE = re.compile(r"\x1b\[[0-9;]*m")
 CONSOLE_LINE = re.compile(
     r"(?:Unloading Steam API\.\.\.(?:OK)?|OK|"
     r"(?:Redirecting stderr to|Logging directory:) '[^\r\n]*'|"
@@ -86,10 +87,10 @@ def public_build(payload: bytes) -> str:
     text = payload.decode("utf-8", errors="strict")
     headers = list(re.finditer(r'(?m)^"([0-9]+)"\s*\{', text))
     if not headers:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        lines = CONSOLE_STYLE.sub("", text).strip().splitlines()
         if not lines or (
-            not any(line.startswith(('"', "{", "}")) for line in lines)
-            and any(UNAVAILABLE_LINE.fullmatch(line) for line in lines)
+            not any(line.lstrip().startswith(('"', "{", "}")) for line in lines)
+            and any(UNAVAILABLE_LINE.fullmatch(line.strip()) for line in lines)
         ):
             raise _MetadataUnavailableError("SteamCMD did not return the requested app metadata.")
     if len(headers) != 1 or headers[0][1] != APP_ID:
@@ -108,7 +109,8 @@ def public_build(payload: bytes) -> str:
         tokens.append(lexeme)
         position = match.end()
     for raw in text[position:].splitlines():
-        line = raw.strip()
+        # SteamCMD can reset its terminal colors in the middle of a shutdown line.
+        line = CONSOLE_STYLE.sub("", raw).strip()
         if line and CONSOLE_LINE.fullmatch(line) is None:
             preview = CONSOLE_DETAIL.sub("[redacted]", line[:256])
             preview = re.sub(r"[^a-zA-Z0-9 :.,()\[\]!?_-]", " ", preview)[:120]
