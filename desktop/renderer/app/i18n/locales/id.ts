@@ -38,6 +38,8 @@ export const id: Record<keyof typeof en, string> = {
   "compatibility.missing":
     "Data game yang diperlukan tidak tersedia. Pengeditan terkait tidak tersedia.",
   "compatibility.updates": "Periksa pembaruan",
+  "compatibility.resumeRestricted":
+    "Pengeditan lokasi lanjut memerlukan sumber adegan dan level yang terverifikasi.",
   "app.workspaces": "Ruang kerja RepoDitor",
   "app.runSaves": "Save Run",
   "cosmetics.artwork.title": "Menyiapkan gambar kosmetik",

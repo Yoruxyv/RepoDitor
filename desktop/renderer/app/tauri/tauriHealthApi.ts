@@ -94,9 +94,12 @@ export function upgradeIntentFits(upgrades: readonly UpgradeIntentEdit[]): boole
 }
 
 export type RunEditDomain = keyof MixedEdits;
+export type WriteCompatibility = "verified" | "unverified" | "incompatible";
 
 export interface HealthState {
   domains?: RunEditDomain[];
+  compatibility?: Record<RunEditDomain | "resume", WriteCompatibility>;
+  resumeAllowed?: boolean;
   draftOnly?: boolean;
   production?: boolean;
   enabled: boolean;
@@ -226,7 +229,7 @@ export const tauriHealthApi = {
     }
     try {
       const result = await invoke<HealthState>("production_health_state", { saveId });
-      if (result?.enabled === true) return { ...result, production: true };
+      if (result?.enabled === true || result?.compatibility) return { ...result, production: true };
     } catch {
       // The release host does not expose this candidate command.
     }

@@ -216,18 +216,27 @@ export function TauriWorkspace({
     selectTabWithFocus(SECTIONS[next]!);
   }
   const domains = [
-    ["nav.players", health.healthEnabled, prepared?.players],
-    ["nav.upgrades", health.upgradesEnabled, prepared?.upgrades],
-    ["nav.run", health.runEnabled, prepared?.run],
-    ["nav.items", health.refillsEnabled, prepared?.items],
+    ["nav.players", health.healthEnabled, prepared?.players, "health"],
+    ["nav.upgrades", health.upgradesEnabled, prepared?.upgrades, "upgrades"],
+    ["nav.run", health.runEnabled, prepared?.run, "run"],
+    ["nav.items", health.refillsEnabled, prepared?.items, "refillToFull"],
   ] as const;
   const incompatible = domains
-    .filter(([, , dto]) => dto?.ok === false && dto.error.code === "save_unsupported")
+    .filter(
+      ([, , dto, operation]) =>
+        health.compatibility?.[operation] === "incompatible" ||
+        (dto?.ok === false && dto.error.code === "save_unsupported"),
+    )
     .map(([feature]) => feature);
   const restricted = domains
     .filter(([feature, enabled]) => !enabled && !incompatible.includes(feature))
     .map(([feature]) => feature);
   const build = compatibility?.healthWriteCompatibility?.buildId;
+  const restriction =
+    compatibility &&
+    ((health.enabled || health.compatibility) && compatibility.gameDetected
+      ? "unknown"
+      : installedWriteRestriction(compatibility));
   return (
     <section
       aria-labelledby="workspace-title"
@@ -242,14 +251,10 @@ export function TauriWorkspace({
         <GameCompatibilityNotice build={build} issue="incompatible" features={incompatible} />
       ) : null}
       {active &&
-      compatibility &&
+      restriction &&
       (health.phase === "disabled" || health.production) &&
       restricted.length > 0 ? (
-        <GameCompatibilityNotice
-          build={build}
-          issue={health.enabled ? "unknown" : installedWriteRestriction(compatibility)}
-          features={restricted}
-        />
+        <GameCompatibilityNotice build={build} issue={restriction} features={restricted} />
       ) : null}
       {prepared &&
       Object.values(prepared.artwork).some(({ issues }) => Object.keys(issues).length > 0) ? (

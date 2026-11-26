@@ -721,6 +721,90 @@ describe("native upgrade drafts", () => {
     },
   );
 
+  it("opens Resume on the first click once native admission finishes", async () => {
+    let finish!: (status: Awaited<ReturnType<typeof tauriHealthApi.state>>) => void;
+    vi.mocked(tauriHealthApi.state).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    renderWithPreferences(<TauriWorkspace session={session} onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    const resume = await screen.findByRole<HTMLButtonElement>("combobox", {
+      name: /resume location/i,
+    });
+    expect(resume.disabled).toBe(true);
+    await user.click(resume);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await act(() =>
+      finish({
+        enabled: true,
+        production: true,
+        domains: ["run"],
+        state: "idle",
+        pending: null,
+        canonical: { opened: openResult().data, players, upgrades, run: runState },
+        upgradeSession: "production-session",
+        resumeAllowed: true,
+      }),
+    );
+    expect(screen.getByRole("combobox", { name: /resume location/i })).toBe(resume);
+    expect(resume.disabled).toBe(false);
+    await user.click(resume);
+    expect(screen.getByRole("option", { name: "Shop / Service Station" })).toBeTruthy();
+  });
+
+  it("saves a runtime-verified Health edit normally and limits the restriction to Resume", async () => {
+    vi.mocked(tauriHealthApi.state).mockResolvedValue({
+      enabled: true,
+      production: true,
+      domains: ["health", "upgrades", "run", "refillToFull"],
+      compatibility: {
+        health: "verified",
+        upgrades: "verified",
+        run: "verified",
+        resume: "unverified",
+        refillToFull: "verified",
+      },
+      resumeAllowed: false,
+      state: "idle",
+      pending: null,
+      canonical: { opened: openResult().data, players, upgrades, run: runState },
+      upgradeSession: "production-session",
+    });
+    renderWithPreferences(
+      <TauriWorkspace
+        session={session}
+        onClose={vi.fn()}
+        compatibility={{
+          gameDetected: true,
+          healthWriteCompatibility: { buildId: "9001", status: "unsupported", supported: false },
+        }}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Run" }));
+    await screen.findByText("Resume editing requires verified scene and level sources.");
+    expect(screen.queryByRole("combobox", { name: "Resume Location" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Players" }));
+    const input = await screen.findByRole("spinbutton", { name: "Current health" });
+    await user.clear(input);
+    await user.type(input, "79");
+    const save = screen.getByRole<HTMLButtonElement>("button", { name: "Save Changes" });
+    expect(screen.queryByLabelText("Game compatibility restriction")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(save.disabled).toBe(false);
+    await user.click(save);
+    expect(tauriHealthApi.writeHealthBatch).not.toHaveBeenCalled();
+    await user.click(save);
+    expect(tauriHealthApi.writeHealthBatch).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ health: [{ playerId: "111", before: 80, value: 79 }] }),
+      true,
+    );
+  });
+
   it("reviews and saves the latest Health draft directly from the focused input", async () => {
     vi.mocked(tauriHealthApi.state).mockResolvedValue({
       enabled: true,
