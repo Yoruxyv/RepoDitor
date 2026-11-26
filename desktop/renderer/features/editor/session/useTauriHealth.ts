@@ -99,6 +99,8 @@ export function useTauriHealth(
           draftOnly: result.draftOnly ?? previous.draftOnly,
           production: result.production === true || previous.production,
           domains: result.domains ?? previous.domains,
+          compatibility: result.compatibility,
+          resumeAllowed: result.resumeAllowed,
         };
         if (!result.enabled) {
           return {
@@ -632,13 +634,22 @@ export function useTauriHealth(
       const status = await api.state(session.id);
       if (!mounted.current) return;
       if (status.enabled && status.state === "idle") {
-        setState((current) => ({ ...current, phase: "rejected", reason: result.reason }));
+        setState((current) => ({
+          ...current,
+          phase: "rejected",
+          reason: result.reason,
+          domains: status.domains ?? current.domains,
+          compatibility: status.compatibility,
+          resumeAllowed: status.resumeAllowed,
+        }));
       } else if (state.production && !status.enabled && status.state === "disabled") {
         setState((current) => ({
           ...current,
           phase: "rejected",
+          enabled: false,
           upgradeSession: null,
           reason: result.reason,
+          compatibility: status.compatibility,
         }));
       } else restore(status);
     } else {
@@ -724,6 +735,8 @@ export function useTauriHealth(
     healthEnabled: domainEnabled(state, "health"),
     upgradesEnabled: domainEnabled(state, "upgrades"),
     runEnabled: domainEnabled(state, "run"),
+    resumeAllowed: state.resumeAllowed !== false,
+    compatibility: state.compatibility,
     refillsEnabled: domainEnabled(state, "refillToFull"),
     healthBatchFits:
       state.healthEdits.length === 0 || healthIntentFits(healthIntent(state.healthEdits)),

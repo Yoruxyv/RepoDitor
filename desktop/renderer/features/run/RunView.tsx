@@ -42,6 +42,7 @@ interface RunViewProps {
   readonly onRevert: ((field: string) => void) | null;
   readonly onRetry: () => void;
   readonly resetVersion?: number;
+  readonly resumeChecking?: boolean;
   readonly onValidityChange?: ((field: string, invalid: boolean) => void) | undefined;
   readonly precisionNotice?: boolean;
 }
@@ -80,6 +81,7 @@ export function RunView({
   onRevert,
   onRetry,
   resetVersion = 0,
+  resumeChecking = false,
   onValidityChange,
   precisionNotice = false,
 }: RunViewProps) {
@@ -155,8 +157,8 @@ export function RunView({
             <MapPinIcon aria-hidden="true" className="text-muted" size={15} />
             {resumeLocationLabel}
           </label>
-          <div className="mt-3 flex flex-wrap items-start gap-3">
-            {onResumeChange === null ? (
+          <div aria-busy={resumeChecking} className="mt-3 flex flex-wrap items-start gap-3">
+            {onResumeChange === null && !resumeChecking ? (
               <input
                 aria-label={resumeLocationLabel}
                 className={`${VALUE_CLASS_NAME} min-w-56 max-w-full`}
@@ -169,13 +171,14 @@ export function RunView({
               <Select<string>
                 ariaLabel={resumeLocationLabel}
                 className="min-w-56 max-w-full"
+                disabled={onResumeChange === null}
                 id="run-resume-location"
                 options={run.resumeLocation.options.map((option) => ({
                   label: option,
                   value: option,
                 }))}
                 value={String(resumeEdit?.after ?? run.resumeLocation.value)}
-                onValueChange={onResumeChange}
+                onValueChange={(value) => onResumeChange?.(value)}
               />
             )}
             {resumeEdit ? (

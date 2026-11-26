@@ -42,25 +42,55 @@ identities and the full 557-entry Cosmetics catalog digest also match.
 assets have v0.5.3 hashes. The recharge identities, catalog digest, and
 mutation validators are shared across the two approved revisions.
 
-Approval carries to a new Steam BuildID when the installation has valid Steam
-provenance and the SHA-256 pins for the required domains still match the
-reviewed revision selected by the gameplay sources.
-The live BuildID remains part of session checks. Reopen the editor and the save
-after a Steam update.
+Starting with Desktop v0.3.3, the editor verifies write compatibility locally for each operation. Successful checks enable
+normal editing. An unfamiliar Steam BuildID requires no warning or acknowledgment.
+The BuildID remains part of source identity for in-flight writes.
 
-| Domain                           | Evidence carried forward                                                                                                                                                                                                                                                                                    |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| All edits                        | The game executable, Unity player, `Assembly-CSharp.dll`, and `globalgamemanagers`, plus the ES3 serializer in `Assembly-CSharp-firstpass.dll` and the managed and Mono runtime files it uses. These files cover the game code, ES3 field layout, and crypto implementation reviewed for the private build. |
-| Health, Upgrades, Run and Resume | The reviewed player IDs and fields, upgrade keys and limits, Run field types, and Normal/Shop resume behavior are covered by the shared pins. Existing per-save checks still constrain each edit.                                                                                                           |
-| Item Recharge                    | The shared pins plus `resources.assets` and `globalgamemanagers.assets`, which establish the exact qualified `ItemBattery` identities. Each save still has to contain the exact eligible instance and previous charge.                                                                                      |
-| Cosmetics                        | The shared pins plus `level0`, `globalgamemanagers.assets`, and `sharedassets0.assets`, with the reviewed 557-entry catalog digest. Ownership, equipment, and preset checks still apply to the target MetaSave.                                                                                             |
+| Domain                           | Runtime evidence                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shared save contract             | The launcher admits changes limited to its PE creation timestamp and checksum. The Unity player, managed game code, ES3 serializer and managed/Mono runtime must match a reviewed set. Changed serialized settings sources are checked through the `es3/es3defaults` entry, script identity, and bounded settings body.              |
+| Health, Upgrades and numeric Run | The shared contract and supported save fields. The settings-based path only writes existing typed numeric leaves.                                                                                                                                                                                                                    |
+| Normal and Shop Resume           | The shared contract plus compatible scene settings and the supported saved selector. Changed Level files can pass by resolving both typed RunManager rosters and checking their Level objects, start rooms and initial module references. Failure leaves numeric Run edits available.                                                |
+| Item Recharge                    | The shared contract plus an exact reviewed source match or fresh positive `ItemBattery` classification for each reviewed identity. Saving still requires the exact eligible instance and prior charge.                                                                                                                               |
+| Cosmetics                        | The shared contract plus the reviewed ownership slots. If the catalog sources change, resolve `MetaManager.cosmeticAssets` and verify the ordered prefix covering all 557 reviewed IDs. Reject ambiguous targets or changes to that prefix. Appended entries stay read-only. Existing ownership and preset validation still applies. |
 
-A manifest-only update or a baked-icon change outside the pinned files can keep
-editing enabled with the existing binary. A changed Item or Cosmetics source
-blocks the affected domain. A changed shared pin blocks all five domains, including
-a change in an ES3 or crypto dependency. The pins cover whole files, so an
-unrelated change inside one of those files also requires review. Missing evidence
-cannot carry an older exact-build approval forward.
+Exact reviewed fingerprints remain a fast path. Missing, ambiguous or incompatible relevant
+evidence restricts the affected edits. Mixed transactions require all included operations
+to pass. The publisher independently rechecks source evidence and per-save requirements
+while enforcing the existing native session, game-closed, backup and recovery protections.
+
+For Steam build `26893562`, an independent UnityPy read resolved five typed
+Level records for each destination in the changed `sharedassets0.assets`. The
+reviewed managed code routes `save level` values 0 and 1 to Normal and Shop
+respectively. The copy-only acceptance build verified both values through the
+packaged editor, and the maintainer reported that Resume appeared to work
+in gameplay. The report did not enumerate resave and reload outcomes. The installed
+production path subsequently saved both selectors with exact encrypted backups on
+disposable saves, and both selectors also passed an offline write check.
+
+Runtime Resume admission checks the two direct rosters and the supported
+appearance of required prefab references in each Level. It does not simulate
+level generation or inspect the full prefab dependency graph. The sources
+used to validate Resume are rechecked at publication for a Resume mutation.
+Numeric Run edits use their own shared-save prerequisites.
+
+Compatible manifest-only updates, unrelated changes outside the checked inputs,
+and same-contract repacks within the supported asset layout pass offline once
+this verifier is installed. They require no new approved build fingerprint,
+remote record, user acknowledgment, or RepoDitor release. The current fallback
+requires the inspected Unity layout, equivalent launcher image, and exact
+reviewed Unity player, managed game/ES3 and runtime bytes. Unrelated code changes
+inside one of those binaries can still block writes because the verifier cannot establish
+managed-code equivalence. Steam discovery also requires the Addressables catalog
+at its known path. Its contents do not grant write authority.
+
+Additions to the Item catalog preserve existing Recharge capabilities when those
+identities are positively reconfirmed. New types stay outside the reviewed mutation
+set. Cosmetics IDs are positions in an authored vector. A fresh scan can establish
+the original indices after a repack or append, even when `level0` changes. A
+reordered or modified reviewed slot restricts ownership writes. The catalog proof
+also gates Clear All Presets through the shared MetaSave admission. New IDs need
+their own mutation evidence.
 
 Review changed sources against the existing save-field, encryption, serializer, and
 gameplay contracts. Confirm newly affected operations in the game, including
@@ -110,9 +140,11 @@ remain external limitations.
 
 The monitor also reports the independently reviewed artwork build `26407089`.
 A regression requires this baseline to match the latest admitted Unity 6 artwork
-build. On `main`, an unreviewed public build creates or updates one bot-owned
-compatibility review issue. Save and artwork approvals still go through their
-existing evidence checks. Repeated observations of the same build do not comment,
+build. Scheduled observations only write the workflow summary. A changed public
+BuildID alone does not establish that runtime compatibility failed. To create or
+update a bot-owned review issue, dispatch the workflow on `main` with
+`create_review_issue` selected. Save and artwork checks keep their existing evidence
+requirements. Repeated notifications of the same build do not comment,
 reopen or rewrite the issue. A later build updates its generated block, preserves human
 notes outside that block and reopens the review. Ambiguous issue ownership or an
 incomplete bounded history scan fails closed. Notification has no automatic

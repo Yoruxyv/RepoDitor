@@ -36,6 +36,7 @@ export const en = {
   "compatibility.missing":
     "Required game data is missing or unavailable. Affected edits are unavailable.",
   "compatibility.updates": "Check for updates",
+  "compatibility.resumeRestricted": "Resume editing requires verified scene and level sources.",
   "app.workspaces": "RepoDitor workspaces",
   "app.runSaves": "Run Saves",
   "cosmetics.artwork.title": "Preparing cosmetic artwork",

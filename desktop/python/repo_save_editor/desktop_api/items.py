@@ -106,7 +106,9 @@ def serialize_advanced_save(
         upgrade_visual_keys = match_upgrade_items(upgrade_keys, item_type_names)
         evidence: RechargeEvidence | None = None
         if capability_loader is not None:
-            metadata: Mapping[str, InstalledItemMetadata] = {}
+            metadata: Mapping[str, InstalledItemMetadata] = (
+                editor_item_metadata(item_type_names, upgrade_keys) if reuse_native_metadata else {}
+            )
             capabilities = capability_loader(item_type_names)
         elif reuse_native_metadata:
             metadata = editor_item_metadata(item_type_names, upgrade_keys)

@@ -169,6 +169,77 @@ def _upgrade_changes(data: SaveData, changes: object) -> list[dict[str, object]]
     return result
 
 
+def _runtime_dictionary_types(data: SaveData) -> bool:
+    def dictionary_type(key: str, *, nested: bool) -> bool:
+        entry = data.get(key)
+        typename = entry.get("__type") if isinstance(entry, dict) else None
+        if not isinstance(typename, str) or len(typename) > 1024:
+            return False
+        generic = "System.Collections.Generic.Dictionary`2"
+        short_value = f"{generic}[System.String,System.Int32]" if nested else "System.String"
+        qualified_value = (
+            f"{generic}[[System.String],[System.Int32]]" if nested else "System.String"
+        )
+        normalized = (
+            typename.replace(" ", "")
+            .replace(
+                ",mscorlib,Version=4.0.0.0,Culture=neutral,PublicKeyToken=b77a5c561934e089",
+                ",mscorlib",
+            )
+            .replace(",mscorlib", "")
+        )
+        return normalized in {
+            "Dictionary",
+            f"{generic}[System.String,{short_value}]",
+            f"{generic}[[System.String],[{qualified_value}]]",
+        }
+
+    return dictionary_type("playerNames", nested=False) and dictionary_type(
+        "dictionaryOfDictionaries", nested=True
+    )
+
+
+def _runtime_resume_field(data: SaveData) -> bool:
+    values = get_dictionaries(data).get("runStats")
+    previous: object = values.get("save level") if isinstance(values, dict) else None
+    return type(previous) is int and previous in (0, 1)
+
+
+def validate_runtime_write(intent: dict[str, object], resume_allowed: bool, data: SaveData) -> None:
+    """Restrict runtime-validated writes to the supported types in the loaded save."""
+    if not _runtime_dictionary_types(data):
+        raise DesktopSaveError("save_unsupported", "The save's dictionary types are unsupported.")
+    dictionaries = get_dictionaries(data)
+    domains = intent if "mixed" not in intent else cast(dict[str, object], intent["mixed"])
+    for domain, edits in domains.items():
+        if domain == "refillToFull":
+            # _refill_changes independently verifies the existing exact charge and instance.
+            continue
+        for edit in cast(list[dict[str, Any]], edits):
+            if domain == "health":
+                group, field = "playerHealth", edit["playerId"]
+            elif domain == "upgrades":
+                group, field = edit["key"], edit["playerId"]
+            elif domain == "run":
+                group = "runStats"
+                field = "save level" if edit["field"] == "resumeLocation" else edit["field"]
+            else:
+                raise DesktopSaveError("save_unsupported", "The save field is unsupported.")
+            values = dictionaries.get(group)
+            previous: object = values.get(field) if isinstance(values, dict) else None
+            if type(previous) is not int or not -(2**31) <= previous <= SAVE_INT32_MAX:
+                raise DesktopSaveError(
+                    "save_unsupported", "The existing save field is unsupported."
+                )
+            if field == "save level" and (not resume_allowed or previous not in (0, 1)):
+                raise DesktopSaveError("save_unsupported", "The Resume contract is unsupported.")
+
+
+def _verify_target(verify: Callable[[SaveData], None] | None, data: SaveData) -> None:
+    if verify is not None:
+        verify(data)
+
+
 def _mixed_changes(
     data: SaveData,
     changes: object,
@@ -211,6 +282,7 @@ def prepare_health(
     allow_missing_health: bool = False,
     approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
+    verify_target: Callable[[SaveData], None] | None = None,
 ) -> dict[str, object]:
     """Reserve the target without writing save bytes, before the host launches a writer."""
     single = not (refill_batch or health_batch or upgrade_batch or run_batch or mixed_batch)
@@ -244,6 +316,7 @@ def prepare_health(
             _save, data, source = load_discovered_save(save_id, root, directory=directory)
             if sha256(source).hexdigest() != fingerprint:
                 return _outcome(operation, "rejected", "save_stale")
+            _verify_target(verify_target, data)
             engine_changes: object
             capabilities: Mapping[str, ItemRechargeCapability] = {}
             if mixed_batch:
@@ -369,6 +442,7 @@ def write_health(
     verify_build: Callable[[], None] | None = None,
     approval: Approval | None = None,
     recharge_capability_loader: RechargeCapabilityLoader = discover_installed_recharge_capabilities,
+    verify_target: Callable[[SaveData], None] | None = None,
 ) -> dict[str, object]:
     """Delegate one typed domain intent, recording ambiguous completion explicitly."""
     single = not (refill_batch or health_batch or upgrade_batch or run_batch or mixed_batch)
@@ -426,6 +500,7 @@ def write_health(
                 transaction.admit()
             if not single:
                 _, data, _ = load_discovered_save(save_id, root, directory=directory)
+                _verify_target(verify_target, data)
                 changes = (
                     _mixed_changes(
                         data,
@@ -505,6 +580,7 @@ def recover_health(
     acknowledge: bool = True,
     intent_allowed: Callable[[object], bool] | None = None,
     approval: Approval | None = None,
+    recharge_capability_loader: RechargeCapabilityLoader | None = None,
 ) -> dict[str, object]:
     """Inspect authoritative bytes under the exited-owner lock; never apply pending intent."""
     if not valid_operation(operation):
@@ -532,6 +608,7 @@ def recover_health(
                     directory,
                     transaction.intent,
                     game_root=game_root,
+                    recharge_capability_loader=recharge_capability_loader,
                 )
                 if acknowledge:
                     transaction.recover()
@@ -554,6 +631,8 @@ def _canonical(
     intent: dict[str, object] | None = None,
     *,
     game_root: Path | None = None,
+    recharge_capability_loader: RechargeCapabilityLoader | None = None,
+    check_runtime_resume: bool = False,
 ) -> dict[str, object]:
     save, data, source = load_discovered_save(save_id, root, directory=directory)
     if fingerprint is not None and sha256(source).hexdigest() != fingerprint:
@@ -564,16 +643,29 @@ def _canonical(
         "upgrades": serialize_upgrades(data),
         "run": serialize_run(data),
     }
+    if check_runtime_resume:
+        result["resumeFieldSupported"] = _runtime_dictionary_types(data) and _runtime_resume_field(
+            data
+        )
     artwork_revision = entry_artwork_revision(game_root) if game_root is not None else None
-    if valid_refill_intent(intent) or (
+    refill_receipt = valid_refill_intent(intent) or (
         intent is not None
         and valid_mixed_intent(intent)
-        and cast(dict[str, object], intent["mixed"])["refillToFull"]
-    ):
-        advanced = serialize_advanced_save(data, reuse_native_metadata=game_root is not None)
-        if advanced.get("ok") is not True:
+        and bool(cast(dict[str, object], intent["mixed"])["refillToFull"])
+    )
+    if recharge_capability_loader is not None or refill_receipt:
+        if recharge_capability_loader is None:
+            advanced = serialize_advanced_save(data, reuse_native_metadata=game_root is not None)
+        else:
+            advanced = serialize_advanced_save(
+                data,
+                reuse_native_metadata=game_root is not None,
+                capability_loader=recharge_capability_loader,
+            )
+        if advanced.get("ok") is True:
+            result["advanced"] = advanced["advanced"]
+        elif refill_receipt:
             raise DesktopSaveError("save_unsupported", "Canonical item state is unavailable.")
-        result["advanced"] = advanced["advanced"]
         if artwork_revision is not None and artwork_revision != entry_artwork_revision(game_root):
             artwork_revision = None
     if artwork_revision is not None:
@@ -588,6 +680,9 @@ def health_state(
     *,
     intent_allowed: Callable[[object], bool] | None = None,
     approval: Approval | None = None,
+    recharge_capability_loader: RechargeCapabilityLoader | None = None,
+    game_root: Path | None = None,
+    check_runtime_resume: bool = False,
 ) -> dict[str, object]:
     """Rediscover pending identity/intent without acknowledging or replaying an operation."""
     try:
@@ -611,7 +706,14 @@ def health_state(
                 return {
                     "ok": True,
                     "state": "idle",
-                    "canonical": _canonical(save_id, root, directory=directory),
+                    "canonical": _canonical(
+                        save_id,
+                        root,
+                        directory=directory,
+                        game_root=game_root,
+                        recharge_capability_loader=recharge_capability_loader,
+                        check_runtime_resume=check_runtime_resume,
+                    ),
                 }
             if intent_allowed is not None and not intent_allowed(receipt.intent):
                 return {"ok": True, "state": "blocked"}

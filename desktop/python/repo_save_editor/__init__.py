@@ -6,4 +6,4 @@ or receives its raw decrypted save objects; ``__version__`` is the only
 intentionally top-level public value.
 """
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"

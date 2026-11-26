@@ -15,6 +15,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 #[cfg(feature = "production-health")]
 use std::time::Instant;
@@ -67,6 +68,10 @@ pub struct HealthState {
     draft_only: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     domains: Vec<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    compatibility: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resume_allowed: Option<bool>,
     state: String,
     pending: Option<Pending>,
     canonical: Option<Canonical>,
@@ -78,6 +83,8 @@ fn unavailable(enabled: bool, state: &str) -> HealthState {
         enabled,
         draft_only: false,
         domains: Vec::new(),
+        compatibility: BTreeMap::new(),
+        resume_allowed: None,
         state: state.into(),
         pending: None,
         canonical: None,
@@ -133,10 +140,27 @@ fn parse_state(bytes: &[u8], save: &str) -> Result<HealthState, BackendError> {
         return Err(BackendError::Invalid);
     }
     let state = raw["state"].as_str().ok_or(BackendError::Invalid)?;
-    if state == "disabled" {
-        return Ok(unavailable(false, state));
+    let mut result = unavailable(state != "disabled", state);
+    if let Some(compatibility) = raw.get("compatibility") {
+        result.compatibility =
+            serde_json::from_value(compatibility.clone()).map_err(|_| BackendError::Invalid)?;
+        if result.compatibility.len() != 5
+            || result.compatibility.iter().any(|(operation, status)| {
+                !matches!(
+                    operation.as_str(),
+                    "health" | "upgrades" | "run" | "resume" | "refillToFull"
+                ) || !matches!(status.as_str(), "verified" | "unverified" | "incompatible")
+            })
+        {
+            return Err(BackendError::Invalid);
+        }
     }
-    let mut result = unavailable(true, state);
+    if let Some(value) = raw.get("resumeAllowed") {
+        result.resume_allowed = Some(value.as_bool().ok_or(BackendError::Invalid)?);
+    }
+    if state == "disabled" {
+        return Ok(result);
+    }
     if let Some(domains) = raw.get("domains") {
         result.domains =
             serde_json::from_value(domains.clone()).map_err(|_| BackendError::Invalid)?;
@@ -363,6 +387,7 @@ pub async fn production_state(app: tauri::AppHandle, save: String) -> HealthStat
         return unavailable(false, "disabled");
     };
     let enrolling = !private_run_allowed(&host, &token);
+    let generation = host.artwork.lock().unwrap().generation(&save);
     let expected = save.clone();
     let operation = Operation::ProductionHealth(
         "state".into(),
@@ -380,10 +405,13 @@ pub async fn production_state(app: tauri::AppHandle, save: String) -> HealthStat
             if enrolling && !matches!(data.state.as_str(), "idle" | "pending") {
                 return data;
             }
-            if let Some(canonical) = &data.canonical {
+            if let Some(canonical) = &mut data.canonical {
                 if enrolling && !host.accepts_upgrade(&save, canonical.opened.fingerprint(), &token)
                 {
                     return unavailable(false, "disabled");
+                }
+                if canonical.artwork_revision.is_some() {
+                    retain_canonical_artwork(&host, &save, generation, canonical);
                 }
                 host.update_editor(&save, canonical.opened.fingerprint(), &token);
             }
@@ -489,26 +517,33 @@ pub async fn production_recover(app: tauri::AppHandle, raw: Value) -> Transactio
     )
     .await;
     if let Some(projection) = &mut result.canonical {
-        let mut artwork = host.artwork.lock().unwrap();
-        projection.upgrade_artwork_retained = Some(artwork.retain_upgrade_artwork(
-            save,
-            generation,
-            projection.opened.fingerprint(),
-            projection.artwork_revision.as_deref(),
-            &mut projection.upgrades,
-        ));
-        if let Some(advanced) = &mut projection.advanced {
-            projection.item_artwork_retained = artwork.retain_item_artwork(
-                save,
-                generation,
-                projection.opened.fingerprint(),
-                projection.artwork_revision.as_deref(),
-                advanced,
-            );
-        }
+        retain_canonical_artwork(&host, save, generation, projection);
         host.update_editor(save, projection.opened.fingerprint(), &token);
     }
     result
+}
+
+#[cfg(feature = "production-health")]
+fn retain_canonical_artwork(
+    host: &backend::HostState,
+    save: &str,
+    generation: Option<uuid::Uuid>,
+    projection: &mut Canonical,
+) {
+    let mut artwork = host.artwork.lock().unwrap();
+    let fingerprint = projection.opened.fingerprint();
+    let revision = projection.artwork_revision.as_deref();
+    projection.upgrade_artwork_retained = Some(artwork.retain_upgrade_artwork(
+        save,
+        generation,
+        fingerprint,
+        revision,
+        &mut projection.upgrades,
+    ));
+    if let Some(advanced) = &mut projection.advanced {
+        projection.item_artwork_retained =
+            artwork.retain_item_artwork(save, generation, fingerprint, revision, advanced);
+    }
 }
 
 #[cfg(test)]

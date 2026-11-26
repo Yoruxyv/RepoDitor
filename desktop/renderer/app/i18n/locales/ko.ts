@@ -35,6 +35,7 @@ export const ko: Record<keyof typeof en, string> = {
   "compatibility.missing":
     "필요한 게임 데이터를 사용할 수 없습니다. 해당 편집은 사용할 수 없습니다.",
   "compatibility.updates": "업데이트 확인",
+  "compatibility.resumeRestricted": "재개 위치를 편집하려면 검증된 장면과 레벨 정보가 필요합니다.",
   "app.workspaces": "RepoDitor 작업 공간",
   "app.runSaves": "런 세이브",
   "cosmetics.artwork.title": "코스메틱 이미지 준비 중",

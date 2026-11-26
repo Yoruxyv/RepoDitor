@@ -36,6 +36,8 @@ export const ja: Record<keyof typeof en, string> = {
     "インストール済みのアセットまたはセーブ形式を安全に読み取れません。該当する編集は利用できません。",
   "compatibility.missing": "必要なゲームデータを利用できません。該当する編集は利用できません。",
   "compatibility.updates": "アップデートを確認",
+  "compatibility.resumeRestricted":
+    "再開位置の編集には、検証済みのシーンとレベルの情報が必要です。",
   "app.workspaces": "RepoDitor ワークスペース",
   "app.runSaves": "ランセーブ",
   "cosmetics.artwork.title": "コスメティック画像を準備中",

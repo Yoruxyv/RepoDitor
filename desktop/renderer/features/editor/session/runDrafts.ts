@@ -33,6 +33,8 @@ export interface RunDraftState {
   draftOnly: boolean;
   production: boolean;
   domains: HealthState["domains"];
+  compatibility?: HealthState["compatibility"];
+  resumeAllowed?: HealthState["resumeAllowed"];
   phase: HealthPhase;
   healthEdits: PlayerHealthEdit[];
   refillEdits: AdvancedRefillEdit[];

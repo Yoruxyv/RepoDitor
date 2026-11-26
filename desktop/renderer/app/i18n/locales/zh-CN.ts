@@ -31,6 +31,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   "compatibility.incompatible": "无法安全读取已安装的资源或存档结构。相关编辑功能不可用。",
   "compatibility.missing": "缺少必要的游戏数据或无法访问。相关编辑功能不可用。",
   "compatibility.updates": "检查更新",
+  "compatibility.resumeRestricted": "修改继续游戏的位置需要经过验证的场景和关卡数据。",
   "app.workspaces": "RepoDitor 工作区",
   "app.runSaves": "游戏存档",
   "cosmetics.artwork.title": "正在准备外观图片",

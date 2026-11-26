@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "repo-save-editor"
-version = "0.3.2"
+version = "0.3.3"
 description = "A desktop save editor for R.E.P.O. .es3 save files."
 readme = "desktop/python/README.md"
 requires-python = ">=3.11"

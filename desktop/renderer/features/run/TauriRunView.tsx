@@ -16,10 +16,14 @@ export function TauriRunView({
   return (
     <fieldset className="min-w-0" disabled={enabled && locked}>
       <legend className="sr-only">{t("nav.run")}</legend>
+      {enabled && !transaction.resumeAllowed ? (
+        <p className="mb-3 text-sm text-warning">{t("compatibility.resumeRestricted")}</p>
+      ) : null}
       <RunView
         run={run.run}
         loading={run.loading}
         error={run.error}
+        resumeChecking={transaction.phase === "checking"}
         pendingByField={Object.fromEntries(transaction.runEdits.map((edit) => [edit.field, edit]))}
         resetVersion={transaction.resetVersion}
         precisionNotice={enabled}
@@ -39,7 +43,7 @@ export function TauriRunView({
             : null
         }
         onResumeChange={
-          enabled && run.run
+          enabled && transaction.resumeAllowed && run.run
             ? (value) =>
                 transaction.editRun({
                   feature: "run",

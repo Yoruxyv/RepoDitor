@@ -3,6 +3,22 @@ use super::*;
 pub(super) const SAVE: &str = "REPO_SAVE_2026_08_08_10_20_30";
 
 #[test]
+fn compatibility_state_rejects_unknown_operations_and_malformed_resume_evidence() {
+    let mut state = json!({"ok": true, "state": "disabled", "compatibility": {
+        "health": "incompatible", "upgrades": "incompatible", "run": "incompatible",
+        "resume": "incompatible", "refillToFull": "incompatible"
+    }});
+    let parsed = parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).unwrap();
+    assert!(!parsed.enabled);
+    assert_eq!(parsed.compatibility["resume"], "incompatible");
+    state["resumeAllowed"] = json!("forged");
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_err());
+    state.as_object_mut().unwrap().remove("resumeAllowed");
+    state["compatibility"]["unrecognizedOperation"] = json!("verified");
+    assert!(parse_state(&serde_json::to_vec(&state).unwrap(), SAVE).is_err());
+}
+
+#[test]
 fn pending_ui_state_is_bounded_and_does_not_accept_paths_or_forged_identities() {
     let raw = json!({"ok":true,"state":"pending","pending":{"operationId":"a".repeat(32),"fingerprint":"b".repeat(64),"intent":{"playerId":"111","health":17,"before":80}}});
     assert!(parse_state(&serde_json::to_vec(&raw).unwrap(), SAVE).is_ok());

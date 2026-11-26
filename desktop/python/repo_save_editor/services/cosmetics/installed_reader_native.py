@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import cast
 
 from repo_save_editor.services.cosmetics.installed_catalog import (
     MAX_OPEN_FILES,
+    MAX_VECTOR_COUNT,
     _find_cosmetic_vector,
     _find_unique_meta_manager,
     _parse_cosmetic_metadata,
@@ -17,8 +19,16 @@ from repo_save_editor.services.cosmetics.installed_reader import (
 )
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
 from repo_save_editor.services.game.installed_build import owned_file
+from repo_save_editor.services.game.write_evidence import RECHARGE_UNITY
 from repo_save_editor.services.unity_presentation import PresentationFileIndex
-from repo_save_editor.services.unity_serialized import SerializedFileIndex, UnityMetadataError
+from repo_save_editor.services.unity_serialized import (
+    ObjectRecord,
+    PPtr,
+    SerializedFileIndex,
+    UnityMetadataError,
+    parse_mono_behaviour_prefix,
+    parse_mono_script,
+)
 
 
 class NativeCosmeticCatalogResolver(CosmeticCatalogResolver):
@@ -50,20 +60,70 @@ class NativeCosmeticCatalogResolver(CosmeticCatalogResolver):
 
 
 def read_installed_catalog(
-    game_root: Path, *, native: bool = False
+    game_root: Path, *, native: bool = False, ownership: bool = False
 ) -> tuple[tuple[InstalledCosmeticMetadata, ...], tuple[tuple[str, int, int], ...]]:
     """Scan exact ordered metadata and targets without caches or artwork decoding."""
-    if not native:
+    if not native and not ownership:
         return _read_pinned_catalog(game_root)
     catalog: list[InstalledCosmeticMetadata] = []
     targets: list[tuple[str, int, int]] = []
-    with NativeCosmeticCatalogResolver(game_root / "REPO_Data") as resolver:
+    resolver = NativeCosmeticCatalogResolver(game_root / "REPO_Data")
+    with resolver:
         level0 = resolver.open(game_root / "REPO_Data" / "level0")
         record, prefix, _ = _find_unique_meta_manager(resolver, level0)
-        pointers = _find_cosmetic_vector(resolver, level0, record, prefix)
+        if ownership:
+            pointers = _ownership_vector(resolver, level0, record)
+        else:
+            pointers = _find_cosmetic_vector(resolver, level0, record, prefix)
         for cosmetic_id, pointer in enumerate(pointers):
             index, target = resolver.resolve(level0, pointer)
+            if ownership:
+                _require_script(resolver, index, target, "CosmeticAsset")
             metadata, _ = _parse_cosmetic_metadata(resolver, index, target, cosmetic_id)
             catalog.append(metadata)
             targets.append((index.path.name, target.path_id, pointer.file_id))
+        if ownership and any(
+            cast(PresentationFileIndex, index).unity_version != RECHARGE_UNITY
+            or index.path.name
+            not in {"level0", "globalgamemanagers.assets", "sharedassets0.assets"}
+            for index in resolver._indexes.values()
+        ):
+            raise UnityMetadataError("Unsupported ownership source layout.")
     return tuple(catalog), tuple(targets)
+
+
+def _require_script(
+    resolver: NativeCosmeticCatalogResolver,
+    index: SerializedFileIndex,
+    record: ObjectRecord,
+    expected: str,
+) -> None:
+    prefix = parse_mono_behaviour_prefix(index, record)
+    source, script_record = resolver.resolve(index, prefix.script)
+    script = parse_mono_script(source, script_record)
+    if (script.class_name, script.namespace, script.assembly_name) != (
+        expected,
+        "",
+        "Assembly-CSharp",
+    ) or source.path != resolver.data_dir / "globalgamemanagers.assets":
+        raise UnityMetadataError("Unsupported ownership script identity.")
+
+
+def _ownership_vector(
+    resolver: NativeCosmeticCatalogResolver, level: SerializedFileIndex, record: ObjectRecord
+) -> tuple[PPtr, ...]:
+    _require_script(resolver, level, record, "MetaManager")
+    prefix = parse_mono_behaviour_prefix(level, record)
+    reader = level.object_reader(record)
+    reader.skip(prefix.field_offset)
+    # In the reviewed managed assembly, the ownership vector is the third
+    # PPtr array, following cosmeticTypeAssets and CosmeticCategoryAssets.
+    for _ in range(2):
+        count = reader.i32()
+        if not 0 < count <= MAX_VECTOR_COUNT:
+            raise UnityMetadataError("Invalid ownership field layout.")
+        reader.skip(count * 12)
+    pointers = level.read_pptr_vector(record, reader.pos, maximum=MAX_VECTOR_COUNT)
+    if pointers is None:
+        raise UnityMetadataError("Invalid cosmetic ownership vector.")
+    return pointers
