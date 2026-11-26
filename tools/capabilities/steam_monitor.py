@@ -26,10 +26,22 @@ START = "<!-- repoditor-steam-public-monitor:start -->"
 END = "<!-- repoditor-steam-public-monitor:end -->"
 TOKEN = re.compile(r'\s*("(?:[^"\\]|\\.)*"|[{}])')
 CONSOLE_LINE = re.compile(
-    r"(?:Unloading Steam API\.\.\.OK|(?:Redirecting stderr to|Logging directory:) '[^\r\n]*'|"
-    r"\[(?:\s*[0-9]{1,3}%|----)\] [^\r\n]*)"
+    r"(?:Unloading Steam API\.\.\.(?:OK)?|OK|"
+    r"(?:Redirecting stderr to|Logging directory:) '[^\r\n]*'|"
+    r"\[(?:\s*[0-9]{1,3}%|----)\] [^\r\n]*|[0-9,]+ of [0-9,]+ KB\)\.\.\.|"
+    r"(?:Unloading Steam API\.\.\.)?CWorkThreadPool::~CWorkThreadPool: work "
+    r"(?:complete queue not empty,|processing queue not empty:) [0-9]+ items discarded\.|"
+    r'ILocalize::AddFile\(\) failed to load file "public/steambootstrapper_english\.txt"\.)'
+)
+UNAVAILABLE_LINE = re.compile(
+    rf"No app info for AppID {APP_ID}(?:, please request app info using app_info_request)?\.?|"
+    r"Connecting anonymously to Steam Public\.\.\.FAILED \((?:No Connection|Timeout)\)"
 )
 GitHubRequest = Callable[[str, str, dict[str, object] | None], object]
+
+
+class _MetadataUnavailableError(ValueError):
+    """Steam did not provide a public metadata record."""
 
 
 def _build_id(value: object) -> str:
@@ -70,6 +82,13 @@ def public_build(payload: bytes) -> str:
         raise ValueError("Steam metadata exceeds the byte limit.")
     text = payload.decode("utf-8", errors="strict")
     headers = list(re.finditer(r'(?m)^"([0-9]+)"\s*\{', text))
+    if not headers:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines or (
+            not any(line.startswith(('"', "{", "}")) for line in lines)
+            and any(UNAVAILABLE_LINE.fullmatch(line) for line in lines)
+        ):
+            raise _MetadataUnavailableError("SteamCMD did not return the requested app metadata.")
     if len(headers) != 1 or headers[0][1] != APP_ID:
         raise ValueError("Steam metadata app identity is missing or ambiguous.")
     position = headers[0].end()
@@ -101,8 +120,8 @@ def public_build(payload: bytes) -> str:
     return _build_id(value.get("buildid"))
 
 
-def observe(payload: bytes) -> dict[str, str]:
-    """Report UNKNOWN on invalid metadata without implying compatibility or an update."""
+def observe(payload: bytes, *, client_exit: int = 0) -> dict[str, str]:
+    """Report UNKNOWN with separate reasons for availability and validation failures."""
     report = {
         "state": "UNKNOWN",
         "build": "",
@@ -110,16 +129,29 @@ def observe(payload: bytes) -> dict[str, str]:
         "reviewedArtworkBuild": REVIEWED_ARTWORK_BUILD,
         "checkedAt": datetime.now(UTC).isoformat(timespec="seconds"),
         "source": SOURCE,
+        "clientExitCode": str(client_exit),
+        "metadataBytes": str(len(payload)),
     }
     try:
         reviewed = read_review()["reviewedSteamBuildIds"]
-        build = public_build(payload)
-    except (ValueError, UnicodeError, StopIteration):
-        report["reason"] = (
-            "Steam public metadata or reviewed write evidence is unavailable or invalid."
-        )
+    except (OSError, ValueError):
+        report.update(failure="review", reason="Reviewed write evidence is missing or invalid.")
         return report
     report["reviewedWriteBuilds"] = ", ".join(reviewed)
+
+    try:
+        if client_exit and len(payload) <= MAX_BYTES:
+            if client_exit == 124:
+                raise _MetadataUnavailableError("SteamCMD exceeded the metadata request deadline.")
+            report.update(failure="client", reason=f"SteamCMD exited with status {client_exit}.")
+            return report
+        build = public_build(payload)
+    except _MetadataUnavailableError as error:
+        report.update(failure="unavailable", reason=str(error))
+        return report
+    except (ValueError, StopIteration) as error:
+        report.update(failure="metadata", reason=str(error) or "Incomplete Steam metadata.")
+        return report
     report["build"] = build
     report["state"] = "UNCHANGED" if build in reviewed else "CHANGED"
     return report
@@ -237,19 +269,34 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     detect = subparsers.add_parser("detect")
     detect.add_argument("metadata", type=Path)
+    detect.add_argument("--client-exit", type=int, default=0)
+    detect.add_argument("--allow-unavailable", action="store_true")
     publish = subparsers.add_parser("notify")
     publish.add_argument("build")
     publish.add_argument("checked_at")
     args = parser.parse_args()
-    try:
-        if args.command == "detect":
+    if args.command == "detect":
+        try:
             with args.metadata.open("rb") as handle:
-                report = observe(handle.read(MAX_BYTES + 1))
-        else:
+                report = observe(handle.read(MAX_BYTES + 1), client_exit=args.client_exit)
+        except OSError:
+            report = {
+                "state": "UNKNOWN",
+                "failure": "capture",
+                "reason": "Could not read the SteamCMD metadata capture.",
+            }
+    else:
+        try:
             report = {"state": notify(args.build, args.checked_at)}
-    except (OSError, URLError, ValueError, TypeError):
-        report = {"state": "UNKNOWN", "reason": "Metadata or notification service is unavailable."}
+        except (OSError, URLError, ValueError, TypeError):
+            report = {"state": "UNKNOWN", "reason": "Could not complete the GitHub notification."}
     sys.stdout.write(json.dumps(report) + "\n")
+    if (
+        args.command == "detect"
+        and args.allow_unavailable
+        and report.get("failure") == "unavailable"
+    ):
+        return 0
     return int(report["state"] == "UNKNOWN")
 
 

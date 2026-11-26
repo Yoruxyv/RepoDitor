@@ -58,15 +58,25 @@ jobs:
           set -euo pipefail
           # Fresh client/cache every run. No app_update, credentials, or game download.
           client="$RUNNER_TEMP/steam-public-metadata"
-          if ! timeout --kill-after=10s 180s "$client/steamcmd.sh" \
+          client_exit=0
+          timeout --kill-after=10s 180s "$client/steamcmd.sh" \
             +login anonymous +app_info_update 1 +app_info_print 3241660 +quit \
             2> >(head -c 1048576 > "$client/client-errors.log") \
-            | head -c 1048577 > "$client/metadata.log"; then
-            echo 'Steam public build: UNKNOWN (metadata client failed).' >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+            | head -c 1048577 > "$client/metadata.log" || {
+              statuses=("${PIPESTATUS[@]}")
+              if (( statuses[1] != 0 )); then
+                echo '::error::Could not capture bounded SteamCMD metadata.'
+                exit 1
+              fi
+              client_exit="${statuses[0]}"
+            }
+          options=(--client-exit "$client_exit")
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            options+=(--allow-unavailable)
           fi
+          detect_exit=0
           uv run --locked --no-dev python -m tools.capabilities.steam_monitor detect \
-            "$client/metadata.log" | tee "$RUNNER_TEMP/steam-observation.json"
+            "$client/metadata.log" "${options[@]}" | tee "$RUNNER_TEMP/steam-observation.json" || detect_exit=$?
           OBSERVATION="$RUNNER_TEMP/steam-observation.json" uv run --locked --no-dev python - <<'PY'
           import json
           import os
@@ -74,14 +84,29 @@ jobs:
           data = json.loads(Path(os.environ["OBSERVATION"]).read_text())
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               for key in ("state", "build", "checkedAt"):
-                  output.write(f"{key}={data[key]}\n")
+                  output.write(f"{key}={data.get(key, '')}\n")
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
-              summary.write(f"Steam public build: {data['state']}\n\nObserved: {data['build']}\n\nReviewed writes: {data['reviewedWriteBuilds']}\n\nReviewed artwork: {data['reviewedArtworkBuild']}\n\nNo compatibility approval is implied.\n")
+              summary.write(f"Steam public build: {data['state']}\n\n")
+              if data["state"] == "UNKNOWN":
+                  summary.write(f"Reason: {data['reason']}\n\n")
+              for key, label in (
+                  ("build", "Observed build"),
+                  ("reviewedWriteBuilds", "Reviewed writes"),
+                  ("reviewedArtworkBuild", "Reviewed artwork"),
+                  ("clientExitCode", "SteamCMD exit code"),
+                  ("metadataBytes", "Captured metadata bytes"),
+              ):
+                  if key in data:
+                      summary.write(f"{label}: {data[key] or 'None'}\n\n")
+              summary.write("No compatibility approval is implied.\n")
+          if data.get("failure") == "unavailable":
+              print(f"::warning::{data['reason']}")
           PY
-      - name: Report unavailable observation
+          exit "$detect_exit"
+      - name: Report monitoring failure
         if: failure()
         run: |
-          echo 'Steam public build monitoring: UNKNOWN. No build or compatibility decision was made.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Steam monitoring failed. No compatibility review issue was requested.' >> "$GITHUB_STEP_SUMMARY"
 
   notify:
     name: Maintain compatibility review issue
