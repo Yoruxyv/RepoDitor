@@ -14,11 +14,14 @@ from repo_save_editor.desktop_api.transactions.meta_transactions import (
     meta_write,
 )
 from repo_save_editor.desktop_api.transactions.production_health import (
+    RuntimeSaveSources,
     _installed_game,
     _process_status,
+    _source_pins,
     _verify_private_sources,
-    _verify_public_sources,
+    recheck_shared_sources,
     verified_private_game,
+    verify_shared_sources,
 )
 from repo_save_editor.services.artwork.baked_artwork import entry_artwork_revision
 from repo_save_editor.services.artwork.native_artwork_cache import native_artwork_cache
@@ -28,6 +31,9 @@ from repo_save_editor.services.cosmetics.installed_catalog import (
 )
 from repo_save_editor.services.cosmetics.installed_reader_native import read_installed_catalog
 from repo_save_editor.services.cosmetics.models import InstalledCosmeticMetadata
+from repo_save_editor.services.cosmetics.policy import PROVEN_MUTATION_IDS
+from repo_save_editor.services.game.discovery import GameInstallation
+from repo_save_editor.services.game.installed_build import ValidatedInstalledBuild
 from repo_save_editor.services.game.write_evidence import (
     COSMETIC_CATALOG_DIGEST,
     SAVE_FORMAT_PINS,
@@ -75,6 +81,43 @@ def _verified_catalog(
     return catalog
 
 
+def _verify_changed_catalog(
+    root: Path, sources: tuple[tuple[str, str], ...]
+) -> tuple[InstalledCosmeticMetadata, ...]:
+    # A presentation cache keyed by the old digest cannot prove a changed file.
+    if not source_pins_match(root, sources):
+        raise RecoveryError("save_verification_unavailable")
+    catalog, targets = read_installed_catalog(root, ownership=True)
+    # The reviewed digest covers every catalog slot through the last supported
+    # ownership ID. New slots may follow it and remain presentation-only.
+    prefix = catalog[: PROVEN_MUTATION_IDS[-1] + 1]
+    keys = [row.icon_cache_key for row in catalog if row.icon_cache_key is not None]
+    if (
+        len({(file, target) for file, target, _ in targets}) != len(catalog)
+        or len(set(keys)) != len(keys)
+        or sha256(json.dumps(_catalog_payload(prefix), sort_keys=True).encode()).hexdigest()
+        != COSMETIC_CATALOG_DIGEST
+        or not source_pins_match(root, sources)
+    ):
+        raise RecoveryError("save_unsupported")
+    return catalog
+
+
+def _changed_catalog_sources(
+    game: GameInstallation,
+    build: ValidatedInstalledBuild,
+    reviewed: tuple[tuple[str, str], ...],
+) -> tuple[tuple[str, str], ...] | None:
+    paths = tuple(name for name, _ in reviewed)
+    if set(paths) != {
+        "REPO_Data/level0",
+        "REPO_Data/globalgamemanagers.assets",
+        "REPO_Data/sharedassets0.assets",
+    } or source_pins_match(game.root, reviewed):
+        return None
+    return tuple(zip(paths, _source_pins(game, build, paths), strict=True))
+
+
 def production_meta(
     action: str,
     operation: str | None,
@@ -88,37 +131,44 @@ def production_meta(
     private = bundle is not None and bundle.session
     try:
         approved = None
+        dynamic_sources = None
         if bundle is not None and private:
             game, build = verified_private_game(bundle)
             expected = bundle.source_pins + bundle.save_format_pins
         else:
             game, build = _installed_game()
-            approved = _verify_public_sources(game, build)
+            shared = verify_shared_sources(game, build)
+            approved = shared.reviewed if isinstance(shared, RuntimeSaveSources) else shared
+            dynamic_sources = _changed_catalog_sources(game, build, approved.cosmetics)
             expected = (
-                approved.gameplay
-                + SAVE_FORMAT_PINS
-                + tuple(digest for _, digest in approved.cosmetics)
-            )
+                tuple(digest for _, digest in shared.pins)
+                if isinstance(shared, RuntimeSaveSources)
+                else approved.gameplay + SAVE_FORMAT_PINS
+            ) + tuple(digest for _, digest in (dynamic_sources or approved.cosmetics))
         root = get_default_save_root()
         if root is None:
             raise RecoveryError("save_verification_unavailable")
-    except RecoveryError as exc:
+    except (OSError, ValueError) as exc:
         if action == "state":
             return {"ok": True, "state": "disabled"}
         return _failure(
-            operation or "", "conflict" if action == "recover" else "rejected", exc.code
+            operation or "",
+            "conflict" if action == "recover" else "rejected",
+            exc.code if isinstance(exc, RecoveryError) else "save_verification_unavailable",
         )
 
     def verify_sources() -> None:
         if bundle is not None and private:
             _verify_private_sources(game, build, bundle)
-        elif _verify_public_sources(game, build) != approved:
-            raise RecoveryError("save_verification_unavailable")
+        else:
+            recheck_shared_sources(game, build, shared)
 
     def admit(_root: Path) -> tuple[dict[str, str], tuple[InstalledCosmeticMetadata, ...]]:
         verify_sources()
         if bundle is not None and private:
             catalog = verified_private_cosmetics(game.root, bundle)
+        elif dynamic_sources is not None:
+            catalog = _verify_changed_catalog(game.root, dynamic_sources)
         elif approved is not None:
             catalog = _verified_catalog(
                 game.root, approved.cosmetics, COSMETIC_CATALOG_DIGEST, False

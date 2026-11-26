@@ -51,19 +51,23 @@ def _vector(reader: _Reader) -> tuple[PPtr, ...]:
     return values
 
 
-def normal_level_pointers(reader: _Reader) -> tuple[PPtr, ...]:
-    """Read the reviewed RunManager prefix; special rosters are distinct vectors."""
+def _level_rosters(reader: _Reader) -> tuple[tuple[PPtr, ...], tuple[PPtr, ...]]:
     reader.i32()  # splashScreenLatestVersion
     read_pptr(reader)  # levelCurrent
     reader.i32()  # levelsCompleted
     for _ in range(6):
         read_pptr(reader)  # lobby/menu/recording/splash/tutorial references
-    _vector(reader)  # levelShop
+    shop = _vector(reader)
     _vector(reader)  # levelArena
     normal = _vector(reader)  # levels
     if not normal:
         raise UnityMetadataError("Installed normal-level roster is empty.")
-    return normal
+    return shop, normal
+
+
+def normal_level_pointers(reader: _Reader) -> tuple[PPtr, ...]:
+    """Read the reviewed RunManager prefix; special rosters are distinct vectors."""
+    return _level_rosters(reader)[1]
 
 
 def _label(value: str, maximum: int) -> str:
@@ -72,11 +76,16 @@ def _label(value: str, maximum: int) -> str:
     return value
 
 
-def _prefab_path(reader: _Reader) -> str:
+def _read_prefab(reader: _Reader) -> tuple[str, str, PPtr, int]:
     name, path = reader.aligned_string(), reader.aligned_string()
     bundle = read_pptr(reader)
     finalized = reader.u8()
     reader.align4()
+    return name, path, bundle, finalized
+
+
+def _prefab_path(reader: _Reader) -> str:
+    name, path, bundle, finalized = _read_prefab(reader)
     if bundle != PPtr(0, 0) or finalized not in (0, 1):
         return ""  # A bundled PrefabRef needs a different source adapter.
     if not name and not path:
@@ -91,6 +100,90 @@ def _prefab_path(reader: _Reader) -> str:
     ):
         raise UnityMetadataError("Installed loading-image resource path is unsafe.")
     return path
+
+
+def _resolve(
+    indexes: dict[str, ArtworkFileIndex], index: ArtworkFileIndex, pointer: PPtr
+) -> tuple[ArtworkFileIndex, ObjectRecord]:
+    target = index if pointer.file_id == 0 else indexes.get(index.external_name(pointer.file_id))
+    if target is None or pointer.path_id == 0:
+        raise UnityMetadataError("Unsupported installed level reference.")
+    return target, target.find_records({pointer.path_id})[pointer.path_id]
+
+
+def _script_is(
+    indexes: dict[str, ArtworkFileIndex],
+    index: ArtworkFileIndex,
+    record: ObjectRecord,
+    expected: str,
+) -> bool:
+    if record.class_id != 114 or record.byte_size > MAX_OBJECT_BYTES:
+        return False
+    prefix = parse_mono_behaviour_prefix(index, record)
+    target, script_record = _resolve(indexes, index, prefix.script)
+    script = parse_mono_script(target, script_record)
+    return (script.class_name, script.namespace, script.assembly_name) == (
+        expected,
+        "",
+        "Assembly-CSharp",
+    )
+
+
+def _run_manager(indexes: dict[str, ArtworkFileIndex]) -> _Reader:
+    level0 = indexes["level0"]
+    managers = [
+        r
+        for r in level0.iter_records(frozenset({114}))
+        if _script_is(indexes, level0, r, "RunManager")
+    ]
+    if len(managers) != 1:
+        raise UnityMetadataError("Installed RunManager is missing or ambiguous.")
+    record = managers[0]
+    reader = level0.object_reader(record)
+    reader.skip(parse_mono_behaviour_prefix(level0, record).field_offset)
+    return reader
+
+
+def verify_resume_levels(root: Path) -> None:
+    """Check both selector rosters and their direct typed Level references."""
+    data = root / "REPO_Data"
+    with ExitStack() as stack:
+        indexes: dict[str, ArtworkFileIndex] = {
+            name: stack.enter_context(PresentationFileIndex(owned_file(root, data / name)))
+            for name in SOURCE_NAMES
+        }
+        version = indexes["level0"].unity_version
+        if not is_sunstone_layout(version) or any(
+            index.unity_version != version for index in indexes.values()
+        ):
+            raise UnityMetadataError("Unsupported Resume level layout.")
+        shop, normal = _level_rosters(_run_manager(indexes))
+        if not shop:
+            raise UnityMetadataError("Installed Shop roster is empty.")
+        seen: set[tuple[Path, int]] = set()
+        for pointer in (*shop, *normal):
+            index, level = _resolve(indexes, indexes["level0"], pointer)
+            identity = (index.path, level.path_id)
+            if identity in seen or not _script_is(indexes, index, level, "Level"):
+                raise UnityMetadataError("Invalid or ambiguous Resume Level.")
+            seen.add(identity)
+            reader = index.object_reader(level)
+            reader.skip(parse_mono_behaviour_prefix(index, level).field_offset)
+            reader.i32()  # status does not control roster membership.
+            reader.aligned_string()
+            read_pptr(reader)
+            if reader.i32() <= 0 or reader.i32() < 0 or reader.u8() not in (0, 1):
+                raise UnityMetadataError("Invalid Resume Level generation fields.")
+            reader.align4()
+            for _ in range(5):
+                _read_prefab(reader)  # Loading art, connector and blocker.
+            for _ in range(2):  # StartRooms and the first normal module pool.
+                count = reader.i32()
+                if not 0 < count <= MAX_LEVELS:
+                    raise UnityMetadataError("Missing or oversized Resume prefab pool.")
+                for _ in range(count):
+                    if not _prefab_path(reader):
+                        raise UnityMetadataError("Unsupported Resume prefab reference.")
 
 
 def level_metadata(reader: _Reader, asset_name: str) -> InstalledLevel:
@@ -155,42 +248,11 @@ def read_installed_levels(
         ) or any(i.unity_version != version for i in indexes.values()):
             raise UnityMetadataError("Unsupported installed level layout.")
 
-        def resolve(
-            index: ArtworkFileIndex, pointer: PPtr
-        ) -> tuple[ArtworkFileIndex, ObjectRecord]:
-            target = (
-                index if pointer.file_id == 0 else indexes.get(index.external_name(pointer.file_id))
-            )
-            if target is None or pointer.path_id == 0:
-                raise UnityMetadataError("Unsupported installed level reference.")
-            return target, target.find_records({pointer.path_id})[pointer.path_id]
-
-        def script_is(index: ArtworkFileIndex, record: ObjectRecord, expected: str) -> bool:
-            if record.class_id != 114 or record.byte_size > MAX_OBJECT_BYTES:
-                return False
-            prefix = parse_mono_behaviour_prefix(index, record)
-            target, script_record = resolve(index, prefix.script)
-            script = parse_mono_script(target, script_record)
-            return (script.class_name, script.namespace, script.assembly_name) == (
-                expected,
-                "",
-                "Assembly-CSharp",
-            )
-
         level0 = indexes["level0"]
-        managers = [
-            r for r in level0.iter_records(frozenset({114})) if script_is(level0, r, "RunManager")
-        ]
-        if len(managers) != 1:
-            raise UnityMetadataError("Installed RunManager is missing or ambiguous.")
-        record = managers[0]
-        prefix = parse_mono_behaviour_prefix(level0, record)
-        reader = level0.object_reader(record)
-        reader.skip(prefix.field_offset)
         result = []
-        for pointer in normal_level_pointers(reader):
-            target, record = resolve(level0, pointer)
-            if not script_is(target, record, "Level"):
+        for pointer in normal_level_pointers(_run_manager(indexes)):
+            target, record = _resolve(indexes, level0, pointer)
+            if not _script_is(indexes, target, record, "Level"):
                 raise UnityMetadataError("Normal-level roster target is not a Level.")
             prefix = parse_mono_behaviour_prefix(target, record)
             reader = target.object_reader(record)

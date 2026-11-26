@@ -69,7 +69,10 @@ def test_unqualified_production_boundary_does_not_discover_a_save(monkeypatch):
 
     monkeypatch.setattr(admission, "_installed_game", unqualified)
     monkeypatch.setattr(admission, "get_default_save_root", unexpected)
-    assert admission.production_health("state", SAVE) == {"ok": True, "state": "disabled"}
+    state = admission.production_health("state", SAVE)
+    assert state["ok"] is True
+    assert state["state"] == "disabled"
+    assert set(state["compatibility"].values()) == {"unverified"}
     assert (
         admission.production_health("write", SAVE, OPERATION)["transaction"]["reason"]
         == "save_unsupported"
@@ -180,6 +183,12 @@ def test_write_admission_reuses_only_the_reviewed_domain_evidence(
         # The later approved record must work even when the first one fails to match.
         approved = (matching, other) if change == "none" else (other, matching)
         monkeypatch.setattr(admission, "APPROVED_WRITE_SOURCES", approved)
+        # This fixture varies optional asset pins and supplies an unchanged shared ES3 object.
+        monkeypatch.setattr(
+            admission,
+            "inspect_save_settings",
+            lambda _: (admission.SUNSTONE_ES3_DEFAULTS if run_and_players else "unreviewed", None),
+        )
         monkeypatch.setattr(admission, "SAVE_FORMAT_PINS", format_pins)
         monkeypatch.setattr(meta_admission, "SAVE_FORMAT_PINS", format_pins)
         monkeypatch.setattr(
