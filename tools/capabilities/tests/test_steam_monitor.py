@@ -84,6 +84,7 @@ def test_monitor_baseline_tracks_the_latest_artwork_review_without_changing_admi
 def test_invalid_incomplete_ambiguous_or_wrong_branch_metadata_is_unknown(payload: bytes) -> None:
     result = monitor.observe(payload)
     assert result["state"] == "UNKNOWN"
+    assert result["failure"] == "metadata"
     assert result["build"] == ""
     assert "private" not in json.dumps(result)
 
@@ -102,6 +103,86 @@ def test_console_footer_buffering_does_not_turn_valid_metadata_into_a_failure() 
         b"[  0%] Checking for available updates...\n[----] Verifying installation...\n"
     )
     assert monitor.observe(payload)["state"] == "UNCHANGED"
+
+
+def test_cold_steamcmd_probe_accepts_interleaved_shutdown_and_bootstrap_output() -> None:
+    # A fresh Valve client printed these lines after the public BuildID record.
+    payload = metadata(NEW_BUILD).removesuffix(b"Unloading Steam API...OK\n") + (
+        b"Unloading Steam API...CWorkThreadPool::~CWorkThreadPool: work complete queue not empty, "
+        b"1 items discarded.\r\n"
+        b"OK\r\n"
+        b"CWorkThreadPool::~CWorkThreadPool: work processing queue not empty: 2 items discarded.\r\n"
+        b"87 of 30,203 KB)...\r\n"
+        b'ILocalize::AddFile() failed to load file "public/steambootstrapper_english.txt".\r\n'
+    )
+    report = monitor.observe(payload)
+    assert (report["state"], report["build"]) == ("CHANGED", NEW_BUILD)
+    assert monitor.observe(payload + b'"another" {}')["failure"] == "metadata"
+
+
+def test_unexpected_trailer_preview_redacts_paths_arguments_and_identifiers() -> None:
+    result = monitor.observe(
+        metadata() + b"Unknown Steam line '/tmp/private' https://example.test "
+        b"token=private 012345678901234567890123456789"
+    )
+    assert result["failure"] == "metadata"
+    assert "Unknown Steam line" in result["reason"]
+    assert "private" not in result["reason"]
+    assert "example.test" not in result["reason"]
+    assert "0123456789" not in result["reason"]
+
+
+def test_linux_steamcmd_color_reset_is_ignored_only_in_console_output() -> None:
+    captured = metadata(NEW_BUILD).replace(
+        b"Unloading Steam API...OK", b"Unloading Steam API...\x1b[0mOK"
+    )
+    assert monitor.observe(captured)["build"] == NEW_BUILD
+
+    malformed = captured.replace(b'"buildid"', b'\x1b[0m"buildid"', 1)
+    assert monitor.observe(malformed)["failure"] == "metadata"
+
+
+@pytest.mark.parametrize(
+    ("payload", "client_exit", "failure", "reason"),
+    [
+        (b"", 0, "unavailable", "did not return"),
+        (
+            b"Connecting anonymously to Steam Public...\x1b[31mFAILED (No Connection)\x1b[0m\n",
+            0,
+            "unavailable",
+            "did not return",
+        ),
+        (b"No app info for AppID 3241660\n", 0, "unavailable", "did not return"),
+        (b"[----] Checking for updates...", 124, "unavailable", "deadline"),
+        (b"ERROR! private transport detail", 1, "client", "status 1"),
+        (b"unexpected nonempty console record", 0, "metadata", "app identity"),
+        (metadata(app="123") + b"No app info for AppID 3241660\n", 0, "metadata", "app identity"),
+        (b' "3241660" {\nNo app info for AppID 3241660\n', 0, "metadata", "app identity"),
+    ],
+)
+def test_detect_only_allows_unavailable_observations_when_requested(
+    payload: bytes,
+    client_exit: int,
+    failure: str,
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    capture = tmp_path / "metadata.log"
+    capture.write_bytes(payload)
+    args = ["monitor", "detect", str(capture), "--client-exit", str(client_exit)]
+    for extra in ([], ["--allow-unavailable"]):
+        monkeypatch.setattr("sys.argv", args + extra)
+        assert monitor.main() == (0 if extra and failure == "unavailable" else 1)
+        report = json.loads(capsys.readouterr().out)
+        assert report["state"] == "UNKNOWN"
+        assert report["build"] == ""
+        assert report["failure"] == failure
+        assert reason in report["reason"]
+        assert report["clientExitCode"] == str(client_exit)
+        assert report["metadataBytes"] == str(len(payload))
+        assert "private" not in json.dumps(report)
 
 
 def test_excessive_metadata_tokens_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,13 +227,18 @@ def test_reviewed_build_never_requests_issue_write_authority(build: str) -> None
 
 
 def test_invalid_write_review_cannot_generate_a_build_notification(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     def unavailable() -> Never:
         raise CapabilityDataError("Stale review")
 
     monkeypatch.setattr(monitor, "read_review", unavailable)
-    assert monitor.observe(metadata(NEW_BUILD))["state"] == "UNKNOWN"
+    capture = tmp_path / "metadata.log"
+    capture.write_bytes(b"")
+    monkeypatch.setattr("sys.argv", ["monitor", "detect", str(capture), "--allow-unavailable"])
+    assert monitor.main() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert (report["state"], report["failure"], report["build"]) == ("UNKNOWN", "review", "")
     with pytest.raises(CapabilityDataError):
         monitor.notify(NEW_BUILD, CHECKED_AT, IssueFixture().request)
 
@@ -315,12 +401,15 @@ def test_github_transport_keeps_credentials_on_the_fixed_host_and_bounds_respons
     assert redirect(None, None, 302, "", {}, "https://example.com") is None
 
 
-def test_missing_metadata_or_credentials_remain_unknown_without_a_notification(
+def test_missing_capture_or_credentials_remain_unknown_without_a_notification(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["monitor", "detect", str(tmp_path / "missing.log")])
+    monkeypatch.setattr(
+        "sys.argv", ["monitor", "detect", str(tmp_path / "missing.log"), "--allow-unavailable"]
+    )
     assert monitor.main() == 1
-    assert json.loads(capsys.readouterr().out)["state"] == "UNKNOWN"
+    report = json.loads(capsys.readouterr().out)
+    assert (report["state"], report["failure"]) == ("UNKNOWN", "capture")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     with pytest.raises(ValueError, match="credentials"):
         monitor._github("GET", "/issues", None)

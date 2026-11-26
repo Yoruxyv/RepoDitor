@@ -132,11 +132,14 @@ documents `app_info_print` in its [SteamCMD tooling guide](https://partner.steam
 Each observation uses a fresh SteamCMD directory/cache and anonymous login, with
 no `app_update`, Steam credentials or game download. The client is downloaded
 from Valve's HTTPS CDN, can update itself, and runs under a 180-second deadline.
-Console output, metadata bytes, token counts and nesting are bounded. Malformed,
-ambiguous, wrong-app, non-public, truncated or unavailable metadata is UNKNOWN:
-the monitor job fails visibly and cannot notify a new build. No third-party
-metadata service is used. Steam availability and future client output changes
-remain external limitations.
+Console output, metadata bytes, token counts and nesting are bounded. When
+SteamCMD returns no app metadata or reaches its deadline, a scheduled run
+reports UNKNOWN with a warning. Manual runs still fail when the observation is
+unavailable. Malformed, ambiguous, wrong-app, non-public or truncated records,
+invalid review evidence and unexpected client failures fail the job. The
+summary distinguishes the failure reason and reports the client exit status and
+captured byte count. UNKNOWN never triggers a review issue. The monitor uses
+Valve SteamCMD as its only metadata source.
 
 The monitor also reports the independently reviewed artwork build `26407089`.
 A regression requires this baseline to match the latest admitted Unity 6 artwork
